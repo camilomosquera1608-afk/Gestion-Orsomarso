@@ -128,3 +128,9 @@ La sincronización remota usa una fila compartida (`app_state`) con el estado co
 
 ## Version v26
 - Corregido el error de compilacion en la pagina de sesion de entrenamiento para despliegue en Vercel.
+
+
+## Version v27
+- Mejoras responsive para móvil y tablet.
+- Los campos numéricos de carga y sesión ahora aparecen vacíos hasta que se diligencian.
+- RPE sesión ahora se registra aparte de la plantilla por jugador.

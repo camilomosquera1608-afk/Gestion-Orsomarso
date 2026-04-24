@@ -115,6 +115,7 @@ export interface TrainingSessionSummary {
   microcycleId: string;
   sessionNumber: number;
   sessionType: TrainingSessionType;
+  sessionRpe?: number;
   objective?: string;
   observation?: string;
 }
