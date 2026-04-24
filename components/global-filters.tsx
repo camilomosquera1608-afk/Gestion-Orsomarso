@@ -1,0 +1,73 @@
+'use client';
+
+import { Position, PlayerStatus } from '@/lib/types';
+import { useApp } from '@/context/app-context';
+
+const allPositions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
+const allStatuses: PlayerStatus[] = ['Disponible', 'Lesionado', 'Molestia', 'Readaptación'];
+
+export const GlobalFiltersBar = () => {
+  const { data, filters, setFilters, resetFilters } = useApp();
+  const microcycleNumber = Number(String(filters.microcycleId).replace('mc-', '')) || 1;
+  const currentMicrocycle = data.microcycles.find((m) => m.id === filters.microcycleId);
+
+  return (
+    <div className="filters filters-wide">
+      <div className="field">
+        <label>Fecha</label>
+        <input className="input" type="date" value={filters.date} onChange={(e) => setFilters({ date: e.target.value })} />
+      </div>
+
+      <div className="field">
+        <label>Microciclo</label>
+        <input
+          className="input"
+          type="number"
+          min="1"
+          max="51"
+          value={microcycleNumber}
+          onChange={(e) => {
+            const next = Math.max(1, Math.min(51, Number(e.target.value) || 1));
+            setFilters({ microcycleId: `mc-${next}` });
+          }}
+        />
+        {currentMicrocycle ? (
+          <small className="field-help">{currentMicrocycle.startDate} · {currentMicrocycle.endDate}</small>
+        ) : null}
+      </div>
+
+      <div className="field">
+        <label>Número de sesión</label>
+        <input className="input" type="number" min="1" value={filters.sessionNumber} onChange={(e) => setFilters({ sessionNumber: Number(e.target.value) || 1 })} />
+      </div>
+
+      <div className="field">
+        <label>Jugador</label>
+        <select className="select" value={filters.playerId} onChange={(e) => setFilters({ playerId: e.target.value })}>
+          <option value="all">Todos los jugadores</option>
+          {data.players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+
+      <div className="field">
+        <label>Posición</label>
+        <select className="select" value={filters.position} onChange={(e) => setFilters({ position: e.target.value })}>
+          <option value="all">Todas las posiciones</option>
+          {allPositions.map((position) => <option key={position} value={position}>{position}</option>)}
+        </select>
+      </div>
+
+      <div className="field">
+        <label>Estado</label>
+        <select className="select" value={filters.status} onChange={(e) => setFilters({ status: e.target.value })}>
+          <option value="all">Todos los estados</option>
+          {allStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+      </div>
+
+      <div className="field" style={{ alignSelf: 'end' }}>
+        <button className="btn secondary" onClick={resetFilters}>Resetear filtros</button>
+      </div>
+    </div>
+  );
+};
