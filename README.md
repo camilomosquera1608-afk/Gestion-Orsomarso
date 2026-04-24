@@ -124,3 +124,7 @@ La sincronización remota usa una fila compartida (`app_state`) con el estado co
 ## Version v25
 - El microciclo ahora se escribe manualmente desde los filtros del dashboard.
 - Los filtros de posición y estado muestran siempre todas las opciones disponibles.
+
+
+## Version v26
+- Corregido el error de compilacion en la pagina de sesion de entrenamiento para despliegue en Vercel.

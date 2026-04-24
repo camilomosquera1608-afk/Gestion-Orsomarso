@@ -39,18 +39,31 @@ export default function SesionEntrenamientoPage() {
   const [objective, setObjective] = useState(summaryRecord?.objective ?? '');
   const [observation, setObservation] = useState(summaryRecord?.observation ?? '');
 
-  const sessionPlayers = useMemo(() => data.players.filter((player) =>
-    (filters.position === 'all' || player.position === filters.position) &&
-    (filters.status === 'all' || player.status === filters.status)
-  ), [data.players, filters.position, filters.status]);
+  const sessionPlayers = useMemo(
+    () =>
+      data.players.filter(
+        (player) =>
+          (filters.position === 'all' || player.position === filters.position) &&
+          (filters.status === 'all' || player.status === filters.status),
+      ),
+    [data.players, filters.position, filters.status],
+  );
 
-  const existingRecords = useMemo(() => data.externalLoads.filter((record) => {
-    const player = data.players.find((p) => p.id === record.playerId);
-    return !!player &&
-      (record.microcycleId ?? filters.microcycleId) === filters.microcycleId &&
-      (record.sessionNumber ?? 1) === filters.sessionNumber &&
-      record.date === filters.date;
-  }).sort((a,b) => a.playerId.localeCompare(b.playerId)), [data.externalLoads, data.players, filters.microcycleId, filters.sessionNumber, filters.date]);
+  const existingRecords = useMemo(
+    () =>
+      data.externalLoads
+        .filter((record) => {
+          const player = data.players.find((p) => p.id === record.playerId);
+          return (
+            !!player &&
+            (record.microcycleId ?? filters.microcycleId) === filters.microcycleId &&
+            (record.sessionNumber ?? 1) === filters.sessionNumber &&
+            record.date === filters.date
+          );
+        })
+        .sort((a, b) => a.playerId.localeCompare(b.playerId)),
+    [data.externalLoads, data.players, filters.microcycleId, filters.sessionNumber, filters.date],
+  );
 
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
 
@@ -74,14 +87,30 @@ export default function SesionEntrenamientoPage() {
     setSessionType(summaryRecord?.sessionType ?? 'cdEf');
     setObjective(summaryRecord?.objective ?? '');
     setObservation(summaryRecord?.observation ?? '');
-  }, [summaryRecord?.id, filters.microcycleId, filters.sessionNumber, filters.date, filters.position, filters.status, data.players.length, data.externalLoads.length]);
+  }, [
+    summaryRecord?.id,
+    summaryRecord?.sessionType,
+    summaryRecord?.objective,
+    summaryRecord?.observation,
+    sessionPlayers,
+    existingRecords,
+  ]);
 
   const rows = sessionPlayers.map((player) => {
-    const state = rowStates[player.id] ?? {
-      selected: false,
-      participation: 'Completa' as SessionParticipation,
-      min: 0, rpe: 0, hsr: 0, rhie: 0, acc: 0, dcc: 0, totalDistance: 0,
-    };
+    const state =
+      rowStates[player.id] ??
+      ({
+        selected: false,
+        participation: 'Completa',
+        min: 0,
+        rpe: 0,
+        hsr: 0,
+        rhie: 0,
+        acc: 0,
+        dcc: 0,
+        totalDistance: 0,
+      } satisfies RowState);
+
     return { player, ...state, internalLoad: state.rpe * state.min };
   });
 
@@ -97,7 +126,17 @@ export default function SesionEntrenamientoPage() {
     setRowStates((prev) => ({
       ...prev,
       [playerId]: {
-        ...(prev[playerId] ?? { selected: false, participation: 'Completa', min: 0, rpe: 0, hsr: 0, rhie: 0, acc: 0, dcc: 0, totalDistance: 0 }),
+        ...(prev[playerId] ?? {
+          selected: false,
+          participation: 'Completa',
+          min: 0,
+          rpe: 0,
+          hsr: 0,
+          rhie: 0,
+          acc: 0,
+          dcc: 0,
+          totalDistance: 0,
+        }),
         ...patch,
       },
     }));
@@ -150,7 +189,7 @@ export default function SesionEntrenamientoPage() {
       .filter((record) => !selectedRows.find((row) => row.player.id === record.playerId))
       .forEach((record) => deleteExternalLoad(record.id));
 
-    setMessage('Sesión guardada con participación, RPE, carga interna y resumen operativo.');
+    setMessage('Sesión guardada correctamente.');
   };
 
   const availability = {
@@ -166,7 +205,8 @@ export default function SesionEntrenamientoPage() {
   return (
     <div className="grid">
       <AppHero title="Sesión de entrenamiento" />
-      <div className="card operational-card">
+
+      <div className="card operational-card session-hero-card">
         <div className="operational-card-header">
           <div>
             <div className="kpi-label">Control operativo</div>
@@ -174,16 +214,25 @@ export default function SesionEntrenamientoPage() {
           </div>
           <div className="btn secondary">{activeMicrocycle?.name ?? 'Microciclo'}</div>
         </div>
-        <div className="grid grid-4">
+
+        <div className="grid grid-4 session-top-grid">
           <div className="field">
             <label>Fecha</label>
             <input className="input" type="date" value={filters.date} onChange={(e) => setFilters({ date: e.target.value })} />
           </div>
           <div className="field">
             <label>Microciclo</label>
-            <select className="select" value={filters.microcycleId} onChange={(e) => setFilters({ microcycleId: e.target.value })}>
-              {data.microcycles.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
+            <input
+              className="input"
+              type="number"
+              min="1"
+              max="51"
+              value={Number(String(filters.microcycleId).replace('mc-', '')) || 1}
+              onChange={(e) => {
+                const next = Math.max(1, Math.min(51, Number(e.target.value) || 1));
+                setFilters({ microcycleId: `mc-${next}` });
+              }}
+            />
           </div>
           <div className="field">
             <label>Número de sesión</label>
@@ -192,11 +241,16 @@ export default function SesionEntrenamientoPage() {
           <div className="field">
             <label>Tipo de sesión</label>
             <select className="select" value={sessionType} onChange={(e) => setSessionType(e.target.value as TrainingSessionType)}>
-              {sessionTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {sessionTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
-        <div className="grid grid-2" style={{ marginTop: 14 }}>
+
+        <div className="grid grid-2 session-detail-grid" style={{ marginTop: 14 }}>
           <div className="field">
             <label>Objetivo de la sesión</label>
             <input className="input" value={objective} onChange={(e) => setObjective(e.target.value)} placeholder="Objetivo táctico o físico" />
@@ -222,24 +276,81 @@ export default function SesionEntrenamientoPage() {
         <div className="card">
           <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <h3 style={{ margin: 0 }}>Resumen de sesión</h3>
-            <button type="button" className="btn secondary" onClick={() => downloadCsv(`sesion-${filters.microcycleId}-${filters.sessionNumber}.csv`, selectedRows.map((r) => ({ fecha: filters.date, jugador: r.player.name, participacion: r.participation, min: r.min, rpe: r.rpe, carga_interna: r.internalLoad, hsr: r.hsr, rhie: r.rhie, acc: r.acc, dcc: r.dcc, distancia: r.totalDistance, tipo: sessionType, objetivo: objective, observacion: observation })))}>Exportar CSV</button>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() =>
+                downloadCsv(
+                  `sesion-${filters.microcycleId}-${filters.sessionNumber}.csv`,
+                  selectedRows.map((r) => ({
+                    fecha: filters.date,
+                    jugador: r.player.name,
+                    participacion: r.participation,
+                    min: r.min,
+                    rpe: r.rpe,
+                    carga_interna: r.internalLoad,
+                    hsr: r.hsr,
+                    rhie: r.rhie,
+                    acc: r.acc,
+                    dcc: r.dcc,
+                    distancia: r.totalDistance,
+                    tipo: sessionType,
+                    objetivo: objective,
+                    observacion: observation,
+                  })),
+                )
+              }
+            >
+              Exportar CSV
+            </button>
           </div>
           <div className="grid" style={{ gap: 10 }}>
-            <div className="mini-stat-card"><strong>Tipo</strong><div className="muted-line">{sessionTypeOptions.find((option) => option.value === sessionType)?.label}</div></div>
-            <div className="mini-stat-card"><strong>Objetivo</strong><div className="muted-line">{objective || 'Sin objetivo'}</div></div>
-            <div className="mini-stat-card"><strong>Volumen HSR</strong><div className="muted-line">{selectedRows.reduce((acc, item) => acc + item.hsr, 0)} m</div></div>
-            <div className="mini-stat-card"><strong>Carga interna total</strong><div className="muted-line">{selectedRows.reduce((acc, item) => acc + item.internalLoad, 0)}</div></div>
+            <div className="mini-stat-card">
+              <strong>Tipo</strong>
+              <div className="muted-line">{sessionTypeOptions.find((option) => option.value === sessionType)?.label}</div>
+            </div>
+            <div className="mini-stat-card">
+              <strong>Objetivo</strong>
+              <div className="muted-line">{objective || 'Sin objetivo'}</div>
+            </div>
+            <div className="mini-stat-card">
+              <strong>Volumen HSR</strong>
+              <div className="muted-line">{selectedRows.reduce((acc, item) => acc + item.hsr, 0)} m</div>
+            </div>
+            <div className="mini-stat-card">
+              <strong>Carga interna total</strong>
+              <div className="muted-line">{selectedRows.reduce((acc, item) => acc + item.internalLoad, 0)}</div>
+            </div>
           </div>
         </div>
+
         <div className="card">
           <h3>Disponibilidad diaria</h3>
           <div className="grid grid-2" style={{ gap: 10 }}>
-            <div className="mini-stat-card"><strong>Disponibles</strong><div className="muted-line">{availability.disponibles}</div></div>
-            <div className="mini-stat-card"><strong>Molestia</strong><div className="muted-line">{availability.molestia}</div></div>
-            <div className="mini-stat-card"><strong>Readaptación</strong><div className="muted-line">{availability.readaptacion}</div></div>
-            <div className="mini-stat-card"><strong>Lesionados</strong><div className="muted-line">{availability.lesionados}</div></div>
-            <div className="mini-stat-card"><strong>Participación completa</strong><div className="muted-line">{availability.completa}</div></div>
-            <div className="mini-stat-card"><strong>Parcial / No participa</strong><div className="muted-line">{availability.parcial + availability.noParticipa}</div></div>
+            <div className="mini-stat-card">
+              <strong>Disponibles</strong>
+              <div className="muted-line">{availability.disponibles}</div>
+            </div>
+            <div className="mini-stat-card">
+              <strong>Molestia</strong>
+              <div className="muted-line">{availability.molestia}</div>
+            </div>
+            <div className="mini-stat-card">
+              <strong>Readaptación</strong>
+              <div className="muted-line">{availability.readaptacion}</div>
+            </div>
+            <div className="mini-stat-card">
+              <strong>Lesionados</strong>
+              <div className="muted-line">{availability.lesionados}</div>
+            </div>
+            <div className="mini-stat-card">
+              <strong>Participación completa</strong>
+              <div className="muted-line">{availability.completa}</div>
+            </div>
+            <div className="mini-stat-card">
+              <strong>Parcial / No participa</strong>
+              <div className="muted-line">{availability.parcial + availability.noParticipa}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -247,82 +358,124 @@ export default function SesionEntrenamientoPage() {
       <div className="card">
         <h3>Alertas automáticas</h3>
         <div className="grid" style={{ gap: 10 }}>
-          {selectedRows.filter((row) => row.rpe >= 8 && row.hsr < avgHsr).map((row) => <div key={`${row.player.id}-alert-1`} className="alert-item tone-red"><strong>{row.player.name}</strong><span>RPE alto con HSR por debajo del promedio.</span></div>)}
-          {selectedRows.filter((row) => row.player.status !== 'Disponible').map((row) => <div key={`${row.player.id}-alert-2`} className="alert-item tone-yellow"><strong>{row.player.name}</strong><span>Estado {row.player.status} y fue incluido en la sesión.</span></div>)}
+          {selectedRows
+            .filter((row) => row.rpe >= 8 && row.hsr < avgHsr)
+            .map((row) => (
+              <div key={`${row.player.id}-alert-1`} className="alert-item tone-red">
+                <strong>{row.player.name}</strong>
+                <span>RPE alto con HSR por debajo del promedio.</span>
+              </div>
+            ))}
+          {selectedRows
+            .filter((row) => row.player.status !== 'Disponible')
+            .map((row) => (
+              <div key={`${row.player.id}-alert-2`} className="alert-item tone-yellow">
+                <strong>{row.player.name}</strong>
+                <span>Estado {row.player.status} y fue incluido en la sesión.</span>
+              </div>
+            ))}
           {!selectedRows.length ? <div className="empty">Selecciona jugadores para activar las alertas automáticas.</div> : null}
         </div>
       </div>
 
-      {message ? <div className="card"><strong>{message}</strong></div> : null}
+      {message ? (
+        <div className="card">
+          <strong>{message}</strong>
+        </div>
+      ) : null}
 
-
-<div className="card session-table-card">
-  <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-    <h3 style={{ margin: 0 }}>Plantilla de la sesión</h3>
-    <button type="button" className="btn" onClick={saveSession}>Guardar sesión</button>
-  </div>
-
-  <div className="session-player-grid">
-    {rows.map((row) => (
-      <div key={row.player.id} className="session-player-card">
-        <div className="session-player-header">
-          <div>
-            <strong>{row.player.name}</strong>
-            <div className="muted-line">{row.player.position}</div>
-          </div>
-          <div className="btn-row">
-            <label className="session-checkbox">
-              <input type="checkbox" checked={row.selected} onChange={(e) => updateRow(row.player.id, { selected: e.target.checked })} />
-              <span>Incluir</span>
-            </label>
-            <ToneBadge text={row.player.status} tone={row.player.status === 'Disponible' ? 'green' : row.player.status === 'Molestia' ? 'yellow' : row.player.status === 'Readaptación' ? 'orange' : 'red'} />
-          </div>
+      <div className="card session-table-card">
+        <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>Plantilla de la sesión</h3>
+          <button type="button" className="btn" onClick={saveSession}>
+            Guardar sesión
+          </button>
         </div>
 
-        <div className="grid grid-3 session-fields-grid">
-          <div className="field">
-            <label>Participación</label>
-            <select className="select session-input-large" value={row.participation} onChange={(e) => updateRow(row.player.id, { participation: e.target.value as SessionParticipation })}>
-              {participationOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>MIN</label>
-            <input className="input session-input-large" type="number" value={row.min} onChange={(e) => updateRow(row.player.id, { min: Number(e.target.value) || 0 })} />
-          </div>
-          <div className="field">
-            <label>RPE</label>
-            <input className="input session-input-large" type="number" value={row.rpe} onChange={(e) => updateRow(row.player.id, { rpe: Number(e.target.value) || 0 })} />
-          </div>
-          <div className="field">
-            <label>HSR</label>
-            <input className="input session-input-large" type="number" value={row.hsr} onChange={(e) => updateRow(row.player.id, { hsr: Number(e.target.value) || 0 })} />
-          </div>
-          <div className="field">
-            <label>RHIE</label>
-            <input className="input session-input-large" type="number" value={row.rhie} onChange={(e) => updateRow(row.player.id, { rhie: Number(e.target.value) || 0 })} />
-          </div>
-          <div className="field">
-            <label>ACC</label>
-            <input className="input session-input-large" type="number" value={row.acc} onChange={(e) => updateRow(row.player.id, { acc: Number(e.target.value) || 0 })} />
-          </div>
-          <div className="field">
-            <label>DCC</label>
-            <input className="input session-input-large" type="number" value={row.dcc} onChange={(e) => updateRow(row.player.id, { dcc: Number(e.target.value) || 0 })} />
-          </div>
-          <div className="field">
-            <label>Distancia total</label>
-            <input className="input session-input-large" type="number" value={row.totalDistance} onChange={(e) => updateRow(row.player.id, { totalDistance: Number(e.target.value) || 0 })} />
-          </div>
-          <div className="field">
-            <label>Carga interna</label>
-            <div className="session-calculated-box">{row.internalLoad}</div>
-          </div>
+        <div className="session-player-grid">
+          {rows.map((row) => (
+            <div key={row.player.id} className="session-player-card">
+              <div className="session-player-header">
+                <div>
+                  <strong>{row.player.name}</strong>
+                  <div className="muted-line">{row.player.position}</div>
+                </div>
+                <div className="btn-row">
+                  <label className="session-checkbox">
+                    <input type="checkbox" checked={row.selected} onChange={(e) => updateRow(row.player.id, { selected: e.target.checked })} />
+                    <span>Incluir</span>
+                  </label>
+                  <ToneBadge
+                    text={row.player.status}
+                    tone={
+                      row.player.status === 'Disponible'
+                        ? 'green'
+                        : row.player.status === 'Molestia'
+                          ? 'yellow'
+                          : row.player.status === 'Readaptación'
+                            ? 'orange'
+                            : 'red'
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-3 session-fields-grid">
+                <div className="field">
+                  <label>Participación</label>
+                  <select
+                    className="select session-input-large"
+                    value={row.participation}
+                    onChange={(e) => updateRow(row.player.id, { participation: e.target.value as SessionParticipation })}
+                  >
+                    {participationOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>MIN</label>
+                  <input className="input session-input-large" type="number" value={row.min} onChange={(e) => updateRow(row.player.id, { min: Number(e.target.value) || 0 })} />
+                </div>
+                <div className="field">
+                  <label>RPE</label>
+                  <input className="input session-input-large" type="number" value={row.rpe} onChange={(e) => updateRow(row.player.id, { rpe: Number(e.target.value) || 0 })} />
+                </div>
+                <div className="field">
+                  <label>HSR</label>
+                  <input className="input session-input-large" type="number" value={row.hsr} onChange={(e) => updateRow(row.player.id, { hsr: Number(e.target.value) || 0 })} />
+                </div>
+                <div className="field">
+                  <label>RHIE</label>
+                  <input className="input session-input-large" type="number" value={row.rhie} onChange={(e) => updateRow(row.player.id, { rhie: Number(e.target.value) || 0 })} />
+                </div>
+                <div className="field">
+                  <label>ACC</label>
+                  <input className="input session-input-large" type="number" value={row.acc} onChange={(e) => updateRow(row.player.id, { acc: Number(e.target.value) || 0 })} />
+                </div>
+                <div className="field">
+                  <label>DCC</label>
+                  <input className="input session-input-large" type="number" value={row.dcc} onChange={(e) => updateRow(row.player.id, { dcc: Number(e.target.value) || 0 })} />
+                </div>
+                <div className="field">
+                  <label>Distancia total</label>
+                  <input
+                    className="input session-input-large"
+                    type="number"
+                    value={row.totalDistance}
+                    onChange={(e) => updateRow(row.player.id, { totalDistance: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="field">
+                  <label>Carga interna</label>
+                  <div className="session-calculated-box">{row.internalLoad}</div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
-    ))}
-  </div>
-</div>
       </div>
     </div>
   );
