@@ -1,5 +1,6 @@
 export type PlayerStatus = 'Disponible' | 'Lesionado' | 'Molestia' | 'Readaptación';
 export type Position = 'Portero' | 'Defensa central' | 'Lateral' | 'Mediocampista' | 'Extremo' | 'Delantero';
+export type ClubCategory = 'Sub15' | 'Sub17' | 'Sub20';
 export type NutritionPlan = 'Normocalorico' | 'Hipercalorico' | 'Hipocalorico';
 export type TrainingSessionType = 'cdef' | 'cdEf' | 'cdeF' | 'Cdef';
 export type SessionParticipation = 'Completa' | 'Parcial' | 'No participa' | 'Gimnasio' | 'Readaptación';
@@ -9,6 +10,8 @@ export interface Player {
   name: string;
   age: number;
   position: Position;
+  category?: ClubCategory;
+  categoryHistory?: ClubCategory[];
   height: number;
   weight: number;
   status: PlayerStatus;
@@ -28,6 +31,7 @@ export interface DailyWellnessRecord {
   stress: number;
   musclePain: number;
   mood: number;
+  category?: ClubCategory;
 }
 
 export interface DailyInternalLoadRecord {
@@ -38,6 +42,7 @@ export interface DailyInternalLoadRecord {
   duration: number;
   microcycleId?: string;
   sessionNumber?: number;
+  category?: ClubCategory;
 }
 
 export interface DailyExternalLoadRecord {
@@ -57,6 +62,7 @@ export interface DailyExternalLoadRecord {
   microcycleId?: string;
   sessionNumber?: number;
   sessionType?: TrainingSessionType;
+  category?: ClubCategory;
 }
 
 export interface CMJRecord {
@@ -64,6 +70,7 @@ export interface CMJRecord {
   playerId: string;
   date: string;
   value: number;
+  category?: ClubCategory;
 }
 
 export interface NutritionRecord {
@@ -75,6 +82,7 @@ export interface NutritionRecord {
   bodyFat: number;
   skinfoldSum: number;
   plan: NutritionPlan;
+  category?: ClubCategory;
 }
 
 export interface NeuromuscularRecord {
@@ -84,6 +92,7 @@ export interface NeuromuscularRecord {
   cmj: number;
   sj: number;
   reactiveJumps: number;
+  category?: ClubCategory;
 }
 
 export interface FMSRecord {
@@ -97,6 +106,7 @@ export interface FMSRecord {
   lunge: number;
   trunkStability: number;
   rotaryStability: number;
+  category?: ClubCategory;
 }
 
 export interface CompetitionRecord {
@@ -109,12 +119,16 @@ export interface CompetitionRecord {
   assists: number;
   yellowCards: number;
   redCards: number;
-  rpe?: number;
   acc?: number;
   dcc?: number;
   sprints?: number;
   rhie?: number;
   ima?: number;
+  goalsConceded?: number;
+  goalsPrevented?: number;
+  crossesDefended?: number;
+  shotsOnTarget?: number;
+  category?: ClubCategory;
 }
 
 export interface TrainingSessionSummary {
@@ -155,5 +169,6 @@ export interface GlobalFilters {
   playerId: string;
   position: string;
   status: string;
+  category: string;
   sessionNumber: number;
 }

@@ -46,8 +46,9 @@ export default function ValoracionesPage() {
   const [editingCmjId, setEditingCmjId] = useState('');
   const [editingFmsId, setEditingFmsId] = useState('');
 
-  const selectedPlayerId = filters.playerId === 'all' ? data.players[0]?.id ?? '' : filters.playerId;
-  const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId) ?? data.players[0];
+  const categoryPlayers = data.players.filter((player) => filters.category === 'all' || player.category === filters.category);
+  const selectedPlayerId = filters.playerId === 'all' ? categoryPlayers[0]?.id ?? '' : filters.playerId;
+  const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId) ?? categoryPlayers[0];
 
   const nutritionHistory = useMemo(() => data.nutritionRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.nutritionRecords, selectedPlayerId]);
   const neuromuscularHistory = useMemo(() => data.neuromuscularRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.neuromuscularRecords, selectedPlayerId]);
@@ -172,7 +173,7 @@ export default function ValoracionesPage() {
           <div className="field" style={{ maxWidth: 360 }}>
             <label>Jugador seleccionado</label>
             <select className="select" value={selectedPlayerId} onChange={(e) => setFilters({ playerId: e.target.value })}>
-              {data.players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+              {categoryPlayers.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
             </select>
           </div>
           <button className="btn secondary" onClick={clearEditors}>Limpiar edición</button>

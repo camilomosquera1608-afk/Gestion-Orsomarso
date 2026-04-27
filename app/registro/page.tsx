@@ -3,10 +3,11 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { useApp } from '@/context/app-context';
-import { Position, PlayerStatus } from '@/lib/types';
+import { ClubCategory, Position, PlayerStatus } from '@/lib/types';
 
 const positions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
 const statuses: PlayerStatus[] = ['Disponible', 'Lesionado', 'Molestia', 'Readaptación'];
+const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 
 export default function RegistroPage() {
   const { addPlayer } = useApp();
@@ -29,6 +30,7 @@ export default function RegistroPage() {
       name: String(form.get('name')),
       age: Number(form.get('age')),
       position: String(form.get('position')) as Position,
+      category: String(form.get('category')) as ClubCategory,
       height: Number(form.get('height')),
       weight: Number(form.get('weight')),
       status: String(form.get('status')) as PlayerStatus,
@@ -53,9 +55,10 @@ export default function RegistroPage() {
           </div>
         </div>
         <input className="input" name="name" placeholder="Nombre completo" required />
-        <div className="grid grid-2">
+        <div className="grid grid-3">
           <input className="input" type="number" name="age" placeholder="Edad" required />
           <select className="select" name="position" required>{positions.map((p) => <option key={p}>{p}</option>)}</select>
+          <select className="select" name="category" required>{categories.map((c) => <option key={c}>{c}</option>)}</select>
         </div>
         <div className="grid grid-2">
           <input className="input" type="number" name="height" placeholder="Estatura (cm)" required />

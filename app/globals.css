@@ -523,3 +523,7 @@ table { width: 100%; min-width: 720px; border-collapse: collapse; }
     box-shadow: none;
   }
 }
+
+
+/* v35 categories and competition cleaner */
+.goalkeeper-panel { background: linear-gradient(180deg,#f8fbff 0%, #ffffff 100%); }

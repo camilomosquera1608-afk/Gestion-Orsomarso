@@ -13,6 +13,7 @@ export default function JugadoresPage() {
   const { data, filters, deletePlayer, updatePlayer } = useApp();
   const players = data.players.filter((player) =>
     (filters.playerId === 'all' || player.id === filters.playerId) &&
+    (filters.category === 'all' || player.category === filters.category) &&
     (filters.position === 'all' || player.position === filters.position) &&
     (filters.status === 'all' || player.status === filters.status)
   );
@@ -29,6 +30,7 @@ export default function JugadoresPage() {
               <h3 style={{ margin: 0 }}>{player.name}</h3>
               <div className="player-meta">
                 <span>{player.position}</span>
+                <span>{player.category ?? 'Sub20'}</span>
                 <span>{player.age} años</span>
                 <span>{player.height} cm</span>
                 <span>{player.weight} kg</span>

@@ -63,6 +63,7 @@ export default function PlayerProfilePage() {
           <div className="player-meta">
             <span>{player.age} años</span>
             <span>{player.position}</span>
+            <span>{player.category ?? 'Sub20'}</span>
             <span>{player.height} cm</span>
             <span>{player.weight} kg</span>
           </div>

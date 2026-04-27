@@ -12,6 +12,7 @@ export default function DiarioPage() {
   const { data, filters } = useApp();
   const players = data.players.filter((player) =>
     (filters.playerId === 'all' || player.id === filters.playerId) &&
+    (filters.category === 'all' || player.category === filters.category) &&
     (filters.position === 'all' || player.position === filters.position) &&
     (filters.status === 'all' || player.status === filters.status)
   );

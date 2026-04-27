@@ -17,7 +17,7 @@ const sessionLabels: Record<string, string> = {
 export default function MicrocicloPage() {
   const { data, filters } = useApp();
   const microcycle = data.microcycles.find((x) => x.id === filters.microcycleId) ?? data.microcycles[0];
-  const players = data.players.filter((player) => filters.playerId === 'all' || player.id === filters.playerId);
+  const players = data.players.filter((player) => (filters.playerId === 'all' || player.id === filters.playerId) && (filters.category === 'all' || player.category === filters.category));
   const sessionRecords = data.externalLoads
     .filter((x) => (x.microcycleId ?? filters.microcycleId) === filters.microcycleId)
     .sort((a, b) => (a.date + (a.sessionNumber ?? 0)).localeCompare(b.date + (b.sessionNumber ?? 0)));

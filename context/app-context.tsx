@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, saveRemoteAppState } from '@/lib/supabase';
-import { AppData, CMJRecord, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
+import { AppData, CMJRecord, ClubCategory, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
 interface AppContextValue {
   data: AppData;
@@ -49,16 +49,19 @@ const defaultFilters: GlobalFilters = {
   playerId: 'all',
   position: 'all',
   status: 'all',
+  category: 'all',
   sessionNumber: 1,
 };
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 const STORAGE_KEY = 'orsomarso-performance-hub';
 
+const DEFAULT_CATEGORY: ClubCategory = 'Sub20';
+
 const hydrateData = (stored: Partial<AppData> | null): AppData => ({
   ...initialData,
   ...stored,
-  players: stored?.players ?? initialData.players,
+  players: (stored?.players ?? initialData.players).map((player) => ({ ...player, category: player.category ?? DEFAULT_CATEGORY, categoryHistory: player.categoryHistory ?? [player.category ?? DEFAULT_CATEGORY] })),
   wellness: stored?.wellness ?? initialData.wellness,
   internalLoads: (stored?.internalLoads ?? initialData.internalLoads).map((record) => ({
     ...record,
@@ -186,13 +189,29 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     resetFilters,
     addPlayer: (player) => applyMutation((prev) => {
       const normalizedName = player.name.trim().toLowerCase();
-      const exists = prev.players.find((item) => item.id === player.id || item.name.trim().toLowerCase() === normalizedName);
+      const normalizedPlayer = { ...player, category: player.category ?? DEFAULT_CATEGORY, categoryHistory: Array.from(new Set([...(player.categoryHistory ?? []), player.category ?? DEFAULT_CATEGORY])) };
+      const exists = prev.players.find((item) => item.id === normalizedPlayer.id || item.name.trim().toLowerCase() === normalizedName);
       const nextPlayers = exists
-        ? prev.players.map((item) => item.id === exists.id ? { ...item, ...player, id: exists.id } : item)
-        : [player, ...prev.players];
+        ? prev.players.map((item) => item.id === exists.id ? { ...item, ...normalizedPlayer, id: exists.id, categoryHistory: Array.from(new Set([...(item.categoryHistory ?? []), ...(normalizedPlayer.categoryHistory ?? []), normalizedPlayer.category ?? DEFAULT_CATEGORY])) } : item)
+        : [normalizedPlayer, ...prev.players];
       return { ...prev, players: nextPlayers.sort((a, b) => a.name.localeCompare(b.name)) };
     }),
-    updatePlayer: (player) => applyMutation((prev) => ({ ...prev, players: prev.players.map((item) => item.id === player.id ? player : item).sort((a, b) => a.name.localeCompare(b.name)) })),
+    updatePlayer: (player) => applyMutation((prev) => ({
+      ...prev,
+      players: prev.players
+        .map((item) =>
+          item.id === player.id
+            ? {
+                ...player,
+                category: player.category ?? item.category ?? DEFAULT_CATEGORY,
+                categoryHistory: Array.from(
+                  new Set([...(item.categoryHistory ?? []), ...(player.categoryHistory ?? []), player.category ?? item.category ?? DEFAULT_CATEGORY]),
+                ),
+              }
+            : item,
+        )
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    })),
     deletePlayer: (playerId) => applyMutation((prev) => ({
       ...prev,
       players: prev.players.filter((p) => p.id !== playerId),

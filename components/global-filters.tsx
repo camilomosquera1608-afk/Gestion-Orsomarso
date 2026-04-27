@@ -1,15 +1,17 @@
 'use client';
 
-import { Position, PlayerStatus } from '@/lib/types';
+import { ClubCategory, Position, PlayerStatus } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 
 const allPositions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
 const allStatuses: PlayerStatus[] = ['Disponible', 'Lesionado', 'Molestia', 'Readaptación'];
+const allCategories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 
 export const GlobalFiltersBar = () => {
   const { data, filters, setFilters, resetFilters } = useApp();
   const microcycleNumber = Number(String(filters.microcycleId).replace('mc-', '')) || 1;
   const currentMicrocycle = data.microcycles.find((m) => m.id === filters.microcycleId);
+  const filteredPlayers = data.players.filter((player) => filters.category === 'all' || player.category === filters.category);
 
   return (
     <div className="filters filters-wide">
@@ -31,9 +33,7 @@ export const GlobalFiltersBar = () => {
             setFilters({ microcycleId: `mc-${next}` });
           }}
         />
-        {currentMicrocycle ? (
-          <small className="field-help">{currentMicrocycle.startDate} · {currentMicrocycle.endDate}</small>
-        ) : null}
+        {currentMicrocycle ? <small className="field-help">{currentMicrocycle.startDate} · {currentMicrocycle.endDate}</small> : null}
       </div>
 
       <div className="field">
@@ -42,10 +42,18 @@ export const GlobalFiltersBar = () => {
       </div>
 
       <div className="field">
+        <label>Categoría</label>
+        <select className="select" value={filters.category} onChange={(e) => setFilters({ category: e.target.value, playerId: 'all' })}>
+          <option value="all">Todas las categorías</option>
+          {allCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+        </select>
+      </div>
+
+      <div className="field">
         <label>Jugador</label>
         <select className="select" value={filters.playerId} onChange={(e) => setFilters({ playerId: e.target.value })}>
           <option value="all">Todos los jugadores</option>
-          {data.players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {filteredPlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
 

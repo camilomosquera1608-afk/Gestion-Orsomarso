@@ -163,3 +163,11 @@ La sincronización remota usa una fila compartida (`app_state`) con el estado co
 - Revisión integral de consistencia de métricas: diario, microciclo y perfil individual ya usan MIN, RPE, ACC, DCC, SPRINTS, RHIE e IMA.
 - Corregidos los mocks restantes y referencias antiguas a HSR/Distancia para evitar fallos de build.
 - Mantiene responsive mejorado y Next.js 15.0.7.
+
+
+## Version v35
+- Competencia ahora cambia automaticamente si el jugador es portero.
+- Jugadores de campo usan Minutos jugados, ACC, DCC, SPRINTS, RHIE e IMA, sin RPE en competencia.
+- Se agregan categorias Sub15, Sub17 y Sub20 con filtro global.
+- Jugadores con ID unico y categoria actual editable, evitando duplicados por nombre/ID.
+- Cambios compatibles con registros existentes y Supabase sin reiniciar la base.

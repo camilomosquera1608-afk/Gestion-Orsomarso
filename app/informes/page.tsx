@@ -22,7 +22,8 @@ const SectionBanner = ({ title, subtitle, icon }: { title: string; subtitle: str
 export default function InformesPage() {
   const { data, filters, setFilters } = useApp();
   const [photoFallback, setPhotoFallback] = useState(false);
-  const selectedPlayerId = filters.playerId === 'all' ? data.players[0]?.id ?? '' : filters.playerId;
+  const categoryPlayers = data.players.filter((player) => filters.category === 'all' || player.category === filters.category);
+  const selectedPlayerId = filters.playerId === 'all' ? categoryPlayers[0]?.id ?? '' : filters.playerId;
   const player = data.players.find((item) => item.id === selectedPlayerId) ?? data.players[0];
   const microcycle = data.microcycles.find((item) => item.id === filters.microcycleId) ?? data.microcycles[0];
 
@@ -48,7 +49,7 @@ export default function InformesPage() {
     ...neuromuscularHistory.map((row) => ({ seccion: 'Perfil neuromuscular', fecha: row.date, cmj: row.cmj, sj: row.sj, reactivos: row.reactiveJumps })),
     ...cmjHistory.map((row) => ({ seccion: 'CMJ', fecha: row.date, cmj: row.value })),
     ...fmsHistory.map((row) => ({ seccion: 'FMS', fecha: row.date, total: row.total })),
-    ...competitionHistory.map((row) => ({ seccion: 'Competencia', fecha: row.date, rival: row.opponent, minutos: row.minutesPlayed, goles: row.goals, asistencias: row.assists, amarillas: row.yellowCards, rojas: row.redCards })),
+    ...competitionHistory.map((row) => ({ seccion: 'Competencia', fecha: row.date, rival: row.opponent, minutos: row.minutesPlayed, goles: row.goals, asistencias: row.assists, goles_encajados: row.goalsConceded, goles_evitados: row.goalsPrevented, centros_defendidos: row.crossesDefended, remates_a_porteria: row.shotsOnTarget, amarillas: row.yellowCards, rojas: row.redCards })),
   ];
 
   return (
@@ -61,7 +62,7 @@ export default function InformesPage() {
           <div className="field" style={{ maxWidth: 360 }}>
             <label>Jugador del informe</label>
             <select className="select" value={selectedPlayerId} onChange={(e) => { setPhotoFallback(false); setFilters({ playerId: e.target.value }); }}>
-              {data.players.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              {categoryPlayers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
           <div className="btn-row">
@@ -91,6 +92,7 @@ export default function InformesPage() {
             <div className="report-player-info">
               <div className="summary-chip">{player.age} años</div>
               <div className="summary-chip">{player.position}</div>
+              <div className="summary-chip">{player.category ?? 'Sub20'}</div>
               <div className="summary-chip">{player.status}</div>
               <div className="summary-chip">{microcycle.name}</div>
             </div>

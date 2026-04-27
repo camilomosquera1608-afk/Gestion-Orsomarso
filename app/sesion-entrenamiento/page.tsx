@@ -45,6 +45,7 @@ export default function SesionEntrenamientoPage() {
     () =>
       data.players.filter(
         (player) =>
+          (filters.category === 'all' || player.category === filters.category) &&
           (filters.position === 'all' || player.position === filters.position) &&
           (filters.status === 'all' || player.status === filters.status),
       ),
@@ -132,6 +133,7 @@ export default function SesionEntrenamientoPage() {
         microcycleId: filters.microcycleId,
         sessionNumber: filters.sessionNumber,
         sessionType,
+        category: row.player.category,
       };
       if (existing) updateExternalLoad(externalRecord);
       else addExternalLoad(externalRecord);
@@ -144,6 +146,7 @@ export default function SesionEntrenamientoPage() {
         duration: row.min,
         microcycleId: filters.microcycleId,
         sessionNumber: filters.sessionNumber,
+        category: row.player.category,
       });
     });
 
