@@ -74,7 +74,7 @@ export default function CompetenciaPage() {
     };
 
     const record = goalkeeper
-      ? { ...baseRecord, goals: 0, assists: 0, goalsConceded: Number(formData.get('goalsConceded')) || 0, goalsPrevented: Number(formData.get('goalsPrevented')) || 0, crossesDefended: Number(formData.get('crossesDefended')) || 0, shotsOnTarget: Number(formData.get('shotsOnTarget')) || 0 }
+      ? { ...baseRecord, goals: 0, assists: 0, goalsConceded: Number(formData.get('goalsConceded')) || 0, goalsPrevented: Number(formData.get('goalsPrevented')) || 0, crossesDefended: 0, shotsOnTarget: 0 }
       : youthSimple
         ? { ...baseRecord, goals: Number(formData.get('goals')) || 0, assists: Number(formData.get('assists')) || 0 }
         : { ...baseRecord, goals: Number(formData.get('goals')) || 0, assists: Number(formData.get('assists')) || 0, acc: Number(formData.get('acc')) || 0, dcc: Number(formData.get('dcc')) || 0, sprints: Number(formData.get('sprints')) || 0, rhie: Number(formData.get('rhie')) || 0, ima: Number(formData.get('ima')) || 0 };
@@ -134,11 +134,9 @@ export default function CompetenciaPage() {
           </div>
 
           {isGoalkeeper ? (
-            <div className="grid grid-4">
+            <div className="grid grid-2">
               <input className="input" type="number" name="goalsConceded" placeholder="Goles encajados" defaultValue={editing?.goalsConceded ?? ''} />
               <input className="input" type="number" name="goalsPrevented" placeholder="Goles evitados" defaultValue={editing?.goalsPrevented ?? ''} />
-              <input className="input" type="number" name="crossesDefended" placeholder="Centros defendidos" defaultValue={editing?.crossesDefended ?? ''} />
-              <input className="input" type="number" name="shotsOnTarget" placeholder="Remates a portería" defaultValue={editing?.shotsOnTarget ?? ''} />
             </div>
           ) : youthSimple ? (
             <div className="grid grid-2">
