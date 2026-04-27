@@ -6,7 +6,7 @@ import { AppHero } from '@/components/app-hero';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { categoryLabel, calcAge, formatBirthDateForDisplay } from '@/lib/labels';
+import { categoryLabel, calcAge, formatBirthDateForDisplay, normalizeBirthDateInput } from '@/lib/labels';
 import { ClubCategory, PlayerStatus, Position } from '@/lib/types';
 import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -37,6 +37,22 @@ export default function PlayerProfilePage() {
   const recentCompetition = data.competitionRecords.filter((x) => x.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   const youthSimple = player.category !== 'Sub20';
 
+  const injuryHistory = [
+    ...(player.injuryHistory ?? []),
+    ...data.competitionRecords
+      .filter((x) => x.playerId === player.id && (x.injuryKind || x.medicalObservation || x.postCompetitionStatus))
+      .map((x, index) => ({
+        id: `comp-injury-${x.id}-${index}`,
+        date: x.date,
+        injuryType: x.injuryKind ?? 'Sin lesión',
+        area: x.postCompetitionStatus ?? '',
+        severity: player.injurySeverity ?? '',
+        status: (x.injuryKind ? 'activa' : 'cerrada') as 'activa' | 'cerrada',
+        medicalNote: x.medicalObservation ?? '',
+        expectedReturnDate: player.returnDate ?? '',
+      })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
   const temporaryMovements = [
     ...data.externalLoads.filter((x) => x.playerId === player.id && ((x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) || (x.movementType ?? 'base') !== 'base')).map((x) => ({
       date: x.date, module: 'Sesión', baseCategory: x.baseCategory ?? player.category, actingCategory: x.actingCategory ?? x.category ?? player.category, movementType: x.movementType ?? 'base', note: x.movementNote ?? '',
@@ -54,7 +70,7 @@ export default function PlayerProfilePage() {
     temporaryMovements[0] ? `Último movimiento temporal: ${temporaryMovements[0].movementType} con ${categoryLabel(temporaryMovements[0].actingCategory)}` : null,
   ].filter(Boolean) as string[];
 
-  const patchPlayer = (patch: Partial<typeof player>) => updatePlayer({ ...player, ...patch, age: calcAge((patch.birthDate ?? player.birthDate)) ?? player.age });
+  const patchPlayer = (patch: Partial<typeof player>) => updatePlayer({ ...player, ...patch, age: calcAge((patch.birthDate ?? player.birthDate)) ?? player.age, injuryHistory: patch.injuryHistory ?? player.injuryHistory });
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -90,7 +106,7 @@ export default function PlayerProfilePage() {
           <h3>Editar jugador</h3>
           <div className="grid grid-3">
             <div className="field"><label>Nombre</label><input className="input" value={player.name} onChange={(e) => patchPlayer({ name: e.target.value })} /></div>
-            <div className="field"><label>Fecha de nacimiento</label><input className="input" type="date" value={player.birthDate && player.birthDate.includes('/') ? `${player.birthDate.split('/')[2]}-${player.birthDate.split('/')[1]}-${player.birthDate.split('/')[0]}` : (player.birthDate ?? '')} onChange={(e) => patchPlayer({ birthDate: formatBirthDateForDisplay(e.target.value) })} /></div>
+            <div className="field"><label>Fecha de nacimiento</label><input className="input" type="date" value={normalizeBirthDateInput(player.birthDate)} onChange={(e) => patchPlayer({ birthDate: formatBirthDateForDisplay(e.target.value) })} /></div>
             <div className="field"><label>Posición</label><select className="select" value={player.position} onChange={(e) => patchPlayer({ position: e.target.value as Position })}>{positions.map((position) => <option key={position}>{position}</option>)}</select></div>
           </div>
           <div className="grid grid-3">
@@ -98,7 +114,25 @@ export default function PlayerProfilePage() {
             <div className="field"><label>Estatura (cm)</label><input className="input" type="number" value={player.height} onChange={(e) => patchPlayer({ height: Number(e.target.value) || 0 })} /></div>
             <div className="field"><label>Peso (kg)</label><input className="input" type="number" value={player.weight} onChange={(e) => patchPlayer({ weight: Number(e.target.value) || 0 })} /></div>
           </div>
-          <div className="grid grid-2">
+          <div className="card">
+        <h3>Historial de lesiones</h3>
+        {injuryHistory.length ? (
+          <div className="grid" style={{ gap: 10 }}>
+            {injuryHistory.map((item) => (
+              <div key={item.id} className="mini-stat-card">
+                <strong>{item.date} · {item.injuryType}</strong>
+                <div className="muted-line">Zona: {item.area || '-'}</div>
+                <div className="muted-line">Severidad: {item.severity || '-'}</div>
+                <div className="muted-line">Estado: {item.status}</div>
+                <div className="muted-line">Retorno: {item.expectedReturnDate || '-'}</div>
+                <div className="muted-line">{item.medicalNote || 'Sin observación médica'}</div>
+              </div>
+            ))}
+          </div>
+        ) : <div className="empty">Sin lesiones registradas.</div>}
+      </div>
+
+      <div className="grid grid-2">
             <div className="field"><label>Estado</label><select className="select" value={player.status} onChange={(e) => patchPlayer({ status: e.target.value as PlayerStatus })}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></div>
             <div className="field"><label>Foto</label><input className="input" type="file" accept=".jpg,.jpeg,.png,image/png,image/jpeg" onChange={handlePhotoChange} /></div>
           </div>
@@ -112,6 +146,31 @@ export default function PlayerProfilePage() {
           <input className="input" placeholder="Tipo de lesión/molestia" value={player.injuryType ?? ''} onChange={(e) => patchPlayer({ injuryType: e.target.value })} />
           <input className="input" placeholder="Severidad" value={player.injurySeverity ?? ''} onChange={(e) => patchPlayer({ injurySeverity: e.target.value })} />
           <input className="input" type="date" value={player.returnDate ?? ''} onChange={(e) => patchPlayer({ returnDate: e.target.value })} />
+        </div>
+        <div className="btn-row" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => {
+              if (!player.injuryType) return;
+              const next = [
+                {
+                  id: crypto.randomUUID(),
+                  date: new Date().toISOString().slice(0, 10),
+                  injuryType: player.injuryType ?? 'Sin detalle',
+                  area: player.injuryArea ?? '',
+                  severity: player.injurySeverity ?? '',
+                  status: player.status === 'Disponible' ? 'cerrada' : 'activa',
+                  medicalNote: '',
+                  expectedReturnDate: player.returnDate ?? '',
+                },
+                ...(player.injuryHistory ?? []),
+              ];
+              patchPlayer({ injuryHistory: next });
+            }}
+          >
+            Guardar en historial de lesiones
+          </button>
         </div>
       </div> : null}
 

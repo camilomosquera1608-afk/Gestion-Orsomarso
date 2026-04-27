@@ -59,7 +59,7 @@ export default function MicrocicloPage() {
       <AppHero title="Dashboard de microciclo" subtitle={youthSimple ? `Vista ${categoryLabel(activeCategory)} simplificada sin métricas GPS.` : 'Vista avanzada de U20.'} />
       <GlobalFiltersBar />
       <div className="grid grid-4">
-        <KpiCard label="Microciclo activo" value={filters.microcycleId ? `Microciclo ${Number(String(filters.microcycleId).replace('mc-', ''))}` : microcycle.name} />
+        <KpiCard label="Microciclo activo" value={microcycle.name} />
         <KpiCard label="Wellness promedio" value={groupAverage(dayData.map((d) => d.wellness)).toFixed(1)} />
         <KpiCard label="MIN acumulados" value={accumulated.reduce((acc, item) => acc + item.minutos, 0).toFixed(0)} />
         <KpiCard label={youthSimple ? 'RPE promedio' : 'ACC acumulado'} value={youthSimple ? groupAverage(accumulated.map((x) => x.rpe)).toFixed(1) : accumulated.reduce((acc, item) => acc + item.acc, 0).toFixed(0)} />

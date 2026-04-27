@@ -14,6 +14,7 @@ export const initialData: AppData = {
     { id: 'ts2', date: '2026-04-22', microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF', objective: 'Desarrollo de condición física específica', observation: 'Dos jugadores quedaron por debajo del rango previsto.' }
   ],
   microcycles: [
+    { id: 'mc-52', name: 'Microciclo 52', startDate: '2027-01-11', endDate: '2027-01-17' },
     { id: 'mc-51', name: 'Microciclo 51', startDate: '2027-01-04', endDate: '2027-01-10' },
     { id: 'mc-50', name: 'Microciclo 50', startDate: '2026-12-28', endDate: '2027-01-03' },
     { id: 'mc-49', name: 'Microciclo 49', startDate: '2026-12-21', endDate: '2026-12-27' },
@@ -71,8 +72,8 @@ export const initialData: AppData = {
     { id: 'p2', name: 'Brayan Mosquera', age: 23, position: 'Defensa central', height: 184, weight: 79, status: 'Disponible', category: 'Sub20', birthDate: '09/09/2002', photo: playerPhotos[1] },
     { id: 'p3', name: 'Kevin Salazar', age: 21, position: 'Lateral', height: 176, weight: 72, status: 'Molestia', category: 'Sub17', birthDate: '20/01/2008', photo: playerPhotos[2] },
     { id: 'p4', name: 'Andrés Cuesta', age: 24, position: 'Mediocampista', height: 178, weight: 74, status: 'Disponible', category: 'Sub17', birthDate: '11/05/2008', photo: playerPhotos[3] },
-    { id: 'p5', name: 'Johan Murillo', age: 27, position: 'Extremo', height: 175, weight: 70, status: 'Readaptación', category: 'Sub15', birthDate: '07/08/2010', photo: playerPhotos[4] },
-    { id: 'p6', name: 'Santiago Arboleda', age: 25, position: 'Delantero', height: 181, weight: 77, status: 'Lesionado', category: 'Sub15', birthDate: '02/12/2010', photo: playerPhotos[0] }
+    { id: 'p5', name: 'Johan Murillo', age: 27, position: 'Extremo', height: 175, weight: 70, status: 'Readaptación', category: 'Sub15', birthDate: '07/08/2010', photo: playerPhotos[4], injuryHistory: [{ id: 'inj-p5-1', date: '2026-04-10', injuryType: 'Muscular', area: 'Isquiotibial', severity: 'Moderada', status: 'activa', medicalNote: 'Control de cargas y trabajo diferenciado', expectedReturnDate: '2026-04-30' }] },
+    { id: 'p6', name: 'Santiago Arboleda', age: 25, position: 'Delantero', height: 181, weight: 77, status: 'Lesionado', category: 'Sub15', birthDate: '02/12/2010', photo: playerPhotos[0], injuryHistory: [{ id: 'inj-p6-1', date: '2026-03-20', injuryType: 'Tendinosa', area: 'Rodilla', severity: 'Alta', status: 'activa', medicalNote: 'Requiere seguimiento médico', expectedReturnDate: '2026-05-05' }, { id: 'inj-p6-0', date: '2026-01-14', injuryType: 'Muscular', area: 'Aductor', severity: 'Leve', status: 'cerrada', medicalNote: 'Alta médica completada', expectedReturnDate: '2026-01-28' }] }
   ],
   wellness: [
     { id: 'w1', playerId: 'p1', date: '2026-04-23', sleep: 4, fatigue: 4, stress: 5, musclePain: 4, mood: 5 },

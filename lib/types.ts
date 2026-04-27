@@ -9,6 +9,18 @@ export type MovementType = 'base' | 'subio_a_entrenar' | 'bajo_a_entrenar' | 'su
 export type MovementModule = 'sesion' | 'competencia';
 export type InjuryKind = 'Muscular' | 'Articular' | 'Tendinosa' | 'Ósea';
 
+
+export interface InjuryHistoryItem {
+  id: string;
+  date: string;
+  injuryType: string;
+  area?: string;
+  severity?: string;
+  status: 'activa' | 'cerrada';
+  medicalNote?: string;
+  expectedReturnDate?: string;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -25,6 +37,7 @@ export interface Player {
   injuryType?: string;
   injurySeverity?: string;
   returnDate?: string;
+  injuryHistory?: InjuryHistoryItem[];
 }
 
 export interface DailyWellnessRecord {

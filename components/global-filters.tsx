@@ -23,7 +23,12 @@ export const GlobalFiltersBar = () => {
   const master = isMasterRole(session);
   const allowedCategory = master ? filters.category : session.category;
   const microcycleNumber = Number(String(filters.microcycleId).replace('mc-', '')) || 1;
-  const currentMicrocycle = data.microcycles.find((m) => m.id === filters.microcycleId);
+  const allMicrocycles = Array.from({ length: 52 }, (_, index) => {
+    const number = index + 1;
+    const existing = data.microcycles.find((m) => m.id === `mc-${number}`);
+    return existing ?? { id: `mc-${number}`, name: `Microciclo ${number}`, startDate: '-', endDate: '-' };
+  });
+  const currentMicrocycle = allMicrocycles.find((m) => m.id === filters.microcycleId) ?? allMicrocycles[0];
   const filteredPlayers = data.players.filter((player) => allowedCategory === 'all' || player.category === allowedCategory);
 
   return (
@@ -40,7 +45,7 @@ export const GlobalFiltersBar = () => {
           value={filters.microcycleId}
           onChange={(e) => setFilters({ microcycleId: e.target.value })}
         >
-          {data.microcycles.map((microcycle) => (
+          {allMicrocycles.map((microcycle) => (
             <option key={microcycle.id} value={microcycle.id}>
               {microcycle.name}
             </option>
