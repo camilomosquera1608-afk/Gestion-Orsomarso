@@ -170,7 +170,7 @@ export default function SesionEntrenamientoPage() {
         actingCategory: row.actingCategory,
         movementType,
         movementNote: row.movementNote,
-        movementModule: 'sesion',
+        movementModule: 'sesion' as const,
         loggedBy: session.displayName,
       };
       if (existing) updateExternalLoad(externalRecord);
@@ -189,7 +189,7 @@ export default function SesionEntrenamientoPage() {
         actingCategory: row.actingCategory,
         movementType,
         movementNote: row.movementNote,
-        movementModule: 'sesion',
+        movementModule: 'sesion' as const,
         loggedBy: session.displayName,
       });
     });
