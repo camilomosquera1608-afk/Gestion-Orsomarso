@@ -23,11 +23,12 @@ type RowState = {
   selected: boolean;
   participation: SessionParticipation;
   min: number;
-  hsr: number;
-  rhie: number;
+  rpe: number;
   acc: number;
   dcc: number;
-  totalDistance: number;
+  sprints: number;
+  rhie: number;
+  ima: number;
 };
 
 const renderNumberInput = (value: number) => (value === 0 ? '' : String(value));
@@ -37,7 +38,6 @@ export default function SesionEntrenamientoPage() {
   const [message, setMessage] = useState('');
   const summaryRecord = data.trainingSessionSummaries.find((item) => item.microcycleId === filters.microcycleId && item.sessionNumber === filters.sessionNumber && item.date === filters.date);
   const [sessionType, setSessionType] = useState<TrainingSessionType>(summaryRecord?.sessionType ?? 'cdEf');
-  const [sessionRpe, setSessionRpe] = useState<string>(summaryRecord?.sessionRpe ? String(summaryRecord.sessionRpe) : '');
   const [objective, setObjective] = useState(summaryRecord?.objective ?? '');
   const [observation, setObservation] = useState(summaryRecord?.observation ?? '');
 
@@ -56,12 +56,7 @@ export default function SesionEntrenamientoPage() {
       data.externalLoads
         .filter((record) => {
           const player = data.players.find((p) => p.id === record.playerId);
-          return (
-            !!player &&
-            (record.microcycleId ?? filters.microcycleId) === filters.microcycleId &&
-            (record.sessionNumber ?? 1) === filters.sessionNumber &&
-            record.date === filters.date
-          );
+          return !!player && (record.microcycleId ?? filters.microcycleId) === filters.microcycleId && (record.sessionNumber ?? 1) === filters.sessionNumber && record.date === filters.date;
         })
         .sort((a, b) => a.playerId.localeCompare(b.playerId)),
     [data.externalLoads, data.players, filters.microcycleId, filters.sessionNumber, filters.date],
@@ -77,68 +72,33 @@ export default function SesionEntrenamientoPage() {
         selected: !!existing,
         participation: existing?.participation ?? 'Completa',
         min: existing?.min ?? 0,
-        hsr: existing?.hsr ?? 0,
-        rhie: existing?.rhie ?? 0,
+        rpe: existing?.rpe ?? 0,
         acc: existing?.acc ?? 0,
         dcc: existing?.dcc ?? 0,
-        totalDistance: existing?.totalDistance ?? 0,
+        sprints: existing?.sprints ?? 0,
+        rhie: existing?.rhie ?? 0,
+        ima: existing?.ima ?? 0,
       };
     });
     setRowStates(next);
     setSessionType(summaryRecord?.sessionType ?? 'cdEf');
-    setSessionRpe(summaryRecord?.sessionRpe ? String(summaryRecord.sessionRpe) : '');
     setObjective(summaryRecord?.objective ?? '');
     setObservation(summaryRecord?.observation ?? '');
-  }, [
-    summaryRecord?.id,
-    summaryRecord?.sessionType,
-    summaryRecord?.sessionRpe,
-    summaryRecord?.objective,
-    summaryRecord?.observation,
-    sessionPlayers,
-    existingRecords,
-  ]);
-
-  const parsedSessionRpe = Number(sessionRpe) || 0;
+  }, [summaryRecord?.id, summaryRecord?.sessionType, summaryRecord?.objective, summaryRecord?.observation, sessionPlayers, existingRecords]);
 
   const rows = sessionPlayers.map((player) => {
-    const state =
-      rowStates[player.id] ??
-      ({
-        selected: false,
-        participation: 'Completa',
-        min: 0,
-        hsr: 0,
-        rhie: 0,
-        acc: 0,
-        dcc: 0,
-        totalDistance: 0,
-      } satisfies RowState);
-
-    return { player, ...state, internalLoad: parsedSessionRpe * state.min };
+    const state = rowStates[player.id] ?? { selected: false, participation: 'Completa', min: 0, rpe: 0, acc: 0, dcc: 0, sprints: 0, rhie: 0, ima: 0 };
+    return { player, ...state };
   });
 
   const selectedRows = rows.filter((row) => row.selected);
   const activeMicrocycle = data.microcycles.find((item) => item.id === filters.microcycleId);
-  const avgHsr = groupAverage(selectedRows.map((r) => r.hsr));
-  const avgMin = groupAverage(selectedRows.map((r) => r.min));
-  const avgInternal = groupAverage(selectedRows.map((r) => r.internalLoad));
-  const outOfRange = selectedRows.filter((row) => row.hsr > avgHsr * 1.2 || row.hsr < avgHsr * 0.8);
 
   const updateRow = (playerId: string, patch: Partial<RowState>) => {
     setRowStates((prev) => ({
       ...prev,
       [playerId]: {
-        ...(prev[playerId] ?? {
-          selected: false,
-          participation: 'Completa',
-          min: 0,
-          hsr: 0,
-          rhie: 0,
-          acc: 0,
-          dcc: 0,
-          totalDistance: 0,
-        }),
+        ...(prev[playerId] ?? { selected: false, participation: 'Completa', min: 0, rpe: 0, acc: 0, dcc: 0, sprints: 0, rhie: 0, ima: 0 }),
         ...patch,
       },
     }));
@@ -151,7 +111,6 @@ export default function SesionEntrenamientoPage() {
       microcycleId: filters.microcycleId,
       sessionNumber: filters.sessionNumber,
       sessionType,
-      sessionRpe: parsedSessionRpe,
       objective,
       observation,
     });
@@ -162,13 +121,13 @@ export default function SesionEntrenamientoPage() {
         id: existing?.id ?? crypto.randomUUID(),
         playerId: row.player.id,
         date: filters.date,
-        totalDistance: row.totalDistance,
-        hsr: row.hsr,
-        rhie: row.rhie,
+        min: row.min,
+        rpe: row.rpe,
         acc: row.acc,
         dcc: row.dcc,
-        min: row.min,
-        rpe: parsedSessionRpe,
+        sprints: row.sprints,
+        rhie: row.rhie,
+        ima: row.ima,
         participation: row.participation,
         microcycleId: filters.microcycleId,
         sessionNumber: filters.sessionNumber,
@@ -181,17 +140,14 @@ export default function SesionEntrenamientoPage() {
         id: crypto.randomUUID(),
         playerId: row.player.id,
         date: filters.date,
-        rpe: parsedSessionRpe,
+        rpe: row.rpe,
         duration: row.min,
         microcycleId: filters.microcycleId,
         sessionNumber: filters.sessionNumber,
       });
     });
 
-    existingRecords
-      .filter((record) => !selectedRows.find((row) => row.player.id === record.playerId))
-      .forEach((record) => deleteExternalLoad(record.id));
-
+    existingRecords.filter((record) => !selectedRows.find((row) => row.player.id === record.playerId)).forEach((record) => deleteExternalLoad(record.id));
     setMessage('Sesión guardada correctamente.');
   };
 
@@ -200,9 +156,6 @@ export default function SesionEntrenamientoPage() {
     molestia: data.players.filter((p) => p.status === 'Molestia').length,
     readaptacion: data.players.filter((p) => p.status === 'Readaptación').length,
     lesionados: data.players.filter((p) => p.status === 'Lesionado').length,
-    completa: selectedRows.filter((r) => r.participation === 'Completa').length,
-    parcial: selectedRows.filter((r) => r.participation === 'Parcial').length,
-    noParticipa: selectedRows.filter((r) => r.participation === 'No participa').length,
   };
 
   return (
@@ -225,17 +178,10 @@ export default function SesionEntrenamientoPage() {
           </div>
           <div className="field">
             <label>Microciclo</label>
-            <input
-              className="input"
-              type="number"
-              min="1"
-              max="51"
-              value={Number(String(filters.microcycleId).replace('mc-', '')) || 1}
-              onChange={(e) => {
-                const next = Math.max(1, Math.min(51, Number(e.target.value) || 1));
-                setFilters({ microcycleId: `mc-${next}` });
-              }}
-            />
+            <input className="input" type="number" min="1" max="51" value={Number(String(filters.microcycleId).replace('mc-', '')) || 1} onChange={(e) => {
+              const next = Math.max(1, Math.min(51, Number(e.target.value) || 1));
+              setFilters({ microcycleId: `mc-${next}` });
+            }} />
           </div>
           <div className="field">
             <label>Número de sesión</label>
@@ -244,20 +190,12 @@ export default function SesionEntrenamientoPage() {
           <div className="field">
             <label>Tipo de sesión</label>
             <select className="select" value={sessionType} onChange={(e) => setSessionType(e.target.value as TrainingSessionType)}>
-              {sessionTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
+              {sessionTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
         </div>
 
-        <div className="grid grid-3 session-detail-grid" style={{ marginTop: 14 }}>
-          <div className="field">
-            <label>RPE sesión</label>
-            <input className="input session-rpe-input" type="number" min="1" max="10" placeholder="Escribe el RPE de la sesión" value={sessionRpe} onChange={(e) => setSessionRpe(e.target.value)} />
-          </div>
+        <div className="grid grid-2 session-detail-grid" style={{ marginTop: 14 }}>
           <div className="field">
             <label>Objetivo de la sesión</label>
             <input className="input" value={objective} onChange={(e) => setObjective(e.target.value)} placeholder="Objetivo táctico o físico" />
@@ -271,11 +209,12 @@ export default function SesionEntrenamientoPage() {
 
       <GlobalFiltersBar />
 
-      <div className="grid grid-4">
+      <div className="grid grid-5">
         <KpiCard label="Jugadores seleccionados" value={String(selectedRows.length)} />
-        <KpiCard label="RPE sesión" value={sessionRpe || '-'} />
-        <KpiCard label="MIN promedio" value={avgMin.toFixed(0)} />
-        <KpiCard label="Carga interna promedio" value={avgInternal.toFixed(0)} />
+        <KpiCard label="MIN promedio" value={groupAverage(selectedRows.map((r) => r.min)).toFixed(0)} />
+        <KpiCard label="ACC promedio" value={groupAverage(selectedRows.map((r) => r.acc)).toFixed(1)} />
+        <KpiCard label="SPRINTS promedio" value={groupAverage(selectedRows.map((r) => r.sprints)).toFixed(1)} />
+        <KpiCard label="IMA promedio" value={groupAverage(selectedRows.map((r) => r.ima)).toFixed(1)} />
       </div>
 
       <div className="grid grid-2">
@@ -292,14 +231,13 @@ export default function SesionEntrenamientoPage() {
                     fecha: filters.date,
                     jugador: r.player.name,
                     participacion: r.participation,
-                    min: r.min,
-                    rpe_sesion: parsedSessionRpe,
-                    carga_interna: r.internalLoad,
-                    hsr: r.hsr,
-                    rhie: r.rhie,
+                    min_sesion: r.min,
+                    rpe: r.rpe,
                     acc: r.acc,
                     dcc: r.dcc,
-                    distancia: r.totalDistance,
+                    sprints: r.sprints,
+                    rhie: r.rhie,
+                    ima: r.ima,
                     tipo: sessionType,
                     objetivo: objective,
                     observacion: observation,
@@ -310,23 +248,14 @@ export default function SesionEntrenamientoPage() {
               Exportar CSV
             </button>
           </div>
-          <div className="grid" style={{ gap: 10 }}>
-            <div className="mini-stat-card">
-              <strong>Tipo</strong>
-              <div className="muted-line">{sessionTypeOptions.find((option) => option.value === sessionType)?.label}</div>
-            </div>
-            <div className="mini-stat-card">
-              <strong>Objetivo</strong>
-              <div className="muted-line">{objective || 'Sin objetivo'}</div>
-            </div>
-            <div className="mini-stat-card">
-              <strong>Volumen HSR</strong>
-              <div className="muted-line">{selectedRows.reduce((acc, item) => acc + item.hsr, 0)} m</div>
-            </div>
-            <div className="mini-stat-card">
-              <strong>Carga interna total</strong>
-              <div className="muted-line">{selectedRows.reduce((acc, item) => acc + item.internalLoad, 0)}</div>
-            </div>
+          <div className="session-metrics-strip">
+            <div className="session-metric-pill">MIN sesión</div>
+            <div className="session-metric-pill">RPE individual</div>
+            <div className="session-metric-pill">ACC</div>
+            <div className="session-metric-pill">DCC</div>
+            <div className="session-metric-pill">SPRINTS</div>
+            <div className="session-metric-pill">RHIE</div>
+            <div className="session-metric-pill">IMA</div>
           </div>
         </div>
 
@@ -337,52 +266,21 @@ export default function SesionEntrenamientoPage() {
             <div className="mini-stat-card"><strong>Molestia</strong><div className="muted-line">{availability.molestia}</div></div>
             <div className="mini-stat-card"><strong>Readaptación</strong><div className="muted-line">{availability.readaptacion}</div></div>
             <div className="mini-stat-card"><strong>Lesionados</strong><div className="muted-line">{availability.lesionados}</div></div>
-            <div className="mini-stat-card"><strong>Participación completa</strong><div className="muted-line">{availability.completa}</div></div>
-            <div className="mini-stat-card"><strong>Parcial / No participa</strong><div className="muted-line">{availability.parcial + availability.noParticipa}</div></div>
           </div>
         </div>
       </div>
 
-      <div className="card">
-        <h3>Alertas automáticas</h3>
-        <div className="grid" style={{ gap: 10 }}>
-          {selectedRows
-            .filter((row) => parsedSessionRpe >= 8 && row.hsr < avgHsr)
-            .map((row) => (
-              <div key={`${row.player.id}-alert-1`} className="alert-item tone-red">
-                <strong>{row.player.name}</strong>
-                <span>RPE alto con HSR por debajo del promedio.</span>
-              </div>
-            ))}
-          {selectedRows
-            .filter((row) => row.player.status !== 'Disponible')
-            .map((row) => (
-              <div key={`${row.player.id}-alert-2`} className="alert-item tone-yellow">
-                <strong>{row.player.name}</strong>
-                <span>Estado {row.player.status} y fue incluido en la sesión.</span>
-              </div>
-            ))}
-          {!selectedRows.length ? <div className="empty">Selecciona jugadores para activar las alertas automáticas.</div> : null}
-        </div>
-      </div>
-
-      {message ? (
-        <div className="card">
-          <strong>{message}</strong>
-        </div>
-      ) : null}
+      {message ? <div className="card"><strong>{message}</strong></div> : null}
 
       <div className="card session-table-card">
         <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>Plantilla de la sesión</h3>
-          <button type="button" className="btn" onClick={saveSession}>
-            Guardar sesión
-          </button>
+          <h3 style={{ margin: 0 }}>Plantilla de sesión</h3>
+          <button type="button" className="btn" onClick={saveSession}>Guardar sesión</button>
         </div>
 
-        <div className="session-player-grid">
+        <div className="session-player-grid mobile-clean-grid">
           {rows.map((row) => (
-            <div key={row.player.id} className="session-player-card">
+            <div key={row.player.id} className="session-player-card clean-mobile-card">
               <div className="session-player-header">
                 <div>
                   <strong>{row.player.name}</strong>
@@ -393,64 +291,19 @@ export default function SesionEntrenamientoPage() {
                     <input type="checkbox" checked={row.selected} onChange={(e) => updateRow(row.player.id, { selected: e.target.checked })} />
                     <span>Incluir</span>
                   </label>
-                  <ToneBadge
-                    text={row.player.status}
-                    tone={
-                      row.player.status === 'Disponible'
-                        ? 'green'
-                        : row.player.status === 'Molestia'
-                          ? 'yellow'
-                          : row.player.status === 'Readaptación'
-                            ? 'orange'
-                            : 'red'
-                    }
-                  />
+                  <ToneBadge text={row.player.status} tone={row.player.status === 'Disponible' ? 'green' : row.player.status === 'Molestia' ? 'yellow' : row.player.status === 'Readaptación' ? 'orange' : 'red'} />
                 </div>
               </div>
 
-              <div className="grid grid-3 session-fields-grid">
-                <div className="field">
-                  <label>Participación</label>
-                  <select
-                    className="select session-input-large"
-                    value={row.participation}
-                    onChange={(e) => updateRow(row.player.id, { participation: e.target.value as SessionParticipation })}
-                  >
-                    {participationOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>MIN</label>
-                  <input className="input session-input-large" type="number" placeholder="MIN" value={renderNumberInput(row.min)} onChange={(e) => updateRow(row.player.id, { min: Number(e.target.value) || 0 })} />
-                </div>
-                <div className="field">
-                  <label>HSR</label>
-                  <input className="input session-input-large" type="number" placeholder="HSR" value={renderNumberInput(row.hsr)} onChange={(e) => updateRow(row.player.id, { hsr: Number(e.target.value) || 0 })} />
-                </div>
-                <div className="field">
-                  <label>RHIE</label>
-                  <input className="input session-input-large" type="number" placeholder="RHIE" value={renderNumberInput(row.rhie)} onChange={(e) => updateRow(row.player.id, { rhie: Number(e.target.value) || 0 })} />
-                </div>
-                <div className="field">
-                  <label>ACC</label>
-                  <input className="input session-input-large" type="number" placeholder="ACC" value={renderNumberInput(row.acc)} onChange={(e) => updateRow(row.player.id, { acc: Number(e.target.value) || 0 })} />
-                </div>
-                <div className="field">
-                  <label>DCC</label>
-                  <input className="input session-input-large" type="number" placeholder="DCC" value={renderNumberInput(row.dcc)} onChange={(e) => updateRow(row.player.id, { dcc: Number(e.target.value) || 0 })} />
-                </div>
-                <div className="field">
-                  <label>Distancia total</label>
-                  <input className="input session-input-large" type="number" placeholder="Distancia total" value={renderNumberInput(row.totalDistance)} onChange={(e) => updateRow(row.player.id, { totalDistance: Number(e.target.value) || 0 })} />
-                </div>
-                <div className="field">
-                  <label>Carga interna</label>
-                  <div className="session-calculated-box">{row.internalLoad || '-'}</div>
-                </div>
+              <div className="grid session-fields-grid session-metrics-grid">
+                <div className="field"><label>Participación</label><select className="select session-input-large" value={row.participation} onChange={(e) => updateRow(row.player.id, { participation: e.target.value as SessionParticipation })}>{participationOptions.map((option) => <option key={option}>{option}</option>)}</select></div>
+                <div className="field"><label>MIN sesión</label><input className="input session-input-large" type="number" placeholder="Vacío" value={renderNumberInput(row.min)} onChange={(e) => updateRow(row.player.id, { min: Number(e.target.value) || 0 })} /></div>
+                <div className="field"><label>RPE</label><input className="input session-input-large" type="number" min="1" max="10" placeholder="Vacío" value={renderNumberInput(row.rpe)} onChange={(e) => updateRow(row.player.id, { rpe: Number(e.target.value) || 0 })} /></div>
+                <div className="field"><label>ACC</label><input className="input session-input-large" type="number" placeholder="Vacío" value={renderNumberInput(row.acc)} onChange={(e) => updateRow(row.player.id, { acc: Number(e.target.value) || 0 })} /></div>
+                <div className="field"><label>DCC</label><input className="input session-input-large" type="number" placeholder="Vacío" value={renderNumberInput(row.dcc)} onChange={(e) => updateRow(row.player.id, { dcc: Number(e.target.value) || 0 })} /></div>
+                <div className="field"><label>SPRINTS</label><input className="input session-input-large" type="number" placeholder="Vacío" value={renderNumberInput(row.sprints)} onChange={(e) => updateRow(row.player.id, { sprints: Number(e.target.value) || 0 })} /></div>
+                <div className="field"><label>RHIE</label><input className="input session-input-large" type="number" placeholder="Vacío" value={renderNumberInput(row.rhie)} onChange={(e) => updateRow(row.player.id, { rhie: Number(e.target.value) || 0 })} /></div>
+                <div className="field"><label>IMA</label><input className="input session-input-large" type="number" placeholder="Vacío" value={renderNumberInput(row.ima)} onChange={(e) => updateRow(row.player.id, { ima: Number(e.target.value) || 0 })} /></div>
               </div>
             </div>
           ))}

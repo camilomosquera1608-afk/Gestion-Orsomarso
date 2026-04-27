@@ -44,13 +44,15 @@ export interface DailyExternalLoadRecord {
   id: string;
   playerId: string;
   date: string;
-  totalDistance: number;
-  hsr: number;
-  rhie: number;
+  min: number;
   acc: number;
   dcc: number;
-  min: number;
+  sprints: number;
+  rhie: number;
+  ima: number;
   rpe?: number;
+  totalDistance?: number;
+  hsr?: number;
   participation?: SessionParticipation;
   microcycleId?: string;
   sessionNumber?: number;
@@ -107,6 +109,12 @@ export interface CompetitionRecord {
   assists: number;
   yellowCards: number;
   redCards: number;
+  rpe?: number;
+  acc?: number;
+  dcc?: number;
+  sprints?: number;
+  rhie?: number;
+  ima?: number;
 }
 
 export interface TrainingSessionSummary {

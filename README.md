@@ -141,3 +141,11 @@ La sincronización remota usa una fila compartida (`app_state`) con el estado co
 - Sidebar más limpia y horizontal en tablet/móvil.
 - Cards, filtros, tablas y formularios optimizados para pantallas pequeñas.
 - Next.js actualizado a 15.0.7.
+
+
+## Version v30
+- Sesion y competencia ahora usan solo MIN, RPE individual, ACC, DCC, SPRINTS, RHIE e IMA.
+- Se removio la vista de carga interna en sesion.
+- Jugadores con alta estabilidad: evita duplicados por nombre/id al crear y mantiene orden.
+- Responsive mas limpio para celular e iPad.
+- Next.js 15.0.7.

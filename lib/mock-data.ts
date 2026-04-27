@@ -95,15 +95,15 @@ export const initialData: AppData = {
     { id: 'i6', playerId: 'p6', date: '2026-04-23', rpe: 3, duration: 45 }
   ],
   externalLoads: [
-    { id: 'e1', playerId: 'p1', date: '2026-04-23', totalDistance: 4800, hsr: 180, rhie: 7, acc: 11, dcc: 10, min: 75, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
-    { id: 'e2', playerId: 'p2', date: '2026-04-23', totalDistance: 7800, hsr: 420, rhie: 17, acc: 32, dcc: 28, min: 82, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
-    { id: 'e3', playerId: 'p3', date: '2026-04-23', totalDistance: 7300, hsr: 560, rhie: 20, acc: 36, dcc: 35, min: 60, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
-    { id: 'e4', playerId: 'p4', date: '2026-04-23', totalDistance: 8800, hsr: 610, rhie: 24, acc: 40, dcc: 39, min: 78, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
-    { id: 'e5', playerId: 'p5', date: '2026-04-23', totalDistance: 7600, hsr: 700, rhie: 25, acc: 38, dcc: 37, min: 55, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
-    { id: 'e6', playerId: 'p6', date: '2026-04-23', totalDistance: 4200, hsr: 120, rhie: 4, acc: 7, dcc: 8, min: 45, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
-    { id: 'e7', playerId: 'p1', date: '2026-04-22', totalDistance: 5000, hsr: 190, rhie: 8, acc: 12, dcc: 11, min: 80, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
-    { id: 'e8', playerId: 'p2', date: '2026-04-22', totalDistance: 7900, hsr: 430, rhie: 18, acc: 33, dcc: 29, min: 85, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
-    { id: 'e9', playerId: 'p3', date: '2026-04-22', totalDistance: 7100, hsr: 510, rhie: 17, acc: 30, dcc: 31, min: 60, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
+    { id: 'e1', playerId: 'p1', date: '2026-04-23', min: 75, rpe: 5, acc: 11, dcc: 10, sprints: 6, rhie: 7, ima: 14, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
+    { id: 'e2', playerId: 'p2', date: '2026-04-23', min: 82, rpe: 6, acc: 32, dcc: 28, sprints: 12, rhie: 17, ima: 21, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
+    { id: 'e3', playerId: 'p3', date: '2026-04-23', min: 60, rpe: 4, acc: 36, dcc: 35, sprints: 15, rhie: 20, ima: 26, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
+    { id: 'e4', playerId: 'p4', date: '2026-04-23', min: 78, rpe: 7, acc: 40, dcc: 39, sprints: 18, rhie: 24, ima: 29, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
+    { id: 'e5', playerId: 'p5', date: '2026-04-23', min: 55, rpe: 4, acc: 38, dcc: 37, sprints: 17, rhie: 25, ima: 27, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
+    { id: 'e6', playerId: 'p6', date: '2026-04-23', min: 45, rpe: 3, acc: 7, dcc: 8, sprints: 3, rhie: 4, ima: 8, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
+    { id: 'e7', playerId: 'p1', date: '2026-04-22', min: 80, rpe: 5, acc: 12, dcc: 11, sprints: 6, rhie: 8, ima: 15, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
+    { id: 'e8', playerId: 'p2', date: '2026-04-22', min: 85, rpe: 6, acc: 33, dcc: 29, sprints: 13, rhie: 18, ima: 22, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
+    { id: 'e9', playerId: 'p3', date: '2026-04-22', min: 60, rpe: 4, acc: 30, dcc: 31, sprints: 12, rhie: 17, ima: 20, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
     { id: 'e10', playerId: 'p4', date: '2026-04-22', totalDistance: 8950, hsr: 630, rhie: 22, acc: 42, dcc: 40, min: 85, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' }
   ],
   cmjRecords: [

@@ -71,6 +71,8 @@ const hydrateData = (stored: Partial<AppData> | null): AppData => ({
     sessionNumber: record.sessionNumber ?? 1,
     sessionType: record.sessionType ?? 'cdEf',
     participation: record.participation ?? 'Completa',
+    sprints: record.sprints ?? 0,
+    ima: record.ima ?? 0,
   })),
   cmjRecords: stored?.cmjRecords ?? initialData.cmjRecords,
   nutritionRecords: stored?.nutritionRecords ?? initialData.nutritionRecords,
@@ -182,8 +184,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     filters,
     setFilters,
     resetFilters,
-    addPlayer: (player) => applyMutation((prev) => ({ ...prev, players: [player, ...prev.players] })),
-    updatePlayer: (player) => applyMutation((prev) => ({ ...prev, players: prev.players.map((item) => item.id === player.id ? player : item) })),
+    addPlayer: (player) => applyMutation((prev) => {
+      const normalizedName = player.name.trim().toLowerCase();
+      const exists = prev.players.find((item) => item.id === player.id || item.name.trim().toLowerCase() === normalizedName);
+      const nextPlayers = exists
+        ? prev.players.map((item) => item.id === exists.id ? { ...item, ...player, id: exists.id } : item)
+        : [player, ...prev.players];
+      return { ...prev, players: nextPlayers.sort((a, b) => a.name.localeCompare(b.name)) };
+    }),
+    updatePlayer: (player) => applyMutation((prev) => ({ ...prev, players: prev.players.map((item) => item.id === player.id ? player : item).sort((a, b) => a.name.localeCompare(b.name)) })),
     deletePlayer: (playerId) => applyMutation((prev) => ({
       ...prev,
       players: prev.players.filter((p) => p.id !== playerId),
