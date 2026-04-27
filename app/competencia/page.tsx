@@ -16,28 +16,32 @@ export default function CompetenciaPage() {
   const filteredPlayers = data.players.filter((player) =>
     (filters.category === 'all' || player.category === filters.category) &&
     (filters.position === 'all' || player.position === filters.position) &&
-    (filters.status === 'all' || player.status === filters.status)
+    (filters.status === 'all' || player.status === filters.status),
   );
 
-  const selectedPlayerId = editingId
-    ? data.competitionRecords.find((record) => record.id === editingId)?.playerId ?? (filters.playerId === 'all' ? filteredPlayers[0]?.id ?? '' : filters.playerId)
-    : (filters.playerId === 'all' ? filteredPlayers[0]?.id ?? '' : filters.playerId);
-
-  const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId) ?? filteredPlayers[0];
-  const isGoalkeeper = selectedPlayer?.position === 'Portero';
-
-  const records = useMemo(() => data.competitionRecords.filter((record) => {
-    const player = data.players.find((p) => p.id === record.playerId);
-    return !!player &&
-      (filters.playerId === 'all' || record.playerId === filters.playerId) &&
-      (filters.category === 'all' || player.category === filters.category) &&
-      (filters.position === 'all' || player.position === filters.position) &&
-      (filters.status === 'all' || player.status === filters.status);
-  }).sort((a,b) => b.date.localeCompare(a.date)), [data.competitionRecords, data.players, filters]);
+  const records = useMemo(
+    () =>
+      data.competitionRecords
+        .filter((record) => {
+          const player = data.players.find((p) => p.id === record.playerId);
+          return (
+            !!player &&
+            (filters.playerId === 'all' || record.playerId === filters.playerId) &&
+            (filters.category === 'all' || player.category === filters.category) &&
+            (filters.position === 'all' || player.position === filters.position) &&
+            (filters.status === 'all' || player.status === filters.status)
+          );
+        })
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [data.competitionRecords, data.players, filters],
+  );
 
   const editing = records.find((record) => record.id === editingId);
-  const editingPlayer = editing ? data.players.find((p) => p.id === editing.playerId) : selectedPlayer;
-  const editingIsGoalkeeper = editingPlayer?.position === 'Portero';
+  const selectedPlayerId =
+    editing?.playerId ?? (filters.playerId === 'all' ? filteredPlayers[0]?.id ?? '' : filters.playerId);
+  const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId) ?? filteredPlayers[0];
+  const currentPlayer = editing ? data.players.find((p) => p.id === editing.playerId) ?? selectedPlayer : selectedPlayer;
+  const isGoalkeeper = currentPlayer?.position === 'Portero';
 
   const submit = (formData: FormData) => {
     const playerId = String(formData.get('playerId'));
@@ -108,51 +112,79 @@ export default function CompetenciaPage() {
         <KpiCard label="IMA promedio" value={groupAverage(outfieldRecords.map((r) => r.ima ?? 0)).toFixed(1)} />
       </div>
 
-      {message ? <div className="card"><strong>{message}</strong></div> : null}
+      {message ? (
+        <div className="card">
+          <strong>{message}</strong>
+        </div>
+      ) : null}
 
       <form className="card grid" action={submit}>
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>{editing ? 'Editar competencia' : 'Cargar competencia'}</h3>
           <div className="btn-row">
-            <button type="button" className="btn secondary" onClick={() => downloadCsv('competencia.csv', records.map((r) => {
-              const player = data.players.find((p) => p.id === r.playerId);
-              return {
-                fecha: r.date,
-                jugador: player?.name ?? 'Jugador',
-                categoria: player?.category ?? 'Sub20',
-                rival: r.opponent,
-                minutos_jugados: r.minutesPlayed,
-                goles: r.goals,
-                asistencias: r.assists,
-                goles_encajados: r.goalsConceded ?? '',
-                goles_evitados: r.goalsPrevented ?? '',
-                centros_defendidos: r.crossesDefended ?? '',
-                remates_a_porteria: r.shotsOnTarget ?? '',
-                acc: r.acc ?? '',
-                dcc: r.dcc ?? '',
-                sprints: r.sprints ?? '',
-                rhie: r.rhie ?? '',
-                ima: r.ima ?? '',
-                amarillas: r.yellowCards,
-                rojas: r.redCards,
-              };
-            })))}>Exportar CSV</button>
-            <button type="button" className="btn secondary" onClick={() => setEditingId('')}>Limpiar</button>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() =>
+                downloadCsv(
+                  'competencia.csv',
+                  records.map((r) => {
+                    const player = data.players.find((p) => p.id === r.playerId);
+                    return {
+                      fecha: r.date,
+                      jugador: player?.name ?? 'Jugador',
+                      categoria: player?.category ?? 'Sub20',
+                      rival: r.opponent,
+                      minutos_jugados: r.minutesPlayed,
+                      goles: r.goals,
+                      asistencias: r.assists,
+                      goles_encajados: r.goalsConceded ?? '',
+                      goles_evitados: r.goalsPrevented ?? '',
+                      centros_defendidos: r.crossesDefended ?? '',
+                      remates_a_porteria: r.shotsOnTarget ?? '',
+                      acc: r.acc ?? '',
+                      dcc: r.dcc ?? '',
+                      sprints: r.sprints ?? '',
+                      rhie: r.rhie ?? '',
+                      ima: r.ima ?? '',
+                      amarillas: r.yellowCards,
+                      rojas: r.redCards,
+                    };
+                  }),
+                )
+              }
+            >
+              Exportar CSV
+            </button>
+            <button type="button" className="btn secondary" onClick={() => setEditingId('')}>
+              Limpiar
+            </button>
           </div>
         </div>
 
         <div className="grid grid-3">
-          <select className="select" name="playerId" defaultValue={editing?.playerId ?? (filters.playerId === 'all' ? filteredPlayers[0]?.id : filters.playerId)} key={`comp-player-${editingId || 'new'}`}>
-            {filteredPlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          <select
+            className="select"
+            name="playerId"
+            defaultValue={editing?.playerId ?? (filters.playerId === 'all' ? filteredPlayers[0]?.id : filters.playerId)}
+            key={`comp-player-${editingId || 'new'}`}
+          >
+            {filteredPlayers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
           <input className="input" type="date" name="date" defaultValue={editing?.date ?? filters.date} key={`comp-date-${editingId || 'new'}`} required />
           <input className="input" name="opponent" placeholder="Rival" defaultValue={editing?.opponent ?? ''} key={`comp-opp-${editingId || 'new'}`} required />
         </div>
 
         <div className="card compact-card goalkeeper-panel">
-          <div className="subsection-title"><span>{editingIsGoalkeeper ? 'Panel de portero' : 'Panel de jugador de campo'}</span></div>
+          <div className="subsection-title">
+            <span>{isGoalkeeper ? 'Panel de portero' : 'Panel de jugador de campo'}</span>
+          </div>
 
-          {editingIsGoalkeeper ? (
+          {isGoalkeeper ? (
             <div className="grid grid-4">
               <input className="input" type="number" name="minutesPlayed" placeholder="Minutos jugados" defaultValue={editing?.minutesPlayed ?? ''} key={`gk-min-${editingId || 'new'}`} required />
               <input className="input" type="number" name="goalsConceded" placeholder="Goles encajados" defaultValue={editing?.goalsConceded ?? ''} key={`gk-goalsConceded-${editingId || 'new'}`} />
@@ -184,7 +216,9 @@ export default function CompetenciaPage() {
           )}
         </div>
 
-        <button className="btn" type="submit">{editing ? 'Actualizar informe' : 'Guardar informe'}</button>
+        <button className="btn" type="submit">
+          {editing ? 'Actualizar informe' : 'Guardar informe'}
+        </button>
       </form>
 
       <div className="card table-wrap">
@@ -192,7 +226,15 @@ export default function CompetenciaPage() {
         <table>
           <thead>
             <tr>
-              <th>Fecha</th><th>Jugador</th><th>Categoría</th><th>Rival</th><th>Minutos jugados</th><th>Detalle</th><th>TA</th><th>TR</th><th>Acciones</th>
+              <th>Fecha</th>
+              <th>Jugador</th>
+              <th>Categoría</th>
+              <th>Rival</th>
+              <th>Minutos jugados</th>
+              <th>Detalle</th>
+              <th>TA</th>
+              <th>TR</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -213,7 +255,16 @@ export default function CompetenciaPage() {
                   </td>
                   <td>{record.yellowCards}</td>
                   <td>{record.redCards}</td>
-                  <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => setEditingId(record.id)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div></td>
+                  <td>
+                    <div className="btn-row">
+                      <button type="button" className="btn secondary" onClick={() => setEditingId(record.id)}>
+                        Editar
+                      </button>
+                      <button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>
+                        Eliminar
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
