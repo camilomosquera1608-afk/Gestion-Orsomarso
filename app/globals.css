@@ -394,3 +394,80 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
   font-size: 16px;
   border-radius: 16px;
 }
+
+
+/* v29 mobile + tablet cleanup */
+html, body { overflow-x: hidden; }
+img { max-width: 100%; }
+table { width: 100%; min-width: 720px; border-collapse: collapse; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.input, .select, .btn { min-height: 46px; }
+.sidebar { border-right: 1px solid var(--line); }
+.nav { display: grid; gap: 10px; }
+.main { min-width: 0; }
+.card, .filters, .hero, .session-player-card, .wellness-preview-card, .mini-stat-card { box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05); }
+
+@media (max-width: 1180px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar {
+    position: sticky; top: 0; z-index: 30; height: auto; padding: 14px 16px;
+    background: rgba(248, 250, 252, 0.95); backdrop-filter: blur(10px);
+    border-right: none; border-bottom: 1px solid var(--line);
+  }
+  .brand { margin-bottom: 12px; }
+  .brand img { width: 46px; height: 46px; }
+  .brand h1 { font-size: 18px; }
+  .nav {
+    display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity;
+  }
+  .nav::-webkit-scrollbar { height: 6px; }
+  .nav-link {
+    min-width: max-content; padding: 12px 14px; border-radius: 14px; scroll-snap-align: start; white-space: nowrap;
+  }
+  .nav-logout { margin-top: 12px; }
+  .main { padding: 18px 16px 28px; }
+  .filters-wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-4, .grid-5, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .session-fields-grid, .competition-summary-grid, .timeline-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-card-large { min-height: auto; }
+  .hero { padding: 18px 18px; }
+}
+
+@media (max-width: 820px) {
+  .main { padding: 14px 12px 24px; }
+  .hero { padding: 16px; border-radius: 18px; }
+  .hero h2 { font-size: 24px; }
+  .card { padding: 14px; border-radius: 18px; }
+  .player-card, .executive-player-card, .report-player-header, .register-photo-box, .section-banner,
+  .grid-2, .grid-3, .grid-4, .grid-5, .filters, .filters-wide, .session-fields-grid, .timeline-grid, .competition-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .btn-row { width: 100%; }
+  .btn-row > .btn, .btn-row > .select, .btn-row > .input { width: 100%; }
+  .copy-box { align-items: stretch; }
+  .copy-link { min-width: 100%; }
+  .wellness-preview-grid, .session-player-grid { gap: 14px; }
+  .session-player-card { padding: 16px; }
+  .session-player-header { flex-direction: column; align-items: flex-start; }
+  .wellness-question-label { font-size: 14px !important; }
+  .section-banner { padding: 16px; }
+  .section-banner-icon { width: 64px; height: 64px; }
+  .report-player-photo img, .register-photo-preview { width: 112px; height: 112px; }
+  table { min-width: 620px; }
+}
+
+@media (max-width: 520px) {
+  .sidebar { padding: 12px; }
+  .brand { gap: 10px; }
+  .brand small { font-size: 10px; letter-spacing: 0.14em; }
+  .brand h1 { font-size: 16px; }
+  .hero h2 { font-size: 22px; }
+  .kpi-value { font-size: 28px; }
+  .nav-link { padding: 11px 12px; font-size: 14px; }
+  .main-public { padding: 14px 12px 22px; }
+  .wellness-form-card, .session-table-card, .report-card-large { padding: 14px; }
+  .question-number { margin-bottom: 8px; }
+  .wellness-select-large, .session-input-large, .session-calculated-box { min-height: 48px; font-size: 14px; }
+  .summary-chip { width: 100%; justify-content: center; text-align: center; }
+  table { min-width: 560px; }
+}

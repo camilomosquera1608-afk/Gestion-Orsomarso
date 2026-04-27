@@ -8,15 +8,15 @@ import { logoutStaff } from '@/lib/auth';
 
 const items = [
   { href: '/', label: 'Inicio', icon: Home },
-  { href: '/diario', label: 'Dashboard diario', icon: Gauge },
+  { href: '/diario', label: 'Diario', icon: Gauge },
   { href: '/microciclo', label: 'Microciclo', icon: Activity },
-  { href: '/sesion-entrenamiento', label: 'Sesión de entrenamiento', icon: TimerReset },
+  { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
   { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
   { href: '/competencia', label: 'Competencia', icon: Trophy },
   { href: '/informes', label: 'Informes', icon: FileText },
-  { href: '/wellness-jugadores', label: 'Wellness jugadores', icon: HeartPulse },
+  { href: '/wellness-jugadores', label: 'Wellness', icon: HeartPulse },
   { href: '/jugadores', label: 'Jugadores', icon: Users },
-  { href: '/registro', label: 'Registrar jugador', icon: UserRoundPlus },
+  { href: '/registro', label: 'Registro', icon: UserRoundPlus },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 

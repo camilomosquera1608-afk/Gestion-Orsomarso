@@ -134,3 +134,10 @@ La sincronización remota usa una fila compartida (`app_state`) con el estado co
 - Mejoras responsive para móvil y tablet.
 - Los campos numéricos de carga y sesión ahora aparecen vacíos hasta que se diligencian.
 - RPE sesión ahora se registra aparte de la plantilla por jugador.
+
+
+## Version v29
+- Mejora fuerte de responsive para celulares y tablets.
+- Sidebar más limpia y horizontal en tablet/móvil.
+- Cards, filtros, tablas y formularios optimizados para pantallas pequeñas.
+- Next.js actualizado a 15.0.7.
