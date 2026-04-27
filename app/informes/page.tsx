@@ -49,7 +49,7 @@ export default function InformesPage() {
     ...neuromuscularHistory.map((row) => ({ seccion: 'Perfil neuromuscular', fecha: row.date, cmj: row.cmj, sj: row.sj, reactivos: row.reactiveJumps })),
     ...cmjHistory.map((row) => ({ seccion: 'CMJ', fecha: row.date, cmj: row.value })),
     ...fmsHistory.map((row) => ({ seccion: 'FMS', fecha: row.date, total: row.total })),
-    ...competitionHistory.map((row) => ({ seccion: 'Competencia', fecha: row.date, rival: row.opponent, minutos: row.minutesPlayed, goles: row.goals, asistencias: row.assists, goles_encajados: row.goalsConceded, goles_evitados: row.goalsPrevented, centros_defendidos: row.crossesDefended, remates_a_porteria: row.shotsOnTarget, amarillas: row.yellowCards, rojas: row.redCards })),
+    ...competitionHistory.map((row) => ({ seccion: 'Competencia', fecha: row.date, rival: row.opponent, minutos: row.minutesPlayed, goles: row.goals, asistencias: row.assists, goles_encajados: row.goalsConceded ?? '', goles_evitados: row.goalsPrevented ?? '', centros_defendidos: row.crossesDefended ?? '', remates_a_porteria: row.shotsOnTarget ?? '', amarillas: row.yellowCards, rojas: row.redCards })),
   ];
 
   return (
