@@ -7,6 +7,7 @@ export type TrainingSessionType = 'cdef' | 'cdEf' | 'cdeF' | 'Cdef';
 export type SessionParticipation = 'Completa' | 'Parcial' | 'No participa' | 'Gimnasio' | 'Readaptación';
 export type MovementType = 'base' | 'subio_a_entrenar' | 'bajo_a_entrenar' | 'subio_a_competir' | 'bajo_a_competir';
 export type MovementModule = 'sesion' | 'competencia';
+export type InjuryKind = 'Muscular' | 'Articular' | 'Tendinosa' | 'Ósea';
 
 export interface Player {
   id: string;
