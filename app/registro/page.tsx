@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { useApp } from '@/context/app-context';
+import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { ClubCategory, Position, PlayerStatus } from '@/lib/types';
 
 const positions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
@@ -11,6 +12,8 @@ const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 
 export default function RegistroPage() {
   const { addPlayer } = useApp();
+  const session = getStaffSession();
+  const master = isMasterRole(session);
   const [message, setMessage] = useState('');
   const [photoPreview, setPhotoPreview] = useState('/orsomarso-crest.jpg');
 
@@ -30,7 +33,7 @@ export default function RegistroPage() {
       name: String(form.get('name')),
       age: Number(form.get('age')),
       position: String(form.get('position')) as Position,
-      category: String(form.get('category')) as ClubCategory,
+      category: (master ? String(form.get('category')) : session.category) as ClubCategory,
       height: Number(form.get('height')),
       weight: Number(form.get('weight')),
       status: String(form.get('status')) as PlayerStatus,
@@ -58,7 +61,11 @@ export default function RegistroPage() {
         <div className="grid grid-3">
           <input className="input" type="number" name="age" placeholder="Edad" required />
           <select className="select" name="position" required>{positions.map((p) => <option key={p}>{p}</option>)}</select>
+          {master ? (
           <select className="select" name="category" required>{categories.map((c) => <option key={c}>{c}</option>)}</select>
+        ) : (
+          <input className="input" name="category" value={session.category} readOnly />
+        )}
         </div>
         <div className="grid grid-2">
           <input className="input" type="number" name="height" placeholder="Estatura (cm)" required />

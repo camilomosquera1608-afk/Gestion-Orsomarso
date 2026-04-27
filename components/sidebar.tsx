@@ -4,9 +4,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Activity, BarChart3, FileText, Gauge, HeartPulse, Home, LogOut, Settings, TimerReset, Trophy, UserRoundPlus, Users } from 'lucide-react';
-import { logoutStaff } from '@/lib/auth';
+import { getStaffSession, logoutStaff } from '@/lib/auth';
 
-const items = [
+const staffItems = [
   { href: '/', label: 'Inicio', icon: Home },
   { href: '/diario', label: 'Diario', icon: Gauge },
   { href: '/microciclo', label: 'Microciclo', icon: Activity },
@@ -14,15 +14,21 @@ const items = [
   { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
   { href: '/competencia', label: 'Competencia', icon: Trophy },
   { href: '/informes', label: 'Informes', icon: FileText },
-  { href: '/wellness-jugadores', label: 'Wellness', icon: HeartPulse },
   { href: '/jugadores', label: 'Jugadores', icon: Users },
   { href: '/registro', label: 'Registro', icon: UserRoundPlus },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 
+const masterItems = [
+  { href: '/informes', label: 'Informes', icon: FileText },
+  { href: '/jugadores', label: 'Jugadores', icon: Users },
+];
+
 export const Sidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const session = getStaffSession();
+  const items = session.role === 'master' ? masterItems : staffItems;
 
   return (
     <aside className="sidebar">
@@ -30,7 +36,7 @@ export const Sidebar = () => {
         <Image src="/orsomarso-crest.jpg" alt="Escudo Orsomarso SC" width={58} height={58} />
         <div>
           <small>Orsomarso SC</small>
-          <h1>Performance Hub</h1>
+          <h1>{session.role === 'master' ? 'Performance Maestro' : `Performance ${session.category}`}</h1>
         </div>
       </div>
 

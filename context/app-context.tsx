@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, saveRemoteAppState } from '@/lib/supabase';
+import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
 import { AppData, CMJRecord, ClubCategory, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
 interface AppContextValue {
@@ -140,6 +141,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         dataRef.current = next;
         setSyncStatus('ready');
       }
+      const session = getStaffSession();
+      setFiltersState((prev) => ({ ...prev, category: getAllowedCategory(session) }));
       setIsHydrated(true);
     };
 
@@ -179,8 +182,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setSyncStatus('ready');
   };
 
-  const setFilters = (next: Partial<GlobalFilters>) => setFiltersState((prev) => ({ ...prev, ...next }));
-  const resetFilters = () => setFiltersState(defaultFilters);
+  const setFilters = (next: Partial<GlobalFilters>) => setFiltersState((prev) => {
+    const session = getStaffSession();
+    const allowedCategory = getAllowedCategory(session);
+    const merged = { ...prev, ...next };
+    if (!isMasterRole(session)) {
+      merged.category = allowedCategory;
+    }
+    return merged;
+  });
+  const resetFilters = () => {
+    const session = getStaffSession();
+    setFiltersState({ ...defaultFilters, category: getAllowedCategory(session) });
+  };
 
   const value = useMemo<AppContextValue>(() => ({
     data,

@@ -2,6 +2,7 @@
 
 import { ClubCategory, Position, PlayerStatus } from '@/lib/types';
 import { useApp } from '@/context/app-context';
+import { getStaffSession, isMasterRole } from '@/lib/auth';
 
 const allPositions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
 const allStatuses: PlayerStatus[] = ['Disponible', 'Lesionado', 'Molestia', 'Readaptación'];
@@ -9,9 +10,12 @@ const allCategories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 
 export const GlobalFiltersBar = () => {
   const { data, filters, setFilters, resetFilters } = useApp();
+  const session = getStaffSession();
+  const master = isMasterRole(session);
+  const allowedCategory = master ? filters.category : session.category;
   const microcycleNumber = Number(String(filters.microcycleId).replace('mc-', '')) || 1;
   const currentMicrocycle = data.microcycles.find((m) => m.id === filters.microcycleId);
-  const filteredPlayers = data.players.filter((player) => filters.category === 'all' || player.category === filters.category);
+  const filteredPlayers = data.players.filter((player) => allowedCategory === 'all' || player.category === allowedCategory);
 
   return (
     <div className="filters filters-wide">
@@ -43,10 +47,14 @@ export const GlobalFiltersBar = () => {
 
       <div className="field">
         <label>Categoría</label>
-        <select className="select" value={filters.category} onChange={(e) => setFilters({ category: e.target.value, playerId: 'all' })}>
-          <option value="all">Todas las categorías</option>
-          {allCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-        </select>
+        {master ? (
+          <select className="select" value={filters.category} onChange={(e) => setFilters({ category: e.target.value, playerId: 'all' })}>
+            <option value="all">Todas las categorías</option>
+            {allCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+        ) : (
+          <input className="input" value={session.category} readOnly />
+        )}
       </div>
 
       <div className="field">

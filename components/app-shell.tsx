@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/sidebar';
-import { isStaffAuthenticated } from '@/lib/auth';
+import { getAllowedCategory, getStaffSession, isStaffAuthenticated, isMasterRole } from '@/lib/auth';
+
+const MASTER_ALLOWED = ['/informes', '/jugadores'];
 
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
@@ -20,10 +22,11 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     }
 
     const authed = isStaffAuthenticated();
+    const session = getStaffSession();
 
     if (isLogin) {
       if (authed) {
-        router.replace('/');
+        router.replace(session.role === 'master' ? '/informes' : '/');
         return;
       }
       setAllowed(true);
@@ -33,6 +36,14 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     if (!authed) {
       router.replace('/login');
       return;
+    }
+
+    if (isMasterRole(session)) {
+      const isAllowedRoute = MASTER_ALLOWED.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+      if (!isAllowedRoute) {
+        router.replace('/informes');
+        return;
+      }
     }
 
     setAllowed(true);

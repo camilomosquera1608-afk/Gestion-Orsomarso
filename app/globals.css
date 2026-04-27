@@ -527,3 +527,10 @@ table { width: 100%; min-width: 720px; border-collapse: collapse; }
 
 /* v35 categories and competition cleaner */
 .goalkeeper-panel { background: linear-gradient(180deg,#f8fbff 0%, #ffffff 100%); }
+
+
+/* v39 role/category structure */
+.hero-eyebrow { color: var(--blue); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 800; margin-bottom: 6px; }
+.hero-subtitle-app { margin: 8px 0 0; color: var(--muted); font-weight: 600; max-width: 780px; }
+.session-simple-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+@media (max-width: 980px) { .session-simple-grid { grid-template-columns: 1fr; } }

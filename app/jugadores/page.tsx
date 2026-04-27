@@ -5,15 +5,18 @@ import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { PlayerStatusBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
+import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { PlayerStatus } from '@/lib/types';
 
 const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Lesionado'];
 
 export default function JugadoresPage() {
   const { data, filters, deletePlayer, updatePlayer } = useApp();
+  const session = getStaffSession();
+  const master = isMasterRole(session);
   const players = data.players.filter((player) =>
     (filters.playerId === 'all' || player.id === filters.playerId) &&
-    (filters.category === 'all' || player.category === filters.category) &&
+    ((master ? filters.category : session.category) === 'all' || player.category === (master ? filters.category : session.category)) &&
     (filters.position === 'all' || player.position === filters.position) &&
     (filters.status === 'all' || player.status === filters.status)
   );
@@ -37,15 +40,15 @@ export default function JugadoresPage() {
               </div>
               <div className="btn-row" style={{ marginTop: 10, alignItems: 'center' }}>
                 <PlayerStatusBadge status={player.status} />
-                <select className="select" value={player.status} style={{ maxWidth: 180 }} onChange={(e) => updatePlayer({ ...player, status: e.target.value as PlayerStatus })}>
+                {!master ? <select className="select" value={player.status} style={{ maxWidth: 180 }} onChange={(e) => updatePlayer({ ...player, status: e.target.value as PlayerStatus })}>
                   {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                </select>
+                </select> : null}
               </div>
               {player.status !== 'Disponible' ? <div className="muted-line" style={{ marginTop: 8 }}>{player.injuryArea || 'Sin zona'} · {player.injuryType || 'Sin detalle'}</div> : null}
             </div>
             <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
               <Link className="btn secondary" href={`/jugadores/${player.id}`}>Ver perfil</Link>
-              <button
+              {!master ? <button
                 type="button"
                 className="btn danger"
                 onClick={() => {
@@ -54,7 +57,7 @@ export default function JugadoresPage() {
                 }}
               >
                 Eliminar
-              </button>
+              </button> : null}
             </div>
           </div>
         ))}

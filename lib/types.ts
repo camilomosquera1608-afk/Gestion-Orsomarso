@@ -1,6 +1,7 @@
 export type PlayerStatus = 'Disponible' | 'Lesionado' | 'Molestia' | 'Readaptación';
 export type Position = 'Portero' | 'Defensa central' | 'Lateral' | 'Mediocampista' | 'Extremo' | 'Delantero';
 export type ClubCategory = 'Sub15' | 'Sub17' | 'Sub20';
+export type StaffRole = 'sub15' | 'sub17' | 'sub20' | 'master';
 export type NutritionPlan = 'Normocalorico' | 'Hipercalorico' | 'Hipocalorico';
 export type TrainingSessionType = 'cdef' | 'cdEf' | 'cdeF' | 'Cdef';
 export type SessionParticipation = 'Completa' | 'Parcial' | 'No participa' | 'Gimnasio' | 'Readaptación';
@@ -114,6 +115,7 @@ export interface CompetitionRecord {
   playerId: string;
   date: string;
   opponent: string;
+  competitionName?: string;
   minutesPlayed: number;
   goals: number;
   assists: number;

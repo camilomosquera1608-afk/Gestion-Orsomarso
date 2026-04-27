@@ -11,7 +11,7 @@ const playerPhotos = [
 export const initialData: AppData = {
   trainingSessionSummaries: [
     { id: 'ts1', date: '2026-04-23', microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf', objective: 'Ejecución de tareas tácticas y control de carga', observation: 'Buena respuesta general del grupo.' },
-    { id: 'ts2', date: '2026-04-22', microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF', objective: 'Desarrollo de condición física específica', observation: 'Dos jugadores quedaron por debajo del rango HSR.' }
+    { id: 'ts2', date: '2026-04-22', microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF', objective: 'Desarrollo de condición física específica', observation: 'Dos jugadores quedaron por debajo del rango previsto.' }
   ],
   microcycles: [
     { id: 'mc-51', name: 'Microciclo 51', startDate: '2027-01-04', endDate: '2027-01-10' },

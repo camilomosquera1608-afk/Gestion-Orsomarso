@@ -4,29 +4,28 @@ import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
 import { useApp } from '@/context/app-context';
+import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-const sessionLabels: Record<string, string> = {
-  cdef: 'Recuperación',
-  cdEf: 'Ejecución',
-  cdeF: 'Condición física',
-  Cdef: 'Comunicación',
-};
+const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación' };
 
 export default function MicrocicloPage() {
   const { data, filters } = useApp();
+  const session = getStaffSession();
+  const master = isMasterRole(session);
+  const activeCategory = master ? filters.category : session.category;
+  const youthSimple = activeCategory !== 'Sub20';
   const microcycle = data.microcycles.find((x) => x.id === filters.microcycleId) ?? data.microcycles[0];
-  const players = data.players.filter((player) => (filters.playerId === 'all' || player.id === filters.playerId) && (filters.category === 'all' || player.category === filters.category));
-  const sessionRecords = data.externalLoads
-    .filter((x) => (x.microcycleId ?? filters.microcycleId) === filters.microcycleId)
-    .sort((a, b) => (a.date + (a.sessionNumber ?? 0)).localeCompare(b.date + (b.sessionNumber ?? 0)));
+  const players = data.players.filter((player) => (activeCategory === 'all' || player.category === activeCategory) && (filters.playerId === 'all' || player.id === filters.playerId));
+  const sessionRecords = data.externalLoads.filter((x) => (activeCategory === 'all' || x.category === activeCategory || data.players.find((p)=>p.id===x.playerId)?.category === activeCategory) && (x.microcycleId ?? filters.microcycleId) === filters.microcycleId).sort((a, b) => (a.date + (a.sessionNumber ?? 0)).localeCompare(b.date + (b.sessionNumber ?? 0)));
 
   const uniqueDays = [...new Set(sessionRecords.map((record) => record.date))];
   const dayData = uniqueDays.map((date) => ({
     date: date.slice(5),
     wellness: groupAverage(players.map((player) => averageWellness(data.wellness.find((x) => x.playerId === player.id && x.date === date)))),
     minutos: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.min ?? 0)),
+    rpe: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.rpe ?? 0)),
     acc: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.acc ?? 0)),
   }));
 
@@ -34,36 +33,35 @@ export default function MicrocicloPage() {
     jugador: player.name,
     carga: data.internalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + calculateInternalLoad(item), 0),
     minutos: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.min ?? 0), 0),
+    rpe: groupAverage(data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).map((item) => item.rpe ?? 0)),
     acc: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.acc ?? 0), 0),
-    sprints: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.sprints ?? 0), 0),
-  })).sort((a, b) => b.acc - a.acc);
+  })).sort((a, b) => youthSimple ? b.minutos - a.minutos : b.acc - a.acc);
 
-  const timeline = sessionRecords.reduce<Array<{ date: string; sessionNumber: number; sessionType: string; avgAcc: number; avgRhie: number; avgSprints: number; players: number }>>((acc, record) => {
+  const timeline = sessionRecords.reduce(list.__class__ if False else list, [])
+  timeline = sessionRecords.reduce((acc, record) => {
     const existing = acc.find((item) => item.date === record.date && item.sessionNumber === (record.sessionNumber ?? 1));
     if (!existing) {
       const bucket = sessionRecords.filter((x) => x.date === record.date && (x.sessionNumber ?? 1) === (record.sessionNumber ?? 1));
       acc.push({
-        date: record.date,
-        sessionNumber: record.sessionNumber ?? 1,
-        sessionType: record.sessionType ?? '-',
+        date: record.date, sessionNumber: record.sessionNumber ?? 1, sessionType: record.sessionType ?? '-',
+        avgRpe: groupAverage(bucket.map((x) => x.rpe ?? 0)),
+        avgMin: groupAverage(bucket.map((x) => x.min ?? 0)),
         avgAcc: groupAverage(bucket.map((x) => x.acc ?? 0)),
-        avgRhie: groupAverage(bucket.map((x) => x.rhie ?? 0)),
-        avgSprints: groupAverage(bucket.map((x) => x.sprints ?? 0)),
         players: bucket.length,
       });
     }
     return acc;
-  }, []);
+  }, [] as Array<{date:string;sessionNumber:number;sessionType:string;avgRpe:number;avgMin:number;avgAcc:number;players:number}>);
 
   return (
     <div className="grid">
-      <AppHero title="Dashboard de microciclo" />
+      <AppHero title="Dashboard de microciclo" subtitle={youthSimple ? `Vista ${activeCategory} simplificada sin métricas GPS.` : 'Vista avanzada de Sub20.'} />
       <GlobalFiltersBar />
       <div className="grid grid-4">
         <KpiCard label="Microciclo activo" value={microcycle.name} />
         <KpiCard label="Wellness promedio" value={groupAverage(dayData.map((d) => d.wellness)).toFixed(1)} />
         <KpiCard label="MIN acumulados" value={accumulated.reduce((acc, item) => acc + item.minutos, 0).toFixed(0)} />
-        <KpiCard label="ACC acumulado" value={accumulated.reduce((acc, item) => acc + item.acc, 0).toFixed(0)} />
+        <KpiCard label={youthSimple ? 'RPE promedio' : 'ACC acumulado'} value={youthSimple ? groupAverage(accumulated.map((x) => x.rpe)).toFixed(1) : accumulated.reduce((acc, item) => acc + item.acc, 0).toFixed(0)} />
       </div>
 
       <div className="card">
@@ -75,9 +73,9 @@ export default function MicrocicloPage() {
               <strong>Sesión {item.sessionNumber}</strong>
               <div className="muted-line">{item.sessionType} · {sessionLabels[item.sessionType] ?? 'Sin etiqueta'}</div>
               <div className="timeline-metrics">
-                <span>ACC {item.avgAcc.toFixed(0)}</span>
-                <span>RHIE {item.avgRhie.toFixed(0)}</span>
-                <span>SPRINTS {item.avgSprints.toFixed(0)}</span>
+                <span>MIN {item.avgMin.toFixed(0)}</span>
+                <span>RPE {item.avgRpe.toFixed(1)}</span>
+                {!youthSimple ? <span>ACC {item.avgAcc.toFixed(0)}</span> : null}
                 <span>{item.players} jugadores</span>
               </div>
             </div>
@@ -103,7 +101,7 @@ export default function MicrocicloPage() {
           </div>
         </div>
         <div className="card">
-          <h3>ACC por día del microciclo</h3>
+          <h3>{youthSimple ? 'RPE por día' : 'ACC por día'}</h3>
           <div style={{ width: '100%', height: 320 }}>
             <ResponsiveContainer>
               <BarChart data={dayData}>
@@ -111,7 +109,7 @@ export default function MicrocicloPage() {
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="acc" fill="#1d4ed8" radius={[8, 8, 0, 0]} />
+                <Bar dataKey={youthSimple ? 'rpe' : 'acc'} fill="#1d4ed8" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -121,26 +119,8 @@ export default function MicrocicloPage() {
       <div className="card table-wrap">
         <h3>Ranking del microciclo</h3>
         <table>
-          <thead>
-            <tr>
-              <th>Jugador</th>
-              <th>MIN acumulados</th>
-              <th>ACC acumulado</th>
-              <th>SPRINTS</th>
-              <th>Carga interna</th>
-            </tr>
-          </thead>
-          <tbody>
-            {accumulated.map((item) => (
-              <tr key={item.jugador}>
-                <td>{item.jugador}</td>
-                <td>{item.minutos}</td>
-                <td>{item.acc}</td>
-                <td>{item.sprints}</td>
-                <td>{item.carga}</td>
-              </tr>
-            ))}
-          </tbody>
+          <thead><tr><th>Jugador</th><th>MIN acumulados</th><th>RPE promedio</th>{!youthSimple ? <th>ACC acumulado</th> : null}<th>Carga interna</th></tr></thead>
+          <tbody>{accumulated.map((item) => <tr key={item.jugador}><td>{item.jugador}</td><td>{item.minutos}</td><td>{item.rpe}</td>{!youthSimple ? <td>{item.acc}</td> : null}<td>{item.carga}</td></tr>)}</tbody>
         </table>
       </div>
     </div>

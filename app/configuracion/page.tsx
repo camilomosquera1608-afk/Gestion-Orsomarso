@@ -2,9 +2,14 @@
 
 import { AppHero } from '@/components/app-hero';
 import { useApp } from '@/context/app-context';
+import { STAFF_CREDENTIALS, getStaffSession, isMasterRole } from '@/lib/auth';
 
 export default function ConfiguracionPage() {
   const { backendMode, syncStatus } = useApp();
+  const session = getStaffSession();
+  if (isMasterRole(session)) {
+    return <div className="grid"><AppHero title="Configuración" /><div className="empty">El usuario maestro no gestiona configuración operativa.</div></div>;
+  }
   const shareLink = typeof window !== 'undefined' ? `${window.location.origin}/wellness-jugadores` : '/wellness-jugadores';
 
   return (
@@ -27,12 +32,15 @@ export default function ConfiguracionPage() {
         </div>
       </div>
       <div className="card">
-        <h3>Pasos de Supabase</h3>
-        <div className="grid" style={{ gap: 10 }}>
-          <div className="mini-stat-card"><strong>1.</strong><div className="muted-line">Crear proyecto en Supabase.</div></div>
-          <div className="mini-stat-card"><strong>2.</strong><div className="muted-line">Ejecutar el archivo <code>supabase/schema.sql</code> en el editor SQL.</div></div>
-          <div className="mini-stat-card"><strong>3.</strong><div className="muted-line">Crear archivo <code>.env.local</code> con <code>NEXT_PUBLIC_SUPABASE_URL</code> y <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.</div></div>
-          <div className="mini-stat-card"><strong>4.</strong><div className="muted-line">Reiniciar la app con <code>npm run dev</code>.</div></div>
+        <h3>Accesos creados</h3>
+        <div className="grid grid-2">
+          {Object.values(STAFF_CREDENTIALS).map((item) => (
+            <div key={item.username} className="mini-stat-card">
+              <strong>{item.display}</strong>
+              <div className="muted-line">Usuario: {item.username}</div>
+              <div className="muted-line">Contraseña: {item.password}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { loginStaff } from '@/lib/auth';
+import { loginStaff, STAFF_CREDENTIALS } from '@/lib/auth';
+
+const examples = Object.values(STAFF_CREDENTIALS);
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,19 +14,19 @@ export default function LoginPage() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = loginStaff(user, password);
-    if (!ok) {
+    const result = loginStaff(user, password);
+    if (!result.ok) {
       setError('Usuario o contraseña incorrectos.');
       return;
     }
-    router.push('/');
+    router.push(result.session.role === 'master' ? '/informes' : '/');
   };
 
   return (
     <main className="login-page">
       <div className="login-card">
-        <div className="login-brand">Orsomarso SC</div>
-        <h1>Ingreso staff</h1>
+        <div className="login-brand">Orsomarso SC Performance</div>
+        <h1>Ingreso por categoría</h1>
         <form onSubmit={onSubmit} className="grid">
           <div className="field">
             <label>Usuario</label>
@@ -37,6 +39,10 @@ export default function LoginPage() {
           <button className="btn" type="submit">Entrar</button>
         </form>
         {error ? <div className="login-error">{error}</div> : null}
+        <div className="mini-stat-card" style={{ marginTop: 18 }}>
+          <strong>Accesos creados</strong>
+          <div className="muted-line">Sub15, Sub17, Sub20 y Maestro.</div>
+        </div>
       </div>
     </main>
   );

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { AppHero } from '@/components/app-hero';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
+import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { PlayerStatus } from '@/lib/types';
 import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -14,6 +15,8 @@ const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Le
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
   const { data, updatePlayer } = useApp();
+  const session = getStaffSession();
+  const master = isMasterRole(session);
   const player = data.players.find((item) => item.id === params.id);
 
   if (!player) return <div className="empty">Jugador no encontrado o eliminado.</div>;
@@ -29,6 +32,7 @@ export default function PlayerProfilePage() {
   const cmjHistory = data.cmjRecords.filter((x) => x.playerId === player.id).sort((a, b) => a.date.localeCompare(b.date)).map((x) => ({ fecha: x.date.slice(5), cmj: x.value }));
   const recentSessions = data.externalLoads.filter((x) => x.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   const recentCompetition = data.competitionRecords.filter((x) => x.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  const youthSimple = player.category !== 'Sub20';
 
   const timeline = [
     ...data.wellness.filter((x) => x.playerId === player.id).map((x) => ({ date: x.date, type: 'Wellness', detail: `Wellness ${averageWellness(x).toFixed(1)}` })),
@@ -41,7 +45,7 @@ export default function PlayerProfilePage() {
     averageWellness(latestWellness) < 3 ? `Wellness bajo (${averageWellness(latestWellness).toFixed(1)})` : null,
     player.status !== 'Disponible' ? `Estado actual: ${player.status}` : null,
     latestCmj && latestCmj.value < groupAverageCmj ? `CMJ por debajo del promedio grupal (${latestCmj.value} vs ${groupAverageCmj})` : null,
-    (latestExternal?.acc ?? 0) > 35 ? `ACC elevado en la última sesión (${latestExternal?.acc ?? 0})` : null,
+    (!youthSimple && (latestExternal?.acc ?? 0) > 35) ? `ACC elevado en la última sesión (${latestExternal?.acc ?? 0})` : null,
   ].filter(Boolean) as string[];
 
   const patchPlayer = (patch: Partial<typeof player>) => updatePlayer({ ...player, ...patch });
@@ -69,15 +73,15 @@ export default function PlayerProfilePage() {
           </div>
           <div className="btn-row" style={{ marginTop: 10 }}>
             <PlayerStatusBadge status={player.status} />
-            <select className="select" value={player.status} style={{ maxWidth: 180 }} onChange={(e) => patchPlayer({ status: e.target.value as PlayerStatus })}>
+            {!master ? <select className="select" value={player.status} style={{ maxWidth: 180 }} onChange={(e) => patchPlayer({ status: e.target.value as PlayerStatus })}>
               {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
+            </select> : null}
           </div>
         </div>
         <div className="summary-chip">Última fecha: {latestDate}</div>
       </div>
 
-      <div className="card">
+      {!master ? <div className="card">
         <h3>Foto del jugador</h3>
         <div className="register-photo-box">
           <img src={player.photo || '/orsomarso-crest.jpg'} alt={player.name} className="register-photo-preview" />
@@ -86,9 +90,9 @@ export default function PlayerProfilePage() {
             <input className="input" type="file" accept=".jpg,.jpeg,.png,image/png,image/jpeg" onChange={handlePhotoChange} />
           </div>
         </div>
-      </div>
+      </div> : null}
 
-      <div className="card">
+      {!master ? <div className="card">
         <h3>Lesión o novedad física</h3>
         <div className="grid grid-4">
           <input className="input" placeholder="Zona afectada" value={player.injuryArea ?? ''} onChange={(e) => patchPlayer({ injuryArea: e.target.value })} />
@@ -96,12 +100,12 @@ export default function PlayerProfilePage() {
           <input className="input" placeholder="Severidad" value={player.injurySeverity ?? ''} onChange={(e) => patchPlayer({ injurySeverity: e.target.value })} />
           <input className="input" type="date" value={player.returnDate ?? ''} onChange={(e) => patchPlayer({ returnDate: e.target.value })} />
         </div>
-      </div>
+      </div> : null}
 
       <div className="grid grid-4">
         <div className="card"><span className="kpi-label">Wellness actual</span><div style={{ marginTop: 10 }}><WellnessBadge value={averageWellness(latestWellness)} /></div></div>
         <div className="card"><span className="kpi-label">Carga interna</span><div className="kpi-value">{latestInternal ? calculateInternalLoad(latestInternal) : 0}</div></div>
-        <div className="card"><span className="kpi-label">ACC actual</span><div className="kpi-value">{latestExternal?.acc ?? 0}</div></div>
+        <div className="card"><span className="kpi-label">{youthSimple ? 'RPE actual' : 'ACC actual'}</span><div className="kpi-value">{youthSimple ? (latestExternal?.rpe ?? 0) : (latestExternal?.acc ?? 0)}</div></div>
         <div className="card"><span className="kpi-label">CMJ actual</span><div className="kpi-value">{latestCmj?.value ?? 0} cm</div><div className="kpi-trend">Δ vs anterior: {latestCmj && previousCmj ? (latestCmj.value - previousCmj.value).toFixed(1) : '0.0'} cm</div></div>
       </div>
 
