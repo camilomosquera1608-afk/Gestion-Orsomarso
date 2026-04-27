@@ -37,8 +37,7 @@ export default function MicrocicloPage() {
     acc: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.acc ?? 0), 0),
   })).sort((a, b) => youthSimple ? b.minutos - a.minutos : b.acc - a.acc);
 
-  const timeline = sessionRecords.reduce(list.__class__ if False else list, [])
-  timeline = sessionRecords.reduce((acc, record) => {
+  const timeline = sessionRecords.reduce((acc, record) => {
     const existing = acc.find((item) => item.date === record.date && item.sessionNumber === (record.sessionNumber ?? 1));
     if (!existing) {
       const bucket = sessionRecords.filter((x) => x.date === record.date && (x.sessionNumber ?? 1) === (record.sessionNumber ?? 1));
