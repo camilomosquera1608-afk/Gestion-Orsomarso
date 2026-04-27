@@ -153,3 +153,13 @@ La sincronización remota usa una fila compartida (`app_state`) con el estado co
 
 ## Version v32
 - Corregido build de microciclo para campos opcionales hsr/rhie.
+
+
+## Version v33
+- Corregido mock-data restante de externalLoads para cumplir con sprints e ima.
+
+
+## Version v34
+- Revisión integral de consistencia de métricas: diario, microciclo y perfil individual ya usan MIN, RPE, ACC, DCC, SPRINTS, RHIE e IMA.
+- Corregidos los mocks restantes y referencias antiguas a HSR/Distancia para evitar fallos de build.
+- Mantiene responsive mejorado y Next.js 15.0.7.

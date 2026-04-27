@@ -26,20 +26,19 @@ export default function MicrocicloPage() {
   const dayData = uniqueDays.map((date) => ({
     date: date.slice(5),
     wellness: groupAverage(players.map((player) => averageWellness(data.wellness.find((x) => x.playerId === player.id && x.date === date)))),
-    carga: groupAverage(players.map((player) => {
-      const rec = data.internalLoads.find((x) => x.playerId === player.id && x.date === date);
-      return rec ? calculateInternalLoad(rec) : 0;
-    })),
-    hsr: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.hsr ?? 0)),
+    minutos: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.min ?? 0)),
+    acc: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.acc ?? 0)),
   }));
 
   const accumulated = players.map((player) => ({
     jugador: player.name,
     carga: data.internalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + calculateInternalLoad(item), 0),
-    hsr: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.hsr ?? 0), 0),
-  })).sort((a, b) => b.carga - a.carga);
+    minutos: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.min ?? 0), 0),
+    acc: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.acc ?? 0), 0),
+    sprints: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.sprints ?? 0), 0),
+  })).sort((a, b) => b.acc - a.acc);
 
-  const timeline = sessionRecords.reduce<Array<{ date: string; sessionNumber: number; sessionType: string; avgHsr: number; avgRhie: number; players: number }>>((acc, record) => {
+  const timeline = sessionRecords.reduce<Array<{ date: string; sessionNumber: number; sessionType: string; avgAcc: number; avgRhie: number; avgSprints: number; players: number }>>((acc, record) => {
     const existing = acc.find((item) => item.date === record.date && item.sessionNumber === (record.sessionNumber ?? 1));
     if (!existing) {
       const bucket = sessionRecords.filter((x) => x.date === record.date && (x.sessionNumber ?? 1) === (record.sessionNumber ?? 1));
@@ -47,8 +46,9 @@ export default function MicrocicloPage() {
         date: record.date,
         sessionNumber: record.sessionNumber ?? 1,
         sessionType: record.sessionType ?? '-',
-        avgHsr: groupAverage(bucket.map((x) => x.hsr ?? 0)),
+        avgAcc: groupAverage(bucket.map((x) => x.acc ?? 0)),
         avgRhie: groupAverage(bucket.map((x) => x.rhie ?? 0)),
+        avgSprints: groupAverage(bucket.map((x) => x.sprints ?? 0)),
         players: bucket.length,
       });
     }
@@ -62,8 +62,8 @@ export default function MicrocicloPage() {
       <div className="grid grid-4">
         <KpiCard label="Microciclo activo" value={microcycle.name} />
         <KpiCard label="Wellness promedio" value={groupAverage(dayData.map((d) => d.wellness)).toFixed(1)} />
-        <KpiCard label="Carga acumulada" value={accumulated.reduce((acc, item) => acc + item.carga, 0).toFixed(0)} />
-        <KpiCard label="HSR acumulado" value={`${accumulated.reduce((acc, item) => acc + item.hsr, 0).toFixed(0)} m`} />
+        <KpiCard label="MIN acumulados" value={accumulated.reduce((acc, item) => acc + item.minutos, 0).toFixed(0)} />
+        <KpiCard label="ACC acumulado" value={accumulated.reduce((acc, item) => acc + item.acc, 0).toFixed(0)} />
       </div>
 
       <div className="card">
@@ -75,8 +75,9 @@ export default function MicrocicloPage() {
               <strong>Sesión {item.sessionNumber}</strong>
               <div className="muted-line">{item.sessionType} · {sessionLabels[item.sessionType] ?? 'Sin etiqueta'}</div>
               <div className="timeline-metrics">
-                <span>HSR {item.avgHsr.toFixed(0)}</span>
+                <span>ACC {item.avgAcc.toFixed(0)}</span>
                 <span>RHIE {item.avgRhie.toFixed(0)}</span>
+                <span>SPRINTS {item.avgSprints.toFixed(0)}</span>
                 <span>{item.players} jugadores</span>
               </div>
             </div>
@@ -96,13 +97,13 @@ export default function MicrocicloPage() {
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip />
                 <Line yAxisId="left" type="monotone" dataKey="wellness" stroke="#1d4ed8" name="Wellness" strokeWidth={3} />
-                <Line yAxisId="right" type="monotone" dataKey="carga" stroke="#60a5fa" name="Carga" strokeWidth={3} />
+                <Line yAxisId="right" type="monotone" dataKey="minutos" stroke="#60a5fa" name="MIN" strokeWidth={3} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
         <div className="card">
-          <h3>HSR por día del microciclo</h3>
+          <h3>ACC por día del microciclo</h3>
           <div style={{ width: '100%', height: 320 }}>
             <ResponsiveContainer>
               <BarChart data={dayData}>
@@ -110,28 +111,33 @@ export default function MicrocicloPage() {
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="hsr" fill="#1d4ed8" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="acc" fill="#1d4ed8" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
+
       <div className="card table-wrap">
         <h3>Ranking del microciclo</h3>
         <table>
           <thead>
             <tr>
               <th>Jugador</th>
-              <th>Carga interna acumulada</th>
-              <th>HSR acumulado</th>
+              <th>MIN acumulados</th>
+              <th>ACC acumulado</th>
+              <th>SPRINTS</th>
+              <th>Carga interna</th>
             </tr>
           </thead>
           <tbody>
             {accumulated.map((item) => (
               <tr key={item.jugador}>
                 <td>{item.jugador}</td>
+                <td>{item.minutos}</td>
+                <td>{item.acc}</td>
+                <td>{item.sprints}</td>
                 <td>{item.carga}</td>
-                <td>{item.hsr}</td>
               </tr>
             ))}
           </tbody>

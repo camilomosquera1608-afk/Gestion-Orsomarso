@@ -104,7 +104,7 @@ export const initialData: AppData = {
     { id: 'e7', playerId: 'p1', date: '2026-04-22', min: 80, rpe: 5, acc: 12, dcc: 11, sprints: 6, rhie: 8, ima: 15, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
     { id: 'e8', playerId: 'p2', date: '2026-04-22', min: 85, rpe: 6, acc: 33, dcc: 29, sprints: 13, rhie: 18, ima: 22, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
     { id: 'e9', playerId: 'p3', date: '2026-04-22', min: 60, rpe: 4, acc: 30, dcc: 31, sprints: 12, rhie: 17, ima: 20, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' },
-    { id: 'e10', playerId: 'p4', date: '2026-04-22', totalDistance: 8950, hsr: 630, rhie: 22, acc: 42, dcc: 40, min: 85, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' }
+    { id: 'e10', playerId: 'p4', date: '2026-04-22', min: 85, rpe: 7, acc: 42, dcc: 40, sprints: 19, rhie: 22, ima: 30, microcycleId: 'mc-14', sessionNumber: 2, sessionType: 'cdeF' }
   ],
   cmjRecords: [
     { id: 'c1', playerId: 'p1', date: '2026-04-23', value: 39.8 },

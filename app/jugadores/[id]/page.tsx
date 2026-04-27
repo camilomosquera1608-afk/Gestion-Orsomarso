@@ -41,7 +41,7 @@ export default function PlayerProfilePage() {
     averageWellness(latestWellness) < 3 ? `Wellness bajo (${averageWellness(latestWellness).toFixed(1)})` : null,
     player.status !== 'Disponible' ? `Estado actual: ${player.status}` : null,
     latestCmj && latestCmj.value < groupAverageCmj ? `CMJ por debajo del promedio grupal (${latestCmj.value} vs ${groupAverageCmj})` : null,
-    (latestExternal?.hsr ?? 0) > 600 ? `HSR elevado en la última sesión (${latestExternal?.hsr ?? 0})` : null,
+    (latestExternal?.acc ?? 0) > 35 ? `ACC elevado en la última sesión (${latestExternal?.acc ?? 0})` : null,
   ].filter(Boolean) as string[];
 
   const patchPlayer = (patch: Partial<typeof player>) => updatePlayer({ ...player, ...patch });
@@ -100,7 +100,7 @@ export default function PlayerProfilePage() {
       <div className="grid grid-4">
         <div className="card"><span className="kpi-label">Wellness actual</span><div style={{ marginTop: 10 }}><WellnessBadge value={averageWellness(latestWellness)} /></div></div>
         <div className="card"><span className="kpi-label">Carga interna</span><div className="kpi-value">{latestInternal ? calculateInternalLoad(latestInternal) : 0}</div></div>
-        <div className="card"><span className="kpi-label">HSR</span><div className="kpi-value">{latestExternal?.hsr ?? 0} m</div></div>
+        <div className="card"><span className="kpi-label">ACC actual</span><div className="kpi-value">{latestExternal?.acc ?? 0}</div></div>
         <div className="card"><span className="kpi-label">CMJ actual</span><div className="kpi-value">{latestCmj?.value ?? 0} cm</div><div className="kpi-trend">Δ vs anterior: {latestCmj && previousCmj ? (latestCmj.value - previousCmj.value).toFixed(1) : '0.0'} cm</div></div>
       </div>
 

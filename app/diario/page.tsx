@@ -30,35 +30,24 @@ export default function DiarioPage() {
     };
   });
 
-  const ranking = [...tableRows].sort((a, b) => b.internalLoad - a.internalLoad);
+  const ranking = [...tableRows].sort((a, b) => (b.external?.acc ?? 0) - (a.external?.acc ?? 0));
   const lineData = ['2026-04-22', '2026-04-23'].map((date) => ({
     date: date.slice(5),
-    wellness: groupAverage(
-      players.map((player) => averageWellness(data.wellness.find((x) => x.playerId === player.id && x.date === date)))
-    ),
-    carga: groupAverage(
-      players.map((player) => {
-        const record = data.internalLoads.find((x) => x.playerId === player.id && x.date === date);
-        return record ? calculateInternalLoad(record) : 0;
-      })
-    )
+    wellness: groupAverage(players.map((player) => averageWellness(data.wellness.find((x) => x.playerId === player.id && x.date === date)))),
+    minutos: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.min ?? 0)),
+    rhie: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.rhie ?? 0)),
   }));
 
   return (
     <div className="grid">
-      <AppHero
-        title="Dashboard diario"
-        subtitle="Seguimiento del wellness, la carga interna y la carga externa del grupo en la jornada seleccionada, con ranking, comparativas y semáforo visual."
-        badgeTitle="Métricas clave del día"
-        badgeText="Incluye sueño, fatiga, estrés, dolor muscular, ánimo, RPE, duración, carga interna, distancia total, HSR, RHIE, ACC y DCC."
-      />
+      <AppHero title="Dashboard diario" />
       <GlobalFiltersBar />
 
       <div className="grid grid-4">
         <KpiCard label="Wellness promedio" value={groupAverage(tableRows.map((r) => r.wellnessAvg)).toFixed(1)} />
-        <KpiCard label="Carga interna promedio" value={groupAverage(tableRows.map((r) => r.internalLoad)).toFixed(0)} />
-        <KpiCard label="HSR promedio" value={`${groupAverage(tableRows.map((r) => r.external?.hsr ?? 0)).toFixed(0)} m`} />
-        <KpiCard label="Distancia total promedio" value={`${groupAverage(tableRows.map((r) => r.external?.totalDistance ?? 0)).toFixed(0)} m`} />
+        <KpiCard label="MIN promedio" value={groupAverage(tableRows.map((r) => r.external?.min ?? 0)).toFixed(0)} />
+        <KpiCard label="ACC promedio" value={groupAverage(tableRows.map((r) => r.external?.acc ?? 0)).toFixed(1)} />
+        <KpiCard label="RPE promedio" value={groupAverage(tableRows.map((r) => r.external?.rpe ?? 0)).toFixed(1)} />
       </div>
 
       <div className="grid grid-2">
@@ -73,22 +62,22 @@ export default function DiarioPage() {
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip />
                 <Line yAxisId="left" type="monotone" dataKey="wellness" name="Wellness" stroke="#1d4ed8" strokeWidth={3} />
-                <Line yAxisId="right" type="monotone" dataKey="carga" name="Carga interna" stroke="#60a5fa" strokeWidth={3} />
+                <Line yAxisId="right" type="monotone" dataKey="minutos" name="MIN" stroke="#60a5fa" strokeWidth={3} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         <div className="card">
-          <h3>Ranking de carga interna</h3>
+          <h3>Ranking ACC del día</h3>
           <div style={{ width: '100%', height: 320 }}>
             <ResponsiveContainer>
-              <BarChart data={ranking.map((item) => ({ jugador: item.player.name.split(' ')[0], carga: item.internalLoad }))} layout="vertical">
+              <BarChart data={ranking.map((item) => ({ jugador: item.player.name.split(' ')[0], acc: item.external?.acc ?? 0 }))} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" />
                 <YAxis dataKey="jugador" type="category" width={100} />
                 <Tooltip />
-                <Bar dataKey="carga" name="Carga interna" fill="#1d4ed8" radius={[0, 8, 8, 0]} />
+                <Bar dataKey="acc" name="ACC" fill="#1d4ed8" radius={[0, 8, 8, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -108,14 +97,13 @@ export default function DiarioPage() {
               <th>Estrés</th>
               <th>Dolor muscular</th>
               <th>Ánimo</th>
+              <th>MIN</th>
               <th>RPE</th>
-              <th>Duración</th>
-              <th>Carga interna</th>
-              <th>Distancia total</th>
-              <th>HSR</th>
-              <th>RHIE</th>
               <th>ACC</th>
               <th>DCC</th>
+              <th>SPRINTS</th>
+              <th>RHIE</th>
+              <th>IMA</th>
             </tr>
           </thead>
           <tbody>
@@ -129,14 +117,13 @@ export default function DiarioPage() {
                 <td>{row.wellness?.stress ?? '-'}</td>
                 <td>{row.wellness?.musclePain ?? '-'}</td>
                 <td>{row.wellness?.mood ?? '-'}</td>
-                <td>{row.internal?.rpe ?? '-'}</td>
-                <td>{row.internal?.duration ?? '-'}</td>
-                <td>{row.internalLoad}</td>
-                <td>{row.external?.totalDistance ?? '-'}</td>
-                <td>{row.external?.hsr ?? '-'}</td>
-                <td>{row.external?.rhie ?? '-'}</td>
+                <td>{row.external?.min ?? '-'}</td>
+                <td>{row.external?.rpe ?? '-'}</td>
                 <td>{row.external?.acc ?? '-'}</td>
                 <td>{row.external?.dcc ?? '-'}</td>
+                <td>{row.external?.sprints ?? '-'}</td>
+                <td>{row.external?.rhie ?? '-'}</td>
+                <td>{row.external?.ima ?? '-'}</td>
               </tr>
             ))}
           </tbody>
