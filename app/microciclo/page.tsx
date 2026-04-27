@@ -36,7 +36,7 @@ export default function MicrocicloPage() {
   const accumulated = players.map((player) => ({
     jugador: player.name,
     carga: data.internalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + calculateInternalLoad(item), 0),
-    hsr: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + item.hsr, 0),
+    hsr: data.externalLoads.filter((x) => x.playerId === player.id && x.date >= microcycle.startDate && x.date <= microcycle.endDate).reduce((acc, item) => acc + (item.hsr ?? 0), 0),
   })).sort((a, b) => b.carga - a.carga);
 
   const timeline = sessionRecords.reduce<Array<{ date: string; sessionNumber: number; sessionType: string; avgHsr: number; avgRhie: number; players: number }>>((acc, record) => {
@@ -47,8 +47,8 @@ export default function MicrocicloPage() {
         date: record.date,
         sessionNumber: record.sessionNumber ?? 1,
         sessionType: record.sessionType ?? '-',
-        avgHsr: groupAverage(bucket.map((x) => x.hsr)),
-        avgRhie: groupAverage(bucket.map((x) => x.rhie)),
+        avgHsr: groupAverage(bucket.map((x) => x.hsr ?? 0)),
+        avgRhie: groupAverage(bucket.map((x) => x.rhie ?? 0)),
         players: bucket.length,
       });
     }

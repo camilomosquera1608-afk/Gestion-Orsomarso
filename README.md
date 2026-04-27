@@ -149,3 +149,7 @@ La sincronización remota usa una fila compartida (`app_state`) con el estado co
 - Jugadores con alta estabilidad: evita duplicados por nombre/id al crear y mantiene orden.
 - Responsive mas limpio para celular e iPad.
 - Next.js 15.0.7.
+
+
+## Version v32
+- Corregido build de microciclo para campos opcionales hsr/rhie.
