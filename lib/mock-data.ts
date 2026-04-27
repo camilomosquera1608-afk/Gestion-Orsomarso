@@ -67,12 +67,12 @@ export const initialData: AppData = {
     { id: 'mc-1', name: 'Microciclo 1', startDate: '2026-01-19', endDate: '2026-01-25' }
   ],
   players: [
-    { id: 'p1', name: 'Juan Camilo Ruiz', age: 26, position: 'Portero', height: 189, weight: 84, status: 'Disponible', category: 'Sub20', photo: playerPhotos[0] },
-    { id: 'p2', name: 'Brayan Mosquera', age: 23, position: 'Defensa central', height: 184, weight: 79, status: 'Disponible', category: 'Sub20', photo: playerPhotos[1] },
-    { id: 'p3', name: 'Kevin Salazar', age: 21, position: 'Lateral', height: 176, weight: 72, status: 'Molestia', category: 'Sub17', photo: playerPhotos[2] },
-    { id: 'p4', name: 'Andrés Cuesta', age: 24, position: 'Mediocampista', height: 178, weight: 74, status: 'Disponible', category: 'Sub17', photo: playerPhotos[3] },
-    { id: 'p5', name: 'Johan Murillo', age: 27, position: 'Extremo', height: 175, weight: 70, status: 'Readaptación', category: 'Sub15', photo: playerPhotos[4] },
-    { id: 'p6', name: 'Santiago Arboleda', age: 25, position: 'Delantero', height: 181, weight: 77, status: 'Lesionado', category: 'Sub15', photo: playerPhotos[0] }
+    { id: 'p1', name: 'Juan Camilo Ruiz', age: 26, position: 'Portero', height: 189, weight: 84, status: 'Disponible', category: 'Sub20', birthDate: '15/03/2000', photo: playerPhotos[0] },
+    { id: 'p2', name: 'Brayan Mosquera', age: 23, position: 'Defensa central', height: 184, weight: 79, status: 'Disponible', category: 'Sub20', birthDate: '09/09/2002', photo: playerPhotos[1] },
+    { id: 'p3', name: 'Kevin Salazar', age: 21, position: 'Lateral', height: 176, weight: 72, status: 'Molestia', category: 'Sub17', birthDate: '20/01/2008', photo: playerPhotos[2] },
+    { id: 'p4', name: 'Andrés Cuesta', age: 24, position: 'Mediocampista', height: 178, weight: 74, status: 'Disponible', category: 'Sub17', birthDate: '11/05/2008', photo: playerPhotos[3] },
+    { id: 'p5', name: 'Johan Murillo', age: 27, position: 'Extremo', height: 175, weight: 70, status: 'Readaptación', category: 'Sub15', birthDate: '07/08/2010', photo: playerPhotos[4] },
+    { id: 'p6', name: 'Santiago Arboleda', age: 25, position: 'Delantero', height: 181, weight: 77, status: 'Lesionado', category: 'Sub15', birthDate: '02/12/2010', photo: playerPhotos[0] }
   ],
   wellness: [
     { id: 'w1', playerId: 'p1', date: '2026-04-23', sleep: 4, fatigue: 4, stress: 5, musclePain: 4, mood: 5 },

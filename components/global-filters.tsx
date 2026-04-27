@@ -1,3 +1,4 @@
+import { categoryLabel } from '@/lib/labels';
 'use client';
 
 import { ClubCategory, MovementType, Position, PlayerStatus } from '@/lib/types';
@@ -57,10 +58,10 @@ export const GlobalFiltersBar = () => {
         {master ? (
           <select className="select" value={filters.category} onChange={(e) => setFilters({ category: e.target.value, playerId: 'all' })}>
             <option value="all">Todas las categorías</option>
-            {allCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+            {allCategories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}
           </select>
         ) : (
-          <input className="input" value={session.category} readOnly />
+          <input className="input" value={categoryLabel(session.category)} readOnly />
         )}
       </div>
 
@@ -94,7 +95,7 @@ export const GlobalFiltersBar = () => {
             <label>Categoría participación</label>
             <select className="select" value={filters.actingCategory} onChange={(e) => setFilters({ actingCategory: e.target.value })}>
               <option value="all">Todas</option>
-              {allCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+              {allCategories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}
             </select>
           </div>
           <div className="field">

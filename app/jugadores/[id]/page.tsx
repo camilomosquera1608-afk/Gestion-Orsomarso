@@ -1,3 +1,4 @@
+import { categoryLabel, calcAge } from '@/lib/labels';
 'use client';
 
 import { ChangeEvent } from 'react';
@@ -85,10 +86,10 @@ export default function PlayerProfilePage() {
         <div>
           <h3 style={{ margin: 0 }}>{player.name}</h3>
           <div className="player-meta">
-            <span>{player.age} años</span>
+            <span>{calcAge(player.birthDate) ?? player.age} años</span>
             <span>{player.position}</span>
-            <span>Base {player.category ?? 'Sub20'}</span>
-            <span>{player.height} cm</span>
+            <span>Base {categoryLabel(player.category)}</span>
+            <span>{player.birthDate ? `Nac. ${player.birthDate}` : 'Sin fecha'}</span><span>{player.height} cm</span>
             <span>{player.weight} kg</span>
           </div>
           <div className="btn-row" style={{ marginTop: 10 }}>

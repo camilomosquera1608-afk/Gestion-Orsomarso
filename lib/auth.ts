@@ -3,9 +3,9 @@ import { ClubCategory, StaffRole } from './types';
 export const STAFF_AUTH_KEY = 'orsomarso_staff_auth_v2';
 
 export const STAFF_CREDENTIALS: Record<StaffRole, { username: string; password: string; category?: ClubCategory; display: string }> = {
-  sub15: { username: 'UsuarioSub15', password: 'OrsoS15!2026', category: 'Sub15', display: 'Sub15' },
-  sub17: { username: 'UsuarioSub17', password: 'OrsoS17!2026', category: 'Sub17', display: 'Sub17' },
-  sub20: { username: 'UsuarioSub20', password: 'OrsoS20!2026', category: 'Sub20', display: 'Sub20' },
+  sub15: { username: 'UsuarioSub15', password: 'OrsoS15!2026', category: 'Sub15', display: 'U15' },
+  sub17: { username: 'UsuarioSub17', password: 'OrsoS17!2026', category: 'Sub17', display: 'U17' },
+  sub20: { username: 'UsuarioSub20', password: 'OrsoS20!2026', category: 'Sub20', display: 'U20' },
   master: { username: 'UsuarioMaestro', password: 'OrsoMaster!2026', display: 'Maestro' },
 };
 

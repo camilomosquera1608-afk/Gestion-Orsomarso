@@ -12,6 +12,7 @@ export interface Player {
   id: string;
   name: string;
   age: number;
+  birthDate?: string;
   position: Position;
   category?: ClubCategory;
   categoryHistory?: ClubCategory[];
@@ -151,6 +152,9 @@ export interface CompetitionRecord {
   movementNote?: string;
   movementModule?: MovementModule;
   loggedBy?: string;
+  postCompetitionStatus?: string;
+  injuryKind?: InjuryKind;
+  medicalObservation?: string;
 }
 
 export interface TrainingSessionSummary {

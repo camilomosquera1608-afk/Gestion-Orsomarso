@@ -1,9 +1,10 @@
+import { categoryLabel } from '@/lib/labels';
 'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Activity, BarChart3, FileText, Gauge, HeartPulse, Home, LogOut, Settings, TimerReset, Trophy, UserRoundPlus, Users } from 'lucide-react';
+import { Activity, BarChart3, FileText, Gauge, Home, LogOut, Medal, Settings, TimerReset, Trophy, UserRoundPlus, Users } from 'lucide-react';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
 
 const staffItems = [
@@ -14,6 +15,7 @@ const staffItems = [
   { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
   { href: '/competencia', label: 'Competencia', icon: Trophy },
   { href: '/informes', label: 'Informes', icon: FileText },
+  { href: '/ranking', label: 'Ranking', icon: Medal },
   { href: '/jugadores', label: 'Jugadores', icon: Users },
   { href: '/registro', label: 'Registro', icon: UserRoundPlus },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
@@ -21,6 +23,7 @@ const staffItems = [
 
 const masterItems = [
   { href: '/informes', label: 'Informes', icon: FileText },
+  { href: '/ranking', label: 'Ranking', icon: Medal },
   { href: '/jugadores', label: 'Jugadores', icon: Users },
 ];
 
@@ -36,7 +39,7 @@ export const Sidebar = () => {
         <Image src="/orsomarso-crest.jpg" alt="Escudo Orsomarso SC" width={58} height={58} />
         <div>
           <small>Orsomarso SC</small>
-          <h1>{session.role === 'master' ? 'Performance Maestro' : `Performance ${session.category}`}</h1>
+          <h1>{session.role === 'master' ? 'Performance Maestro' : `Performance ${categoryLabel(session.category)}`}</h1>
         </div>
       </div>
 

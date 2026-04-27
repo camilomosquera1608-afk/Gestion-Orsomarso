@@ -7,260 +7,193 @@ import { KpiCard } from '@/components/kpi-card';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { ClubCategory, MovementType } from '@/lib/types';
+import { categoryLabel } from '@/lib/labels';
+import { ClubCategory, InjuryKind, MovementType } from '@/lib/types';
 import { groupAverage } from '@/lib/utils';
 
+const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 const competitionsByCategory: Record<ClubCategory, string[]> = {
   Sub20: ['Super copa juvenil'],
   Sub17: ['Liga vallecaucana Sub17', 'Torneo nacional Sub17'],
   Sub15: ['Liga vallecaucana Sub16', 'Torneo nacional Sub15'],
 };
-
-const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
-const competitionMovementOptions: Array<{ value: MovementType; label: string }> = [
+const medicalStates = ['Sin novedad', 'Fatigado', 'Molestia', 'Lesionado'];
+const injuryKinds: InjuryKind[] = ['Muscular', 'Articular', 'Tendinosa', 'Ósea'];
+const movementOptions: Array<{ value: MovementType; label: string }> = [
   { value: 'base', label: 'Categoría base' },
   { value: 'subio_a_competir', label: 'Subió a competir' },
   { value: 'bajo_a_competir', label: 'Bajó a competir' },
 ];
 
 export default function CompetenciaPage() {
-  const { data, filters, addCompetitionRecord, updateCompetitionRecord, deleteCompetitionRecord } = useApp();
+  const { data, filters, addCompetitionRecord, updateCompetitionRecord, deleteCompetitionRecord, setFilters } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
+  const youthSimple = activeCategory !== 'Sub20';
   const [message, setMessage] = useState('');
   const [editingId, setEditingId] = useState('');
-  const [selectedPlayerId, setSelectedPlayerId] = useState('');
+  const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
 
-  const filteredPlayers = data.players.filter((player) =>
-    player.category === activeCategory &&
-    (filters.position === 'all' || player.position === filters.position) &&
-    (filters.status === 'all' || player.status === filters.status),
-  );
-
+  const sourcePlayers = data.players.filter((player) => player.category === sourceCategory);
   const records = useMemo(
-    () =>
-      data.competitionRecords
-        .filter((record) => {
-          const player = data.players.find((p) => p.id === record.playerId);
-          return (
-            !!player &&
-            player.category === activeCategory &&
-            (filters.playerId === 'all' || record.playerId === filters.playerId) &&
-            (filters.position === 'all' || player.position === filters.position) &&
-            (filters.status === 'all' || player.status === filters.status) &&
-            (filters.actingCategory === 'all' || (record.actingCategory ?? record.category ?? player.category) === filters.actingCategory) &&
-            (filters.movementType === 'all' || (record.movementType ?? 'base') === filters.movementType)
-          );
-        })
-        .sort((a, b) => b.date.localeCompare(a.date)),
-    [data.competitionRecords, data.players, filters.playerId, filters.position, filters.status, filters.actingCategory, filters.movementType, activeCategory],
+    () => data.competitionRecords.filter((record) => (record.category ?? record.actingCategory ?? activeCategory) === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
+    [data.competitionRecords, activeCategory],
   );
 
   const editing = records.find((record) => record.id === editingId);
-  const currentPlayerId = editing?.playerId ?? selectedPlayerId ?? (filters.playerId === 'all' ? filteredPlayers[0]?.id ?? '' : filters.playerId);
-  const currentPlayer = data.players.find((player) => player.id === currentPlayerId) ?? filteredPlayers[0];
+  const currentPlayerId = editing?.playerId ?? (sourcePlayers[0]?.id ?? '');
+  const currentPlayer = data.players.find((player) => player.id === currentPlayerId) ?? sourcePlayers[0];
   const isGoalkeeper = currentPlayer?.position === 'Portero';
-  const youthSimple = activeCategory !== 'Sub20';
-  const defaultActingCategory = (editing?.actingCategory ?? currentPlayer?.category ?? activeCategory) as ClubCategory;
-  const currentCompetitionCategory = defaultActingCategory || activeCategory;
 
   const submit = (formData: FormData) => {
     const playerId = String(formData.get('playerId'));
     const player = data.players.find((item) => item.id === playerId);
     const goalkeeper = player?.position === 'Portero';
-    const baseCategory = (player?.category ?? activeCategory) as ClubCategory;
-    const actingCategory = String(formData.get('actingCategory')) as ClubCategory;
-    const isSimple = actingCategory !== 'Sub20';
-    const movementType = actingCategory === baseCategory ? 'base' : (String(formData.get('movementType')) as MovementType);
+    const movementType = sourceCategory === activeCategory ? 'base' : (String(formData.get('movementType')) as MovementType);
 
     const baseRecord = {
       id: editingId || crypto.randomUUID(),
       playerId,
       date: String(formData.get('date')),
-      opponent: String(formData.get('competitionName') || formData.get('opponent')),
-      competitionName: String(formData.get('competitionName') || ''),
+      opponent: String(formData.get('competitionName')),
+      competitionName: String(formData.get('competitionName')),
       minutesPlayed: Number(formData.get('minutesPlayed')) || 0,
       yellowCards: Number(formData.get('yellowCards')) || 0,
       redCards: Number(formData.get('redCards')) || 0,
-      category: baseCategory,
-      baseCategory,
-      actingCategory,
+      category: activeCategory,
+      baseCategory: player?.category ?? sourceCategory,
+      actingCategory: activeCategory,
       movementType,
       movementNote: String(formData.get('movementNote') || ''),
       movementModule: 'competencia' as const,
       loggedBy: session.displayName,
+      postCompetitionStatus: String(formData.get('postCompetitionStatus') || ''),
+      injuryKind: String(formData.get('injuryKind') || '') as InjuryKind,
+      medicalObservation: String(formData.get('medicalObservation') || ''),
     };
 
     const record = goalkeeper
-      ? {
-          ...baseRecord,
-          goals: 0,
-          assists: 0,
-          goalsConceded: Number(formData.get('goalsConceded')) || 0,
-          goalsPrevented: Number(formData.get('goalsPrevented')) || 0,
-          crossesDefended: Number(formData.get('crossesDefended')) || 0,
-          shotsOnTarget: Number(formData.get('shotsOnTarget')) || 0,
-        }
-      : isSimple
-      ? {
-          ...baseRecord,
-          goals: Number(formData.get('goals')) || 0,
-          assists: Number(formData.get('assists')) || 0,
-        }
-      : {
-          ...baseRecord,
-          goals: Number(formData.get('goals')) || 0,
-          assists: Number(formData.get('assists')) || 0,
-          acc: Number(formData.get('acc')) || 0,
-          dcc: Number(formData.get('dcc')) || 0,
-          sprints: Number(formData.get('sprints')) || 0,
-          rhie: Number(formData.get('rhie')) || 0,
-          ima: Number(formData.get('ima')) || 0,
-        };
+      ? { ...baseRecord, goals: 0, assists: 0, goalsConceded: Number(formData.get('goalsConceded')) || 0, goalsPrevented: Number(formData.get('goalsPrevented')) || 0, crossesDefended: Number(formData.get('crossesDefended')) || 0, shotsOnTarget: Number(formData.get('shotsOnTarget')) || 0 }
+      : youthSimple
+        ? { ...baseRecord, goals: Number(formData.get('goals')) || 0, assists: Number(formData.get('assists')) || 0 }
+        : { ...baseRecord, goals: Number(formData.get('goals')) || 0, assists: Number(formData.get('assists')) || 0, acc: Number(formData.get('acc')) || 0, dcc: Number(formData.get('dcc')) || 0, sprints: Number(formData.get('sprints')) || 0, rhie: Number(formData.get('rhie')) || 0, ima: Number(formData.get('ima')) || 0 };
 
     if (editingId) updateCompetitionRecord(record);
     else addCompetitionRecord(record);
-    setMessage(editingId ? 'Informe de competencia actualizado.' : 'Informe de competencia guardado.');
     setEditingId('');
+    setMessage('Competencia guardada correctamente.');
   };
 
   return (
     <div className="grid">
-      <AppHero title="Competencia" subtitle={youthSimple ? 'Panel simplificado por categoría con minutos y datos esenciales.' : 'Panel avanzado de competencia para Sub20.'} />
+      <AppHero title="Competencia" subtitle={`Orsomarso SC Performance · ${categoryLabel(activeCategory)}`} />
       <GlobalFiltersBar />
 
       <div className="grid grid-4">
         <KpiCard label="Partidos registrados" value={String(records.length)} />
         <KpiCard label="Minutos jugados" value={groupAverage(records.map((r) => r.minutesPlayed)).toFixed(0)} />
-        <KpiCard label="Movimientos temporales" value={String(records.filter((r) => (r.actingCategory ?? r.category) !== (r.baseCategory ?? r.category)).length)} />
-        <KpiCard label="Categoría base activa" value={activeCategory} />
+        <KpiCard label="Goles" value={String(records.reduce((acc, r) => acc + r.goals, 0))} />
+        <KpiCard label="Asistencias" value={String(records.reduce((acc, r) => acc + r.assists, 0))} />
       </div>
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
 
-      <form className="card grid" action={submit}>
-        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>{editing ? 'Editar competencia' : 'Cargar competencia'}</h3>
-          <button type="button" className="btn secondary" onClick={() => setEditingId('')}>Limpiar</button>
-        </div>
+      {master ? (
+        <div className="card"><strong>Usuario Maestro:</strong> acceso de lectura. Usa Informes y Ranking para el análisis global.</div>
+      ) : (
+        <form className="card grid" action={submit}>
+          <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>{editing ? 'Editar competencia' : 'Cargar competencia'}</h3>
+            <button type="button" className="btn secondary" onClick={() => downloadCsv('competencia.csv', records.map((r) => ({
+              fecha: r.date,
+              jugador: data.players.find((p) => p.id === r.playerId)?.name ?? 'Jugador',
+              categoria_base: categoryLabel(data.players.find((p) => p.id === r.playerId)?.category),
+              categoria_participacion: categoryLabel(r.actingCategory ?? r.category),
+              competencia: r.competitionName ?? r.opponent,
+              minutos: r.minutesPlayed,
+              goles: r.goals,
+              asistencias: r.assists,
+              estado_postcompetencia: r.postCompetitionStatus ?? '',
+              tipo_lesion: r.injuryKind ?? '',
+              observacion_medica: r.medicalObservation ?? '',
+            })))}>Exportar CSV</button>
+          </div>
 
-        <div className="grid grid-3">
-          <select className="select" name="playerId" value={currentPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)}>
-            {filteredPlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <input className="input" type="date" name="date" defaultValue={editing?.date ?? filters.date} key={`comp-date-${editingId || 'new'}`} required />
-          <select className="select" name="actingCategory" defaultValue={currentCompetitionCategory}>
-            {categories.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </div>
+          <div className="grid grid-4">
+            <div className="field"><label>Categoría del jugador</label><select className="select" value={sourceCategory} onChange={(e) => setSourceCategory(e.target.value as ClubCategory)}>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></div>
+            <div className="field"><label>Jugador</label><select className="select" name="playerId" defaultValue={editing?.playerId ?? sourcePlayers[0]?.id}>{sourcePlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+            <div className="field"><label>Fecha</label><input className="input" type="date" name="date" defaultValue={editing?.date ?? filters.date} required /></div>
+            <div className="field"><label>Competencia</label><select className="select" name="competitionName" defaultValue={editing?.competitionName ?? competitionsByCategory[activeCategory][0]}>{competitionsByCategory[activeCategory].map((name) => <option key={name}>{name}</option>)}</select></div>
+          </div>
 
-        <div className="grid grid-3">
-          <select className="select" name="competitionName" defaultValue={editing?.competitionName ?? editing?.opponent ?? competitionsByCategory[currentCompetitionCategory][0]}>
-            {competitionsByCategory[currentCompetitionCategory].map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <select className="select" name="movementType" defaultValue={editing?.movementType ?? 'base'}>
-            {competitionMovementOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-          <input className="input" name="movementNote" placeholder="Observación opcional" defaultValue={editing?.movementNote ?? ''} />
-        </div>
-
-        <div className="card compact-card goalkeeper-panel">
-          <div className="subsection-title">
-            <span>{isGoalkeeper ? 'Panel de portero' : youthSimple ? `Panel simplificado ${currentCompetitionCategory}` : 'Panel Sub20 jugador de campo'}</span>
+          <div className="grid grid-3">
+            <div className="field"><label>Movimiento</label><select className="select" name="movementType" defaultValue={editing?.movementType ?? (sourceCategory === activeCategory ? 'base' : 'subio_a_competir')}>{movementOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+            <div className="field"><label>Observación movimiento</label><input className="input" name="movementNote" defaultValue={editing?.movementNote ?? ''} /></div>
+            <div className="field"><label>Minutos jugados</label><input className="input" type="number" name="minutesPlayed" defaultValue={editing?.minutesPlayed ?? ''} required /></div>
           </div>
 
           {isGoalkeeper ? (
             <div className="grid grid-4">
-              <input className="input" type="number" name="minutesPlayed" placeholder="Minutos jugados" defaultValue={editing?.minutesPlayed ?? ''} required />
               <input className="input" type="number" name="goalsConceded" placeholder="Goles encajados" defaultValue={editing?.goalsConceded ?? ''} />
               <input className="input" type="number" name="goalsPrevented" placeholder="Goles evitados" defaultValue={editing?.goalsPrevented ?? ''} />
               <input className="input" type="number" name="crossesDefended" placeholder="Centros defendidos" defaultValue={editing?.crossesDefended ?? ''} />
               <input className="input" type="number" name="shotsOnTarget" placeholder="Remates a portería" defaultValue={editing?.shotsOnTarget ?? ''} />
-              <input className="input" type="number" name="yellowCards" placeholder="Tarjetas amarillas" defaultValue={editing?.yellowCards ?? ''} required />
-              <input className="input" type="number" name="redCards" placeholder="Tarjetas rojas" defaultValue={editing?.redCards ?? ''} required />
             </div>
-          ) : currentCompetitionCategory !== 'Sub20' ? (
-            <div className="grid grid-4">
-              <input className="input" type="number" name="minutesPlayed" placeholder="Minutos jugados" defaultValue={editing?.minutesPlayed ?? ''} required />
-              <input className="input" type="number" name="goals" placeholder="Goles" defaultValue={editing?.goals ?? ''} required />
-              <input className="input" type="number" name="assists" placeholder="Asistencias" defaultValue={editing?.assists ?? ''} required />
-              <input className="input" type="number" name="yellowCards" placeholder="Tarjetas amarillas" defaultValue={editing?.yellowCards ?? ''} required />
-              <input className="input" type="number" name="redCards" placeholder="Tarjetas rojas" defaultValue={editing?.redCards ?? ''} required />
+          ) : youthSimple ? (
+            <div className="grid grid-2">
+              <input className="input" type="number" name="goals" placeholder="Goles" defaultValue={editing?.goals ?? ''} />
+              <input className="input" type="number" name="assists" placeholder="Asistencias" defaultValue={editing?.assists ?? ''} />
             </div>
           ) : (
             <>
               <div className="grid grid-4">
-                <input className="input" type="number" name="minutesPlayed" placeholder="Minutos jugados" defaultValue={editing?.minutesPlayed ?? ''} required />
+                <input className="input" type="number" name="goals" placeholder="Goles" defaultValue={editing?.goals ?? ''} />
+                <input className="input" type="number" name="assists" placeholder="Asistencias" defaultValue={editing?.assists ?? ''} />
                 <input className="input" type="number" name="acc" placeholder="ACC" defaultValue={editing?.acc ?? ''} />
                 <input className="input" type="number" name="dcc" placeholder="DCC" defaultValue={editing?.dcc ?? ''} />
-                <input className="input" type="number" name="sprints" placeholder="SPRINTS" defaultValue={editing?.sprints ?? ''} />
               </div>
-              <div className="grid grid-4">
+              <div className="grid grid-3">
+                <input className="input" type="number" name="sprints" placeholder="SPRINTS" defaultValue={editing?.sprints ?? ''} />
                 <input className="input" type="number" name="rhie" placeholder="RHIE" defaultValue={editing?.rhie ?? ''} />
                 <input className="input" type="number" name="ima" placeholder="IMA" defaultValue={editing?.ima ?? ''} />
-                <input className="input" type="number" name="goals" placeholder="Goles" defaultValue={editing?.goals ?? ''} required />
-                <input className="input" type="number" name="assists" placeholder="Asistencias" defaultValue={editing?.assists ?? ''} required />
-              </div>
-              <div className="grid grid-2">
-                <input className="input" type="number" name="yellowCards" placeholder="Tarjetas amarillas" defaultValue={editing?.yellowCards ?? ''} required />
-                <input className="input" type="number" name="redCards" placeholder="Tarjetas rojas" defaultValue={editing?.redCards ?? ''} required />
               </div>
             </>
           )}
-        </div>
 
-        <button className="btn" type="submit">{editing ? 'Actualizar informe' : 'Guardar informe'}</button>
-      </form>
+          <div className="grid grid-4">
+            <input className="input" type="number" name="yellowCards" placeholder="Tarjetas amarillas" defaultValue={editing?.yellowCards ?? ''} />
+            <input className="input" type="number" name="redCards" placeholder="Tarjetas rojas" defaultValue={editing?.redCards ?? ''} />
+            <select className="select" name="postCompetitionStatus" defaultValue={editing?.postCompetitionStatus ?? 'Sin novedad'}>{medicalStates.map((state) => <option key={state}>{state}</option>)}</select>
+            <select className="select" name="injuryKind" defaultValue={editing?.injuryKind ?? ''}>
+              <option value="">Sin lesión</option>
+              {injuryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+            </select>
+          </div>
+          <textarea className="input" name="medicalObservation" placeholder="Observación médica postcompetencia" defaultValue={editing?.medicalObservation ?? ''} />
+          <button className="btn" type="submit">{editing ? 'Actualizar competencia' : 'Guardar competencia'}</button>
+        </form>
+      )}
 
       <div className="card table-wrap">
-        <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-          <h3>Historial de competencia</h3>
-          <button type="button" className="btn secondary" onClick={() => downloadCsv(`competencia-${activeCategory}.csv`, records.map((r) => ({
-            fecha: r.date,
-            jugador: data.players.find((p) => p.id === r.playerId)?.name ?? 'Jugador',
-            categoria_base: data.players.find((p) => p.id === r.playerId)?.category ?? activeCategory,
-            categoria_participacion: r.actingCategory ?? r.category ?? activeCategory,
-            movimiento: r.movementType ?? 'base',
-            competencia: r.competitionName ?? r.opponent,
-            minutos_jugados: r.minutesPlayed,
-            goles: r.goals,
-            asistencias: r.assists,
-            goles_encajados: r.goalsConceded ?? '',
-            goles_evitados: r.goalsPrevented ?? '',
-            centros_defendidos: r.crossesDefended ?? '',
-            remates_a_porteria: r.shotsOnTarget ?? '',
-            acc: r.acc ?? '',
-            dcc: r.dcc ?? '',
-            sprints: r.sprints ?? '',
-            rhie: r.rhie ?? '',
-            ima: r.ima ?? '',
-            amarillas: r.yellowCards,
-            rojas: r.redCards,
-          })))}>Exportar CSV</button>
-        </div>
+        <h3>Historial de competencia</h3>
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Jugador</th><th>Competencia</th><th>Categoría participación</th><th>Movimiento</th><th>Minutos</th><th>Detalle</th><th>TA</th><th>TR</th><th>Acciones</th></tr>
+            <tr><th>Fecha</th><th>Jugador</th><th>Categoría</th><th>Competencia</th><th>Min</th><th>Estado</th><th>Lesión</th><th>Acciones</th></tr>
           </thead>
           <tbody>
             {records.map((record) => {
               const player = data.players.find((p) => p.id === record.playerId);
-              const goalkeeper = player?.position === 'Portero';
-              const invited = (record.actingCategory ?? player?.category) !== (player?.category ?? activeCategory);
-              const playedAsYouth = (record.actingCategory ?? activeCategory) !== 'Sub20';
               return (
                 <tr key={record.id}>
                   <td>{record.date}</td>
-                  <td>{player?.name ?? 'Jugador'}{invited ? ' · Invitado' : ''}</td>
+                  <td>{player?.name ?? 'Jugador'}</td>
+                  <td>{categoryLabel(record.actingCategory ?? record.category)}</td>
                   <td>{record.competitionName ?? record.opponent}</td>
-                  <td>{record.actingCategory ?? record.category ?? activeCategory}</td>
-                  <td>{record.movementType ?? 'base'}</td>
                   <td>{record.minutesPlayed}</td>
-                  <td>{goalkeeper ? `GE ${record.goalsConceded ?? 0} · GEv ${record.goalsPrevented ?? 0} · CD ${record.crossesDefended ?? 0} · RP ${record.shotsOnTarget ?? 0}` : playedAsYouth ? `G ${record.goals} · A ${record.assists}` : `G ${record.goals} · A ${record.assists} · ACC ${record.acc ?? 0} · DCC ${record.dcc ?? 0} · SP ${record.sprints ?? 0} · RHIE ${record.rhie ?? 0} · IMA ${record.ima ?? 0}`}</td>
-                  <td>{record.yellowCards}</td>
-                  <td>{record.redCards}</td>
-                  <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => setEditingId(record.id)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div></td>
+                  <td>{record.postCompetitionStatus ?? '-'}</td>
+                  <td>{record.injuryKind ?? '-'}</td>
+                  <td>{master ? '-' : <div className="btn-row"><button type="button" className="btn secondary" onClick={() => setEditingId(record.id)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div>}</td>
                 </tr>
               );
             })}

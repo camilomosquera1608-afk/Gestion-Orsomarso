@@ -41,7 +41,7 @@ export default function LoginPage() {
         {error ? <div className="login-error">{error}</div> : null}
         <div className="mini-stat-card" style={{ marginTop: 18 }}>
           <strong>Accesos creados</strong>
-          <div className="muted-line">Sub15, Sub17, Sub20 y Maestro.</div>
+          <div className="muted-line">U15, U17, U20 y Maestro.</div>
         </div>
       </div>
     </main>

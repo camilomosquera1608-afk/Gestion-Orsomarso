@@ -4,18 +4,19 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { ClubCategory, Position, PlayerStatus } from '@/lib/types';
+import { categoryLabel, calcAge } from '@/lib/labels';
+import { ClubCategory, PlayerStatus, Position } from '@/lib/types';
 
 const positions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
-const statuses: PlayerStatus[] = ['Disponible', 'Lesionado', 'Molestia', 'Readaptación'];
+const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Lesionado'];
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 
 export default function RegistroPage() {
   const { addPlayer } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
-  const [message, setMessage] = useState('');
   const [photoPreview, setPhotoPreview] = useState('/orsomarso-crest.jpg');
+  const [message, setMessage] = useState('');
 
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -28,10 +29,12 @@ export default function RegistroPage() {
   const handlePlayerSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const birthDate = String(form.get('birthDate'));
     addPlayer({
       id: crypto.randomUUID(),
       name: String(form.get('name')),
-      age: Number(form.get('age')),
+      age: calcAge(birthDate) ?? 0,
+      birthDate,
       position: String(form.get('position')) as Position,
       category: (master ? String(form.get('category')) : session.category) as ClubCategory,
       height: Number(form.get('height')),
@@ -46,7 +49,7 @@ export default function RegistroPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Registrar jugador" />
+      <AppHero title="Registrar jugador" subtitle="Usa fecha de nacimiento en formato DD/MM/AAAA." />
       {message ? <div className="card"><strong>{message}</strong></div> : null}
       <form className="card grid" onSubmit={handlePlayerSubmit}>
         <h3>Crear jugador</h3>
@@ -59,13 +62,13 @@ export default function RegistroPage() {
         </div>
         <input className="input" name="name" placeholder="Nombre completo" required />
         <div className="grid grid-3">
-          <input className="input" type="number" name="age" placeholder="Edad" required />
+          <input className="input" name="birthDate" placeholder="DD/MM/AAAA" required />
           <select className="select" name="position" required>{positions.map((p) => <option key={p}>{p}</option>)}</select>
           {master ? (
-          <select className="select" name="category" required>{categories.map((c) => <option key={c}>{c}</option>)}</select>
-        ) : (
-          <input className="input" name="category" value={session.category} readOnly />
-        )}
+            <select className="select" name="category" required>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select>
+          ) : (
+            <input className="input" name="category" value={categoryLabel(session.category)} readOnly />
+          )}
         </div>
         <div className="grid grid-2">
           <input className="input" type="number" name="height" placeholder="Estatura (cm)" required />
