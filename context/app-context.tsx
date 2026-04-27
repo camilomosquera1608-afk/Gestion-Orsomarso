@@ -195,11 +195,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     if (!isMasterRole(session)) {
       merged.category = allowedCategory;
     }
+    if (next.microcycleId) {
+      const selectedMicrocycle =
+        dataRef.current.microcycles.find((item) => item.id === next.microcycleId) ??
+        { id: next.microcycleId, name: `Microciclo ${String(next.microcycleId).replace('mc-', '')}`, startDate: '', endDate: '' };
+      if (selectedMicrocycle.startDate && selectedMicrocycle.endDate) {
+        if (merged.date < selectedMicrocycle.startDate || merged.date > selectedMicrocycle.endDate) {
+          merged.date = selectedMicrocycle.startDate;
+        }
+      }
+    }
     return merged;
   });
   const resetFilters = () => {
     const session = getStaffSession();
-    setFiltersState({ ...defaultFilters, category: getAllowedCategory(session) });
+    setFiltersState({ ...defaultFilters, category: getAllowedCategory(session), microcycleId: dataRef.current.microcycles.find((item) => item.id === 'mc-14') ? 'mc-14' : 'mc-1' });
   };
 
   const value = useMemo<AppContextValue>(() => ({

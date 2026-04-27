@@ -41,7 +41,7 @@ export default function RankingPage() {
     <div className="grid">
       <AppHero title="Ranking" subtitle={`Orsomarso SC Performance · ${master ? 'Global' : categoryLabel(activeCategory)}`} />
       <GlobalFiltersBar />
-      <div className="card"><div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}><strong>Vista de ranking</strong><span className="summary-chip">{master ? 'Usuario Maestro · vista global y por categoría' : `Categoría ${categoryLabel(activeCategory)}`}</span></div><p style={{ marginTop: 12 }}>Usa los filtros para revisar ranking por categoría y microciclo.</p></div><div className="grid grid-2">
+      <div className="card"><div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}><strong>Vista de ranking</strong><span className="summary-chip">{master ? 'Usuario Maestro · vista global y por categoría' : `Categoría ${categoryLabel(activeCategory)}`}</span></div><p style={{ marginTop: 12 }}>Usa los filtros para revisar ranking por categoría.</p></div><div className="grid grid-2">
         {sections.map(([title, rows, suffix]) => (
           <div key={title} className="card">
             <h3>{title}</h3>

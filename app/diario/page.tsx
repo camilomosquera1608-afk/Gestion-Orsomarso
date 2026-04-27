@@ -45,7 +45,7 @@ export default function DiarioPage() {
         <KpiCard label="Wellness promedio" value={groupAverage(tableRows.map((r) => r.wellnessAvg)).toFixed(1)} />
         <KpiCard label="MIN promedio" value={groupAverage(tableRows.map((r) => r.external?.min ?? 0)).toFixed(0)} />
         <KpiCard label="RPE promedio" value={groupAverage(tableRows.map((r) => r.external?.rpe ?? 0)).toFixed(1)} />
-        <KpiCard label="Categoría activa" value={String(activeCategory)} />
+        <KpiCard label="Categoría activa" value={categoryLabel(activeCategory)} />
       </div>
 
       <div className="grid grid-2">

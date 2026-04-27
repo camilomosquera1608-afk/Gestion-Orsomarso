@@ -30,6 +30,13 @@ export default function HomePage() {
   });
   const todayCmj = selectedPlayers.map((player) => data.cmjRecords.find((item) => item.playerId === player.id && item.date === filters.date)?.value ?? 0);
 
+  const availabilitySummary = {
+    disponibles: selectedPlayers.filter((p) => p.status === 'Disponible').length,
+    molestia: selectedPlayers.filter((p) => p.status === 'Molestia').length,
+    readaptacion: selectedPlayers.filter((p) => p.status === 'Readaptación').length,
+    lesionados: selectedPlayers.filter((p) => p.status === 'Lesionado').length,
+  };
+
   const chartData = selectedPlayers.map((player) => {
     const wellness = data.wellness.find((x) => x.playerId === player.id && x.date === filters.date);
     const load = data.internalLoads.find((x) => x.playerId === player.id && x.date === filters.date);
@@ -56,6 +63,13 @@ export default function HomePage() {
         <KpiCard label="Wellness promedio" value={groupAverage(todayWellness).toFixed(1)} />
         <KpiCard label="Carga interna promedio" value={groupAverage(todayLoads).toFixed(0)} />
         <KpiCard label="CMJ promedio" value={`${groupAverage(todayCmj).toFixed(1)} cm`} />
+      </div>
+
+      <div className="grid grid-4">
+        <KpiCard label="Disponibles" value={String(availabilitySummary.disponibles)} />
+        <KpiCard label="Molestia" value={String(availabilitySummary.molestia)} />
+        <KpiCard label="Readaptación" value={String(availabilitySummary.readaptacion)} />
+        <KpiCard label="Lesionados" value={String(availabilitySummary.lesionados)} />
       </div>
 
       <div className="grid grid-2">
