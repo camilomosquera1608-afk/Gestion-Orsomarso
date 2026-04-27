@@ -41,7 +41,7 @@ export default function PlayerProfilePage() {
     averageWellness(latestWellness) < 3 ? `Wellness bajo (${averageWellness(latestWellness).toFixed(1)})` : null,
     player.status !== 'Disponible' ? `Estado actual: ${player.status}` : null,
     latestCmj && latestCmj.value < groupAverageCmj ? `CMJ por debajo del promedio grupal (${latestCmj.value} vs ${groupAverageCmj})` : null,
-    latestExternal && latestExternal.hsr > 600 ? `HSR elevado en la última sesión (${latestExternal.hsr})` : null,
+    (latestExternal?.hsr ?? 0) > 600 ? `HSR elevado en la última sesión (${latestExternal?.hsr ?? 0})` : null,
   ].filter(Boolean) as string[];
 
   const patchPlayer = (patch: Partial<typeof player>) => updatePlayer({ ...player, ...patch });
