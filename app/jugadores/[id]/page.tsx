@@ -160,7 +160,7 @@ export default function PlayerProfilePage() {
                   injuryType: player.injuryType ?? 'Sin detalle',
                   area: player.injuryArea ?? '',
                   severity: player.injurySeverity ?? '',
-                  status: player.status === 'Disponible' ? 'cerrada' : 'activa',
+                  status: (player.status === 'Disponible' ? 'cerrada' : 'activa') as 'activa' | 'cerrada',
                   medicalNote: '',
                   expectedReturnDate: player.returnDate ?? '',
                 },
