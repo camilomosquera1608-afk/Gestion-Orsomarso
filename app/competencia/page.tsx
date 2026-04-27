@@ -58,7 +58,7 @@ export default function CompetenciaPage() {
   );
 
   const editing = records.find((record) => record.id === editingId);
-  const currentPlayerId = editing?.playerId ?? selectedPlayerId || (filters.playerId === 'all' ? filteredPlayers[0]?.id ?? '' : filters.playerId);
+  const currentPlayerId = editing?.playerId ?? selectedPlayerId ?? (filters.playerId === 'all' ? filteredPlayers[0]?.id ?? '' : filters.playerId);
   const currentPlayer = data.players.find((player) => player.id === currentPlayerId) ?? filteredPlayers[0];
   const isGoalkeeper = currentPlayer?.position === 'Portero';
   const youthSimple = activeCategory !== 'Sub20';
