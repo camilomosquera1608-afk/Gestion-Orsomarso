@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
-import { GlobalFiltersBar } from '@/components/global-filters';
 import { ToneBadge } from '@/components/status-badge';
+import { getStaffSession, isMasterRole } from '@/lib/auth';
+import { categoryLabel } from '@/lib/labels';
+import { ClubCategory } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { NutritionPlan } from '@/lib/types';
@@ -39,6 +41,10 @@ export default function ValoracionesPage() {
     deleteFMSRecord,
   } = useApp();
 
+  const session = getStaffSession();
+  const master = isMasterRole(session);
+  const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
+
   const [activeTab, setActiveTab] = useState<TabName>('Nutrición');
   const [message, setMessage] = useState('');
   const [editingNutritionId, setEditingNutritionId] = useState('');
@@ -46,9 +52,10 @@ export default function ValoracionesPage() {
   const [editingCmjId, setEditingCmjId] = useState('');
   const [editingFmsId, setEditingFmsId] = useState('');
 
-  const categoryPlayers = data.players.filter((player) => filters.category === 'all' || player.category === filters.category);
-  const selectedPlayerId = filters.playerId === 'all' ? categoryPlayers[0]?.id ?? '' : filters.playerId;
+  const categoryPlayers = data.players.filter((player) => player.category === activeCategory);
+  const selectedPlayerId = filters.playerId === 'all' || !categoryPlayers.some((player) => player.id === filters.playerId) ? categoryPlayers[0]?.id ?? '' : filters.playerId;
   const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId) ?? categoryPlayers[0];
+  if (!selectedPlayer) return <div className="empty">No hay jugadores disponibles en esta categoría.</div>;
 
   const nutritionHistory = useMemo(() => data.nutritionRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.nutritionRecords, selectedPlayerId]);
   const neuromuscularHistory = useMemo(() => data.neuromuscularRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.neuromuscularRecords, selectedPlayerId]);

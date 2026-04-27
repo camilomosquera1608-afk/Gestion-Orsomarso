@@ -1,8 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
-import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
@@ -34,15 +33,27 @@ export default function CompetenciaPage() {
   const [message, setMessage] = useState('');
   const [editingId, setEditingId] = useState('');
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
+  const [selectedPlayerId, setSelectedPlayerId] = useState('');
 
   const sourcePlayers = data.players.filter((player) => player.category === sourceCategory);
+
+  useEffect(() => {
+    if (editing?.playerId) {
+      setSelectedPlayerId(editing.playerId);
+      return;
+    }
+    if (!sourcePlayers.some((player) => player.id === selectedPlayerId)) {
+      setSelectedPlayerId(sourcePlayers[0]?.id ?? '');
+    }
+  }, [sourceCategory, sourcePlayers, editing?.playerId, selectedPlayerId]);
+
   const records = useMemo(
     () => data.competitionRecords.filter((record) => (record.category ?? record.actingCategory ?? activeCategory) === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
     [data.competitionRecords, activeCategory],
   );
 
   const editing = records.find((record) => record.id === editingId);
-  const currentPlayerId = editing?.playerId ?? (sourcePlayers[0]?.id ?? '');
+  const currentPlayerId = editing?.playerId ?? selectedPlayerId ?? sourcePlayers[0]?.id ?? '';
   const currentPlayer = data.players.find((player) => player.id === currentPlayerId) ?? sourcePlayers[0];
   const isGoalkeeper = currentPlayer?.position === 'Portero';
 
@@ -88,7 +99,6 @@ export default function CompetenciaPage() {
   return (
     <div className="grid">
       <AppHero title="Competencia" subtitle={`Orsomarso SC Performance · ${categoryLabel(activeCategory)}`} />
-      <GlobalFiltersBar />
 
       <div className="grid grid-4">
         <KpiCard label="Partidos registrados" value={String(records.length)} />
@@ -122,7 +132,7 @@ export default function CompetenciaPage() {
 
           <div className="grid grid-4">
             <div className="field"><label>Categoría del jugador</label><select className="select" value={sourceCategory} onChange={(e) => setSourceCategory(e.target.value as ClubCategory)}>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></div>
-            <div className="field"><label>Jugador</label><select className="select" name="playerId" defaultValue={editing?.playerId ?? sourcePlayers[0]?.id}>{sourcePlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+            <div className="field"><label>Jugador</label><select className="select" name="playerId" value={currentPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)}>{sourcePlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
             <div className="field"><label>Fecha</label><input className="input" type="date" name="date" defaultValue={editing?.date ?? filters.date} required /></div>
             <div className="field"><label>Competencia</label><select className="select" name="competitionName" defaultValue={editing?.competitionName ?? competitionsByCategory[activeCategory][0]}>{competitionsByCategory[activeCategory].map((name) => <option key={name}>{name}</option>)}</select></div>
           </div>

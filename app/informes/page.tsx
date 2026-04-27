@@ -4,7 +4,6 @@ import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { Activity, Dumbbell, Salad, ShieldCheck, Trophy } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
-import { GlobalFiltersBar } from '@/components/global-filters';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
@@ -31,7 +30,6 @@ export default function InformesPage() {
   const categoryPlayers = data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory);
   const selectedPlayerId = filters.playerId === 'all' ? categoryPlayers[0]?.id ?? '' : filters.playerId;
   const player = data.players.find((item) => item.id === selectedPlayerId) ?? data.players[0];
-  const microcycle = data.microcycles.find((item) => item.id === filters.microcycleId) ?? data.microcycles[0];
 
   const nutritionHistory = useMemo(
     () => data.nutritionRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => a.date.localeCompare(b.date)),
@@ -170,7 +168,6 @@ export default function InformesPage() {
         title="Informes"
         subtitle={master ? 'Acceso maestro de lectura global.' : `Informe operativo de ${activeCategory}.`}
       />
-      <GlobalFiltersBar />
 
       <div className="card no-print">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
@@ -195,7 +192,7 @@ export default function InformesPage() {
             <button
               type="button"
               className="btn secondary"
-              onClick={() => downloadCsv(`informe-${player.name.replaceAll(' ', '_')}_${microcycle.name}.csv`, reportRows)}
+              onClick={() => downloadCsv(`informe-${player.name.replaceAll(' ', '_')}.csv`, reportRows)}
             >
               Exportar CSV
             </button>
@@ -213,7 +210,7 @@ export default function InformesPage() {
             <div>
               <div className="report-eyebrow">Orsomarso SC Performance</div>
               <div className="report-meta-line">
-                {String(activeCategory)} · {microcycle.name} · {microcycle.startDate} a {microcycle.endDate}
+                {String(activeCategory)}
               </div>
             </div>
           </div>
@@ -230,7 +227,6 @@ export default function InformesPage() {
               <div className="summary-chip">{player.position}</div>
               <div className="summary-chip">{player.category ?? 'Sub20'}</div>
               <div className="summary-chip">{player.status}</div>
-              <div className="summary-chip">{microcycle.name}</div>
             </div>
           </div>
         </div>
