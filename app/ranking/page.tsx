@@ -41,7 +41,7 @@ export default function RankingPage() {
     <div className="grid">
       <AppHero title="Ranking" subtitle={`Orsomarso SC Performance · ${master ? 'Global' : categoryLabel(activeCategory)}`} />
       <GlobalFiltersBar />
-      <div className="grid grid-2">
+      <div className="card"><p>Usa los filtros para ver ranking por categoría y microciclo. El usuario Maestro puede revisar una vista global.</p></div><div className="grid grid-2">
         {sections.map(([title, rows, suffix]) => (
           <div key={title} className="card">
             <h3>{title}</h3>

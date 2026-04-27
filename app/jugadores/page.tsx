@@ -1,5 +1,7 @@
 'use client';
 
+import { categoryLabel, calcAge } from '@/lib/labels';
+
 import Link from 'next/link';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
@@ -30,11 +32,11 @@ export default function JugadoresPage() {
           <div className="card player-card" key={player.id}>
             <img src={player.photo} alt={player.name} width={90} height={90} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 18 }} />
             <div>
-              <h3 style={{ margin: 0 }}>{player.name}</h3>
+              <h3 style={{ margin: 0 }}>{player.name}</h3><div className="muted-line">{player.birthDate ? `Nac. ${player.birthDate}` : 'Sin fecha de nacimiento'}</div>
               <div className="player-meta">
                 <span>{player.position}</span>
-                <span>{player.category ?? 'Sub20'}</span>
-                <span>{player.age} años</span>
+                <span>{categoryLabel(player.category)}</span>
+                <span>{calcAge(player.birthDate) ?? player.age} años</span>
                 <span>{player.height} cm</span>
                 <span>{player.weight} kg</span>
               </div>

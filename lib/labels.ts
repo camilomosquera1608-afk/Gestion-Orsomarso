@@ -8,9 +8,29 @@ export const categoryLabel = (category?: ClubCategory | 'all' | string) => {
   return category ?? '';
 };
 
+
+export const formatBirthDateForDisplay = (iso?: string) => {
+  if (!iso) return '';
+  if (iso.includes('/')) return iso;
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  const [yyyy, mm, dd] = parts;
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+export const normalizeBirthDateInput = (value?: string) => {
+  if (!value) return '';
+  if (value.includes('-')) return value;
+  const parts = value.split('/');
+  if (parts.length !== 3) return value;
+  const [dd, mm, yyyy] = parts;
+  return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+};
+
 export const parseBirthDate = (value?: string) => {
   if (!value) return null;
-  const [dd, mm, yyyy] = value.split('/');
+  const normalized = formatBirthDateForDisplay(value);
+  const [dd, mm, yyyy] = normalized.split('/');
   const day = Number(dd);
   const month = Number(mm);
   const year = Number(yyyy);

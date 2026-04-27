@@ -4,7 +4,7 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { categoryLabel, calcAge } from '@/lib/labels';
+import { categoryLabel, calcAge, formatBirthDateForDisplay } from '@/lib/labels';
 import { ClubCategory, PlayerStatus, Position } from '@/lib/types';
 
 const positions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
@@ -29,7 +29,7 @@ export default function RegistroPage() {
   const handlePlayerSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const birthDate = String(form.get('birthDate'));
+    const birthDate = formatBirthDateForDisplay(String(form.get('birthDate')));
     addPlayer({
       id: crypto.randomUUID(),
       name: String(form.get('name')),
@@ -62,7 +62,7 @@ export default function RegistroPage() {
         </div>
         <input className="input" name="name" placeholder="Nombre completo" required />
         <div className="grid grid-3">
-          <input className="input" name="birthDate" placeholder="DD/MM/AAAA" required />
+          <input className="input" type="date" name="birthDate" required />
           <select className="select" name="position" required>{positions.map((p) => <option key={p}>{p}</option>)}</select>
           {master ? (
             <select className="select" name="category" required>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select>

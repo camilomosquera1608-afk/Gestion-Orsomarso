@@ -1,6 +1,7 @@
 'use client';
 
 import { categoryLabel } from '@/lib/labels';
+
 import { ClubCategory, MovementType, Position, PlayerStatus } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
@@ -34,17 +35,17 @@ export const GlobalFiltersBar = () => {
 
       <div className="field">
         <label>Microciclo</label>
-        <input
-          className="input"
-          type="number"
-          min="1"
-          max="51"
-          value={microcycleNumber}
-          onChange={(e) => {
-            const next = Math.max(1, Math.min(51, Number(e.target.value) || 1));
-            setFilters({ microcycleId: `mc-${next}` });
-          }}
-        />
+        <select
+          className="select"
+          value={filters.microcycleId}
+          onChange={(e) => setFilters({ microcycleId: e.target.value })}
+        >
+          {data.microcycles.map((microcycle) => (
+            <option key={microcycle.id} value={microcycle.id}>
+              {microcycle.name}
+            </option>
+          ))}
+        </select>
         {currentMicrocycle ? <small className="field-help">{currentMicrocycle.startDate} · {currentMicrocycle.endDate}</small> : null}
       </div>
 
