@@ -1,6 +1,6 @@
-import { categoryLabel } from '@/lib/labels';
 'use client';
 
+import { categoryLabel } from '@/lib/labels';
 import { ClubCategory, MovementType, Position, PlayerStatus } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';

@@ -1,6 +1,6 @@
-import { categoryLabel, calcAge } from '@/lib/labels';
 'use client';
 
+import { categoryLabel, calcAge } from '@/lib/labels';
 import { ChangeEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { AppHero } from '@/components/app-hero';
