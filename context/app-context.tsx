@@ -51,6 +51,8 @@ const defaultFilters: GlobalFilters = {
   position: 'all',
   status: 'all',
   category: 'all',
+  actingCategory: 'all',
+  movementType: 'all',
   sessionNumber: 1,
 };
 
@@ -77,12 +79,16 @@ const hydrateData = (stored: Partial<AppData> | null): AppData => ({
     participation: record.participation ?? 'Completa',
     sprints: record.sprints ?? 0,
     ima: record.ima ?? 0,
+    baseCategory: record.baseCategory ?? record.category,
+    actingCategory: record.actingCategory ?? record.category,
+    movementType: record.movementType ?? 'base',
+    movementModule: record.movementModule ?? 'sesion',
   })),
   cmjRecords: stored?.cmjRecords ?? initialData.cmjRecords,
   nutritionRecords: stored?.nutritionRecords ?? initialData.nutritionRecords,
   neuromuscularRecords: stored?.neuromuscularRecords ?? initialData.neuromuscularRecords,
   fmsRecords: stored?.fmsRecords ?? initialData.fmsRecords,
-  competitionRecords: stored?.competitionRecords ?? initialData.competitionRecords,
+  competitionRecords: (stored?.competitionRecords ?? initialData.competitionRecords).map((record) => ({ ...record, baseCategory: record.baseCategory ?? record.category, actingCategory: record.actingCategory ?? record.category, movementType: record.movementType ?? 'base', movementModule: record.movementModule ?? 'competencia' })),
   trainingSessionSummaries: stored?.trainingSessionSummaries ?? initialData.trainingSessionSummaries,
   microcycles: stored?.microcycles ?? initialData.microcycles,
 });

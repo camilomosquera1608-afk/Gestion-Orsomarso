@@ -177,3 +177,9 @@ La sincronización remota usa una fila compartida (`app_state`) con el estado co
 - Reestructura por usuarios: Sub15, Sub17, Sub20 y Maestro.
 - Categorias operativas simplificadas para Sub15/Sub17 y avanzada para Sub20.
 - Accesos generados: UsuarioSub15 / OrsoS15!2026, UsuarioSub17 / OrsoS17!2026, UsuarioSub20 / OrsoS20!2026, UsuarioMaestro / OrsoMaster!2026.
+
+
+## Version v41
+- Participaciones temporales por categoria en sesion y competencia.
+- Trazabilidad por categoria base, categoria de participacion, tipo de movimiento y nota.
+- Historial de movimientos en perfil e informes.

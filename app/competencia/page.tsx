@@ -7,7 +7,7 @@ import { KpiCard } from '@/components/kpi-card';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { ClubCategory } from '@/lib/types';
+import { ClubCategory, MovementType } from '@/lib/types';
 import { groupAverage } from '@/lib/utils';
 
 const competitionsByCategory: Record<ClubCategory, string[]> = {
@@ -16,6 +16,13 @@ const competitionsByCategory: Record<ClubCategory, string[]> = {
   Sub15: ['Liga vallecaucana Sub16', 'Torneo nacional Sub15'],
 };
 
+const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
+const competitionMovementOptions: Array<{ value: MovementType; label: string }> = [
+  { value: 'base', label: 'Categoría base' },
+  { value: 'subio_a_competir', label: 'Subió a competir' },
+  { value: 'bajo_a_competir', label: 'Bajó a competir' },
+];
+
 export default function CompetenciaPage() {
   const { data, filters, addCompetitionRecord, updateCompetitionRecord, deleteCompetitionRecord } = useApp();
   const session = getStaffSession();
@@ -23,6 +30,7 @@ export default function CompetenciaPage() {
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
   const [message, setMessage] = useState('');
   const [editingId, setEditingId] = useState('');
+  const [selectedPlayerId, setSelectedPlayerId] = useState('');
 
   const filteredPlayers = data.players.filter((player) =>
     player.category === activeCategory &&
@@ -35,28 +43,36 @@ export default function CompetenciaPage() {
       data.competitionRecords
         .filter((record) => {
           const player = data.players.find((p) => p.id === record.playerId);
-          return !!player &&
+          return (
+            !!player &&
             player.category === activeCategory &&
             (filters.playerId === 'all' || record.playerId === filters.playerId) &&
             (filters.position === 'all' || player.position === filters.position) &&
-            (filters.status === 'all' || player.status === filters.status);
+            (filters.status === 'all' || player.status === filters.status) &&
+            (filters.actingCategory === 'all' || (record.actingCategory ?? record.category ?? player.category) === filters.actingCategory) &&
+            (filters.movementType === 'all' || (record.movementType ?? 'base') === filters.movementType)
+          );
         })
         .sort((a, b) => b.date.localeCompare(a.date)),
-    [data.competitionRecords, data.players, filters.playerId, filters.position, filters.status, activeCategory],
+    [data.competitionRecords, data.players, filters.playerId, filters.position, filters.status, filters.actingCategory, filters.movementType, activeCategory],
   );
 
   const editing = records.find((record) => record.id === editingId);
-  const selectedPlayerId = editing?.playerId ?? (filters.playerId === 'all' ? filteredPlayers[0]?.id ?? '' : filters.playerId);
-  const currentPlayer = data.players.find((player) => player.id === selectedPlayerId) ?? filteredPlayers[0];
+  const currentPlayerId = editing?.playerId ?? selectedPlayerId || (filters.playerId === 'all' ? filteredPlayers[0]?.id ?? '' : filters.playerId);
+  const currentPlayer = data.players.find((player) => player.id === currentPlayerId) ?? filteredPlayers[0];
   const isGoalkeeper = currentPlayer?.position === 'Portero';
   const youthSimple = activeCategory !== 'Sub20';
+  const defaultActingCategory = (editing?.actingCategory ?? currentPlayer?.category ?? activeCategory) as ClubCategory;
+  const currentCompetitionCategory = defaultActingCategory || activeCategory;
 
   const submit = (formData: FormData) => {
     const playerId = String(formData.get('playerId'));
     const player = data.players.find((item) => item.id === playerId);
     const goalkeeper = player?.position === 'Portero';
-    const category = (player?.category ?? activeCategory) as ClubCategory;
-    const isSimple = category !== 'Sub20';
+    const baseCategory = (player?.category ?? activeCategory) as ClubCategory;
+    const actingCategory = String(formData.get('actingCategory')) as ClubCategory;
+    const isSimple = actingCategory !== 'Sub20';
+    const movementType = actingCategory === baseCategory ? 'base' : (String(formData.get('movementType')) as MovementType);
 
     const baseRecord = {
       id: editingId || crypto.randomUUID(),
@@ -67,7 +83,13 @@ export default function CompetenciaPage() {
       minutesPlayed: Number(formData.get('minutesPlayed')) || 0,
       yellowCards: Number(formData.get('yellowCards')) || 0,
       redCards: Number(formData.get('redCards')) || 0,
-      category,
+      category: baseCategory,
+      baseCategory,
+      actingCategory,
+      movementType,
+      movementNote: String(formData.get('movementNote') || ''),
+      movementModule: 'competencia' as const,
+      loggedBy: session.displayName,
     };
 
     const record = goalkeeper
@@ -111,8 +133,8 @@ export default function CompetenciaPage() {
       <div className="grid grid-4">
         <KpiCard label="Partidos registrados" value={String(records.length)} />
         <KpiCard label="Minutos jugados" value={groupAverage(records.map((r) => r.minutesPlayed)).toFixed(0)} />
-        <KpiCard label={isGoalkeeper ? 'Goles evitados' : 'Goles'} value={String(records.reduce((acc, r) => acc + (isGoalkeeper ? (r.goalsPrevented ?? 0) : r.goals), 0))} />
-        <KpiCard label="Categoría activa" value={activeCategory} />
+        <KpiCard label="Movimientos temporales" value={String(records.filter((r) => (r.actingCategory ?? r.category) !== (r.baseCategory ?? r.category)).length)} />
+        <KpiCard label="Categoría base activa" value={activeCategory} />
       </div>
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
@@ -124,18 +146,28 @@ export default function CompetenciaPage() {
         </div>
 
         <div className="grid grid-3">
-          <select className="select" name="playerId" defaultValue={selectedPlayerId} key={`comp-player-${editingId || 'new'}`}>
+          <select className="select" name="playerId" value={currentPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)}>
             {filteredPlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <input className="input" type="date" name="date" defaultValue={editing?.date ?? filters.date} key={`comp-date-${editingId || 'new'}`} required />
-          <select className="select" name="competitionName" defaultValue={editing?.competitionName ?? editing?.opponent ?? competitionsByCategory[activeCategory][0]}>
-            {competitionsByCategory[activeCategory].map((item) => <option key={item} value={item}>{item}</option>)}
+          <select className="select" name="actingCategory" defaultValue={currentCompetitionCategory}>
+            {categories.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
+        </div>
+
+        <div className="grid grid-3">
+          <select className="select" name="competitionName" defaultValue={editing?.competitionName ?? editing?.opponent ?? competitionsByCategory[currentCompetitionCategory][0]}>
+            {competitionsByCategory[currentCompetitionCategory].map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <select className="select" name="movementType" defaultValue={editing?.movementType ?? 'base'}>
+            {competitionMovementOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+          <input className="input" name="movementNote" placeholder="Observación opcional" defaultValue={editing?.movementNote ?? ''} />
         </div>
 
         <div className="card compact-card goalkeeper-panel">
           <div className="subsection-title">
-            <span>{isGoalkeeper ? 'Panel de portero' : youthSimple ? `Panel simplificado ${activeCategory}` : 'Panel Sub20 jugador de campo'}</span>
+            <span>{isGoalkeeper ? 'Panel de portero' : youthSimple ? `Panel simplificado ${currentCompetitionCategory}` : 'Panel Sub20 jugador de campo'}</span>
           </div>
 
           {isGoalkeeper ? (
@@ -148,7 +180,7 @@ export default function CompetenciaPage() {
               <input className="input" type="number" name="yellowCards" placeholder="Tarjetas amarillas" defaultValue={editing?.yellowCards ?? ''} required />
               <input className="input" type="number" name="redCards" placeholder="Tarjetas rojas" defaultValue={editing?.redCards ?? ''} required />
             </div>
-          ) : youthSimple ? (
+          ) : currentCompetitionCategory !== 'Sub20' ? (
             <div className="grid grid-4">
               <input className="input" type="number" name="minutesPlayed" placeholder="Minutos jugados" defaultValue={editing?.minutesPlayed ?? ''} required />
               <input className="input" type="number" name="goals" placeholder="Goles" defaultValue={editing?.goals ?? ''} required />
@@ -187,7 +219,9 @@ export default function CompetenciaPage() {
           <button type="button" className="btn secondary" onClick={() => downloadCsv(`competencia-${activeCategory}.csv`, records.map((r) => ({
             fecha: r.date,
             jugador: data.players.find((p) => p.id === r.playerId)?.name ?? 'Jugador',
-            categoria: data.players.find((p) => p.id === r.playerId)?.category ?? activeCategory,
+            categoria_base: data.players.find((p) => p.id === r.playerId)?.category ?? activeCategory,
+            categoria_participacion: r.actingCategory ?? r.category ?? activeCategory,
+            movimiento: r.movementType ?? 'base',
             competencia: r.competitionName ?? r.opponent,
             minutos_jugados: r.minutesPlayed,
             goles: r.goals,
@@ -207,19 +241,23 @@ export default function CompetenciaPage() {
         </div>
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Jugador</th><th>Competencia</th><th>Minutos</th><th>Detalle</th><th>TA</th><th>TR</th><th>Acciones</th></tr>
+            <tr><th>Fecha</th><th>Jugador</th><th>Competencia</th><th>Categoría participación</th><th>Movimiento</th><th>Minutos</th><th>Detalle</th><th>TA</th><th>TR</th><th>Acciones</th></tr>
           </thead>
           <tbody>
             {records.map((record) => {
               const player = data.players.find((p) => p.id === record.playerId);
               const goalkeeper = player?.position === 'Portero';
+              const invited = (record.actingCategory ?? player?.category) !== (player?.category ?? activeCategory);
+              const playedAsYouth = (record.actingCategory ?? activeCategory) !== 'Sub20';
               return (
                 <tr key={record.id}>
                   <td>{record.date}</td>
-                  <td>{player?.name ?? 'Jugador'}</td>
+                  <td>{player?.name ?? 'Jugador'}{invited ? ' · Invitado' : ''}</td>
                   <td>{record.competitionName ?? record.opponent}</td>
+                  <td>{record.actingCategory ?? record.category ?? activeCategory}</td>
+                  <td>{record.movementType ?? 'base'}</td>
                   <td>{record.minutesPlayed}</td>
-                  <td>{goalkeeper ? `GE ${record.goalsConceded ?? 0} · GEv ${record.goalsPrevented ?? 0} · CD ${record.crossesDefended ?? 0} · RP ${record.shotsOnTarget ?? 0}` : youthSimple ? `G ${record.goals} · A ${record.assists}` : `G ${record.goals} · A ${record.assists} · ACC ${record.acc ?? 0} · DCC ${record.dcc ?? 0} · SP ${record.sprints ?? 0} · RHIE ${record.rhie ?? 0} · IMA ${record.ima ?? 0}`}</td>
+                  <td>{goalkeeper ? `GE ${record.goalsConceded ?? 0} · GEv ${record.goalsPrevented ?? 0} · CD ${record.crossesDefended ?? 0} · RP ${record.shotsOnTarget ?? 0}` : playedAsYouth ? `G ${record.goals} · A ${record.assists}` : `G ${record.goals} · A ${record.assists} · ACC ${record.acc ?? 0} · DCC ${record.dcc ?? 0} · SP ${record.sprints ?? 0} · RHIE ${record.rhie ?? 0} · IMA ${record.ima ?? 0}`}</td>
                   <td>{record.yellowCards}</td>
                   <td>{record.redCards}</td>
                   <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => setEditingId(record.id)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div></td>

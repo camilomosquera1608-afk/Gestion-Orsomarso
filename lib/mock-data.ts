@@ -97,7 +97,7 @@ export const initialData: AppData = {
   externalLoads: [
     { id: 'e1', playerId: 'p1', date: '2026-04-23', min: 75, rpe: 5, acc: 11, dcc: 10, sprints: 6, rhie: 7, ima: 14, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
     { id: 'e2', playerId: 'p2', date: '2026-04-23', min: 82, rpe: 6, acc: 32, dcc: 28, sprints: 12, rhie: 17, ima: 21, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
-    { id: 'e3', playerId: 'p3', date: '2026-04-23', min: 60, rpe: 4, acc: 36, dcc: 35, sprints: 15, rhie: 20, ima: 26, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
+    { id: 'e3', playerId: 'p3', date: '2026-04-23', min: 60, rpe: 4, acc: 36, dcc: 35, sprints: 15, rhie: 20, ima: 26, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf', category: 'Sub17', baseCategory: 'Sub17', actingCategory: 'Sub20', movementType: 'subio_a_entrenar', movementNote: 'Apoyo de entrenamiento', movementModule: 'sesion' },
     { id: 'e4', playerId: 'p4', date: '2026-04-23', min: 78, rpe: 7, acc: 40, dcc: 39, sprints: 18, rhie: 24, ima: 29, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
     { id: 'e5', playerId: 'p5', date: '2026-04-23', min: 55, rpe: 4, acc: 38, dcc: 37, sprints: 17, rhie: 25, ima: 27, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },
     { id: 'e6', playerId: 'p6', date: '2026-04-23', min: 45, rpe: 3, acc: 7, dcc: 8, sprints: 3, rhie: 4, ima: 8, microcycleId: 'mc-14', sessionNumber: 1, sessionType: 'cdEf' },

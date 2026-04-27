@@ -5,6 +5,8 @@ export type StaffRole = 'sub15' | 'sub17' | 'sub20' | 'master';
 export type NutritionPlan = 'Normocalorico' | 'Hipercalorico' | 'Hipocalorico';
 export type TrainingSessionType = 'cdef' | 'cdEf' | 'cdeF' | 'Cdef';
 export type SessionParticipation = 'Completa' | 'Parcial' | 'No participa' | 'Gimnasio' | 'Readaptación';
+export type MovementType = 'base' | 'subio_a_entrenar' | 'bajo_a_entrenar' | 'subio_a_competir' | 'bajo_a_competir';
+export type MovementModule = 'sesion' | 'competencia';
 
 export interface Player {
   id: string;
@@ -44,6 +46,12 @@ export interface DailyInternalLoadRecord {
   microcycleId?: string;
   sessionNumber?: number;
   category?: ClubCategory;
+  baseCategory?: ClubCategory;
+  actingCategory?: ClubCategory;
+  movementType?: MovementType;
+  movementNote?: string;
+  movementModule?: MovementModule;
+  loggedBy?: string;
 }
 
 export interface DailyExternalLoadRecord {
@@ -64,6 +72,12 @@ export interface DailyExternalLoadRecord {
   sessionNumber?: number;
   sessionType?: TrainingSessionType;
   category?: ClubCategory;
+  baseCategory?: ClubCategory;
+  actingCategory?: ClubCategory;
+  movementType?: MovementType;
+  movementNote?: string;
+  movementModule?: MovementModule;
+  loggedBy?: string;
 }
 
 export interface CMJRecord {
@@ -131,6 +145,12 @@ export interface CompetitionRecord {
   crossesDefended?: number;
   shotsOnTarget?: number;
   category?: ClubCategory;
+  baseCategory?: ClubCategory;
+  actingCategory?: ClubCategory;
+  movementType?: MovementType;
+  movementNote?: string;
+  movementModule?: MovementModule;
+  loggedBy?: string;
 }
 
 export interface TrainingSessionSummary {
@@ -172,5 +192,7 @@ export interface GlobalFilters {
   position: string;
   status: string;
   category: string;
+  actingCategory: string;
+  movementType: string;
   sessionNumber: number;
 }

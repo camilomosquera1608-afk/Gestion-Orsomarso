@@ -1,12 +1,19 @@
 'use client';
 
-import { ClubCategory, Position, PlayerStatus } from '@/lib/types';
+import { ClubCategory, MovementType, Position, PlayerStatus } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 
 const allPositions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
 const allStatuses: PlayerStatus[] = ['Disponible', 'Lesionado', 'Molestia', 'Readaptación'];
 const allCategories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
+const movementOptions: Array<{ value: MovementType; label: string }> = [
+  { value: 'base', label: 'Sin movimiento' },
+  { value: 'subio_a_entrenar', label: 'Subió a entrenar' },
+  { value: 'bajo_a_entrenar', label: 'Bajó a entrenar' },
+  { value: 'subio_a_competir', label: 'Subió a competir' },
+  { value: 'bajo_a_competir', label: 'Bajó a competir' },
+];
 
 export const GlobalFiltersBar = () => {
   const { data, filters, setFilters, resetFilters } = useApp();
@@ -46,7 +53,7 @@ export const GlobalFiltersBar = () => {
       </div>
 
       <div className="field">
-        <label>Categoría</label>
+        <label>Categoría base</label>
         {master ? (
           <select className="select" value={filters.category} onChange={(e) => setFilters({ category: e.target.value, playerId: 'all' })}>
             <option value="all">Todas las categorías</option>
@@ -80,6 +87,25 @@ export const GlobalFiltersBar = () => {
           {allStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
         </select>
       </div>
+
+      {master ? (
+        <>
+          <div className="field">
+            <label>Categoría participación</label>
+            <select className="select" value={filters.actingCategory} onChange={(e) => setFilters({ actingCategory: e.target.value })}>
+              <option value="all">Todas</option>
+              {allCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Movimiento</label>
+            <select className="select" value={filters.movementType} onChange={(e) => setFilters({ movementType: e.target.value })}>
+              <option value="all">Todos</option>
+              {movementOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </div>
+        </>
+      ) : null}
 
       <div className="field" style={{ alignSelf: 'end' }}>
         <button className="btn secondary" onClick={resetFilters}>Resetear filtros</button>

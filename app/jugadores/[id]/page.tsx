@@ -34,10 +34,29 @@ export default function PlayerProfilePage() {
   const recentCompetition = data.competitionRecords.filter((x) => x.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   const youthSimple = player.category !== 'Sub20';
 
+  const temporaryMovements = [
+    ...data.externalLoads.filter((x) => x.playerId === player.id && ((x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) || (x.movementType ?? 'base') !== 'base')).map((x) => ({
+      date: x.date,
+      module: 'Sesión',
+      baseCategory: x.baseCategory ?? player.category,
+      actingCategory: x.actingCategory ?? x.category ?? player.category,
+      movementType: x.movementType ?? 'base',
+      note: x.movementNote ?? '',
+    })),
+    ...data.competitionRecords.filter((x) => x.playerId === player.id && ((x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) || (x.movementType ?? 'base') !== 'base')).map((x) => ({
+      date: x.date,
+      module: 'Competencia',
+      baseCategory: x.baseCategory ?? player.category,
+      actingCategory: x.actingCategory ?? x.category ?? player.category,
+      movementType: x.movementType ?? 'base',
+      note: x.movementNote ?? '',
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
   const timeline = [
     ...data.wellness.filter((x) => x.playerId === player.id).map((x) => ({ date: x.date, type: 'Wellness', detail: `Wellness ${averageWellness(x).toFixed(1)}` })),
-    ...data.externalLoads.filter((x) => x.playerId === player.id).map((x) => ({ date: x.date, type: 'Sesión', detail: `${x.sessionType ?? '-'} · MIN ${x.min} · RPE ${x.rpe ?? 0}` })),
-    ...data.competitionRecords.filter((x) => x.playerId === player.id).map((x) => ({ date: x.date, type: 'Competencia', detail: `${x.opponent} · ${x.minutesPlayed} min` })),
+    ...data.externalLoads.filter((x) => x.playerId === player.id).map((x) => ({ date: x.date, type: 'Sesión', detail: `${x.sessionType ?? '-'} · MIN ${x.min} · RPE ${x.rpe ?? 0}${(x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) ? ` · Invitado en ${x.actingCategory}` : ''}` })),
+    ...data.competitionRecords.filter((x) => x.playerId === player.id).map((x) => ({ date: x.date, type: 'Competencia', detail: `${x.competitionName ?? x.opponent} · ${x.minutesPlayed} min${(x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) ? ` · Invitado en ${x.actingCategory}` : ''}` })),
     ...data.cmjRecords.filter((x) => x.playerId === player.id).map((x) => ({ date: x.date, type: 'CMJ', detail: `${x.value} cm` })),
   ].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 12);
 
@@ -46,6 +65,7 @@ export default function PlayerProfilePage() {
     player.status !== 'Disponible' ? `Estado actual: ${player.status}` : null,
     latestCmj && latestCmj.value < groupAverageCmj ? `CMJ por debajo del promedio grupal (${latestCmj.value} vs ${groupAverageCmj})` : null,
     (!youthSimple && (latestExternal?.acc ?? 0) > 35) ? `ACC elevado en la última sesión (${latestExternal?.acc ?? 0})` : null,
+    temporaryMovements[0] ? `Último movimiento temporal: ${temporaryMovements[0].movementType} con ${temporaryMovements[0].actingCategory}` : null,
   ].filter(Boolean) as string[];
 
   const patchPlayer = (patch: Partial<typeof player>) => updatePlayer({ ...player, ...patch });
@@ -67,7 +87,7 @@ export default function PlayerProfilePage() {
           <div className="player-meta">
             <span>{player.age} años</span>
             <span>{player.position}</span>
-            <span>{player.category ?? 'Sub20'}</span>
+            <span>Base {player.category ?? 'Sub20'}</span>
             <span>{player.height} cm</span>
             <span>{player.weight} kg</span>
           </div>
@@ -117,11 +137,11 @@ export default function PlayerProfilePage() {
         <div className="card">
           <h3>Últimas 3 sesiones</h3>
           <div className="grid" style={{ gap: 10 }}>
-            {recentSessions.map((session) => (
-              <div key={session.id} className="mini-stat-card">
-                <strong>{session.date}</strong>
-                <div className="muted-line">Sesión {session.sessionNumber ?? '-'} · {session.sessionType ?? '-'}</div>
-                <div className="muted-line">Participación {session.participation ?? 'Completa'} · MIN {session.min} · RPE {session.rpe ?? 0}</div>
+            {recentSessions.map((item) => (
+              <div key={item.id} className="mini-stat-card">
+                <strong>{item.date}</strong>
+                <div className="muted-line">Sesión {item.sessionNumber ?? '-'} · {item.sessionType ?? '-'}</div>
+                <div className="muted-line">MIN {item.min} · RPE {item.rpe ?? 0}{(item.actingCategory ?? item.category) !== (item.baseCategory ?? player.category) ? ` · Invitado en ${item.actingCategory}` : ''}</div>
               </div>
             ))}
           </div>
@@ -131,13 +151,29 @@ export default function PlayerProfilePage() {
           <div className="grid" style={{ gap: 10 }}>
             {recentCompetition.map((match) => (
               <div key={match.id} className="mini-stat-card">
-                <strong>{match.opponent}</strong>
+                <strong>{match.competitionName ?? match.opponent}</strong>
                 <div className="muted-line">{match.date} · {match.minutesPlayed} min</div>
-                <div className="muted-line">G {match.goals} · A {match.assists} · TA {match.yellowCards} · TR {match.redCards}</div>
+                <div className="muted-line">G {match.goals} · A {match.assists} · TA {match.yellowCards} · TR {match.redCards}{(match.actingCategory ?? match.category) !== (match.baseCategory ?? player.category) ? ` · Invitado en ${match.actingCategory}` : ''}</div>
               </div>
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="card">
+        <h3>Historial de participaciones temporales</h3>
+        {temporaryMovements.length ? (
+          <div className="grid" style={{ gap: 10 }}>
+            {temporaryMovements.map((item, index) => (
+              <div key={`${item.date}-${item.module}-${index}`} className="mini-stat-card">
+                <strong>{item.module}</strong>
+                <div className="muted-line">{item.date}</div>
+                <div className="muted-line">Base {item.baseCategory} · Participó con {item.actingCategory}</div>
+                <div className="muted-line">{item.movementType}{item.note ? ` · ${item.note}` : ''}</div>
+              </div>
+            ))}
+          </div>
+        ) : <div className="empty">Sin movimientos temporales registrados.</div>}
       </div>
 
       <div className="card">
