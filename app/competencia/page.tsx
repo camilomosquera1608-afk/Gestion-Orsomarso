@@ -34,6 +34,7 @@ export default function CompetenciaPage() {
   const [editingId, setEditingId] = useState('');
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
+  const [showGroupReport, setShowGroupReport] = useState(false);
 
   const sourcePlayers = data.players.filter((player) => player.category === sourceCategory);
   const records = useMemo(
@@ -71,6 +72,10 @@ export default function CompetenciaPage() {
   const kpiAssists = selectedRecords.reduce((acc, record) => acc + (record.assists ?? 0), 0);
   const kpiGoalsConceded = selectedRecords.reduce((acc, record) => acc + (record.goalsConceded ?? 0), 0);
   const kpiGoalsPrevented = selectedRecords.reduce((acc, record) => acc + (record.goalsPrevented ?? 0), 0);
+  const groupUniqueMatches = Array.from(new Map(records.map((record) => [`${record.date}|${record.competitionName ?? ''}|${record.opponent ?? ''}|${record.actingCategory ?? record.category ?? activeCategory}`, record])).values());
+  const groupMinutes = records.reduce((acc, record) => acc + record.minutesPlayed, 0);
+  const goalkeeperRecords = records.filter((record) => (data.players.find((player) => player.id === record.playerId)?.position) === 'Portero');
+  const fieldRecords = records.filter((record) => (data.players.find((player) => player.id === record.playerId)?.position) !== 'Portero');
 
   const submit = (formData: FormData) => {
     const playerId = String(formData.get('playerId'));
@@ -123,6 +128,40 @@ export default function CompetenciaPage() {
       </div>
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
+
+      <div className="card">
+        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Informe grupal de competencia</h3>
+            <div className="summary-chip" style={{ marginTop: 8 }}>{categoryLabel(activeCategory)} · {groupUniqueMatches[0]?.competitionName ?? 'Competencia'} · {groupUniqueMatches[0]?.opponent ?? 'Sin rival'}</div>
+          </div>
+          <div className="btn-row">
+            <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar informe grupal' : 'Ver informe grupal'}</button>
+            <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
+          </div>
+        </div>
+        {showGroupReport ? (
+          <div className="grid" style={{ gap: 16, marginTop: 16 }}>
+            <div className="grid grid-4">
+              <KpiCard label="Partidos únicos" value={String(groupUniqueMatches.length)} />
+              <KpiCard label="Jugadores cargados" value={String(new Set(records.map((record) => record.playerId)).size)} />
+              <KpiCard label="Minutos del grupo" value={String(groupMinutes)} />
+              <KpiCard label="Alertas médicas" value={String(records.filter((record) => (record.postCompetitionStatus && record.postCompetitionStatus !== 'Sin novedad') || record.injuryKind).length)} />
+            </div>
+            <div className="grid grid-4">
+              <KpiCard label="Goles" value={String(fieldRecords.reduce((acc, record) => acc + (record.goals ?? 0), 0))} />
+              <KpiCard label="Asistencias" value={String(fieldRecords.reduce((acc, record) => acc + (record.assists ?? 0), 0))} />
+              <KpiCard label="Goles encajados" value={String(goalkeeperRecords.reduce((acc, record) => acc + (record.goalsConceded ?? 0), 0))} />
+              <KpiCard label="Goles evitados" value={String(goalkeeperRecords.reduce((acc, record) => acc + (record.goalsPrevented ?? 0), 0))} />
+            </div>
+            <div className="card compact-card">
+              <strong>Resumen general del partido</strong>
+              <div className="muted-line" style={{ marginTop: 8 }}>Rivales cargados: {groupUniqueMatches.map((record) => `${record.date} · ${record.competitionName ?? '-'} vs ${record.opponent ?? '-'}`).join(' | ') || 'Sin registros'}</div>
+              <div className="muted-line">Jugadores de campo: {fieldRecords.length} · Porteros: {goalkeeperRecords.length}</div>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       {master ? (
         <div className="card"><strong>Usuario Maestro:</strong> acceso de lectura. Usa Informes y Ranking para el análisis global.</div>

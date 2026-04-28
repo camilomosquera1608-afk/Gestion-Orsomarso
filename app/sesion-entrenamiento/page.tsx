@@ -49,6 +49,7 @@ export default function SesionEntrenamientoPage() {
   const youthSimple = activeCategory !== 'Sub20';
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
   const [message, setMessage] = useState('');
+  const [showGroupReport, setShowGroupReport] = useState(false);
   const [sessionNumberInput, setSessionNumberInput] = useState(filters.sessionNumber ? String(filters.sessionNumber) : '');
 
   useEffect(() => {
@@ -106,6 +107,9 @@ export default function SesionEntrenamientoPage() {
     }),
   }));
   const selectedRows = rows.filter((row) => row.selected);
+  const reportRows = selectedRows.length ? selectedRows : rows.filter((row) => existingRecords.some((record) => record.playerId === row.player.id));
+  const absentPlayers = sessionPlayers.filter((player) => !reportRows.some((row) => row.player.id === player.id));
+  const sessionLoadTotal = reportRows.reduce((acc, row) => acc + row.min * row.rpe, 0);
 
   const updateRow = (playerId: string, patch: Partial<RowState>) =>
     setRowStates((prev) => ({
@@ -250,6 +254,49 @@ export default function SesionEntrenamientoPage() {
       </div>
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
+
+      <div className="card">
+        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Informe grupal de sesión</h3>
+            <div className="summary-chip" style={{ marginTop: 8 }}>{categoryLabel(activeCategory)} · {filters.date} · Microciclo {String(filters.microcycleId).replace('mc-', '')} · Sesión {sessionNumberInput || '-'}</div>
+          </div>
+          <div className="btn-row">
+            <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar informe grupal' : 'Ver informe grupal'}</button>
+            <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
+          </div>
+        </div>
+        {showGroupReport ? (
+          <div className="grid" style={{ gap: 16, marginTop: 16 }}>
+            <div className="grid grid-4">
+              <KpiCard label="Jugadores incluidos" value={String(reportRows.length)} />
+              <KpiCard label="Ausentes" value={String(absentPlayers.length)} />
+              <KpiCard label="MIN promedio" value={groupAverage(reportRows.map((row) => row.min)).toFixed(0)} />
+              <KpiCard label="RPE promedio" value={groupAverage(reportRows.map((row) => row.rpe)).toFixed(1)} />
+            </div>
+            <div className="grid grid-4">
+              <KpiCard label="Carga total" value={String(sessionLoadTotal)} />
+              <KpiCard label="Molestia" value={String(reportRows.filter((row) => row.player.status === 'Molestia').length)} />
+              <KpiCard label="Readaptación" value={String(reportRows.filter((row) => row.player.status === 'Readaptación').length)} />
+              <KpiCard label="Lesionados" value={String(reportRows.filter((row) => row.player.status === 'Lesionado').length)} />
+            </div>
+            {!youthSimple ? (
+              <div className="grid grid-4">
+                <KpiCard label="ACC promedio" value={groupAverage(reportRows.map((row) => row.acc)).toFixed(0)} />
+                <KpiCard label="DCC promedio" value={groupAverage(reportRows.map((row) => row.dcc)).toFixed(0)} />
+                <KpiCard label="SPRINTS promedio" value={groupAverage(reportRows.map((row) => row.sprints)).toFixed(0)} />
+                <KpiCard label="RHIE promedio" value={groupAverage(reportRows.map((row) => row.rhie)).toFixed(0)} />
+              </div>
+            ) : null}
+            <div className="card compact-card">
+              <strong>Resumen del trabajo realizado</strong>
+              <div className="muted-line" style={{ marginTop: 8 }}>Tipo de sesión: {sessionTypeOptions.find((option) => option.value === sessionType)?.label ?? sessionType}</div>
+              <div className="muted-line">Jugadores incluidos: {reportRows.map((row) => row.player.name).join(', ') || 'Sin jugadores incluidos'}</div>
+              <div className="muted-line">Jugadores ausentes: {absentPlayers.map((player) => player.name).join(', ') || 'Sin ausencias'}</div>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       {master ? (
         <div className="card"><strong>Usuario Maestro:</strong> acceso de lectura. Usa Informes y Ranking para análisis global.</div>

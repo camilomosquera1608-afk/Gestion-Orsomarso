@@ -51,6 +51,7 @@ export default function ValoracionesPage() {
   const [editingNeuroId, setEditingNeuroId] = useState('');
   const [editingCmjId, setEditingCmjId] = useState('');
   const [editingFmsId, setEditingFmsId] = useState('');
+  const [showGroupReport, setShowGroupReport] = useState(false);
 
   const categoryPlayers = data.players.filter((player) => player.category === activeCategory);
   const selectedPlayerId = filters.playerId === 'all' || !categoryPlayers.some((player) => player.id === filters.playerId) ? categoryPlayers[0]?.id ?? '' : filters.playerId;
@@ -61,6 +62,23 @@ export default function ValoracionesPage() {
   const neuromuscularHistory = useMemo(() => data.neuromuscularRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.neuromuscularRecords, selectedPlayerId]);
   const cmjHistory = useMemo(() => data.cmjRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.cmjRecords, selectedPlayerId]);
   const fmsHistory = useMemo(() => data.fmsRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)).map((record) => ({ ...record, total: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })), [data.fmsRecords, selectedPlayerId]);
+
+
+  const latestByPlayer = <T extends { playerId: string; date: string }>(items: T[]) => Object.values(items.reduce<Record<string, T>>((acc, item) => {
+    const current = acc[item.playerId];
+    if (!current || item.date > current.date) acc[item.playerId] = item;
+    return acc;
+  }, {}));
+  const categoryPlayerIds = new Set(categoryPlayers.map((player) => player.id));
+  const latestNutritionGroup = latestByPlayer(data.nutritionRecords.filter((record) => categoryPlayerIds.has(record.playerId)));
+  const latestNeuromuscularGroup = latestByPlayer(data.neuromuscularRecords.filter((record) => categoryPlayerIds.has(record.playerId)));
+  const latestCmjGroup = latestByPlayer(data.cmjRecords.filter((record) => categoryPlayerIds.has(record.playerId)));
+  const latestFmsGroup = latestByPlayer(data.fmsRecords.filter((record) => categoryPlayerIds.has(record.playerId)).map((record) => ({ ...record, total: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })));
+  const cmjGroupAverage = latestCmjGroup.length ? latestCmjGroup.reduce((acc, row) => acc + row.value, 0) / latestCmjGroup.length : 0;
+  const neuroGroupAverage = latestNeuromuscularGroup.length ? latestNeuromuscularGroup.reduce((acc, row) => acc + row.cmj, 0) / latestNeuromuscularGroup.length : 0;
+  const fmsGroupAverage = latestFmsGroup.length ? latestFmsGroup.reduce((acc, row) => acc + row.total, 0) / latestFmsGroup.length : 0;
+  const standoutCmj = latestCmjGroup.slice().sort((a, b) => b.value - a.value).slice(0, 3).map((row) => `${data.players.find((player) => player.id === row.playerId)?.name ?? 'Jugador'} (${row.value})`);
+  const belowAverageCmj = latestCmjGroup.filter((row) => row.value < cmjGroupAverage).map((row) => data.players.find((player) => player.id === row.playerId)?.name ?? 'Jugador').slice(0, 5);
 
   const latestNutrition = nutritionHistory[0];
   const previousNutrition = nutritionHistory[1];
@@ -187,6 +205,41 @@ export default function ValoracionesPage() {
         {selectedPlayer ? <div style={{ marginTop: 14, fontWeight: 700 }}>{selectedPlayer.name}</div> : null}
       </div>
       {message ? <div className="card"><strong>{message}</strong></div> : null}
+
+      <div className="card">
+        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Informe grupal de valoraciones</h3>
+            <div className="summary-chip" style={{ marginTop: 8 }}>{categoryLabel(activeCategory)} · {filters.date}</div>
+          </div>
+          <div className="btn-row">
+            <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar informe grupal' : 'Ver informe grupal'}</button>
+            <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
+          </div>
+        </div>
+        {showGroupReport ? (
+          <div className="grid" style={{ gap: 16, marginTop: 16 }}>
+            <div className="grid grid-4">
+              <KpiCard label="Jugadores evaluados" value={String(categoryPlayers.length)} />
+              <KpiCard label="CMJ promedio" value={cmjGroupAverage.toFixed(1)} />
+              <KpiCard label="Neuromuscular promedio" value={neuroGroupAverage.toFixed(1)} />
+              <KpiCard label="FMS promedio" value={fmsGroupAverage.toFixed(1)} />
+            </div>
+            <div className="grid grid-2">
+              <div className="card compact-card">
+                <strong>Resumen nutricional del grupo</strong>
+                <div className="muted-line" style={{ marginTop: 8 }}>Peso promedio: {(latestNutritionGroup.reduce((acc, row) => acc + row.weight, 0) / (latestNutritionGroup.length || 1)).toFixed(1)} kg</div>
+                <div className="muted-line">% grasa promedio: {(latestNutritionGroup.reduce((acc, row) => acc + row.bodyFat, 0) / (latestNutritionGroup.length || 1)).toFixed(1)}</div>
+              </div>
+              <div className="card compact-card">
+                <strong>Lectura general</strong>
+                <div className="muted-line" style={{ marginTop: 8 }}>Jugadores destacados: {standoutCmj.join(', ') || 'Sin destacados'}</div>
+                <div className="muted-line">Jugadores por debajo del promedio: {belowAverageCmj.join(', ') || 'Sin alertas'}</div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <div className="card">
         <div className="tabs">
