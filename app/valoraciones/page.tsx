@@ -174,7 +174,6 @@ export default function ValoracionesPage() {
   return (
     <div className="grid">
       <AppHero title="Valoraciones" />
-      <GlobalFiltersBar />
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
           <div className="field" style={{ maxWidth: 360 }}>
