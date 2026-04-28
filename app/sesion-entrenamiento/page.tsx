@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
-import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
 import { ToneBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
@@ -25,9 +24,21 @@ const movementOptions: Array<{ value: MovementType; label: string }> = [
   { value: 'subio_a_entrenar', label: 'Subió a entrenar' },
   { value: 'bajo_a_entrenar', label: 'Bajó a entrenar' },
 ];
+
 type RowState = {
-  selected: boolean; participation: SessionParticipation; min: number; rpe: number; acc: number; dcc: number; sprints: number; rhie: number; ima: number; movementType: MovementType; movementNote: string;
+  selected: boolean;
+  participation: SessionParticipation;
+  min: number;
+  rpe: number;
+  acc: number;
+  dcc: number;
+  sprints: number;
+  rhie: number;
+  ima: number;
+  movementType: MovementType;
+  movementNote: string;
 };
+
 const renderNumberInput = (value: number) => (value === 0 ? '' : String(value));
 
 export default function SesionEntrenamientoPage() {
@@ -38,28 +49,104 @@ export default function SesionEntrenamientoPage() {
   const youthSimple = activeCategory !== 'Sub20';
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
   const [message, setMessage] = useState('');
+  const [sessionNumberInput, setSessionNumberInput] = useState(filters.sessionNumber ? String(filters.sessionNumber) : '');
+
+  useEffect(() => {
+    setSourceCategory(activeCategory);
+  }, [activeCategory]);
+
+  useEffect(() => {
+    setSessionNumberInput(filters.sessionNumber ? String(filters.sessionNumber) : '');
+  }, [filters.sessionNumber]);
+
   const summaryRecord = data.trainingSessionSummaries.find((item) => item.microcycleId === filters.microcycleId && item.sessionNumber === filters.sessionNumber && item.date === filters.date);
   const [sessionType, setSessionType] = useState<TrainingSessionType>(summaryRecord?.sessionType ?? 'cdEf');
   const sessionPlayers = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
-  const existingRecords = useMemo(() => data.externalLoads.filter((record) => record.date === filters.date && (record.category ?? record.actingCategory) === activeCategory && (record.microcycleId ?? filters.microcycleId) === filters.microcycleId && (record.sessionNumber ?? filters.sessionNumber) === filters.sessionNumber), [data.externalLoads, filters.date, filters.microcycleId, filters.sessionNumber, activeCategory]);
+  const existingRecords = useMemo(
+    () => data.externalLoads.filter((record) => record.date === filters.date && (record.category ?? record.actingCategory) === activeCategory && (record.microcycleId ?? filters.microcycleId) === filters.microcycleId && (record.sessionNumber ?? filters.sessionNumber) === filters.sessionNumber),
+    [data.externalLoads, filters.date, filters.microcycleId, filters.sessionNumber, activeCategory],
+  );
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
 
   useEffect(() => {
     const next: Record<string, RowState> = {};
     sessionPlayers.forEach((player) => {
       const existing = existingRecords.find((item) => item.playerId === player.id);
-      next[player.id] = { selected: !!existing, participation: existing?.participation ?? 'Completa', min: existing?.min ?? 0, rpe: existing?.rpe ?? 0, acc: existing?.acc ?? 0, dcc: existing?.dcc ?? 0, sprints: existing?.sprints ?? 0, rhie: existing?.rhie ?? 0, ima: existing?.ima ?? 0, movementType: existing?.movementType ?? 'base', movementNote: existing?.movementNote ?? '' };
+      next[player.id] = {
+        selected: !!existing,
+        participation: existing?.participation ?? 'Completa',
+        min: existing?.min ?? 0,
+        rpe: existing?.rpe ?? 0,
+        acc: existing?.acc ?? 0,
+        dcc: existing?.dcc ?? 0,
+        sprints: existing?.sprints ?? 0,
+        rhie: existing?.rhie ?? 0,
+        ima: existing?.ima ?? 0,
+        movementType: existing?.movementType ?? 'base',
+        movementNote: existing?.movementNote ?? '',
+      };
     });
     setRowStates(next);
   }, [sessionPlayers, existingRecords]);
 
-  const rows = sessionPlayers.map((player) => ({ player, ...(rowStates[player.id] ?? { selected: false, participation: 'Completa', min: 0, rpe: 0, acc: 0, dcc: 0, sprints: 0, rhie: 0, ima: 0, movementType: 'base', movementNote: '' }) }));
+  const rows = sessionPlayers.map((player) => ({
+    player,
+    ...(rowStates[player.id] ?? {
+      selected: false,
+      participation: 'Completa',
+      min: 0,
+      rpe: 0,
+      acc: 0,
+      dcc: 0,
+      sprints: 0,
+      rhie: 0,
+      ima: 0,
+      movementType: 'base',
+      movementNote: '',
+    }),
+  }));
   const selectedRows = rows.filter((row) => row.selected);
 
-  const updateRow = (playerId: string, patch: Partial<RowState>) => setRowStates((prev) => ({ ...prev, [playerId]: { ...(prev[playerId] ?? { selected: false, participation: 'Completa', min: 0, rpe: 0, acc: 0, dcc: 0, sprints: 0, rhie: 0, ima: 0, movementType: 'base', movementNote: '' }), ...patch } }));
+  const updateRow = (playerId: string, patch: Partial<RowState>) =>
+    setRowStates((prev) => ({
+      ...prev,
+      [playerId]: {
+        ...(prev[playerId] ?? {
+          selected: false,
+          participation: 'Completa',
+          min: 0,
+          rpe: 0,
+          acc: 0,
+          dcc: 0,
+          sprints: 0,
+          rhie: 0,
+          ima: 0,
+          movementType: 'base',
+          movementNote: '',
+        }),
+        ...patch,
+      },
+    }));
 
   const saveSession = () => {
-    upsertTrainingSessionSummary({ id: summaryRecord?.id ?? crypto.randomUUID(), date: filters.date, microcycleId: filters.microcycleId, sessionNumber: filters.sessionNumber, sessionType });
+    const parsedSessionNumber = Number(sessionNumberInput);
+    if (!sessionNumberInput.trim() || !Number.isFinite(parsedSessionNumber) || parsedSessionNumber <= 0) {
+      setMessage('Debes ingresar un número de sesión válido antes de guardar.');
+      return;
+    }
+
+    if (parsedSessionNumber !== filters.sessionNumber) {
+      setFilters({ sessionNumber: parsedSessionNumber });
+    }
+
+    upsertTrainingSessionSummary({
+      id: summaryRecord?.id ?? crypto.randomUUID(),
+      date: filters.date,
+      microcycleId: filters.microcycleId,
+      sessionNumber: parsedSessionNumber,
+      sessionType,
+    });
+
     selectedRows.forEach((row) => {
       const existing = existingRecords.find((item) => item.playerId === row.player.id);
       const movementType = sourceCategory === activeCategory ? 'base' : row.movementType;
@@ -76,7 +163,7 @@ export default function SesionEntrenamientoPage() {
         ima: youthSimple ? 0 : row.ima,
         participation: row.participation,
         microcycleId: filters.microcycleId,
-        sessionNumber: filters.sessionNumber,
+        sessionNumber: parsedSessionNumber,
         sessionType,
         category: activeCategory,
         baseCategory: row.player.category ?? sourceCategory,
@@ -87,8 +174,24 @@ export default function SesionEntrenamientoPage() {
         loggedBy: session.displayName,
       };
       if (existing) updateExternalLoad(externalRecord); else addExternalLoad(externalRecord);
-      upsertInternalLoad({ id: crypto.randomUUID(), playerId: row.player.id, date: filters.date, rpe: row.rpe, duration: row.min, microcycleId: filters.microcycleId, sessionNumber: filters.sessionNumber, category: activeCategory, baseCategory: row.player.category ?? sourceCategory, actingCategory: activeCategory, movementType, movementNote: row.movementNote, movementModule: 'sesion' as const, loggedBy: session.displayName });
+      upsertInternalLoad({
+        id: crypto.randomUUID(),
+        playerId: row.player.id,
+        date: filters.date,
+        rpe: row.rpe,
+        duration: row.min,
+        microcycleId: filters.microcycleId,
+        sessionNumber: parsedSessionNumber,
+        category: activeCategory,
+        baseCategory: row.player.category ?? sourceCategory,
+        actingCategory: activeCategory,
+        movementType,
+        movementNote: row.movementNote,
+        movementModule: 'sesion' as const,
+        loggedBy: session.displayName,
+      });
     });
+
     existingRecords.filter((record) => !selectedRows.find((row) => row.player.id === record.playerId)).forEach((record) => deleteExternalLoad(record.id));
     setMessage('Sesión guardada correctamente.');
   };
@@ -96,14 +199,58 @@ export default function SesionEntrenamientoPage() {
   return (
     <div className="grid">
       <AppHero title="Sesión de entrenamiento" subtitle={`Orsomarso SC Performance · ${categoryLabel(activeCategory)}`} />
-      <GlobalFiltersBar />
+
+      <div className="card">
+        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Panel de sesión</h3>
+            <div className="summary-chip" style={{ marginTop: 8 }}>Este panel corresponde al guardado de la sesión de entrenamiento.</div>
+          </div>
+          <button type="button" className="btn secondary" onClick={() => setMessage('')}>Limpiar aviso</button>
+        </div>
+        <div className="grid grid-4" style={{ marginTop: 16 }}>
+          <div className="field">
+            <label>Fecha</label>
+            <input className="input" type="date" value={filters.date} onChange={(e) => setFilters({ date: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>Microciclo</label>
+            <select className="select" value={filters.microcycleId} onChange={(e) => setFilters({ microcycleId: e.target.value })}>
+              {data.microcycles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Número de sesión</label>
+            <input
+              className="input"
+              type="number"
+              min="1"
+              placeholder="Escribe el número de sesión"
+              value={sessionNumberInput}
+              onChange={(e) => {
+                setSessionNumberInput(e.target.value);
+                if (e.target.value === '') return;
+                const parsed = Number(e.target.value);
+                if (Number.isFinite(parsed) && parsed > 0) setFilters({ sessionNumber: parsed });
+              }}
+            />
+          </div>
+          <div className="field">
+            <label>Categoría base</label>
+            <input className="input" value={categoryLabel(activeCategory)} readOnly />
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-4">
         <KpiCard label="Jugadores seleccionados" value={String(selectedRows.length)} />
         <KpiCard label="MIN promedio" value={groupAverage(selectedRows.map((r) => r.min)).toFixed(0)} />
         <KpiCard label="RPE promedio" value={groupAverage(selectedRows.map((r) => r.rpe)).toFixed(1)} />
         <KpiCard label="Invitados" value={String(selectedRows.filter((r) => sourceCategory !== activeCategory).length)} />
       </div>
+
       {message ? <div className="card"><strong>{message}</strong></div> : null}
+
       {master ? (
         <div className="card"><strong>Usuario Maestro:</strong> acceso de lectura. Usa Informes y Ranking para análisis global.</div>
       ) : (
@@ -113,7 +260,15 @@ export default function SesionEntrenamientoPage() {
             <div className="btn-row">
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Categoría del jugador</label>
-                <select className="select" value={sourceCategory} onChange={(e) => setSourceCategory(e.target.value as ClubCategory)}>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select>
+                <select className="select" value={sourceCategory} onChange={(e) => setSourceCategory(e.target.value as ClubCategory)}>
+                  {categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+                </select>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>Tipo de sesión</label>
+                <select className="select" value={sessionType} onChange={(e) => setSessionType(e.target.value as TrainingSessionType)}>
+                  {sessionTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
               </div>
               <button type="button" className="btn secondary" onClick={() => downloadCsv(`sesion-${activeCategory}.csv`, selectedRows.map((r) => ({ fecha: filters.date, jugador: r.player.name, categoria_base: categoryLabel(r.player.category), categoria_participacion: categoryLabel(activeCategory), movimiento: sourceCategory === activeCategory ? 'base' : r.movementType, minutos: r.min, rpe: r.rpe })))}>Exportar CSV</button>
               <button type="button" className="btn" onClick={saveSession}>Guardar sesión</button>
