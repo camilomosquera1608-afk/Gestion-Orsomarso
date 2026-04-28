@@ -111,7 +111,7 @@ export default function PlayerProfilePage() {
           </div>
           <div className="grid grid-3">
             <div className="field"><label>Categoría base</label><select className="select" value={player.category} onChange={(e) => patchPlayer({ category: e.target.value as ClubCategory })}>{categories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}</select></div>
-            <div className="field"><label>Estatura (cm)</label><input className="input" type="number" value={player.height} onChange={(e) => patchPlayer({ height: Number(e.target.value) || 0 })} /></div>
+            <div className="field"><label>Estatura (cm)</label><input className="input" type="number" step="0.01" value={player.height} onChange={(e) => patchPlayer({ height: Number.parseFloat(e.target.value) || 0 })} /></div>
             <div className="field"><label>Peso (kg)</label><input className="input" type="number" value={player.weight} onChange={(e) => patchPlayer({ weight: Number(e.target.value) || 0 })} /></div>
           </div>
           <div className="card">

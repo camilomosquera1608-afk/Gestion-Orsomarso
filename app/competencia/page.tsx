@@ -56,6 +56,22 @@ export default function CompetenciaPage() {
   const currentPlayer = data.players.find((player) => player.id === currentPlayerId) ?? sourcePlayers[0];
   const isGoalkeeper = currentPlayer?.position === 'Portero';
 
+  const selectedRecords = currentPlayerId ? records.filter((record) => record.playerId === currentPlayerId) : records;
+  const uniqueMatches = Array.from(
+    new Map(
+      selectedRecords.map((record) => [
+        `${record.date}|${record.competitionName ?? ''}|${record.opponent ?? ''}|${record.actingCategory ?? record.category ?? activeCategory}`,
+        record,
+      ]),
+    ).values(),
+  );
+  const kpiMatches = uniqueMatches.length;
+  const kpiMinutes = selectedRecords.length ? selectedRecords.reduce((acc, record) => acc + record.minutesPlayed, 0) : 0;
+  const kpiGoals = selectedRecords.reduce((acc, record) => acc + (record.goals ?? 0), 0);
+  const kpiAssists = selectedRecords.reduce((acc, record) => acc + (record.assists ?? 0), 0);
+  const kpiGoalsConceded = selectedRecords.reduce((acc, record) => acc + (record.goalsConceded ?? 0), 0);
+  const kpiGoalsPrevented = selectedRecords.reduce((acc, record) => acc + (record.goalsPrevented ?? 0), 0);
+
   const submit = (formData: FormData) => {
     const playerId = String(formData.get('playerId'));
     const player = data.players.find((item) => item.id === playerId);
@@ -100,10 +116,10 @@ export default function CompetenciaPage() {
       <AppHero title="Competencia" subtitle={`Orsomarso SC Performance · ${categoryLabel(activeCategory)}`} />
 
       <div className="grid grid-4">
-        <KpiCard label="Partidos registrados" value={String(records.length)} />
-        <KpiCard label="Minutos jugados" value={groupAverage(records.map((r) => r.minutesPlayed)).toFixed(0)} />
-        <KpiCard label="Goles" value={String(records.reduce((acc, r) => acc + r.goals, 0))} />
-        <KpiCard label="Asistencias" value={String(records.reduce((acc, r) => acc + r.assists, 0))} />
+        <KpiCard label="Partidos registrados" value={String(kpiMatches)} />
+        <KpiCard label="Minutos jugados" value={String(kpiMinutes)} />
+        <KpiCard label={isGoalkeeper ? "Goles encajados" : "Goles"} value={String(isGoalkeeper ? kpiGoalsConceded : kpiGoals)} />
+        <KpiCard label={isGoalkeeper ? "Goles evitados" : "Asistencias"} value={String(isGoalkeeper ? kpiGoalsPrevented : kpiAssists)} />
       </div>
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
@@ -111,9 +127,12 @@ export default function CompetenciaPage() {
       {master ? (
         <div className="card"><strong>Usuario Maestro:</strong> acceso de lectura. Usa Informes y Ranking para el análisis global.</div>
       ) : (
-        <form className="card grid" action={submit}>
+        <form key={`${currentPlayerId}-${isGoalkeeper ? "gk" : "field"}-${editingId || "new"}`} className="card grid" action={submit}>
           <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>{editing ? 'Editar competencia' : 'Cargar competencia'}</h3>
+            <div>
+              <h3 style={{ margin: 0 }}>{editing ? 'Editar competencia' : 'Cargar competencia'}</h3>
+              <div className="summary-chip" style={{ marginTop: 8 }}>Plantilla activa: {isGoalkeeper ? 'Portero' : 'Jugador de campo'}</div>
+            </div>
             <button type="button" className="btn secondary" onClick={() => downloadCsv('competencia.csv', records.map((r) => ({
               fecha: r.date,
               jugador: data.players.find((p) => p.id === r.playerId)?.name ?? 'Jugador',
@@ -147,8 +166,8 @@ export default function CompetenciaPage() {
 
           {isGoalkeeper ? (
             <div className="grid grid-2">
-              <input className="input" type="number" name="goalsConceded" placeholder="Goles encajados" defaultValue={editing?.goalsConceded ?? ''} />
-              <input className="input" type="number" name="goalsPrevented" placeholder="Goles evitados" defaultValue={editing?.goalsPrevented ?? ''} />
+              <div className="field"><label>Goles encajados</label><input className="input" type="number" name="goalsConceded" placeholder="Goles encajados" defaultValue={editing?.goalsConceded ?? ''} /></div>
+              <div className="field"><label>Goles evitados</label><input className="input" type="number" name="goalsPrevented" placeholder="Goles evitados" defaultValue={editing?.goalsPrevented ?? ''} /></div>
             </div>
           ) : youthSimple ? (
             <div className="grid grid-2">
