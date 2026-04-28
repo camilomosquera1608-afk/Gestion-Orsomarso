@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, saveRemoteAppState } from '@/lib/supabase';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
-import { inferMicrocycleFromSequence } from '@/lib/utils';
+import { findMicrocycleByDate, inferMicrocycleFromSequence } from '@/lib/utils';
 import { AppData, CMJRecord, ClubCategory, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
 interface AppContextValue {

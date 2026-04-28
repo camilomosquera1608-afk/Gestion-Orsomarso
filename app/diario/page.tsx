@@ -6,7 +6,7 @@ import { KpiCard } from '@/components/kpi-card';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { averageWellness, inferMicrocycleFromSequence, groupAverage } from '@/lib/utils';
+import { averageWellness, findMicrocycleByDate, inferMicrocycleFromSequence, groupAverage } from '@/lib/utils';
 import { categoryLabel } from '@/lib/labels';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 

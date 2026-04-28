@@ -9,7 +9,7 @@ import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { ClubCategory, MovementType, SessionParticipation, TrainingSessionType } from '@/lib/types';
-import { inferMicrocycleFromSequence, groupAverage } from '@/lib/utils';
+import { findMicrocycleByDate, inferMicrocycleFromSequence, groupAverage } from '@/lib/utils';
 
 const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
   { value: 'cdef', label: 'cdef · Recuperación' },
