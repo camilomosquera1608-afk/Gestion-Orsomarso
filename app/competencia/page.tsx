@@ -140,11 +140,9 @@ export default function CompetenciaPage() {
             <div className="field"><label>Rival</label><input className="input" name="opponent" placeholder="Nombre del rival" defaultValue={editing?.opponent ?? ''} required /></div>
             <div className="field"><label>Minutos jugados</label><input className="input" type="number" name="minutesPlayed" defaultValue={editing?.minutesPlayed ?? ''} required /></div>
           </div>
-
-          <div className="grid grid-3">
+          <div className="grid grid-2">
             <div className="field"><label>Movimiento</label><select className="select" name="movementType" defaultValue={editing?.movementType ?? (sourceCategory === activeCategory ? 'base' : 'subio_a_competir')}>{movementOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
             <div className="field"><label>Observación movimiento</label><input className="input" name="movementNote" defaultValue={editing?.movementNote ?? ''} /></div>
-            <div className="field"><label>Minutos jugados</label><input className="input" type="number" name="minutesPlayed" defaultValue={editing?.minutesPlayed ?? ''} required /></div>
           </div>
 
           {isGoalkeeper ? (
