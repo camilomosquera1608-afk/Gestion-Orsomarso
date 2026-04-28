@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, saveRemoteAppState } from '@/lib/supabase';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
+import { findMicrocycleByDate } from '@/lib/utils';
 import { AppData, CMJRecord, ClubCategory, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
 interface AppContextValue {
@@ -195,15 +196,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     if (!isMasterRole(session)) {
       merged.category = allowedCategory;
     }
-    if (next.microcycleId) {
-      const selectedMicrocycle =
-        dataRef.current.microcycles.find((item) => item.id === next.microcycleId) ??
-        { id: next.microcycleId, name: `Microciclo ${String(next.microcycleId).replace('mc-', '')}`, startDate: '', endDate: '' };
-      if (selectedMicrocycle.startDate && selectedMicrocycle.endDate) {
-        if (merged.date < selectedMicrocycle.startDate || merged.date > selectedMicrocycle.endDate) {
-          merged.date = selectedMicrocycle.startDate;
-        }
-      }
+    if (next.date) {
+      const detected = findMicrocycleByDate(dataRef.current.microcycles, next.date);
+      if (detected) merged.microcycleId = detected.id;
     }
     return merged;
   });

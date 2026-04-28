@@ -19,9 +19,9 @@ const movementOptions: Array<{ value: MovementType; label: string }> = [
 
 const getFilterLayout = (pathname: string) => {
   if (pathname === '/') return { date: false, microcycle: false, sessionNumber: false, category: true, player: true, position: true, status: true, acting: false, movement: false };
-  if (pathname.startsWith('/diario')) return { date: true, microcycle: true, sessionNumber: false, category: true, player: true, position: true, status: true, acting: false, movement: false };
+  if (pathname.startsWith('/diario')) return { date: true, microcycle: false, sessionNumber: false, category: true, player: true, position: true, status: true, acting: false, movement: false };
   if (pathname.startsWith('/microciclo')) return { date: false, microcycle: true, sessionNumber: false, category: true, player: true, position: true, status: true, acting: false, movement: false };
-  if (pathname.startsWith('/sesion-entrenamiento')) return { date: true, microcycle: true, sessionNumber: true, category: true, player: true, position: true, status: true, acting: false, movement: false };
+  if (pathname.startsWith('/sesion-entrenamiento')) return { date: true, microcycle: false, sessionNumber: true, category: true, player: false, position: false, status: false, acting: false, movement: false };
   if (pathname.startsWith('/competencia')) return { date: true, microcycle: false, sessionNumber: false, category: true, player: true, position: true, status: true, acting: false, movement: false };
   if (pathname.startsWith('/informes')) return { date: false, microcycle: false, sessionNumber: false, category: true, player: true, position: false, status: false, acting: true, movement: true };
   if (pathname.startsWith('/ranking')) return { date: false, microcycle: false, sessionNumber: false, category: true, player: false, position: false, status: false, acting: false, movement: false };

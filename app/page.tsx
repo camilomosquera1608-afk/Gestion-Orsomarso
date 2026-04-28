@@ -36,6 +36,12 @@ export default function HomePage() {
     readaptacion: selectedPlayers.filter((p) => p.status === 'Readaptación').length,
     lesionados: selectedPlayers.filter((p) => p.status === 'Lesionado').length,
   };
+  const alertItems = [
+    ...selectedPlayers.filter((player) => !data.wellness.find((item) => item.playerId === player.id && item.date === filters.date)).map((player) => `${player.name}: sin wellness del día`),
+    ...selectedPlayers.filter((player) => !data.internalLoads.find((item) => item.playerId === player.id && item.date === filters.date)).map((player) => `${player.name}: sin carga interna del día`),
+    ...selectedPlayers.filter((player) => player.status === 'Lesionado').map((player) => `${player.name}: lesión activa`),
+    ...selectedPlayers.filter((player) => player.status === 'Molestia').map((player) => `${player.name}: molestia activa`),
+  ].slice(0, 10);
 
   const chartData = selectedPlayers.map((player) => {
     const wellness = data.wellness.find((x) => x.playerId === player.id && x.date === filters.date);
@@ -70,6 +76,11 @@ export default function HomePage() {
         <KpiCard label="Molestia" value={String(availabilitySummary.molestia)} />
         <KpiCard label="Readaptación" value={String(availabilitySummary.readaptacion)} />
         <KpiCard label="Lesionados" value={String(availabilitySummary.lesionados)} />
+      </div>
+
+      <div className="card">
+        <h3>Alertas inteligentes</h3>
+        {alertItems.length ? <div className="grid" style={{ gap: 10 }}>{alertItems.map((item) => <div key={item} className="alert-item tone-yellow">{item}</div>)}</div> : <div className="empty">Sin alertas relevantes en la fecha seleccionada.</div>}
       </div>
 
       <div className="grid grid-2">

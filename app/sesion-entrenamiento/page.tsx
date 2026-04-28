@@ -9,7 +9,7 @@ import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { ClubCategory, MovementType, SessionParticipation, TrainingSessionType } from '@/lib/types';
-import { groupAverage } from '@/lib/utils';
+import { findMicrocycleByDate, groupAverage } from '@/lib/utils';
 
 const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
   { value: 'cdef', label: 'cdef · Recuperación' },
@@ -47,6 +47,8 @@ export default function SesionEntrenamientoPage() {
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
   const youthSimple = activeCategory !== 'Sub20';
+  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date);
+  const activeMicrocycleId = detectedMicrocycle?.id ?? filters.microcycleId;
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
   const [message, setMessage] = useState('');
   const [showGroupReport, setShowGroupReport] = useState(false);
@@ -60,12 +62,21 @@ export default function SesionEntrenamientoPage() {
     setSessionNumberInput(filters.sessionNumber ? String(filters.sessionNumber) : '');
   }, [filters.sessionNumber]);
 
-  const summaryRecord = data.trainingSessionSummaries.find((item) => item.microcycleId === filters.microcycleId && item.sessionNumber === filters.sessionNumber && item.date === filters.date);
+  const summaryRecord = data.trainingSessionSummaries.find((item) => item.microcycleId === activeMicrocycleId && item.sessionNumber === filters.sessionNumber && item.date === filters.date);
   const [sessionType, setSessionType] = useState<TrainingSessionType>(summaryRecord?.sessionType ?? 'cdEf');
+  const [sessionObjective, setSessionObjective] = useState(summaryRecord?.objective ?? '');
+  const [sessionObservation, setSessionObservation] = useState(summaryRecord?.observation ?? '');
+
+  useEffect(() => {
+    setSessionType(summaryRecord?.sessionType ?? 'cdEf');
+    setSessionObjective(summaryRecord?.objective ?? '');
+    setSessionObservation(summaryRecord?.observation ?? '');
+  }, [summaryRecord?.id, summaryRecord?.sessionType, summaryRecord?.objective, summaryRecord?.observation]);
+
   const sessionPlayers = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
   const existingRecords = useMemo(
-    () => data.externalLoads.filter((record) => record.date === filters.date && (record.category ?? record.actingCategory) === activeCategory && (record.microcycleId ?? filters.microcycleId) === filters.microcycleId && (record.sessionNumber ?? filters.sessionNumber) === filters.sessionNumber),
-    [data.externalLoads, filters.date, filters.microcycleId, filters.sessionNumber, activeCategory],
+    () => data.externalLoads.filter((record) => record.date === filters.date && (record.category ?? record.actingCategory) === activeCategory && (record.microcycleId ?? activeMicrocycleId) === activeMicrocycleId && (record.sessionNumber ?? filters.sessionNumber) === filters.sessionNumber),
+    [data.externalLoads, filters.date, activeMicrocycleId, filters.sessionNumber, activeCategory],
   );
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
 
@@ -143,12 +154,24 @@ export default function SesionEntrenamientoPage() {
       setFilters({ sessionNumber: parsedSessionNumber });
     }
 
+    if (!detectedMicrocycle) {
+      setMessage('La fecha seleccionada no pertenece a un microciclo registrado. Ajusta la fecha o revisa el módulo Microciclo.');
+      return;
+    }
+
+    if (!selectedRows.length) {
+      setMessage('Debes incluir al menos un jugador antes de guardar la sesión.');
+      return;
+    }
+
     upsertTrainingSessionSummary({
       id: summaryRecord?.id ?? crypto.randomUUID(),
       date: filters.date,
-      microcycleId: filters.microcycleId,
+      microcycleId: activeMicrocycleId,
       sessionNumber: parsedSessionNumber,
       sessionType,
+      objective: sessionObjective,
+      observation: sessionObservation,
     });
 
     selectedRows.forEach((row) => {
@@ -166,7 +189,7 @@ export default function SesionEntrenamientoPage() {
         rhie: youthSimple ? 0 : row.rhie,
         ima: youthSimple ? 0 : row.ima,
         participation: row.participation,
-        microcycleId: filters.microcycleId,
+        microcycleId: activeMicrocycleId,
         sessionNumber: parsedSessionNumber,
         sessionType,
         category: activeCategory,
@@ -184,7 +207,7 @@ export default function SesionEntrenamientoPage() {
         date: filters.date,
         rpe: row.rpe,
         duration: row.min,
-        microcycleId: filters.microcycleId,
+        microcycleId: activeMicrocycleId,
         sessionNumber: parsedSessionNumber,
         category: activeCategory,
         baseCategory: row.player.category ?? sourceCategory,
@@ -209,6 +232,8 @@ export default function SesionEntrenamientoPage() {
           <div>
             <h3 style={{ margin: 0 }}>Panel de sesión</h3>
             <div className="summary-chip" style={{ marginTop: 8 }}>Este panel corresponde al guardado de la sesión de entrenamiento.</div>
+            <div className="muted-line" style={{ marginTop: 8 }}>{detectedMicrocycle ? `Microciclo detectado automáticamente: ${detectedMicrocycle.name}` : 'Alerta: la fecha no pertenece a un microciclo registrado.'}</div>
+            {summaryRecord ? <div className="muted-line" style={{ marginTop: 4, color: '#1d4ed8', fontWeight: 800 }}>Sesión existente detectada: estás editando una sesión guardada.</div> : null}
           </div>
           <button type="button" className="btn secondary" onClick={() => setMessage('')}>Limpiar aviso</button>
         </div>
@@ -218,9 +243,9 @@ export default function SesionEntrenamientoPage() {
             <input className="input" type="date" value={filters.date} onChange={(e) => setFilters({ date: e.target.value })} />
           </div>
           <div className="field">
-            <label>Microciclo</label>
-            <select className="select" value={filters.microcycleId} onChange={(e) => setFilters({ microcycleId: e.target.value })}>
-              {data.microcycles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            <label>Tipo de sesión</label>
+            <select className="select" value={sessionType} onChange={(e) => setSessionType(e.target.value as TrainingSessionType)}>
+              {sessionTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
           <div className="field">
@@ -244,6 +269,16 @@ export default function SesionEntrenamientoPage() {
             <input className="input" value={categoryLabel(activeCategory)} readOnly />
           </div>
         </div>
+        <div className="grid grid-2" style={{ marginTop: 12 }}>
+          <div className="field">
+            <label>Objetivo general</label>
+            <input className="input" value={sessionObjective} onChange={(e) => setSessionObjective(e.target.value)} placeholder="Objetivo de la sesión" />
+          </div>
+          <div className="field">
+            <label>Observación general</label>
+            <input className="input" value={sessionObservation} onChange={(e) => setSessionObservation(e.target.value)} placeholder="Resumen del trabajo realizado" />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-4">
@@ -259,7 +294,7 @@ export default function SesionEntrenamientoPage() {
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h3 style={{ margin: 0 }}>Informe grupal de sesión</h3>
-            <div className="summary-chip" style={{ marginTop: 8 }}>{categoryLabel(activeCategory)} · {filters.date} · Microciclo {String(filters.microcycleId).replace('mc-', '')} · Sesión {sessionNumberInput || '-'}</div>
+            <div className="summary-chip" style={{ marginTop: 8 }}>{categoryLabel(activeCategory)} · {filters.date} · {detectedMicrocycle?.name ?? 'Sin microciclo'} · Sesión {sessionNumberInput || '-'}</div>
           </div>
           <div className="btn-row">
             <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar informe grupal' : 'Ver informe grupal'}</button>
@@ -309,12 +344,6 @@ export default function SesionEntrenamientoPage() {
                 <label>Categoría del jugador</label>
                 <select className="select" value={sourceCategory} onChange={(e) => setSourceCategory(e.target.value as ClubCategory)}>
                   {categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
-                </select>
-              </div>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label>Tipo de sesión</label>
-                <select className="select" value={sessionType} onChange={(e) => setSessionType(e.target.value as TrainingSessionType)}>
-                  {sessionTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
               <button type="button" className="btn secondary" onClick={() => downloadCsv(`sesion-${activeCategory}.csv`, selectedRows.map((r) => ({ fecha: filters.date, jugador: r.player.name, categoria_base: categoryLabel(r.player.category), categoria_participacion: categoryLabel(activeCategory), movimiento: sourceCategory === activeCategory ? 'base' : r.movementType, minutos: r.min, rpe: r.rpe })))}>Exportar CSV</button>

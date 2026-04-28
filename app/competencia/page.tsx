@@ -82,14 +82,36 @@ export default function CompetenciaPage() {
     const player = data.players.find((item) => item.id === playerId);
     const goalkeeper = player?.position === 'Portero';
     const movementType = sourceCategory === activeCategory ? 'base' : (String(formData.get('movementType')) as MovementType);
+    const date = String(formData.get('date'));
+    const competitionName = String(formData.get('competitionName'));
+    const opponent = String(formData.get('opponent') || '').trim();
+    const minutesPlayed = Number(formData.get('minutesPlayed')) || 0;
+
+    if (!opponent) {
+      setMessage('Debes seleccionar o escribir un rival antes de guardar.');
+      return;
+    }
+    const duplicatePlayerMatch = records.find((record) => record.id !== editingId && record.playerId === playerId && record.date === date && (record.competitionName ?? '') === competitionName && (record.opponent ?? '').trim() === opponent);
+    if (duplicatePlayerMatch) {
+      setMessage('Ese jugador ya tiene un registro en el mismo partido.');
+      return;
+    }
+    if (goalkeeper && ['goals', 'assists', 'acc', 'dcc', 'sprints', 'rhie', 'ima'].some((field) => Number(formData.get(field)) > 0)) {
+      setMessage('No se puede guardar un portero con métricas de jugador de campo.');
+      return;
+    }
+    if (!goalkeeper && (Number(formData.get('goalsConceded')) > 0 || Number(formData.get('goalsPrevented')) > 0)) {
+      setMessage('No se puede guardar un jugador de campo con métricas de portero.');
+      return;
+    }
 
     const baseRecord = {
       id: editingId || crypto.randomUUID(),
       playerId,
-      date: String(formData.get('date')),
-      opponent: String(formData.get('opponent') || ''),
-      competitionName: String(formData.get('competitionName')),
-      minutesPlayed: Number(formData.get('minutesPlayed')) || 0,
+      date,
+      opponent,
+      competitionName,
+      minutesPlayed,
       yellowCards: Number(formData.get('yellowCards')) || 0,
       redCards: Number(formData.get('redCards')) || 0,
       category: activeCategory,

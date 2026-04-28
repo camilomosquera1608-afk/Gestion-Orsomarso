@@ -6,7 +6,7 @@ import { KpiCard } from '@/components/kpi-card';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { averageWellness, groupAverage } from '@/lib/utils';
+import { averageWellness, findMicrocycleByDate, groupAverage } from '@/lib/utils';
 import { categoryLabel } from '@/lib/labels';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -16,6 +16,7 @@ export default function DiarioPage() {
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
   const youthSimple = activeCategory !== 'Sub20';
+  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date);
 
   const players = data.players.filter((player) =>
     (activeCategory === 'all' || player.category === activeCategory) &&
@@ -41,6 +42,9 @@ export default function DiarioPage() {
     <div className="grid">
       <AppHero title="Dashboard diario" subtitle={youthSimple ? 'Vista simplificada por categoría con minutos y RPE.' : 'Vista operativa avanzada para Sub20.'} />
       <GlobalFiltersBar />
+      <div className="card">
+        <strong>{detectedMicrocycle ? `Microciclo detectado: ${detectedMicrocycle.name}` : 'La fecha seleccionada no pertenece a un microciclo registrado.'}</strong>
+      </div>
 
       <div className="grid grid-4">
         <KpiCard label="Wellness promedio" value={groupAverage(tableRows.map((r) => r.wellnessAvg)).toFixed(1)} />
