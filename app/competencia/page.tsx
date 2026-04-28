@@ -332,7 +332,7 @@ export default function CompetenciaPage() {
               const hasMedicalAlert = match.records.some((record) => (record.postCompetitionStatus ?? 'Sin novedad') !== 'Sin novedad');
               const injurySummary = Array.from(new Set(match.records.map((record) => record.injuryKind).filter(Boolean))).join(', ');
               return (
-                <tr key={match.key}>
+                <tr key={match.id}>
                   <td>{match.date}</td>
                   <td>{categoryLabel(match.category)}</td>
                   <td>{match.competitionName}</td>
