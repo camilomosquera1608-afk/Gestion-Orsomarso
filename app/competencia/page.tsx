@@ -67,7 +67,7 @@ export default function CompetenciaPage() {
       id: editingId || crypto.randomUUID(),
       playerId,
       date: String(formData.get('date')),
-      opponent: String(formData.get('competitionName')),
+      opponent: String(formData.get('opponent') || ''),
       competitionName: String(formData.get('competitionName')),
       minutesPlayed: Number(formData.get('minutesPlayed')) || 0,
       yellowCards: Number(formData.get('yellowCards')) || 0,
@@ -120,7 +120,8 @@ export default function CompetenciaPage() {
               jugador: data.players.find((p) => p.id === r.playerId)?.name ?? 'Jugador',
               categoria_base: categoryLabel(data.players.find((p) => p.id === r.playerId)?.category),
               categoria_participacion: categoryLabel(r.actingCategory ?? r.category),
-              competencia: r.competitionName ?? r.opponent,
+              competencia: r.competitionName ?? '',
+              rival: r.opponent ?? '',
               minutos: r.minutesPlayed,
               goles: r.goals,
               asistencias: r.assists,
@@ -135,6 +136,10 @@ export default function CompetenciaPage() {
             <div className="field"><label>Jugador</label><select className="select" name="playerId" value={currentPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)}>{sourcePlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
             <div className="field"><label>Fecha</label><input className="input" type="date" name="date" defaultValue={editing?.date ?? filters.date} required /></div>
             <div className="field"><label>Competencia</label><select className="select" name="competitionName" defaultValue={editing?.competitionName ?? competitionsByCategory[activeCategory][0]}>{competitionsByCategory[activeCategory].map((name) => <option key={name}>{name}</option>)}</select></div>
+          </div>
+          <div className="grid grid-2">
+            <div className="field"><label>Rival</label><input className="input" name="opponent" placeholder="Nombre del rival" defaultValue={editing?.opponent ?? ''} required /></div>
+            <div className="field"><label>Minutos jugados</label><input className="input" type="number" name="minutesPlayed" defaultValue={editing?.minutesPlayed ?? ''} required /></div>
           </div>
 
           <div className="grid grid-3">
@@ -187,7 +192,7 @@ export default function CompetenciaPage() {
         <h3>Historial de competencia</h3>
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Jugador</th><th>Categoría</th><th>Competencia</th><th>Min</th><th>Estado</th><th>Lesión</th><th>Acciones</th></tr>
+            <tr><th>Fecha</th><th>Jugador</th><th>Categoría</th><th>Competencia</th><th>Rival</th><th>Min</th><th>Estado</th><th>Lesión</th><th>Acciones</th></tr>
           </thead>
           <tbody>
             {records.map((record) => {
@@ -197,7 +202,8 @@ export default function CompetenciaPage() {
                   <td>{record.date}</td>
                   <td>{player?.name ?? 'Jugador'}</td>
                   <td>{categoryLabel(record.actingCategory ?? record.category)}</td>
-                  <td>{record.competitionName ?? record.opponent}</td>
+                  <td>{record.competitionName ?? '-'}</td>
+                  <td>{record.opponent ?? '-'}</td>
                   <td>{record.minutesPlayed}</td>
                   <td>{record.postCompetitionStatus ?? '-'}</td>
                   <td>{record.injuryKind ?? '-'}</td>
