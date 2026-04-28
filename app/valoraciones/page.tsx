@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
+import { KpiCard } from '@/components/kpi-card';
 import { ToneBadge } from '@/components/status-badge';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
