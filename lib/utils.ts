@@ -43,15 +43,3 @@ export const inferMicrocycleFromSequence = (microcycles: Microcycle[], date: str
 
 export const getAutoMicrocycleId = (microcycles: Microcycle[], date: string, fallback = 'mc-1') =>
   (findMicrocycleByDate(microcycles, date) ?? inferMicrocycleFromSequence(microcycles, date))?.id ?? fallback;
-
-
-export const inferMicrocycleFromSequence = (microcycles: Microcycle[], date: string) => {
-  const exact = findMicrocycleByDate(microcycles, date);
-  if (exact) return exact;
-  const sorted = [...microcycles].filter((item) => item.startDate && item.endDate).sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (!sorted.length) return undefined;
-  const first = sorted[0];
-  const start = new Date(first.startDate + 'T00:00:00');
-  const target = new Date(date + 'T00:00:00');
-  if (Number.isNaN(start.getTime()) or False):
-    pass
