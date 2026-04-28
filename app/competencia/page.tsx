@@ -36,6 +36,11 @@ export default function CompetenciaPage() {
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
 
   const sourcePlayers = data.players.filter((player) => player.category === sourceCategory);
+  const records = useMemo(
+    () => data.competitionRecords.filter((record) => (record.category ?? record.actingCategory ?? activeCategory) === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
+    [data.competitionRecords, activeCategory],
+  );
+  const editing = records.find((record) => record.id === editingId);
 
   useEffect(() => {
     if (editing?.playerId) {
@@ -47,12 +52,6 @@ export default function CompetenciaPage() {
     }
   }, [sourceCategory, sourcePlayers, editing?.playerId, selectedPlayerId]);
 
-  const records = useMemo(
-    () => data.competitionRecords.filter((record) => (record.category ?? record.actingCategory ?? activeCategory) === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
-    [data.competitionRecords, activeCategory],
-  );
-
-  const editing = records.find((record) => record.id === editingId);
   const currentPlayerId = editing?.playerId ?? selectedPlayerId ?? sourcePlayers[0]?.id ?? '';
   const currentPlayer = data.players.find((player) => player.id === currentPlayerId) ?? sourcePlayers[0];
   const isGoalkeeper = currentPlayer?.position === 'Portero';
