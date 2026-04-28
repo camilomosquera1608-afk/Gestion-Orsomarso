@@ -286,6 +286,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     upsertCompetitionMatchSummary: (record) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: [record, ...prev.competitionMatchSummaries.filter((item) => item.id !== record.id)] })),
     deleteCompetitionMatchSummary: (matchId) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: prev.competitionMatchSummaries.filter((item) => item.id !== matchId), competitionRecords: prev.competitionRecords.filter((item) => item.matchId !== matchId) })),
     upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.date === record.date && item.category === record.category && item.sessionNumber === record.sessionNumber))] })),
+    updateMicrocycle: (record) => applyMutation((prev) => ({
+      ...prev,
+      microcycles: prev.microcycles.map((item) => item.id === record.id ? { ...item, ...record } : item),
+    })),
     backendMode,
     syncStatus,
     forceSync,
