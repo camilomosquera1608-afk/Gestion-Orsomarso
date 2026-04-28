@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, saveRemoteAppState } from '@/lib/supabase';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
-import { findMicrocycleByDate } from '@/lib/utils';
+import { inferMicrocycleFromSequence } from '@/lib/utils';
 import { AppData, CMJRecord, ClubCategory, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
 interface AppContextValue {
@@ -91,7 +91,7 @@ const hydrateData = (stored: Partial<AppData> | null): AppData => ({
   fmsRecords: stored?.fmsRecords ?? initialData.fmsRecords,
   competitionRecords: (stored?.competitionRecords ?? initialData.competitionRecords).map((record) => ({ ...record, baseCategory: record.baseCategory ?? record.category, actingCategory: record.actingCategory ?? record.category, movementType: record.movementType ?? 'base', movementModule: record.movementModule ?? 'competencia' })),
   trainingSessionSummaries: stored?.trainingSessionSummaries ?? initialData.trainingSessionSummaries,
-  microcycles: stored?.microcycles ?? initialData.microcycles,
+  microcycles: Array.from(new Map([...(initialData.microcycles ?? []), ...((stored?.microcycles ?? []) as any[])].map((item: any) => [item.id, item])).values()),
 });
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
@@ -197,7 +197,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       merged.category = allowedCategory;
     }
     if (next.date) {
-      const detected = findMicrocycleByDate(dataRef.current.microcycles, next.date);
+      const detected = findMicrocycleByDate(dataRef.current.microcycles, next.date) ?? inferMicrocycleFromSequence(dataRef.current.microcycles, next.date);
       if (detected) merged.microcycleId = detected.id;
     }
     return merged;

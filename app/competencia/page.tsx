@@ -16,6 +16,21 @@ const competitionsByCategory: Record<ClubCategory, string[]> = {
   Sub17: ['Liga vallecaucana Sub17', 'Torneo nacional Sub17'],
   Sub15: ['Liga vallecaucana Sub16', 'Torneo nacional Sub15'],
 };
+const rivalsByCategory: Record<ClubCategory, string[]> = {
+  Sub20: [
+    'Deportivo Pasto',
+    'Independiente Yumbo',
+    'Boca Juniors de Cali',
+    'Once Caldas',
+    'Deportivo Pereira',
+    'Internacional Palmira',
+    'Deportivo Cali',
+    'América de Cali',
+    'Deporvalencia',
+  ],
+  Sub17: [],
+  Sub15: [],
+};
 const medicalStates = ['Sin novedad', 'Fatigado', 'Molestia', 'Lesionado'];
 const injuryKinds: InjuryKind[] = ['Muscular', 'Articular', 'Tendinosa', 'Ósea'];
 const movementOptions: Array<{ value: MovementType; label: string }> = [
@@ -76,6 +91,26 @@ export default function CompetenciaPage() {
   const groupMinutes = records.reduce((acc, record) => acc + record.minutesPlayed, 0);
   const goalkeeperRecords = records.filter((record) => (data.players.find((player) => player.id === record.playerId)?.position) === 'Portero');
   const fieldRecords = records.filter((record) => (data.players.find((player) => player.id === record.playerId)?.position) !== 'Portero');
+  const availableOpponents = Array.from(new Set([...(rivalsByCategory[activeCategory] ?? []), ...records.map((record) => record.opponent).filter(Boolean), ...(editing?.opponent ? [editing.opponent] : [])]));
+  const groupedHistory = Array.from(
+    records.reduce((map, record) => {
+      const key = `${record.date}|${record.competitionName ?? ''}|${record.opponent ?? ''}|${record.actingCategory ?? record.category ?? activeCategory}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.records.push(record);
+      } else {
+        map.set(key, {
+          key,
+          date: record.date,
+          competitionName: record.competitionName ?? '-',
+          opponent: record.opponent ?? '-',
+          category: record.actingCategory ?? record.category ?? activeCategory,
+          records: [record],
+        });
+      }
+      return map;
+    }, new Map<string, { key: string; date: string; competitionName: string; opponent: string; category: ClubCategory; records: typeof records }>() ).values(),
+  );
 
   const submit = (formData: FormData) => {
     const playerId = String(formData.get('playerId'));
@@ -217,7 +252,13 @@ export default function CompetenciaPage() {
             <div className="field"><label>Competencia</label><select className="select" name="competitionName" defaultValue={editing?.competitionName ?? competitionsByCategory[activeCategory][0]}>{competitionsByCategory[activeCategory].map((name) => <option key={name}>{name}</option>)}</select></div>
           </div>
           <div className="grid grid-2">
-            <div className="field"><label>Rival</label><input className="input" name="opponent" placeholder="Nombre del rival" defaultValue={editing?.opponent ?? ''} required /></div>
+            <div className="field">
+              <label>Rival</label>
+              <select className="select" name="opponent" defaultValue={editing?.opponent ?? ''} required>
+                <option value="">Selecciona el rival</option>
+                {availableOpponents.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </div>
             <div className="field"><label>Minutos jugados</label><input className="input" type="number" name="minutesPlayed" defaultValue={editing?.minutesPlayed ?? ''} required /></div>
           </div>
           <div className="grid grid-2">
@@ -269,22 +310,31 @@ export default function CompetenciaPage() {
         <h3>Historial de competencia</h3>
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Jugador</th><th>Categoría</th><th>Competencia</th><th>Rival</th><th>Min</th><th>Estado</th><th>Lesión</th><th>Acciones</th></tr>
+            <tr><th>Fecha</th><th>Categoría</th><th>Competencia</th><th>Rival</th><th>Jugadores</th><th>Min totales</th><th>Estado</th><th>Lesión</th><th>Acciones</th></tr>
           </thead>
           <tbody>
-            {records.map((record) => {
-              const player = data.players.find((p) => p.id === record.playerId);
+            {groupedHistory.map((match) => {
+              const totalMinutes = match.records.reduce((acc, record) => acc + record.minutesPlayed, 0);
+              const hasMedicalAlert = match.records.some((record) => (record.postCompetitionStatus ?? 'Sin novedad') !== 'Sin novedad');
+              const injurySummary = Array.from(new Set(match.records.map((record) => record.injuryKind).filter(Boolean))).join(', ');
               return (
-                <tr key={record.id}>
-                  <td>{record.date}</td>
-                  <td>{player?.name ?? 'Jugador'}</td>
-                  <td>{categoryLabel(record.actingCategory ?? record.category)}</td>
-                  <td>{record.competitionName ?? '-'}</td>
-                  <td>{record.opponent ?? '-'}</td>
-                  <td>{record.minutesPlayed}</td>
-                  <td>{record.postCompetitionStatus ?? '-'}</td>
-                  <td>{record.injuryKind ?? '-'}</td>
-                  <td>{master ? '-' : <div className="btn-row"><button type="button" className="btn secondary" onClick={() => setEditingId(record.id)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div>}</td>
+                <tr key={match.key}>
+                  <td>{match.date}</td>
+                  <td>{categoryLabel(match.category)}</td>
+                  <td>{match.competitionName}</td>
+                  <td>{match.opponent}</td>
+                  <td>{match.records.length}</td>
+                  <td>{totalMinutes}</td>
+                  <td>{hasMedicalAlert ? 'Con novedad' : 'Sin novedad'}</td>
+                  <td>{injurySummary || '-'}</td>
+                  <td>
+                    {master ? '-' : (
+                      <div className="btn-row">
+                        <button type="button" className="btn secondary" onClick={() => { setEditingId(match.records[0].id); setSelectedPlayerId(match.records[0].playerId); setMessage('Editando el primer registro del partido seleccionado.'); }}>Editar</button>
+                        <button type="button" className="btn danger" onClick={() => { match.records.forEach((record) => deleteCompetitionRecord(record.id)); setMessage('Partido eliminado correctamente.'); }}>Eliminar</button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               );
             })}

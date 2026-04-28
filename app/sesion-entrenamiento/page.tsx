@@ -9,7 +9,7 @@ import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { ClubCategory, MovementType, SessionParticipation, TrainingSessionType } from '@/lib/types';
-import { findMicrocycleByDate, groupAverage } from '@/lib/utils';
+import { inferMicrocycleFromSequence, groupAverage } from '@/lib/utils';
 
 const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
   { value: 'cdef', label: 'cdef · Recuperación' },
@@ -47,7 +47,7 @@ export default function SesionEntrenamientoPage() {
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
   const youthSimple = activeCategory !== 'Sub20';
-  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date);
+  const detectedMicrocycle = (findMicrocycleByDate(data.microcycles, filters.date) ?? inferMicrocycleFromSequence(data.microcycles, filters.date));
   const activeMicrocycleId = detectedMicrocycle?.id ?? filters.microcycleId;
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
   const [message, setMessage] = useState('');

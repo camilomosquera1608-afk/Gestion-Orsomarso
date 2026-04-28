@@ -6,7 +6,7 @@ import { KpiCard } from '@/components/kpi-card';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { averageWellness, findMicrocycleByDate, groupAverage } from '@/lib/utils';
+import { averageWellness, inferMicrocycleFromSequence, groupAverage } from '@/lib/utils';
 import { categoryLabel } from '@/lib/labels';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -16,7 +16,7 @@ export default function DiarioPage() {
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
   const youthSimple = activeCategory !== 'Sub20';
-  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date);
+  const detectedMicrocycle = (findMicrocycleByDate(data.microcycles, filters.date) ?? inferMicrocycleFromSequence(data.microcycles, filters.date));
 
   const players = data.players.filter((player) =>
     (activeCategory === 'all' || player.category === activeCategory) &&
