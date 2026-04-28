@@ -54,6 +54,7 @@ export interface DailyWellnessRecord {
 
 export interface DailyInternalLoadRecord {
   id: string;
+  sessionId?: string;
   playerId: string;
   date: string;
   rpe: number;
@@ -71,6 +72,7 @@ export interface DailyInternalLoadRecord {
 
 export interface DailyExternalLoadRecord {
   id: string;
+  sessionId?: string;
   playerId: string;
   date: string;
   min: number;
@@ -141,6 +143,7 @@ export interface FMSRecord {
 
 export interface CompetitionRecord {
   id: string;
+  matchId?: string;
   playerId: string;
   date: string;
   opponent: string;
@@ -174,11 +177,23 @@ export interface CompetitionRecord {
 export interface TrainingSessionSummary {
   id: string;
   date: string;
+  category?: ClubCategory;
   microcycleId: string;
   sessionNumber: number;
   sessionType: TrainingSessionType;
   sessionRpe?: number;
   objective?: string;
+  observation?: string;
+}
+
+export interface CompetitionMatchSummary {
+  id: string;
+  date: string;
+  category: ClubCategory;
+  competitionName: string;
+  opponent: string;
+  venue?: string;
+  result?: string;
   observation?: string;
 }
 
@@ -199,6 +214,7 @@ export interface AppData {
   neuromuscularRecords: NeuromuscularRecord[];
   fmsRecords: FMSRecord[];
   competitionRecords: CompetitionRecord[];
+  competitionMatchSummaries: CompetitionMatchSummary[];
   trainingSessionSummaries: TrainingSessionSummary[];
   microcycles: Microcycle[];
 }

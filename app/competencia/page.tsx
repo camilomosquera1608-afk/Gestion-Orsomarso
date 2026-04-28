@@ -40,7 +40,7 @@ const movementOptions: Array<{ value: MovementType; label: string }> = [
 ];
 
 export default function CompetenciaPage() {
-  const { data, filters, addCompetitionRecord, updateCompetitionRecord, deleteCompetitionRecord, setFilters } = useApp();
+  const { data, filters, addCompetitionRecord, updateCompetitionRecord, deleteCompetitionRecord, upsertCompetitionMatchSummary, deleteCompetitionMatchSummary } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
@@ -56,7 +56,9 @@ export default function CompetenciaPage() {
     () => data.competitionRecords.filter((record) => (record.category ?? record.actingCategory ?? activeCategory) === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
     [data.competitionRecords, activeCategory],
   );
+  const matchSummaries = useMemo(() => data.competitionMatchSummaries.filter((match) => match.category === activeCategory).sort((a, b) => b.date.localeCompare(a.date)), [data.competitionMatchSummaries, activeCategory]);
   const editing = records.find((record) => record.id === editingId);
+  const editingMatch = editing ? matchSummaries.find((match) => match.id === editing.matchId) : undefined;
 
   useEffect(() => {
     if (editing?.playerId) {
@@ -91,26 +93,11 @@ export default function CompetenciaPage() {
   const groupMinutes = records.reduce((acc, record) => acc + record.minutesPlayed, 0);
   const goalkeeperRecords = records.filter((record) => (data.players.find((player) => player.id === record.playerId)?.position) === 'Portero');
   const fieldRecords = records.filter((record) => (data.players.find((player) => player.id === record.playerId)?.position) !== 'Portero');
-  const availableOpponents = Array.from(new Set([...(rivalsByCategory[activeCategory] ?? []), ...records.map((record) => record.opponent).filter(Boolean), ...(editing?.opponent ? [editing.opponent] : [])]));
-  const groupedHistory = Array.from(
-    records.reduce((map, record) => {
-      const key = `${record.date}|${record.competitionName ?? ''}|${record.opponent ?? ''}|${record.actingCategory ?? record.category ?? activeCategory}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.records.push(record);
-      } else {
-        map.set(key, {
-          key,
-          date: record.date,
-          competitionName: record.competitionName ?? '-',
-          opponent: record.opponent ?? '-',
-          category: record.actingCategory ?? record.category ?? activeCategory,
-          records: [record],
-        });
-      }
-      return map;
-    }, new Map<string, { key: string; date: string; competitionName: string; opponent: string; category: ClubCategory; records: typeof records }>() ).values(),
-  );
+  const availableOpponents = Array.from(new Set([...(rivalsByCategory[activeCategory] ?? []), ...matchSummaries.map((match) => match.opponent), ...records.map((record) => record.opponent).filter(Boolean), ...(editingMatch?.opponent ? [editingMatch.opponent] : [])]));
+  const groupedHistory = matchSummaries.map((match) => ({
+    ...match,
+    records: records.filter((record) => record.matchId === match.id || (!record.matchId && record.date === match.date && (record.competitionName ?? '') === match.competitionName && (record.opponent ?? '') === match.opponent)),
+  }));
 
   const submit = (formData: FormData) => {
     const playerId = String(formData.get('playerId'));
@@ -120,7 +107,15 @@ export default function CompetenciaPage() {
     const date = String(formData.get('date'));
     const competitionName = String(formData.get('competitionName'));
     const opponent = String(formData.get('opponent') || '').trim();
+    const venue = String(formData.get('venue') || '').trim();
+    const result = String(formData.get('result') || '').trim();
+    const matchObservation = String(formData.get('matchObservation') || '').trim();
     const minutesPlayed = Number(formData.get('minutesPlayed')) || 0;
+
+    if (!competitionName) {
+      setMessage('Debes seleccionar una competencia antes de guardar.');
+      return;
+    }
 
     if (!opponent) {
       setMessage('Debes seleccionar o escribir un rival antes de guardar.');
@@ -140,8 +135,22 @@ export default function CompetenciaPage() {
       return;
     }
 
+    const existingMatch = matchSummaries.find((match) => match.id === editingMatch?.id || (match.date === date && match.category === activeCategory && match.competitionName === competitionName && match.opponent === opponent));
+    const matchId = existingMatch?.id ?? editingMatch?.id ?? crypto.randomUUID();
+    upsertCompetitionMatchSummary({
+      id: matchId,
+      date,
+      category: activeCategory,
+      competitionName,
+      opponent,
+      venue,
+      result,
+      observation: matchObservation,
+    });
+
     const baseRecord = {
       id: editingId || crypto.randomUUID(),
+      matchId,
       playerId,
       date,
       opponent,
@@ -249,12 +258,17 @@ export default function CompetenciaPage() {
             <div className="field"><label>Categoría del jugador</label><select className="select" value={sourceCategory} onChange={(e) => setSourceCategory(e.target.value as ClubCategory)}>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></div>
             <div className="field"><label>Jugador</label><select className="select" name="playerId" value={currentPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)}>{sourcePlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
             <div className="field"><label>Fecha</label><input className="input" type="date" name="date" defaultValue={editing?.date ?? filters.date} required /></div>
-            <div className="field"><label>Competencia</label><select className="select" name="competitionName" defaultValue={editing?.competitionName ?? competitionsByCategory[activeCategory][0]}>{competitionsByCategory[activeCategory].map((name) => <option key={name}>{name}</option>)}</select></div>
+            <div className="field"><label>Competencia</label><select className="select" name="competitionName" defaultValue={editingMatch?.competitionName ?? editing?.competitionName ?? competitionsByCategory[activeCategory][0]}>{competitionsByCategory[activeCategory].map((name) => <option key={name}>{name}</option>)}</select></div>
+          </div>
+          <div className="grid grid-3">
+            <div className="field"><label>Local / visitante</label><input className="input" name="venue" defaultValue={editingMatch?.venue ?? ''} /></div>
+            <div className="field"><label>Resultado</label><input className="input" name="result" defaultValue={editingMatch?.result ?? ''} /></div>
+            <div className="field"><label>Observación general</label><input className="input" name="matchObservation" defaultValue={editingMatch?.observation ?? ''} /></div>
           </div>
           <div className="grid grid-2">
             <div className="field">
               <label>Rival</label>
-              <select className="select" name="opponent" defaultValue={editing?.opponent ?? ''} required>
+              <select className="select" name="opponent" defaultValue={editingMatch?.opponent ?? editing?.opponent ?? ''} required>
                 <option value="">Selecciona el rival</option>
                 {availableOpponents.map((name) => <option key={name} value={name}>{name}</option>)}
               </select>
@@ -331,7 +345,7 @@ export default function CompetenciaPage() {
                     {master ? '-' : (
                       <div className="btn-row">
                         <button type="button" className="btn secondary" onClick={() => { setEditingId(match.records[0].id); setSelectedPlayerId(match.records[0].playerId); setMessage('Editando el primer registro del partido seleccionado.'); }}>Editar</button>
-                        <button type="button" className="btn danger" onClick={() => { match.records.forEach((record) => deleteCompetitionRecord(record.id)); setMessage('Partido eliminado correctamente.'); }}>Eliminar</button>
+                        <button type="button" className="btn danger" onClick={() => { deleteCompetitionMatchSummary(match.id); setMessage('Partido eliminado correctamente.'); }}>Eliminar</button>
                       </div>
                     )}
                   </td>

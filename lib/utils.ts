@@ -26,20 +26,5 @@ export const groupAverage = (values: number[]) => {
 export const findMicrocycleByDate = (microcycles: Microcycle[], date: string) =>
   microcycles.find((microcycle) => microcycle.startDate && microcycle.endDate && date >= microcycle.startDate && date <= microcycle.endDate);
 
-export const inferMicrocycleFromSequence = (microcycles: Microcycle[], date: string) => {
-  const exact = findMicrocycleByDate(microcycles, date);
-  if (exact) return exact;
-  const sorted = [...microcycles].filter((item) => item.startDate && item.endDate).sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (!sorted.length) return undefined;
-  const first = sorted[0];
-  const start = new Date(`${first.startDate}T00:00:00`);
-  const target = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(target.getTime()) || target < start) return undefined;
-  const diffDays = Math.floor((target.getTime() - start.getTime()) / 86400000);
-  const offsetWeeks = Math.floor(diffDays / 7);
-  const inferredNumber = Number(String(first.id).replace('mc-', '')) + offsetWeeks;
-  return microcycles.find((item) => item.id === `mc-${inferredNumber}`);
-};
-
 export const getAutoMicrocycleId = (microcycles: Microcycle[], date: string, fallback = 'mc-1') =>
-  (findMicrocycleByDate(microcycles, date) ?? inferMicrocycleFromSequence(microcycles, date))?.id ?? fallback;
+  findMicrocycleByDate(microcycles, date)?.id ?? fallback;

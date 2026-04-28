@@ -13,7 +13,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Too
 const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación' };
 
 export default function MicrocicloPage() {
-  const { data, filters } = useApp();
+  const { data, filters, updateMicrocycle } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
@@ -67,6 +67,23 @@ export default function MicrocicloPage() {
     <div className="grid">
       <AppHero title="Dashboard de microciclo" subtitle={youthSimple ? `Vista ${categoryLabel(activeCategory)} simplificada sin métricas GPS.` : 'Vista avanzada de U20.'} />
       <GlobalFiltersBar />
+      <div className="card">
+        <h3>Fechas del microciclo</h3>
+        <div className="grid grid-3">
+          <div className="field">
+            <label>Microciclo seleccionado</label>
+            <input className="input" value={microcycle.name} readOnly />
+          </div>
+          <div className="field">
+            <label>Fecha de inicio</label>
+            <input className="input" type="date" value={microcycle.startDate ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, startDate: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>Fecha de fin</label>
+            <input className="input" type="date" value={microcycle.endDate ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, endDate: e.target.value })} />
+          </div>
+        </div>
+      </div>
       {dateOutOfRange ? <div className="card"><strong>Alerta:</strong> la fecha seleccionada no corresponde al rango del {microcycle.name}.</div> : null}
       <div className="grid grid-4">
         <KpiCard label="Microciclo activo" value={microcycle.name} />

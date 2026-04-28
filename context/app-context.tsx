@@ -4,8 +4,8 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, saveRemoteAppState } from '@/lib/supabase';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
-import { findMicrocycleByDate, inferMicrocycleFromSequence } from '@/lib/utils';
-import { AppData, CMJRecord, ClubCategory, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
+import { findMicrocycleByDate } from '@/lib/utils';
+import { AppData, CMJRecord, ClubCategory, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
 interface AppContextValue {
   data: AppData;
@@ -39,7 +39,10 @@ interface AppContextValue {
   addCompetitionRecord: (record: CompetitionRecord) => void;
   updateCompetitionRecord: (record: CompetitionRecord) => void;
   deleteCompetitionRecord: (recordId: string) => void;
+  upsertCompetitionMatchSummary: (record: CompetitionMatchSummary) => void;
+  deleteCompetitionMatchSummary: (matchId: string) => void;
   upsertTrainingSessionSummary: (record: TrainingSessionSummary) => void;
+  updateMicrocycle: (record: Microcycle) => void;
   backendMode: 'supabase' | 'local';
   syncStatus: 'idle' | 'syncing' | 'ready' | 'error';
   forceSync: () => Promise<void>;
@@ -90,6 +93,7 @@ const hydrateData = (stored: Partial<AppData> | null): AppData => ({
   neuromuscularRecords: stored?.neuromuscularRecords ?? initialData.neuromuscularRecords,
   fmsRecords: stored?.fmsRecords ?? initialData.fmsRecords,
   competitionRecords: (stored?.competitionRecords ?? initialData.competitionRecords).map((record) => ({ ...record, baseCategory: record.baseCategory ?? record.category, actingCategory: record.actingCategory ?? record.category, movementType: record.movementType ?? 'base', movementModule: record.movementModule ?? 'competencia' })),
+  competitionMatchSummaries: stored?.competitionMatchSummaries ?? initialData.competitionMatchSummaries ?? [],
   trainingSessionSummaries: stored?.trainingSessionSummaries ?? initialData.trainingSessionSummaries,
   microcycles: Array.from(new Map([...(initialData.microcycles ?? []), ...((stored?.microcycles ?? []) as any[])].map((item: any) => [item.id, item])).values()),
 });
@@ -197,7 +201,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       merged.category = allowedCategory;
     }
     if (next.date) {
-      const detected = findMicrocycleByDate(dataRef.current.microcycles, next.date) ?? inferMicrocycleFromSequence(dataRef.current.microcycles, next.date);
+      const detected = findMicrocycleByDate(dataRef.current.microcycles, next.date);
       if (detected) merged.microcycleId = detected.id;
     }
     return merged;
@@ -279,7 +283,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     addCompetitionRecord: (record) => applyMutation((prev) => ({ ...prev, competitionRecords: [record, ...prev.competitionRecords] })),
     updateCompetitionRecord: (record) => applyMutation((prev) => ({ ...prev, competitionRecords: prev.competitionRecords.map((item) => item.id === record.id ? record : item) })),
     deleteCompetitionRecord: (recordId) => applyMutation((prev) => ({ ...prev, competitionRecords: prev.competitionRecords.filter((item) => item.id !== recordId) })),
-    upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.date === record.date && item.microcycleId === record.microcycleId && item.sessionNumber === record.sessionNumber))] })),
+    upsertCompetitionMatchSummary: (record) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: [record, ...prev.competitionMatchSummaries.filter((item) => item.id !== record.id)] })),
+    deleteCompetitionMatchSummary: (matchId) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: prev.competitionMatchSummaries.filter((item) => item.id !== matchId), competitionRecords: prev.competitionRecords.filter((item) => item.matchId !== matchId) })),
+    upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.date === record.date && item.category === record.category && item.sessionNumber === record.sessionNumber))] })),
     backendMode,
     syncStatus,
     forceSync,

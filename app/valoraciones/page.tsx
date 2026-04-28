@@ -107,10 +107,10 @@ export default function ValoracionesPage() {
       id: editingNutritionId || crypto.randomUUID(),
       playerId: selectedPlayerId,
       date: String(formData.get('date')),
-      weight: Number(formData.get('weight')),
-      height: Number(formData.get('height')),
-      bodyFat: Number(formData.get('bodyFat')),
-      skinfoldSum: Number(formData.get('skinfoldSum')),
+      weight: Number.parseFloat(String(formData.get('weight'))) || 0,
+      height: Number.parseFloat(String(formData.get('height'))) || 0,
+      bodyFat: Number.parseFloat(String(formData.get('bodyFat'))) || 0,
+      skinfoldSum: Number.parseFloat(String(formData.get('skinfoldSum'))) || 0,
       plan: String(formData.get('plan')) as NutritionPlan,
     };
     if (editingNutritionId) {
@@ -128,9 +128,9 @@ export default function ValoracionesPage() {
       id: editingNeuroId || crypto.randomUUID(),
       playerId: selectedPlayerId,
       date: String(formData.get('date')),
-      cmj: Number(formData.get('cmj')),
-      sj: Number(formData.get('sj')),
-      reactiveJumps: Number(formData.get('reactiveJumps')),
+      cmj: Number.parseFloat(String(formData.get('cmj'))) || 0,
+      sj: Number.parseFloat(String(formData.get('sj'))) || 0,
+      reactiveJumps: Number.parseFloat(String(formData.get('reactiveJumps'))) || 0,
     };
     const cmjRecord = {
       id: editingCmjId || crypto.randomUUID(),
@@ -287,12 +287,12 @@ export default function ValoracionesPage() {
               <h3>{editingNutrition ? 'Editar nutrición' : 'Cargar nutrición'}</h3>
               <input className="input" type="date" name="date" defaultValue={editingNutrition?.date ?? filters.date} key={`nutrition-${editingNutritionId || 'new'}`} required />
               <div className="grid grid-2">
-                <input className="input" type="number" step="0.1" name="weight" placeholder="Peso" defaultValue={editingNutrition?.weight ?? selectedPlayer?.weight} key={`nutrition-weight-${editingNutritionId || 'new'}`} required />
-                <input className="input" type="number" step="0.1" name="height" placeholder="Estatura" defaultValue={editingNutrition?.height ?? selectedPlayer?.height} key={`nutrition-height-${editingNutritionId || 'new'}`} required />
+                <input className="input" type="number" step="0.01" name="weight" placeholder="Peso" defaultValue={editingNutrition?.weight ?? selectedPlayer?.weight} key={`nutrition-weight-${editingNutritionId || 'new'}`} required />
+                <input className="input" type="number" step="0.01" name="height" placeholder="Estatura" defaultValue={editingNutrition?.height ?? selectedPlayer?.height} key={`nutrition-height-${editingNutritionId || 'new'}`} required />
               </div>
               <div className="grid grid-2">
-                <input className="input" type="number" step="0.1" name="bodyFat" placeholder="% de grasa" defaultValue={editingNutrition?.bodyFat ?? ''} key={`nutrition-fat-${editingNutritionId || 'new'}`} required />
-                <input className="input" type="number" step="0.1" name="skinfoldSum" placeholder="Sumatoria de pliegues" defaultValue={editingNutrition?.skinfoldSum ?? ''} key={`nutrition-skin-${editingNutritionId || 'new'}`} required />
+                <input className="input" type="number" step="0.01" name="bodyFat" placeholder="% de grasa" defaultValue={editingNutrition?.bodyFat ?? ''} key={`nutrition-fat-${editingNutritionId || 'new'}`} required />
+                <input className="input" type="number" step="0.01" name="skinfoldSum" placeholder="Sumatoria de pliegues" defaultValue={editingNutrition?.skinfoldSum ?? ''} key={`nutrition-skin-${editingNutritionId || 'new'}`} required />
               </div>
               <select className="select" name="plan" defaultValue={editingNutrition?.plan ?? 'Normocalorico'} key={`nutrition-plan-${editingNutritionId || 'new'}`}>{plans.map((plan) => <option key={plan}>{plan}</option>)}</select>
               <button className="btn" type="submit">{editingNutrition ? 'Actualizar nutrición' : 'Guardar nutrición'}</button>
@@ -326,9 +326,9 @@ export default function ValoracionesPage() {
               <h3>{editingNeuro ? 'Editar perfil neuromuscular' : 'Cargar perfil neuromuscular'}</h3>
               <input className="input" type="date" name="date" defaultValue={editingNeuro?.date ?? filters.date} key={`neuro-date-${editingNeuroId || 'new'}`} required />
               <div className="grid grid-3">
-                <input className="input" type="number" step="0.1" name="cmj" placeholder="Salto CMJ" defaultValue={editingNeuro?.cmj ?? ''} key={`neuro-cmj-${editingNeuroId || 'new'}`} required />
-                <input className="input" type="number" step="0.1" name="sj" placeholder="Salto SJ" defaultValue={editingNeuro?.sj ?? ''} key={`neuro-sj-${editingNeuroId || 'new'}`} required />
-                <input className="input" type="number" step="0.1" name="reactiveJumps" placeholder="Saltos reactivos" defaultValue={editingNeuro?.reactiveJumps ?? ''} key={`neuro-rj-${editingNeuroId || 'new'}`} required />
+                <input className="input" type="number" step="0.01" name="cmj" placeholder="Salto CMJ" defaultValue={editingNeuro?.cmj ?? ''} key={`neuro-cmj-${editingNeuroId || 'new'}`} required />
+                <input className="input" type="number" step="0.01" name="sj" placeholder="Salto SJ" defaultValue={editingNeuro?.sj ?? ''} key={`neuro-sj-${editingNeuroId || 'new'}`} required />
+                <input className="input" type="number" step="0.01" name="reactiveJumps" placeholder="Saltos reactivos" defaultValue={editingNeuro?.reactiveJumps ?? ''} key={`neuro-rj-${editingNeuroId || 'new'}`} required />
               </div>
               <button className="btn" type="submit">{editingNeuro ? 'Actualizar perfil' : 'Guardar perfil'}</button>
             </form>

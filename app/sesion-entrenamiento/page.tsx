@@ -9,7 +9,7 @@ import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { ClubCategory, MovementType, SessionParticipation, TrainingSessionType } from '@/lib/types';
-import { findMicrocycleByDate, inferMicrocycleFromSequence, groupAverage } from '@/lib/utils';
+import { findMicrocycleByDate, groupAverage } from '@/lib/utils';
 
 const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
   { value: 'cdef', label: 'cdef · Recuperación' },
@@ -47,7 +47,7 @@ export default function SesionEntrenamientoPage() {
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
   const youthSimple = activeCategory !== 'Sub20';
-  const detectedMicrocycle = (findMicrocycleByDate(data.microcycles, filters.date) ?? inferMicrocycleFromSequence(data.microcycles, filters.date));
+  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date);
   const activeMicrocycleId = detectedMicrocycle?.id ?? filters.microcycleId;
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
   const [message, setMessage] = useState('');
@@ -62,7 +62,7 @@ export default function SesionEntrenamientoPage() {
     setSessionNumberInput(filters.sessionNumber ? String(filters.sessionNumber) : '');
   }, [filters.sessionNumber]);
 
-  const summaryRecord = data.trainingSessionSummaries.find((item) => item.microcycleId === activeMicrocycleId && item.sessionNumber === filters.sessionNumber && item.date === filters.date);
+  const summaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory && item.sessionNumber === filters.sessionNumber);
   const [sessionType, setSessionType] = useState<TrainingSessionType>(summaryRecord?.sessionType ?? 'cdEf');
   const [sessionObjective, setSessionObjective] = useState(summaryRecord?.objective ?? '');
   const [sessionObservation, setSessionObservation] = useState(summaryRecord?.observation ?? '');
@@ -164,9 +164,17 @@ export default function SesionEntrenamientoPage() {
       return;
     }
 
+    const duplicateSummary = data.trainingSessionSummaries.find((item) => item.id !== summaryRecord?.id && item.date === filters.date && item.category === activeCategory && item.sessionNumber === parsedSessionNumber);
+    if (duplicateSummary) {
+      setMessage('Ya existe una sesión con la misma fecha, categoría y número de sesión.');
+      return;
+    }
+
+    const sessionId = summaryRecord?.id ?? crypto.randomUUID();
     upsertTrainingSessionSummary({
-      id: summaryRecord?.id ?? crypto.randomUUID(),
+      id: sessionId,
       date: filters.date,
+      category: activeCategory,
       microcycleId: activeMicrocycleId,
       sessionNumber: parsedSessionNumber,
       sessionType,
@@ -179,6 +187,7 @@ export default function SesionEntrenamientoPage() {
       const movementType = sourceCategory === activeCategory ? 'base' : row.movementType;
       const externalRecord = {
         id: existing?.id ?? crypto.randomUUID(),
+        sessionId,
         playerId: row.player.id,
         date: filters.date,
         min: row.min,
@@ -203,6 +212,7 @@ export default function SesionEntrenamientoPage() {
       if (existing) updateExternalLoad(externalRecord); else addExternalLoad(externalRecord);
       upsertInternalLoad({
         id: crypto.randomUUID(),
+        sessionId,
         playerId: row.player.id,
         date: filters.date,
         rpe: row.rpe,

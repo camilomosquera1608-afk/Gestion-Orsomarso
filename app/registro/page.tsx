@@ -37,8 +37,8 @@ export default function RegistroPage() {
       birthDate,
       position: String(form.get('position')) as Position,
       category: (master ? String(form.get('category')) : session.category) as ClubCategory,
-      height: Number(form.get('height')),
-      weight: Number(form.get('weight')),
+      height: Number.parseFloat(String(form.get('height'))) || 0,
+      weight: Number.parseFloat(String(form.get('weight'))) || 0,
       status: String(form.get('status')) as PlayerStatus,
       photo: photoPreview || '/orsomarso-crest.jpg',
     });
@@ -71,8 +71,8 @@ export default function RegistroPage() {
           )}
         </div>
         <div className="grid grid-2">
-          <input className="input" type="number" name="height" placeholder="Estatura (cm)" required />
-          <input className="input" type="number" name="weight" placeholder="Peso (kg)" required />
+          <input className="input" type="number" step="0.01" name="height" placeholder="Estatura (cm)" required />
+          <input className="input" type="number" step="0.01" name="weight" placeholder="Peso (kg)" required />
         </div>
         <select className="select" name="status" required>{statuses.map((s) => <option key={s}>{s}</option>)}</select>
         <button className="btn" type="submit">Guardar jugador</button>
