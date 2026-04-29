@@ -1,125 +1,161 @@
 'use client';
 
+import Link from 'next/link';
+import { Activity, AlertTriangle, CalendarCheck2, ClipboardList, HeartPulse, ShieldCheck, Target, Users } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
+import { DataQualityPanel, EmptyState, OperationalAlertPanel, PlayerStatusCard, SectionHeader, TaskChecklist } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { buildDailyOperations, formatDateShort } from '@/lib/operational-helpers';
 
 export default function HomePage() {
   const { data, filters, backendMode, syncStatus, forceSync } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
+  const ops = buildDailyOperations(data, filters, activeCategory);
 
-  const selectedPlayers = data.players.filter((player) =>
-    (activeCategory === 'all' || player.category === activeCategory) &&
-    (filters.playerId === 'all' || player.id === filters.playerId) &&
-    (filters.position === 'all' || player.position === filters.position) &&
-    (filters.status === 'all' || player.status === filters.status)
-  );
-
-  const todayWellness = selectedPlayers.map((player) => averageWellness(data.wellness.find((item) => item.playerId === player.id && item.date === filters.date)));
-  const todayLoads = selectedPlayers.map((player) => {
-    const record = data.internalLoads.find((item) => item.playerId === player.id && item.date === filters.date);
-    return record ? calculateInternalLoad(record) : 0;
-  });
-  const todayCmj = selectedPlayers.map((player) => data.cmjRecords.find((item) => item.playerId === player.id && item.date === filters.date)?.value ?? 0);
-
-  const availabilitySummary = {
-    disponibles: selectedPlayers.filter((p) => p.status === 'Disponible').length,
-    molestia: selectedPlayers.filter((p) => p.status === 'Molestia').length,
-    readaptacion: selectedPlayers.filter((p) => p.status === 'Readaptación').length,
-    lesionados: selectedPlayers.filter((p) => p.status === 'Lesionado').length,
-  };
-  const alertItems = [
-    ...selectedPlayers.filter((player) => !data.wellness.find((item) => item.playerId === player.id && item.date === filters.date)).map((player) => `${player.name}: sin wellness del día`),
-    ...selectedPlayers.filter((player) => !data.internalLoads.find((item) => item.playerId === player.id && item.date === filters.date)).map((player) => `${player.name}: sin carga interna del día`),
-    ...selectedPlayers.filter((player) => player.status === 'Lesionado').map((player) => `${player.name}: lesión activa`),
-    ...selectedPlayers.filter((player) => player.status === 'Molestia').map((player) => `${player.name}: molestia activa`),
-  ].slice(0, 10);
-
-  const chartData = selectedPlayers.map((player) => {
+  const chartData = ops.players.map((player) => {
     const wellness = data.wellness.find((x) => x.playerId === player.id && x.date === filters.date);
-    const load = data.internalLoads.find((x) => x.playerId === player.id && x.date === filters.date);
-    return { jugador: player.name.split(' ')[0], wellness: averageWellness(wellness), carga: load ? calculateInternalLoad(load) : 0 };
+    const internalLoad = data.internalLoads.find((x) => x.playerId === player.id && x.date === filters.date);
+    return {
+      jugador: player.name.split(' ')[0],
+      wellness: averageWellness(wellness),
+      carga: internalLoad ? calculateInternalLoad(internalLoad) : 0,
+    };
   });
+
+  const latestActivity = ops.recentActivity.length ? ops.recentActivity : [
+    'Sin actividad reciente.',
+  ];
 
   return (
-    <div className="grid">
-      <AppHero title="Resumen general" subtitle={`Orsomarso SC Performance · ${master ? 'Maestro' : categoryLabel(activeCategory)}`} />
+    <div className="grid operational-dashboard">
+      <AppHero
+        title="Inicio"
+        subtitle={`${master ? 'Vista general' : categoryLabel(activeCategory)} · ${formatDateShort(filters.date)}`}
+      />
       <GlobalFiltersBar />
-      <div className="card">
-        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <strong>Estado del sistema</strong>
-          <div className="btn-row">
-            <span className="badge tone-green">Backend: {backendMode === 'supabase' ? 'Supabase' : 'Local'}</span>
-            <span className={`badge ${syncStatus === 'error' ? 'tone-red' : syncStatus === 'syncing' ? 'tone-yellow' : 'tone-green'}`}>Sync: {syncStatus}</span>
-            <button type="button" className="btn secondary" onClick={() => forceSync()}>Actualizar datos</button>
-          </div>
+
+      <div className="command-overview-card card">
+        <div>
+          <span className="section-eyebrow">Flujo</span>
+          <h3 style={{ margin: 0 }}>Rutina diaria</h3>
+          <p className="muted-line">Wellness, alertas, sesión, pendientes y cierre.</p>
+        </div>
+        <div className="workflow-steps">
+          <span>1. Wellness</span>
+          <span>2. Alertas</span>
+          <span>3. Sesión</span>
+          <span>4. Pendientes</span>
+          <span>5. Cierre</span>
         </div>
       </div>
 
-      <div className="grid grid-4">
-        <KpiCard label="Jugadores visibles" value={String(selectedPlayers.length)} />
-        <KpiCard label="Wellness promedio" value={groupAverage(todayWellness).toFixed(1)} />
-        <KpiCard label="Carga interna promedio" value={groupAverage(todayLoads).toFixed(0)} />
-        <KpiCard label="CMJ promedio" value={`${groupAverage(todayCmj).toFixed(1)} cm`} />
+      <div className="toolbar card">
+        <div>
+          <span className="section-eyebrow">Sistema</span>
+          <h3 style={{ margin: 0 }}>Estado</h3>
+          <div className="muted-line">Almacenamiento local activo.</div>
+        </div>
+        <div className="btn-row">
+          <span className="status-badge ui-tone-green"><ShieldCheck size={14} />{backendMode === 'supabase' ? 'Supabase' : 'Local'}</span>
+          <span className={`status-badge ${syncStatus === 'error' ? 'ui-tone-red' : syncStatus === 'syncing' ? 'ui-tone-amber' : 'ui-tone-blue'}`}>{syncStatus}</span>
+          <button type="button" className="btn secondary" onClick={() => forceSync()}>Actualizar datos</button>
+        </div>
+      </div>
+
+      <div className="grid grid-5">
+        <KpiCard label="Disponibles" value={String(ops.statusCounts.Disponible)} tone="green" icon={<Users size={18} />} trend="Habilitados" />
+        <KpiCard label="Molestia" value={String(ops.statusCounts.Molestia)} tone="amber" icon={<AlertTriangle size={18} />} trend="Prevención" />
+        <KpiCard label="Readaptación" value={String(ops.statusCounts.Readaptación)} tone="blue" icon={<Activity size={18} />} trend="Controlado" />
+        <KpiCard label="Lesionados" value={String(ops.statusCounts.Lesionado)} tone="red" icon={<HeartPulse size={18} />} trend="Médico" />
+        <KpiCard label="Sin wellness" value={String(ops.statusCounts['Sin registro'])} tone="dark" icon={<ClipboardList size={18} />} trend="Pendientes" />
       </div>
 
       <div className="grid grid-4">
-        <KpiCard label="Disponibles" value={String(availabilitySummary.disponibles)} />
-        <KpiCard label="Molestia" value={String(availabilitySummary.molestia)} />
-        <KpiCard label="Readaptación" value={String(availabilitySummary.readaptacion)} />
-        <KpiCard label="Lesionados" value={String(availabilitySummary.lesionados)} />
+        <KpiCard label="Wellness promedio" value={ops.averages.wellness.toFixed(1)} tone="blue" trend="Promedio" />
+        <KpiCard label="Carga interna promedio" value={ops.averages.internalLoad.toFixed(0)} tone="dark" trend="UA" />
+        <KpiCard label="RPE promedio" value={ops.averages.rpe.toFixed(1)} tone="amber" trend="RPE" />
+        <KpiCard label="MIN promedio" value={ops.averages.minutes.toFixed(0)} tone="green" trend="Sesión" />
       </div>
 
-      <div className="card">
-        <h3>Alertas inteligentes</h3>
-        {alertItems.length ? <div className="grid" style={{ gap: 10 }}>{alertItems.map((item) => <div key={item} className="alert-item tone-yellow">{item}</div>)}</div> : <div className="empty">Sin alertas relevantes en la fecha seleccionada.</div>}
+      <div className="command-layout">
+        <div className="grid">
+          <DataQualityPanel percent={ops.dataQualityPercent} items={ops.dataQualityItems} />
+          <div className="card">
+            <SectionHeader eyebrow="Monitoreo" title="Wellness y carga" />
+            {chartData.length ? (
+              <div style={{ width: '100%', height: 340 }}>
+                <ResponsiveContainer>
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="jugador" />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip />
+                    <Bar yAxisId="left" dataKey="wellness" name="Wellness" fill="#1557d6" radius={[7, 7, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="carga" name="Carga interna" fill="#93c5fd" radius={[7, 7, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : <EmptyState title="Sin jugadores" text="Ajusta los filtros." />}
+          </div>
+        </div>
+
+        <div className="grid">
+          <TaskChecklist tasks={ops.tasks} />
+          <OperationalAlertPanel alerts={ops.alerts} />
+        </div>
       </div>
 
       <div className="grid grid-2">
         <div className="card">
-          <h3>Wellness y carga interna del día</h3>
-          <div style={{ width: '100%', height: 340 }}>
-            <ResponsiveContainer>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="jugador" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip />
-                <Bar yAxisId="left" dataKey="wellness" name="Wellness" fill="#1d4ed8" radius={[6, 6, 0, 0]} />
-                <Bar yAxisId="right" dataKey="carga" name="Carga interna" fill="#93c5fd" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <SectionHeader eyebrow="Actividad" title="Actividad reciente" />
+          <div className="command-feed">
+            {latestActivity.map((item) => (
+              <div key={item} className="command-feed-item"><span className="command-feed-dot" /><strong>{item}</strong></div>
+            ))}
           </div>
         </div>
-
         <div className="card">
-          <h3>Estado actual del grupo</h3>
-          <div className="grid" style={{ gap: 12 }}>
-            {selectedPlayers.map((player) => {
-              const record = data.wellness.find((item) => item.playerId === player.id && item.date === filters.date);
-              return (
-                <div key={player.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid #edf2f7' }}>
-                  <div>
-                    <strong>{player.name}</strong>
-                    <div style={{ color: '#5d6b82', marginTop: 4 }}>{player.position} · {categoryLabel(player.category)}</div>
-                  </div>
-                  <div className="btn-row">
-                    <PlayerStatusBadge status={player.status} />
-                    <WellnessBadge value={averageWellness(record)} />
-                  </div>
-                </div>
-              );
-            })}
+          <SectionHeader eyebrow="Acciones" title="Accesos rápidos" />
+          <div className="quick-action-grid">
+            <Link className="quick-action-card" href="/ejecutivo"><Target size={20} /><strong>Panel ejecutivo</strong><span>Dirección deportiva.</span></Link>
+            <Link className="quick-action-card" href="/disponibilidad"><Activity size={20} /><strong>Centro médico</strong><span>Disponibilidad.</span></Link>
+            <Link className="quick-action-card" href="/carga"><ClipboardList size={20} /><strong>Centro de carga</strong><span>Carga.</span></Link>
+            <Link className="quick-action-card" href="/wellness"><CalendarCheck2 size={20} /><strong>Centro wellness</strong><span>Bienestar.</span></Link>
+            <Link className="quick-action-card" href="/alertas"><Activity size={20} /><strong>Alertas</strong><span>Prioridades.</span></Link>
+            <Link className="quick-action-card" href="/competencia"><Activity size={20} /><strong>Match Center</strong><span>Competencia.</span></Link>
           </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <SectionHeader eyebrow="Plantel" title="Seguimiento individual" />
+        <div className="grid" style={{ gap: 12 }}>
+          {ops.players.slice(0, 14).map((player) => {
+            const record = data.wellness.find((item) => item.playerId === player.id && item.date === filters.date);
+            const external = data.externalLoads.find((item) => item.playerId === player.id && item.date === filters.date);
+            return (
+              <PlayerStatusCard
+                key={player.id}
+                href={`/jugadores/${player.id}`}
+                name={player.name}
+                meta={`${player.position} · ${categoryLabel(player.category)}`}
+                status={<><PlayerStatusBadge status={player.status} /><WellnessBadge value={averageWellness(record)} /></>}
+                right={<span className="muted-line"><ClipboardList size={14} /> {external?.min ?? 0} min · RPE {external?.rpe ?? '-'}</span>}
+              />
+            );
+          })}
+          {!ops.players.length ? <EmptyState title="Sin jugadores" text="Ajusta los filtros." /> : null}
+          {ops.players.length > 14 ? <div className="muted-line">Mostrando 14 de {ops.players.length}.</div> : null}
         </div>
       </div>
     </div>

@@ -3,12 +3,14 @@
 import { useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { KpiCard } from '@/components/kpi-card';
+import { EvaluationsReportTemplate } from '@/components/evaluations-report';
 import { ToneBadge } from '@/components/status-badge';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { ClubCategory } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
+import { buildEvaluationsReportData } from '@/lib/evaluations-report';
 import { NutritionPlan } from '@/lib/types';
 import { Line, LineChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -53,6 +55,7 @@ export default function ValoracionesPage() {
   const [editingCmjId, setEditingCmjId] = useState('');
   const [editingFmsId, setEditingFmsId] = useState('');
   const [showGroupReport, setShowGroupReport] = useState(false);
+  const [showReportPreview, setShowReportPreview] = useState(false);
 
   const categoryPlayers = data.players.filter((player) => player.category === activeCategory);
   const selectedPlayerId = filters.playerId === 'all' || !categoryPlayers.some((player) => player.id === filters.playerId) ? categoryPlayers[0]?.id ?? '' : filters.playerId;
@@ -188,11 +191,14 @@ export default function ValoracionesPage() {
   ] : activeTab === 'FMS' && latestFms && previousFms ? [
     `Total FMS ${(latestFms.total - previousFms.total).toFixed(0)} puntos`,
     'Revisar pruebas con puntaje 1.',
-  ] : ['Carga nuevos registros para activar comparación automática.'];
+  ] : ['Sin histórico suficiente para comparación.'];
+
+  const evaluationReport = buildEvaluationsReportData({ data, player: selectedPlayer, activeCategory, referenceDate: filters.date });
 
   return (
-    <div className="grid">
-      <AppHero title="Valoraciones" />
+    <div className="grid evaluations-page-root">
+      <div className="evaluations-operational no-print">
+      <AppHero title="Valoraciones físicas" subtitle="Control antropométrico, neuromuscular y funcional." />
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
           <div className="field" style={{ maxWidth: 360 }}>
@@ -215,6 +221,7 @@ export default function ValoracionesPage() {
           </div>
           <div className="btn-row">
             <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar informe grupal' : 'Ver informe grupal'}</button>
+            <button type="button" className="btn secondary" onClick={() => setShowReportPreview((value) => !value)}>{showReportPreview ? 'Ocultar vista previa PDF' : 'Vista previa PDF'}</button>
             <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
           </div>
         </div>
@@ -238,6 +245,11 @@ export default function ValoracionesPage() {
                 <div className="muted-line">Jugadores por debajo del promedio: {belowAverageCmj.join(', ') || 'Sin alertas'}</div>
               </div>
             </div>
+          </div>
+        ) : null}
+        {showReportPreview ? (
+          <div style={{ marginTop: 16 }}>
+            <EvaluationsReportTemplate report={evaluationReport} compact />
           </div>
         ) : null}
       </div>
@@ -416,6 +428,8 @@ export default function ValoracionesPage() {
           </div>
         )}
       </div>
+      </div>
+      <EvaluationsReportTemplate report={evaluationReport} className="print-only" />
     </div>
   );
 }

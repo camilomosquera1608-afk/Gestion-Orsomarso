@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { KpiCard } from '@/components/kpi-card';
+import { DataQualityPanel, EmptyState, OperationalAlertPanel } from '@/components/pro-ui';
+import { SessionReportTemplate } from '@/components/session-report';
 import { ToneBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
@@ -10,6 +12,8 @@ import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { ClubCategory, MovementType, SessionParticipation, TrainingSessionType } from '@/lib/types';
 import { findMicrocycleByDate, groupAverage } from '@/lib/utils';
+import { buildDailyOperations } from '@/lib/operational-helpers';
+import { supportsGps } from '@/lib/report-utils';
 
 const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
   { value: 'cdef', label: 'cdef · Recuperación' },
@@ -46,9 +50,19 @@ export default function SesionEntrenamientoPage() {
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
-  const youthSimple = activeCategory !== 'Sub20';
-  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date);
-  const activeMicrocycleId = detectedMicrocycle?.id ?? filters.microcycleId;
+  const ops = buildDailyOperations(data, filters, activeCategory);
+  const gpsEnabled = supportsGps(activeCategory);
+  const youthSimple = !gpsEnabled;
+  const selectedMicrocycle = data.microcycles.find((microcycle) => microcycle.id === filters.microcycleId);
+  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId);
+  const activeMicrocycleId = detectedMicrocycle?.id ?? '';
+  const microcycleNotice = filters.date
+    ? detectedMicrocycle
+      ? 'Microciclo activo para esta fecha: ' + detectedMicrocycle.name
+      : 'No hay microciclo asignado para esta fecha.'
+    : selectedMicrocycle
+      ? selectedMicrocycle.name + ' está seleccionado, pero aún no tiene rango de fechas. Asígnale fecha de inicio y fin en Microciclo.'
+      : 'No hay microciclo seleccionado.';
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
   const [message, setMessage] = useState('');
   const [showGroupReport, setShowGroupReport] = useState(false);
@@ -62,7 +76,7 @@ export default function SesionEntrenamientoPage() {
     setSessionNumberInput(filters.sessionNumber ? String(filters.sessionNumber) : '');
   }, [filters.sessionNumber]);
 
-  const summaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory && item.sessionNumber === filters.sessionNumber);
+  const summaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory && item.sessionNumber === filters.sessionNumber && (!activeMicrocycleId || item.microcycleId === activeMicrocycleId));
   const [sessionType, setSessionType] = useState<TrainingSessionType>(summaryRecord?.sessionType ?? 'cdEf');
   const [sessionObjective, setSessionObjective] = useState(summaryRecord?.objective ?? '');
   const [sessionObservation, setSessionObservation] = useState(summaryRecord?.observation ?? '');
@@ -75,7 +89,7 @@ export default function SesionEntrenamientoPage() {
 
   const sessionPlayers = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
   const existingRecords = useMemo(
-    () => data.externalLoads.filter((record) => record.date === filters.date && (record.category ?? record.actingCategory) === activeCategory && (record.microcycleId ?? activeMicrocycleId) === activeMicrocycleId && (record.sessionNumber ?? filters.sessionNumber) === filters.sessionNumber),
+    () => activeMicrocycleId ? data.externalLoads.filter((record) => record.date === filters.date && (record.category ?? record.actingCategory) === activeCategory && (record.microcycleId ?? activeMicrocycleId) === activeMicrocycleId && (record.sessionNumber ?? filters.sessionNumber) === filters.sessionNumber) : [],
     [data.externalLoads, filters.date, activeMicrocycleId, filters.sessionNumber, activeCategory],
   );
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
@@ -154,8 +168,13 @@ export default function SesionEntrenamientoPage() {
       setFilters({ sessionNumber: parsedSessionNumber });
     }
 
+    if (!filters.date) {
+      setMessage('Debes seleccionar una fecha antes de guardar la sesión. Si elegiste un microciclo nuevo, primero asígnale fecha de inicio y fin.');
+      return;
+    }
+
     if (!detectedMicrocycle) {
-      setMessage('La fecha seleccionada no pertenece a un microciclo registrado. Ajusta la fecha o revisa el módulo Microciclo.');
+      setMessage('No hay microciclo asignado para esta fecha. Ajusta la fecha o crea el rango en el módulo Microciclo.');
       return;
     }
 
@@ -235,14 +254,19 @@ export default function SesionEntrenamientoPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Sesión de entrenamiento" subtitle={`Orsomarso SC Performance · ${categoryLabel(activeCategory)}`} />
+      <AppHero title="Ficha técnica de entrenamiento" subtitle={`Sesión · ${categoryLabel(activeCategory)}`} />
 
+
+      <div className="grid grid-2">
+        <DataQualityPanel percent={ops.dataQualityPercent} items={ops.dataQualityItems} />
+        <OperationalAlertPanel title="Alertas de sesión" alerts={ops.alerts} />
+      </div>
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <h3 style={{ margin: 0 }}>Panel de sesión</h3>
-            <div className="summary-chip" style={{ marginTop: 8 }}>Este panel corresponde al guardado de la sesión de entrenamiento.</div>
-            <div className="muted-line" style={{ marginTop: 8 }}>{detectedMicrocycle ? `Microciclo detectado automáticamente: ${detectedMicrocycle.name}` : 'Alerta: la fecha no pertenece a un microciclo registrado.'}</div>
+            <span className="section-eyebrow">Sesión</span><h3 style={{ margin: 0 }}>Sesión de entrenamiento</h3>
+            
+            <div className="muted-line" style={{ marginTop: 8 }}>{microcycleNotice}</div>
             {summaryRecord ? <div className="muted-line" style={{ marginTop: 4, color: '#1d4ed8', fontWeight: 800 }}>Sesión existente detectada: estás editando una sesión guardada.</div> : null}
           </div>
           <button type="button" className="btn secondary" onClick={() => setMessage('')}>Limpiar aviso</button>
@@ -292,10 +316,10 @@ export default function SesionEntrenamientoPage() {
       </div>
 
       <div className="grid grid-4">
-        <KpiCard label="Jugadores seleccionados" value={String(selectedRows.length)} />
-        <KpiCard label="MIN promedio" value={groupAverage(selectedRows.map((r) => r.min)).toFixed(0)} />
-        <KpiCard label="RPE promedio" value={groupAverage(selectedRows.map((r) => r.rpe)).toFixed(1)} />
-        <KpiCard label="Invitados" value={String(selectedRows.filter((r) => sourceCategory !== activeCategory).length)} />
+        <KpiCard label="Jugadores seleccionados" value={String(selectedRows.length)} tone="green" trend="Incluidos en sesión" />
+        <KpiCard label="MIN promedio" value={groupAverage(selectedRows.map((r) => r.min)).toFixed(0)} tone="dark" trend="Volumen medio" />
+        <KpiCard label="RPE promedio" value={groupAverage(selectedRows.map((r) => r.rpe)).toFixed(1)} tone="amber" trend="Esfuerzo percibido" />
+        <KpiCard label="Invitados" value={String(selectedRows.filter((r) => sourceCategory !== activeCategory).length)} tone="blue" trend="Movimientos" />
       </div>
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
@@ -303,7 +327,7 @@ export default function SesionEntrenamientoPage() {
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
-            <h3 style={{ margin: 0 }}>Informe grupal de sesión</h3>
+            <span className="section-eyebrow">Informe</span><h3 style={{ margin: 0 }}>Informe grupal de sesión</h3>
             <div className="summary-chip" style={{ marginTop: 8 }}>{categoryLabel(activeCategory)} · {filters.date} · {detectedMicrocycle?.name ?? 'Sin microciclo'} · Sesión {sessionNumberInput || '-'}</div>
           </div>
           <div className="btn-row">
@@ -312,43 +336,30 @@ export default function SesionEntrenamientoPage() {
           </div>
         </div>
         {showGroupReport ? (
-          <div className="grid" style={{ gap: 16, marginTop: 16 }}>
-            <div className="grid grid-4">
-              <KpiCard label="Jugadores incluidos" value={String(reportRows.length)} />
-              <KpiCard label="Ausentes" value={String(absentPlayers.length)} />
-              <KpiCard label="MIN promedio" value={groupAverage(reportRows.map((row) => row.min)).toFixed(0)} />
-              <KpiCard label="RPE promedio" value={groupAverage(reportRows.map((row) => row.rpe)).toFixed(1)} />
-            </div>
-            <div className="grid grid-4">
-              <KpiCard label="Carga total" value={String(sessionLoadTotal)} />
-              <KpiCard label="Molestia" value={String(reportRows.filter((row) => row.player.status === 'Molestia').length)} />
-              <KpiCard label="Readaptación" value={String(reportRows.filter((row) => row.player.status === 'Readaptación').length)} />
-              <KpiCard label="Lesionados" value={String(reportRows.filter((row) => row.player.status === 'Lesionado').length)} />
-            </div>
-            {!youthSimple ? (
-              <div className="grid grid-4">
-                <KpiCard label="ACC promedio" value={groupAverage(reportRows.map((row) => row.acc)).toFixed(0)} />
-                <KpiCard label="DCC promedio" value={groupAverage(reportRows.map((row) => row.dcc)).toFixed(0)} />
-                <KpiCard label="SPRINTS promedio" value={groupAverage(reportRows.map((row) => row.sprints)).toFixed(0)} />
-                <KpiCard label="RHIE promedio" value={groupAverage(reportRows.map((row) => row.rhie)).toFixed(0)} />
-              </div>
-            ) : null}
-            <div className="card compact-card">
-              <strong>Resumen del trabajo realizado</strong>
-              <div className="muted-line" style={{ marginTop: 8 }}>Tipo de sesión: {sessionTypeOptions.find((option) => option.value === sessionType)?.label ?? sessionType}</div>
-              <div className="muted-line">Jugadores incluidos: {reportRows.map((row) => row.player.name).join(', ') || 'Sin jugadores incluidos'}</div>
-              <div className="muted-line">Jugadores ausentes: {absentPlayers.map((player) => player.name).join(', ') || 'Sin ausencias'}</div>
-            </div>
+          <div className="report-preview-shell" style={{ marginTop: 16 }}>
+            <SessionReportTemplate
+              date={filters.date}
+              category={activeCategory}
+              microcycle={detectedMicrocycle}
+              sessionNumber={sessionNumberInput || filters.sessionNumber}
+              sessionType={sessionType}
+              objective={sessionObjective}
+              observation={sessionObservation}
+              rows={reportRows}
+              absentPlayers={absentPlayers}
+              dataQualityPercent={ops.dataQualityPercent}
+              compact
+            />
           </div>
         ) : null}
       </div>
 
       {master ? (
-        <div className="card"><strong>Usuario Maestro:</strong> acceso de lectura. Usa Informes y Ranking para análisis global.</div>
+        <EmptyState title="Usuario maestro" text="Acceso de lectura. Usa Informes y Ranking para análisis global." />
       ) : (
         <div className="card session-table-card">
           <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-            <h3 style={{ margin: 0 }}>Plantilla de sesión</h3>
+            <span className="section-eyebrow">Planilla</span><h3 style={{ margin: 0 }}>Participación</h3>
             <div className="btn-row">
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Categoría del jugador</label>
@@ -397,6 +408,19 @@ export default function SesionEntrenamientoPage() {
           </div>
         </div>
       )}
+      <SessionReportTemplate
+        date={filters.date}
+        category={activeCategory}
+        microcycle={detectedMicrocycle}
+        sessionNumber={sessionNumberInput || filters.sessionNumber}
+        sessionType={sessionType}
+        objective={sessionObjective}
+        observation={sessionObservation}
+        rows={reportRows}
+        absentPlayers={absentPlayers}
+        dataQualityPercent={ops.dataQualityPercent}
+        className="print-only"
+      />
     </div>
   );
 }

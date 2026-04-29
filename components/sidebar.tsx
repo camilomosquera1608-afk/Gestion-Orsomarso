@@ -1,60 +1,135 @@
 'use client';
 
-import { categoryLabel } from '@/lib/labels';
-
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Activity, BarChart3, FileText, Gauge, Home, LogOut, Medal, Settings, TimerReset, Trophy, UserRoundPlus, Users } from 'lucide-react';
+import {
+  Activity,
+  BarChart3,
+  Bell,
+  Briefcase,
+  Dumbbell,
+  FileText,
+  Gauge,
+  HeartPulse,
+  Home,
+  LogOut,
+  Medal,
+  Settings,
+  ShieldCheck,
+  TimerReset,
+  Trophy,
+  UserRoundPlus,
+  Users,
+} from 'lucide-react';
+import { categoryLabel } from '@/lib/labels';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
+import { ORSOMARSO_BRAND } from '@/lib/design-system';
 
-const staffItems = [
-  { href: '/', label: 'Inicio', icon: Home },
-  { href: '/diario', label: 'Diario', icon: Gauge },
-  { href: '/microciclo', label: 'Microciclo', icon: Activity },
-  { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
-  { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
-  { href: '/competencia', label: 'Competencia', icon: Trophy },
-  { href: '/informes', label: 'Informes', icon: FileText },
-  { href: '/ranking', label: 'Ranking', icon: Medal },
-  { href: '/jugadores', label: 'Jugadores', icon: Users },
-  { href: '/registro', label: 'Registro', icon: UserRoundPlus },
-  { href: '/configuracion', label: 'Configuración', icon: Settings },
+const staffGroups = [
+  {
+    title: 'Ejecutivo',
+    items: [
+      { href: '/', label: 'Inicio', icon: Home },
+      { href: '/ejecutivo', label: 'Panel ejecutivo', icon: Briefcase },
+      { href: '/diario', label: 'Diario', icon: Gauge },
+      { href: '/microciclo', label: 'Microciclo', icon: Activity },
+      { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
+    ],
+  },
+  {
+    title: 'Rendimiento',
+    items: [
+      { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
+      { href: '/carga', label: 'Carga', icon: Dumbbell },
+      { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
+      { href: '/alertas', label: 'Alertas', icon: Bell },
+    ],
+  },
+  {
+    title: 'Operativo',
+    items: [
+      { href: '/jugadores', label: 'Jugadores', icon: Users },
+      { href: '/registro', label: 'Registro', icon: UserRoundPlus },
+      { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
+      { href: '/competencia', label: 'Competencia', icon: Trophy },
+    ],
+  },
+  {
+    title: 'Reportes',
+    items: [
+      { href: '/informes', label: 'Informes', icon: FileText },
+      { href: '/ranking', label: 'Ranking', icon: Medal },
+    ],
+  },
+  {
+    title: 'Sistema',
+    items: [{ href: '/configuracion', label: 'Configuración', icon: Settings }],
+  },
 ];
 
-const masterItems = [
-  { href: '/informes', label: 'Informes', icon: FileText },
-  { href: '/ranking', label: 'Ranking', icon: Medal },
-  { href: '/jugadores', label: 'Jugadores', icon: Users },
+const masterGroups = [
+  {
+    title: 'Dirección',
+    items: [
+      { href: '/ejecutivo', label: 'Panel ejecutivo', icon: Briefcase },
+      { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
+      { href: '/carga', label: 'Carga', icon: Dumbbell },
+      { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
+      { href: '/alertas', label: 'Alertas', icon: Bell },
+      { href: '/informes', label: 'Informes', icon: FileText },
+      { href: '/ranking', label: 'Ranking', icon: Medal },
+      { href: '/jugadores', label: 'Jugadores', icon: Users },
+    ],
+  },
 ];
 
 export const Sidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
   const session = getStaffSession();
-  const items = session.role === 'master' ? masterItems : staffItems;
+  const groups = session.role === 'master' ? masterGroups : staffGroups;
+  const displayCategory = session.role === 'master' ? 'Maestro' : categoryLabel(session.category);
 
   return (
-    <aside className="sidebar">
-      <div className="brand">
-        <Image src="/orsomarso-crest.jpg" alt="Escudo Orsomarso SC" width={58} height={58} />
-        <div>
-          <small>Orsomarso SC</small>
-          <h1>{session.role === 'master' ? 'Performance Maestro' : `Performance ${categoryLabel(session.category)}`}</h1>
+    <aside className="sidebar premium-sidebar">
+      <div className="brand premium-brand">
+        <div className="brand-mark">
+          <Image src="/orsomarso-crest.jpg" alt="Escudo Orsomarso SC" width={54} height={54} priority />
+        </div>
+        <div className="brand-copy">
+          <small>{ORSOMARSO_BRAND.club}</small>
+          <h1>{ORSOMARSO_BRAND.product}</h1>
+          <span>{displayCategory}</span>
         </div>
       </div>
 
-      <nav className="nav">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-          return (
-            <Link key={item.href} href={item.href} className={`nav-link ${active ? 'active' : ''}`}>
-              <Icon size={20} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+      <div className="sidebar-status">
+        <ShieldCheck size={16} />
+        <div>
+          <strong>Local seguro</strong>
+          <span>Sin conexión remota</span>
+        </div>
+      </div>
+
+      <nav className="nav" aria-label="Navegación principal">
+        {groups.map((group) => (
+          <div className="nav-group" key={group.title}>
+            <div className="nav-group-title">{group.title}</div>
+            <div className="nav-group-items">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                return (
+                  <Link key={item.href} href={item.href} className={`nav-link ${active ? 'active' : ''}`}>
+                    <Icon size={18} strokeWidth={2.2} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <button
@@ -65,7 +140,7 @@ export const Sidebar = () => {
           router.push('/login');
         }}
       >
-        <LogOut size={20} />
+        <LogOut size={18} />
         <span>Cerrar sesión</span>
       </button>
     </aside>

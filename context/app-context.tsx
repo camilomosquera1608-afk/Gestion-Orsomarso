@@ -2,10 +2,14 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initialData } from '@/lib/mock-data';
-import { fetchRemoteAppState, hasSupabaseConfig, saveRemoteAppState } from '@/lib/supabase';
+import { fetchRemoteAppState, hasSupabaseConfig, legacyAppStateSyncEnabled, saveRemoteAppState, supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
+import { fetchSupabaseTablesAppData, saveSupabaseTablesAppData } from '@/lib/supabase-table-sync';
+import { createLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAppData, saveLocalAppData } from '@/lib/app-storage';
+import type { LocalBackupMeta } from '@/lib/app-storage';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
 import { findMicrocycleByDate } from '@/lib/utils';
-import { AppData, CMJRecord, ClubCategory, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
+import { normalizeAppData } from '@/lib/performance-helpers';
+import { AppData, CMJRecord, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
 interface AppContextValue {
   data: AppData;
@@ -45,7 +49,13 @@ interface AppContextValue {
   updateMicrocycle: (record: Microcycle) => void;
   backendMode: 'supabase' | 'local';
   syncStatus: 'idle' | 'syncing' | 'ready' | 'error';
+  localBackups: LocalBackupMeta[];
+  createLocalSnapshot: (label?: string) => void;
+  restoreLocalSnapshot: (backupId: string) => boolean;
+  importAppDataJson: (rawJson: string) => boolean;
+  exportAppDataJson: () => string;
   forceSync: () => Promise<void>;
+  pushLocalToRemote: () => Promise<void>;
 }
 
 const defaultFilters: GlobalFilters = {
@@ -61,56 +71,28 @@ const defaultFilters: GlobalFilters = {
 };
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
-const STORAGE_KEY = 'orsomarso-performance-hub';
 
-const DEFAULT_CATEGORY: ClubCategory = 'Sub20';
+const DEFAULT_CATEGORY = 'Sub20' as const;
 
-const hydrateData = (stored: Partial<AppData> | null): AppData => ({
-  ...initialData,
-  ...stored,
-  players: (stored?.players ?? initialData.players).map((player) => ({ ...player, category: player.category ?? DEFAULT_CATEGORY, categoryHistory: player.categoryHistory ?? [player.category ?? DEFAULT_CATEGORY] })),
-  wellness: stored?.wellness ?? initialData.wellness,
-  internalLoads: (stored?.internalLoads ?? initialData.internalLoads).map((record) => ({
-    ...record,
-    microcycleId: record.microcycleId ?? initialData.microcycles[0].id,
-    sessionNumber: record.sessionNumber ?? 1,
-  })),
-  externalLoads: (stored?.externalLoads ?? initialData.externalLoads).map((record) => ({
-    ...record,
-    microcycleId: record.microcycleId ?? initialData.microcycles[0].id,
-    sessionNumber: record.sessionNumber ?? 1,
-    sessionType: record.sessionType ?? 'cdEf',
-    participation: record.participation ?? 'Completa',
-    sprints: record.sprints ?? 0,
-    ima: record.ima ?? 0,
-    baseCategory: record.baseCategory ?? record.category,
-    actingCategory: record.actingCategory ?? record.category,
-    movementType: record.movementType ?? 'base',
-    movementModule: record.movementModule ?? 'sesion',
-  })),
-  cmjRecords: stored?.cmjRecords ?? initialData.cmjRecords,
-  nutritionRecords: stored?.nutritionRecords ?? initialData.nutritionRecords,
-  neuromuscularRecords: stored?.neuromuscularRecords ?? initialData.neuromuscularRecords,
-  fmsRecords: stored?.fmsRecords ?? initialData.fmsRecords,
-  competitionRecords: (stored?.competitionRecords ?? initialData.competitionRecords).map((record) => ({ ...record, baseCategory: record.baseCategory ?? record.category, actingCategory: record.actingCategory ?? record.category, movementType: record.movementType ?? 'base', movementModule: record.movementModule ?? 'competencia' })),
-  competitionMatchSummaries: stored?.competitionMatchSummaries ?? initialData.competitionMatchSummaries ?? [],
-  trainingSessionSummaries: stored?.trainingSessionSummaries ?? initialData.trainingSessionSummaries,
-  microcycles: Array.from(new Map([...(initialData.microcycles ?? []), ...((stored?.microcycles ?? []) as any[])].map((item: any) => [item.id, item])).values()),
-});
+const hydrateData = (stored: Partial<AppData> | null): AppData => normalizeAppData(stored, initialData);
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [data, setData] = useState<AppData>(initialData);
   const [filters, setFiltersState] = useState<GlobalFilters>(defaultFilters);
   const [isHydrated, setIsHydrated] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ready' | 'error'>('idle');
+  const [localBackups, setLocalBackups] = useState<LocalBackupMeta[]>([]);
   const dataRef = useRef<AppData>(initialData);
   const backendMode: 'supabase' | 'local' = hasSupabaseConfig ? 'supabase' : 'local';
 
   const persistData = async (nextData: AppData) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-    }
-    if (hasSupabaseConfig) {
+    saveLocalAppData(nextData);
+    setLocalBackups(listLocalBackups());
+    if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
+      setSyncStatus('syncing');
+      const result = await saveSupabaseTablesAppData(supabase, nextData);
+      setSyncStatus(result.ok ? 'ready' : 'error');
+    } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
       setSyncStatus('syncing');
       const result = await saveRemoteAppState(nextData);
       setSyncStatus(result.ok ? 'ready' : 'error');
@@ -130,7 +112,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const init = async () => {
-      if (hasSupabaseConfig) {
+      if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
+        setSyncStatus('syncing');
+        const remote = await fetchSupabaseTablesAppData(supabase);
+        if (remote.ok && Object.values(remote.data).some((value) => Array.isArray(value) && value.length > 0)) {
+          const next = hydrateData(remote.data);
+          setData(next);
+          dataRef.current = next;
+          saveLocalAppData(next);
+          setSyncStatus('ready');
+        } else {
+          const local = readLocalAppData();
+          const hydrated = hydrateData(local ?? initialData);
+          setData(hydrated);
+          dataRef.current = hydrated;
+          const remoteReason = remote.ok ? undefined : remote.reason;
+          setSyncStatus(remoteReason === 'not_authenticated' ? 'error' : 'ready');
+        }
+      } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
         setSyncStatus('syncing');
         const remote = await fetchRemoteAppState();
         if (remote?.payload && Object.keys(remote.payload).length) {
@@ -138,22 +137,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           setData(next);
           dataRef.current = next;
         } else {
-          const local = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-          const hydrated = hydrateData(local ? JSON.parse(local) : initialData);
+          const local = readLocalAppData();
+          const hydrated = hydrateData(local ?? initialData);
           setData(hydrated);
           dataRef.current = hydrated;
-          await saveRemoteAppState(hydrated);
         }
         setSyncStatus('ready');
       } else {
-        const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-        const next = stored ? hydrateData(JSON.parse(stored)) : initialData;
+        const stored = readLocalAppData();
+        const next = stored ? hydrateData(stored) : initialData;
         setData(next);
         dataRef.current = next;
         setSyncStatus('ready');
       }
+
       const session = getStaffSession();
       setFiltersState((prev) => ({ ...prev, category: getAllowedCategory(session) }));
+      setLocalBackups(listLocalBackups());
       setIsHydrated(true);
     };
 
@@ -161,7 +161,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (!hasSupabaseConfig || !isHydrated) return;
+    if (!hasSupabaseConfig || !legacyAppStateSyncEnabled || !isHydrated) return;
 
     const interval = setInterval(async () => {
       const remote = await fetchRemoteAppState();
@@ -183,6 +183,20 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const forceSync = async () => {
     if (!hasSupabaseConfig) return;
     setSyncStatus('syncing');
+    if (tableSchemaSyncEnabled && supabase) {
+      const remote = await fetchSupabaseTablesAppData(supabase);
+      if (remote.ok) {
+        const next = hydrateData(remote.data);
+        setData(next);
+        dataRef.current = next;
+        saveLocalAppData(next);
+        setSyncStatus('ready');
+      } else {
+        setSyncStatus('error');
+      }
+      return;
+    }
+
     const remote = await fetchRemoteAppState();
     const payload = remote?.payload as Partial<AppData> | undefined;
     if (payload) {
@@ -193,22 +207,102 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setSyncStatus('ready');
   };
 
+
+  const pushLocalToRemote = async () => {
+    if (!hasSupabaseConfig) return;
+    setSyncStatus('syncing');
+    if (tableSchemaSyncEnabled && supabase) {
+      const result = await saveSupabaseTablesAppData(supabase, dataRef.current);
+      setSyncStatus(result.ok ? 'ready' : 'error');
+      return;
+    }
+    if (legacyAppStateSyncEnabled) {
+      const result = await saveRemoteAppState(dataRef.current);
+      setSyncStatus(result.ok ? 'ready' : 'error');
+      return;
+    }
+    setSyncStatus('ready');
+  };
+
+  const createLocalSnapshot = (label = 'Copia manual') => {
+    createLocalBackup(dataRef.current, label, 'manual');
+    setLocalBackups(listLocalBackups());
+  };
+
+  const restoreLocalSnapshot = (backupId: string) => {
+    const payload = getLocalBackupPayload(backupId);
+    if (!payload) return false;
+
+    createLocalBackup(dataRef.current, 'Copia antes de restaurar respaldo', 'restore');
+    const next = hydrateData(payload);
+    setData(next);
+    dataRef.current = next;
+    saveLocalAppData(next);
+    setLocalBackups(listLocalBackups());
+    setSyncStatus('ready');
+    return true;
+  };
+
+  const importAppDataJson = (rawJson: string) => {
+    try {
+      const parsed = JSON.parse(rawJson) as Partial<AppData>;
+      createLocalBackup(dataRef.current, 'Copia antes de importar JSON', 'import');
+      const next = hydrateData(parsed);
+      setData(next);
+      dataRef.current = next;
+      saveLocalAppData(next);
+      setLocalBackups(listLocalBackups());
+      setSyncStatus('ready');
+      return true;
+    } catch {
+      setSyncStatus('error');
+      return false;
+    }
+  };
+
+  const exportAppDataJson = () => JSON.stringify(dataRef.current, null, 2);
+
   const setFilters = (next: Partial<GlobalFilters>) => setFiltersState((prev) => {
     const session = getStaffSession();
     const allowedCategory = getAllowedCategory(session);
     const merged = { ...prev, ...next };
+    const microcycles = dataRef.current.microcycles;
+
     if (!isMasterRole(session)) {
       merged.category = allowedCategory;
     }
-    if (next.date) {
-      const detected = findMicrocycleByDate(dataRef.current.microcycles, next.date);
+
+    if (next.microcycleId !== undefined) {
+      const selected = microcycles.find((item) => item.id === next.microcycleId);
+      if (selected?.startDate && selected?.endDate) {
+        const currentDate = merged.date;
+        if (!currentDate || currentDate < selected.startDate || currentDate > selected.endDate) {
+          merged.date = selected.startDate;
+        }
+      } else if (selected && next.date === undefined) {
+        // A microcycle without dates cannot be detected by Diario or Sesion.
+        // Clear the stale date so the app does not keep showing another microcycle.
+        merged.date = '';
+      }
+    }
+
+    if (next.date !== undefined && next.date) {
+      const detected = findMicrocycleByDate(microcycles, next.date, merged.microcycleId);
       if (detected) merged.microcycleId = detected.id;
     }
+
     return merged;
   });
+
   const resetFilters = () => {
     const session = getStaffSession();
-    setFiltersState({ ...defaultFilters, category: getAllowedCategory(session), microcycleId: dataRef.current.microcycles.find((item) => item.id === 'mc-14') ? 'mc-14' : 'mc-1' });
+    const detected = findMicrocycleByDate(dataRef.current.microcycles, defaultFilters.date, defaultFilters.microcycleId);
+    const fallbackMicrocycle = detected ?? dataRef.current.microcycles[0];
+    setFiltersState({
+      ...defaultFilters,
+      category: getAllowedCategory(session),
+      microcycleId: fallbackMicrocycle?.id ?? defaultFilters.microcycleId,
+    });
   };
 
   const value = useMemo<AppContextValue>(() => ({
@@ -286,14 +380,35 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     upsertCompetitionMatchSummary: (record) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: [record, ...prev.competitionMatchSummaries.filter((item) => item.id !== record.id)] })),
     deleteCompetitionMatchSummary: (matchId) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: prev.competitionMatchSummaries.filter((item) => item.id !== matchId), competitionRecords: prev.competitionRecords.filter((item) => item.matchId !== matchId) })),
     upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.date === record.date && item.category === record.category && item.sessionNumber === record.sessionNumber))] })),
-    updateMicrocycle: (record) => applyMutation((prev) => ({
-      ...prev,
-      microcycles: prev.microcycles.map((item) => item.id === record.id ? { ...item, ...record } : item),
-    })),
+    updateMicrocycle: (record) => {
+      applyMutation((prev) => ({
+        ...prev,
+        microcycles: prev.microcycles.some((item) => item.id === record.id)
+          ? prev.microcycles.map((item) => item.id === record.id ? { ...item, ...record } : item)
+          : [...prev.microcycles, record].sort((a, b) => (a.startDate || a.id).localeCompare(b.startDate || b.id)),
+      }));
+
+      if (record.id === filters.microcycleId) {
+        setFiltersState((prev) => {
+          if (record.startDate && record.endDate) {
+            if (prev.date >= record.startDate && prev.date <= record.endDate) return { ...prev, microcycleId: record.id };
+            return { ...prev, date: record.startDate, microcycleId: record.id };
+          }
+
+          return { ...prev, date: '', microcycleId: record.id };
+        });
+      }
+    },
     backendMode,
     syncStatus,
+    localBackups,
+    createLocalSnapshot,
+    restoreLocalSnapshot,
+    importAppDataJson,
+    exportAppDataJson,
     forceSync,
-  }), [data, filters, backendMode, syncStatus]);
+    pushLocalToRemote,
+  }), [data, filters, backendMode, syncStatus, localBackups]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

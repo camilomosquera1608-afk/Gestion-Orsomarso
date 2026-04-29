@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+
+# Next.js / build output
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production
+.env.production.local
+.env*.local
+
+# Vercel
+.vercel/
+
+# Local data, backups and generated exports
+backups/
+backup/
+exports/
+export/
+local-data/
+*.backup.json
+*.local.json
+*.export.json
+orsomarso-performance-hub*.json
+
+# Generated reports with real data
+*.pdf
+!docs/examples/*.pdf
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

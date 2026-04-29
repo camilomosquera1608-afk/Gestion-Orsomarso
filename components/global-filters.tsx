@@ -1,10 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import { usePathname } from 'next/navigation';
+import { CalendarDays, RotateCcw } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import { ClubCategory, MovementType, Position, PlayerStatus } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
+import { findMicrocycleByDate } from '@/lib/utils';
 
 const allPositions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
 const allStatuses: PlayerStatus[] = ['Disponible', 'Lesionado', 'Molestia', 'Readaptación'];
@@ -30,6 +33,13 @@ const getFilterLayout = (pathname: string) => {
   return { date: true, microcycle: false, sessionNumber: false, category: true, player: true, position: true, status: true, acting: false, movement: false };
 };
 
+const formatDate = (value: string) => {
+  if (!value) return '';
+  const [year, month, day] = value.split('-');
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
+};
+
 export const GlobalFiltersBar = () => {
   const { data, filters, setFilters, resetFilters } = useApp();
   const session = getStaffSession();
@@ -37,12 +47,10 @@ export const GlobalFiltersBar = () => {
   const pathname = usePathname();
   const layout = getFilterLayout(pathname);
   const allowedCategory = master ? filters.category : session.category;
-  const allMicrocycles = Array.from({ length: 52 }, (_, index) => {
-    const number = index + 1;
-    const existing = data.microcycles.find((m) => m.id === `mc-${number}`);
-    return existing ?? { id: `mc-${number}`, name: `Microciclo ${number}`, startDate: '-', endDate: '-' };
-  });
-  const currentMicrocycle = allMicrocycles.find((m) => m.id === filters.microcycleId) ?? allMicrocycles[0];
+  const allMicrocycles = data.microcycles.length ? data.microcycles : [{ id: 'mc-1', name: 'Microciclo 1', startDate: '', endDate: '' }];
+  const selectedMicrocycle = allMicrocycles.find((m) => m.id === filters.microcycleId) ?? allMicrocycles[0];
+  const detectedMicrocycle = filters.date ? findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId) : undefined;
+  const activeMicrocycle = detectedMicrocycle ?? selectedMicrocycle;
   const filteredPlayers = data.players.filter((player) => allowedCategory === 'all' || player.category === allowedCategory);
 
   const activeFields = [
@@ -57,105 +65,122 @@ export const GlobalFiltersBar = () => {
     master && layout.movement,
   ].filter(Boolean).length;
 
+  const microcycleNotice = useMemo(() => {
+    if (layout.microcycle && selectedMicrocycle) {
+      if (selectedMicrocycle.startDate && selectedMicrocycle.endDate) {
+        return `Microciclo seleccionado: ${selectedMicrocycle.name} · ${formatDate(selectedMicrocycle.startDate)} - ${formatDate(selectedMicrocycle.endDate)}`;
+      }
+      return `Microciclo seleccionado: ${selectedMicrocycle.name} · sin rango de fechas`;
+    }
+    if (filters.date && detectedMicrocycle) {
+      return `Microciclo activo: ${detectedMicrocycle.name} · ${formatDate(detectedMicrocycle.startDate)} - ${formatDate(detectedMicrocycle.endDate)}`;
+    }
+    if (filters.date) return 'No hay microciclo asignado para esta fecha.';
+    if (activeMicrocycle) return `Microciclo seleccionado: ${activeMicrocycle.name} · sin rango de fechas`;
+    return 'No hay microciclo seleccionado.';
+  }, [layout.microcycle, selectedMicrocycle, filters.date, detectedMicrocycle, activeMicrocycle]);
+
   if (activeFields === 0) return null;
 
   return (
-    <div className="filters filters-wide">
-      {layout.date ? (
-        <div className="field">
-          <label>Fecha</label>
-          <input className="input" type="date" value={filters.date} onChange={(e) => setFilters({ date: e.target.value })} />
-        </div>
-      ) : null}
+    <section className="filters-panel">
+      <div className="filters filters-wide">
+        {layout.date ? (
+          <div className="field">
+            <label>Fecha</label>
+            <input className="input" type="date" value={filters.date} onChange={(e) => setFilters({ date: e.target.value })} />
+          </div>
+        ) : null}
 
-      {layout.microcycle ? (
-        <div className="field">
-          <label>Microciclo</label>
-          <select className="select" value={filters.microcycleId} onChange={(e) => setFilters({ microcycleId: e.target.value })}>
-            {allMicrocycles.map((microcycle) => (
-              <option key={microcycle.id} value={microcycle.id}>
-                {microcycle.name}
-              </option>
-            ))}
-          </select>
-          {currentMicrocycle ? <small className="field-help">{currentMicrocycle.startDate} · {currentMicrocycle.endDate}</small> : null}
-        </div>
-      ) : null}
+        {layout.microcycle ? (
+          <div className="field">
+            <label>Microciclo</label>
+            <select className="select" value={filters.microcycleId} onChange={(e) => setFilters({ microcycleId: e.target.value })}>
+              {allMicrocycles.map((microcycle) => (
+                <option key={microcycle.id} value={microcycle.id}>
+                  {microcycle.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
-      {layout.sessionNumber ? (
-        <div className="field">
-          <label>Número de sesión</label>
-          <input className="input" type="number" min="1" value={filters.sessionNumber} onChange={(e) => setFilters({ sessionNumber: Number(e.target.value) || 1 })} />
-        </div>
-      ) : null}
+        {layout.sessionNumber ? (
+          <div className="field">
+            <label>Número de sesión</label>
+            <input className="input" type="number" min="1" value={filters.sessionNumber} onChange={(e) => setFilters({ sessionNumber: Number(e.target.value) || 1 })} />
+          </div>
+        ) : null}
 
-      {layout.category ? (
-        <div className="field">
-          <label>Categoría base</label>
-          {master ? (
-            <select className="select" value={filters.category} onChange={(e) => setFilters({ category: e.target.value, playerId: 'all' })}>
-              <option value="all">Todas las categorías</option>
+        {layout.category ? (
+          <div className="field">
+            <label>Categoría base</label>
+            {master ? (
+              <select className="select" value={filters.category} onChange={(e) => setFilters({ category: e.target.value, playerId: 'all' })}>
+                <option value="all">Todas las categorías</option>
+                {allCategories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}
+              </select>
+            ) : (
+              <input className="input" value={categoryLabel(session.category)} readOnly />
+            )}
+          </div>
+        ) : null}
+
+        {layout.player ? (
+          <div className="field">
+            <label>Jugador</label>
+            <select className="select" value={filters.playerId} onChange={(e) => setFilters({ playerId: e.target.value })}>
+              <option value="all">Todos los jugadores</option>
+              {filteredPlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+        ) : null}
+
+        {layout.position ? (
+          <div className="field">
+            <label>Posición</label>
+            <select className="select" value={filters.position} onChange={(e) => setFilters({ position: e.target.value })}>
+              <option value="all">Todas las posiciones</option>
+              {allPositions.map((position) => <option key={position} value={position}>{position}</option>)}
+            </select>
+          </div>
+        ) : null}
+
+        {layout.status ? (
+          <div className="field">
+            <label>Estado</label>
+            <select className="select" value={filters.status} onChange={(e) => setFilters({ status: e.target.value })}>
+              <option value="all">Todos los estados</option>
+              {allStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+          </div>
+        ) : null}
+
+        {master && layout.acting ? (
+          <div className="field">
+            <label>Categoría participación</label>
+            <select className="select" value={filters.actingCategory} onChange={(e) => setFilters({ actingCategory: e.target.value })}>
+              <option value="all">Todas</option>
               {allCategories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}
             </select>
-          ) : (
-            <input className="input" value={categoryLabel(session.category)} readOnly />
-          )}
-        </div>
-      ) : null}
+          </div>
+        ) : null}
 
-      {layout.player ? (
-        <div className="field">
-          <label>Jugador</label>
-          <select className="select" value={filters.playerId} onChange={(e) => setFilters({ playerId: e.target.value })}>
-            <option value="all">Todos los jugadores</option>
-            {filteredPlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-      ) : null}
+        {master && layout.movement ? (
+          <div className="field">
+            <label>Movimiento</label>
+            <select className="select" value={filters.movementType} onChange={(e) => setFilters({ movementType: e.target.value })}>
+              <option value="all">Todos</option>
+              {movementOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </div>
+        ) : null}
 
-      {layout.position ? (
-        <div className="field">
-          <label>Posición</label>
-          <select className="select" value={filters.position} onChange={(e) => setFilters({ position: e.target.value })}>
-            <option value="all">Todas las posiciones</option>
-            {allPositions.map((position) => <option key={position} value={position}>{position}</option>)}
-          </select>
+        <div className="field filter-action">
+          <button className="btn secondary" onClick={resetFilters} type="button"><RotateCcw size={16} />Resetear</button>
         </div>
-      ) : null}
-
-      {layout.status ? (
-        <div className="field">
-          <label>Estado</label>
-          <select className="select" value={filters.status} onChange={(e) => setFilters({ status: e.target.value })}>
-            <option value="all">Todos los estados</option>
-            {allStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-          </select>
-        </div>
-      ) : null}
-
-      {master && layout.acting ? (
-        <div className="field">
-          <label>Categoría participación</label>
-          <select className="select" value={filters.actingCategory} onChange={(e) => setFilters({ actingCategory: e.target.value })}>
-            <option value="all">Todas</option>
-            {allCategories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}
-          </select>
-        </div>
-      ) : null}
-
-      {master && layout.movement ? (
-        <div className="field">
-          <label>Movimiento</label>
-          <select className="select" value={filters.movementType} onChange={(e) => setFilters({ movementType: e.target.value })}>
-            <option value="all">Todos</option>
-            {movementOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </div>
-      ) : null}
-
-      <div className="field" style={{ alignSelf: 'end' }}>
-        <button className="btn secondary" onClick={resetFilters}>Resetear filtros</button>
       </div>
-    </div>
+      <div className="active-context-chip"><CalendarDays size={16} />{microcycleNotice}</div>
+    </section>
   );
 };

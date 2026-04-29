@@ -1,4 +1,6 @@
-import { AppData, DailyInternalLoadRecord, DailyWellnessRecord, Microcycle } from './types';
+import { AppData, DailyInternalLoadRecord, DailyWellnessRecord } from './types';
+export { findMicrocycleByDate } from './performance-helpers';
+import { findMicrocycleByDate } from './performance-helpers';
 
 export const calculateInternalLoad = (record: DailyInternalLoadRecord) => record.rpe * record.duration;
 
@@ -22,9 +24,5 @@ export const groupAverage = (values: number[]) => {
   return Number((values.reduce((acc, value) => acc + value, 0) / values.length).toFixed(1));
 };
 
-
-export const findMicrocycleByDate = (microcycles: Microcycle[], date: string) =>
-  microcycles.find((microcycle) => microcycle.startDate && microcycle.endDate && date >= microcycle.startDate && date <= microcycle.endDate);
-
-export const getAutoMicrocycleId = (microcycles: Microcycle[], date: string, fallback = 'mc-1') =>
+export const getAutoMicrocycleId = (microcycles: AppData['microcycles'], date: string, fallback = '') =>
   findMicrocycleByDate(microcycles, date)?.id ?? fallback;

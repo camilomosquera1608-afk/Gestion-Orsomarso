@@ -1,185 +1,125 @@
-# Orsomarso SC Performance Hub - versión actualizada v8
+# Orsomarso Performance App
 
-## Cambios incluidos
+Plataforma local para control deportivo de Orsomarso SC: plantel, microciclos, sesiones, competencia, disponibilidad, carga, wellness, valoraciones e informes.
 
-- un solo link de wellness para todos los jugadores
-- selección de nombre dentro del mismo formulario
-- semáforo visual por cada variable de wellness
-- control de microciclo activo editable
-- control de número de sesión editable
-- tipos de sesión configurados:
-  - cdef · Recuperación
-  - cdEf · Ejecución
-  - cdeF · Condición física
-  - Cdef · Comunicación
-- módulo de sesión de entrenamiento con HSR, RHIE, ACC, DCC y MIN
-- registrar jugador conserva solo el alta de jugadores
+**Versión base:** v91 - Secure Production Prep  
+**Estado:** lista para subir a GitHub como base segura. Supabase y Vercel siguen desactivados.
 
-## Cómo ejecutar
+## Principios de esta versión
+
+- La app funciona en modo local por defecto.
+- No se conecta a Supabase automáticamente.
+- No incluye claves reales, tokens ni datos privados.
+- No usa datos GPS fuera de la categoría U20.
+- Los informes usan plantillas de reporte, no capturas de interfaz.
+- La autenticación actual es solo una puerta local de demostración; producción debe usar Supabase Auth y RLS.
+
+## Requisitos
+
+- Node.js 20 o superior recomendado.
+- npm.
+
+## Instalación local
 
 ```bash
 npm install
 npm run dev
 ```
 
-Luego abrir en el navegador:
+Abrir:
 
 ```text
 http://localhost:3000
 ```
 
+## Acceso local de prueba
 
-## Versión v10
-- Edición y eliminación de registros en Valoraciones, Competencia y Sesión de entrenamiento.
-- Exportación CSV en Valoraciones, Competencia y Sesión de entrenamiento.
+Estos accesos son placeholders para desarrollo local. No son seguridad de producción.
 
+| Rol | Usuario | Contraseña |
+|---|---|---|
+| U15 | Sub15Local | local-sub15 |
+| U17 | Sub17Local | local-sub17 |
+| U20 | Sub20Local | local-sub20 |
+| Maestro | MaestroLocal | local-maestro |
 
-## Versión v11
-- Sesión de entrenamiento con selección de jugadores participantes.
-- Registro por jugador de MIN, RPE, carga interna, HSR, RHIE, ACC y DCC.
-- Cambio rápido de estado del jugador y registro básico de lesión/molestia.
+Antes de producción se debe reemplazar esta puerta local por Supabase Auth.
 
+## Variables de entorno
 
-## Versión v12
-- Panel de disponibilidad diaria.
-- Sesión con objetivo y observación del staff.
-- Alertas automáticas en inicio y sesión.
-- Línea temporal consolidada por jugador.
-- Se mantiene exportación CSV. PDF aún no incluido.
+Copia `.env.example` a `.env.local` solo en desarrollo local.
 
+```env
+NEXT_PUBLIC_ENABLE_REMOTE_SYNC=false
+NEXT_PUBLIC_REMOTE_SYNC_MODE=disabled
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_ENABLE_LOCAL_DEMO_AUTH=true
+```
 
-## Versión v13 · Supabase compartido
-- Conexión opcional a Supabase con almacenamiento compartido.
-- Wellness enviado por jugadores visible en el panel del staff al sincronizar.
-- Estado del backend y sincronización visibles en Configuración e Inicio.
-- Esquema SQL incluido en `supabase/schema.sql`.
-- Variables de entorno ejemplo en `.env.example`.
+No actives Supabase en v91. La conexión segura se hará después de crear el esquema por tablas, RLS y políticas.
 
-### Activar Supabase
-1. Crea un proyecto en Supabase.
-2. Ejecuta `supabase/schema.sql` en el SQL Editor.
-3. Crea `.env.local`:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Ejecuta:
-   ```bash
-   npm install
-   npm run dev
-   ```
+## Scripts
 
-### Nota
-La sincronización remota usa una fila compartida (`app_state`) con el estado completo de la app en JSONB para simplificar el uso inmediato entre dispositivos.
+```bash
+npm run dev        # Desarrollo local
+npm run build      # Build de producción
+npm run start      # Iniciar build generado
+npm run preflight  # Revisión básica antes de subir a GitHub
+```
 
+## Revisión antes de GitHub
 
-## Versión v14
-- Login del staff con usuario `Orsomarso` y contraseña `Divisiones2026`.
-- Wellness mejorado con sincronización inmediata a Supabase.
-- Botón `Actualizar datos` en Inicio para refresco manual del panel.
+Ejecuta:
 
+```bash
+npm run preflight
+```
 
-## Versión v15
-- El formulario de wellness inicia en 0 para todas las variables.
-- Se agregaron archivos `.bat` para abrir la app del staff y el formulario de jugadores.
-- Se incluyó una nota con el formato del link remoto para staff al publicar la app.
+También revisa manualmente:
 
+```bash
+git status
+git diff --cached
+```
 
-## Versión v17
-- Nuevo apartado **Informes** con dashboard interactivo por jugador.
-- En Nutrición se agregó **sumatoria de pliegues**.
-- Informes incluye wellness, carga, HSR/RHIE/ACC, CMJ, nutrición y competencia en un solo dashboard.
+No subir:
 
+- `.env`, `.env.local`, `.env.production`
+- backups JSON reales
+- exports con datos reales
+- PDFs con información real
+- claves de Supabase
+- service role keys
+- tokens
+- datos privados de jugadores
 
-## Versión v18
-- Informes ahora incluye botón **Exportar PDF** con formato ejecutivo.
-- Se agregó el escudo del club al informe.
-- Nutrición ahora incluye **sumatoria de pliegues** en formularios, tablas y gráficos.
+## Ruta de producción recomendada
 
+1. **v91:** preparar repositorio seguro. Estado actual.
+2. **v92:** crear nuevo Supabase con tablas separadas, RLS y políticas seguras.
+3. **v93:** adaptar la app a Supabase por tablas, sin `app_state` gigante.
+4. **v94:** desplegar preview en Vercel con variables limpias.
+5. **v95:** validar producción, respaldos y acceso por roles.
 
-## Versión v19
-- El informe ejecutivo ahora muestra: foto, nombre, edad, posición, nutrición, perfil neuromuscular, FMS y competencia.
-- Se eliminaron las notas descriptivas del encabezado para una interfaz más limpia.
+## Documentación incluida
 
+- `SECURITY.md`: criterios de seguridad.
+- `DEPLOYMENT.md`: pasos para GitHub, Supabase y Vercel.
+- `SUPABASE_PLAN.md`: diseño recomendado para la nueva línea Supabase.
+- `VERCEL_PLAN.md`: plan de despliegue seguro en Vercel.
+- `PRODUCTION_CHECKLIST.md`: checklist final.
 
-## Version v20
-- Informe reorganizado en dos apartados: Valoraciones y Competencia.
-- Se elimino el texto "Informe ejecutivo individual".
-- Se quitaron los KPI de wellness, carga interna y HSR del informe.
-- Se agrego una foto con fallback al escudo si la imagen del jugador no esta cargada.
-- Encabezados mas limpios en toda la app.
+## v93 - Supabase table sync
 
+La conexion remota segura usa `NEXT_PUBLIC_REMOTE_SYNC_MODE=table_schema` y requiere Supabase Auth. No uses `legacy_app_state` en produccion.
 
-## Version v21
-- Carga de fotos desde PC en JPG/PNG al crear jugador y al editar su perfil.
-- 51 microciclos creados para seleccion manual.
-- Informe con fondo azul claro, portada institucional y secciones mas grandes.
-- Titulos de seccion visibles por pagina en Valoraciones y Competencia.
-- Interfaz mas limpia sin textos explicativos extensos.
+Pasos rapidos:
 
+1. Ejecuta `SUPABASE_RUN_THIS.sql` en un proyecto nuevo.
+2. Crea un usuario en Supabase Auth.
+3. Copia `.env.example` a `.env.local` y configura `table_schema`.
+4. Reinicia la app.
+5. En Configuracion, inicia sesion remota y usa `Enviar local a Supabase`.
 
-## Version v24
-- Wellness rediseñado con formato de encuesta premium y nuevas preguntas.
-- Sesión de entrenamiento rediseñada con bloques visuales por jugador.
-
-
-## Version v25
-- El microciclo ahora se escribe manualmente desde los filtros del dashboard.
-- Los filtros de posición y estado muestran siempre todas las opciones disponibles.
-
-
-## Version v26
-- Corregido el error de compilacion en la pagina de sesion de entrenamiento para despliegue en Vercel.
-
-
-## Version v27
-- Mejoras responsive para móvil y tablet.
-- Los campos numéricos de carga y sesión ahora aparecen vacíos hasta que se diligencian.
-- RPE sesión ahora se registra aparte de la plantilla por jugador.
-
-
-## Version v29
-- Mejora fuerte de responsive para celulares y tablets.
-- Sidebar más limpia y horizontal en tablet/móvil.
-- Cards, filtros, tablas y formularios optimizados para pantallas pequeñas.
-- Next.js actualizado a 15.0.7.
-
-
-## Version v30
-- Sesion y competencia ahora usan solo MIN, RPE individual, ACC, DCC, SPRINTS, RHIE e IMA.
-- Se removio la vista de carga interna en sesion.
-- Jugadores con alta estabilidad: evita duplicados por nombre/id al crear y mantiene orden.
-- Responsive mas limpio para celular e iPad.
-- Next.js 15.0.7.
-
-
-## Version v32
-- Corregido build de microciclo para campos opcionales hsr/rhie.
-
-
-## Version v33
-- Corregido mock-data restante de externalLoads para cumplir con sprints e ima.
-
-
-## Version v34
-- Revisión integral de consistencia de métricas: diario, microciclo y perfil individual ya usan MIN, RPE, ACC, DCC, SPRINTS, RHIE e IMA.
-- Corregidos los mocks restantes y referencias antiguas a HSR/Distancia para evitar fallos de build.
-- Mantiene responsive mejorado y Next.js 15.0.7.
-
-
-## Version v35
-- Competencia ahora cambia automaticamente si el jugador es portero.
-- Jugadores de campo usan Minutos jugados, ACC, DCC, SPRINTS, RHIE e IMA, sin RPE en competencia.
-- Se agregan categorias Sub15, Sub17 y Sub20 con filtro global.
-- Jugadores con ID unico y categoria actual editable, evitando duplicados por nombre/ID.
-- Cambios compatibles con registros existentes y Supabase sin reiniciar la base.
-
-
-## Version v39
-- Reestructura por usuarios: Sub15, Sub17, Sub20 y Maestro.
-- Categorias operativas simplificadas para Sub15/Sub17 y avanzada para Sub20.
-- Accesos generados: UsuarioSub15 / OrsoS15!2026, UsuarioSub17 / OrsoS17!2026, UsuarioSub20 / OrsoS20!2026, UsuarioMaestro / OrsoMaster!2026.
-
-
-## Version v41
-- Participaciones temporales por categoria en sesion y competencia.
-- Trazabilidad por categoria base, categoria de participacion, tipo de movimiento y nota.
-- Historial de movimientos en perfil e informes.
+La app sigue guardando respaldo local antes de sincronizar.

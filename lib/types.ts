@@ -8,6 +8,10 @@ export type SessionParticipation = 'Completa' | 'Parcial' | 'No participa' | 'Gi
 export type MovementType = 'base' | 'subio_a_entrenar' | 'bajo_a_entrenar' | 'subio_a_competir' | 'bajo_a_competir';
 export type MovementModule = 'sesion' | 'competencia';
 export type InjuryKind = 'Muscular' | 'Articular' | 'Tendinosa' | 'Ósea';
+export type CompetitionVenue = 'Local' | 'Visitante';
+export type MatchResultType = 'Victoria' | 'Empate' | 'Derrota';
+export type CompetitionPlayerRole = 'Titular' | 'Suplente';
+export type CompetitionMedicalStatus = 'Sin lesión' | 'Lesionado';
 
 
 export interface InjuryHistoryItem {
@@ -169,7 +173,9 @@ export interface CompetitionRecord {
   movementNote?: string;
   movementModule?: MovementModule;
   loggedBy?: string;
+  startingRole?: CompetitionPlayerRole;
   postCompetitionStatus?: string;
+  medicalStatus?: CompetitionMedicalStatus;
   injuryKind?: InjuryKind;
   medicalObservation?: string;
 }
@@ -192,7 +198,10 @@ export interface CompetitionMatchSummary {
   category: ClubCategory;
   competitionName: string;
   opponent: string;
-  venue?: string;
+  venue?: CompetitionVenue;
+  goalsFor?: number;
+  goalsAgainst?: number;
+  resultType?: MatchResultType;
   result?: string;
   observation?: string;
 }
@@ -202,6 +211,10 @@ export interface Microcycle {
   name: string;
   startDate: string;
   endDate: string;
+  objective?: string;
+  notes?: string;
+  status?: string;
+  weekNumber?: number;
 }
 
 export interface AppData {

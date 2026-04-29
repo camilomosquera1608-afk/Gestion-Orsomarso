@@ -2,195 +2,296 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
+import { CompetitionReportTemplate } from '@/components/competition-report';
+import { EmptyState, MatchCard, SectionHeader, StatusBadge } from '@/components/pro-ui';
 import { KpiCard } from '@/components/kpi-card';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import { ClubCategory, InjuryKind, MovementType } from '@/lib/types';
-import { groupAverage } from '@/lib/utils';
+import { calculateMatchResult, formatMatchScore, isGoalkeeper } from '@/lib/performance-helpers';
+import { buildMatchCenterStats } from '@/lib/operational-helpers';
+import { buildCompetitionReportData } from '@/lib/competition-report';
+import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue } from '@/lib/types';
 
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
-const competitionsByCategory: Record<ClubCategory, string[]> = {
-  Sub20: ['Super copa juvenil'],
-  Sub17: ['Liga vallecaucana Sub17', 'Torneo nacional Sub17'],
-  Sub15: ['Liga vallecaucana Sub16', 'Torneo nacional Sub15'],
-};
-const rivalsByCategory: Record<ClubCategory, string[]> = {
-  Sub20: [
-    'Deportivo Pasto',
-    'Independiente Yumbo',
-    'Boca Juniors de Cali',
-    'Once Caldas',
-    'Deportivo Pereira',
-    'Internacional Palmira',
-    'Deportivo Cali',
-    'América de Cali',
-    'Deporvalencia',
-  ],
+const starterOptions: CompetitionPlayerRole[] = ['Titular', 'Suplente'];
+const medicalOptions: CompetitionMedicalStatus[] = ['Sin lesión', 'Lesionado'];
+const knownRivals: Record<ClubCategory, string[]> = {
+  Sub20: ['Deportivo Pasto', 'Independiente Yumbo', 'Boca Juniors de Cali', 'Once Caldas', 'Deportivo Pereira', 'Internacional Palmira', 'Deportivo Cali', 'América de Cali', 'Deporvalencia'],
   Sub17: [],
   Sub15: [],
 };
-const medicalStates = ['Sin novedad', 'Fatigado', 'Molestia', 'Lesionado'];
-const injuryKinds: InjuryKind[] = ['Muscular', 'Articular', 'Tendinosa', 'Ósea'];
-const movementOptions: Array<{ value: MovementType; label: string }> = [
-  { value: 'base', label: 'Categoría base' },
-  { value: 'subio_a_competir', label: 'Subió a competir' },
-  { value: 'bajo_a_competir', label: 'Bajó a competir' },
-];
+
+type MatchDraft = {
+  id: string;
+  opponent: string;
+  customOpponent: string;
+  date: string;
+  venue: CompetitionVenue;
+  goalsFor: string;
+  goalsAgainst: string;
+  observation: string;
+};
+
+type PlayerDraft = {
+  playerId: string;
+  minutesPlayed: string;
+  goals: string;
+  assists: string;
+  goalsConceded: string;
+  goalsPrevented: string;
+  yellowCards: string;
+  redCards: string;
+  startingRole: CompetitionPlayerRole;
+  medicalStatus: CompetitionMedicalStatus;
+  medicalObservation: string;
+};
+
+const emptyPlayerDraft = (playerId = ''): PlayerDraft => ({
+  playerId,
+  minutesPlayed: '',
+  goals: '',
+  assists: '',
+  goalsConceded: '',
+  goalsPrevented: '',
+  yellowCards: '',
+  redCards: '',
+  startingRole: 'Titular',
+  medicalStatus: 'Sin lesión',
+  medicalObservation: '',
+});
+
+const toNumber = (value: string) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const isNegative = (value: string) => value.trim() !== '' && toNumber(value) < 0;
+const displayNumber = (value?: number) => (value && value > 0 ? String(value) : '');
+const displayOptionalNumber = (value?: number) => (typeof value === 'number' ? String(value) : '');
 
 export default function CompetenciaPage() {
   const { data, filters, addCompetitionRecord, updateCompetitionRecord, deleteCompetitionRecord, upsertCompetitionMatchSummary, deleteCompetitionMatchSummary } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
-  const youthSimple = activeCategory !== 'Sub20';
   const [message, setMessage] = useState('');
-  const [editingId, setEditingId] = useState('');
+  const [selectedMatchId, setSelectedMatchId] = useState('');
+  const [editingRecordId, setEditingRecordId] = useState('');
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
-  const [selectedPlayerId, setSelectedPlayerId] = useState('');
+  const [matchDraft, setMatchDraft] = useState<MatchDraft>({ id: '', opponent: '', customOpponent: '', date: filters.date, venue: 'Local', goalsFor: '', goalsAgainst: '', observation: '' });
+  const [playerDraft, setPlayerDraft] = useState<PlayerDraft>(emptyPlayerDraft());
   const [showGroupReport, setShowGroupReport] = useState(false);
 
-  const sourcePlayers = data.players.filter((player) => player.category === sourceCategory);
-  const records = useMemo(
-    () => data.competitionRecords.filter((record) => (record.category ?? record.actingCategory ?? activeCategory) === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
+  const playersBySource = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
+  const matchSummaries = useMemo(
+    () => data.competitionMatchSummaries.filter((match) => match.category === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
+    [data.competitionMatchSummaries, activeCategory],
+  );
+  const selectedMatch = matchSummaries.find((match) => match.id === selectedMatchId) ?? matchSummaries[0];
+  const matchRecords = useMemo(
+    () => data.competitionRecords
+      .filter((record) => selectedMatch && (record.matchId === selectedMatch.id || (!record.matchId && record.date === selectedMatch.date && record.opponent === selectedMatch.opponent)))
+      .sort((a, b) => (data.players.find((player) => player.id === a.playerId)?.name ?? '').localeCompare(data.players.find((player) => player.id === b.playerId)?.name ?? '')),
+    [data.competitionRecords, data.players, selectedMatch],
+  );
+  const allCategoryRecords = useMemo(
+    () => data.competitionRecords.filter((record) => (record.category ?? record.actingCategory ?? activeCategory) === activeCategory),
     [data.competitionRecords, activeCategory],
   );
-  const matchSummaries = useMemo(() => data.competitionMatchSummaries.filter((match) => match.category === activeCategory).sort((a, b) => b.date.localeCompare(a.date)), [data.competitionMatchSummaries, activeCategory]);
-  const editing = records.find((record) => record.id === editingId);
-  const editingMatch = editing ? matchSummaries.find((match) => match.id === editing.matchId) : undefined;
+
+  const availableOpponents = useMemo(() => Array.from(new Set([
+    ...(knownRivals[activeCategory] ?? []),
+    ...matchSummaries.map((match) => match.opponent).filter(Boolean),
+    ...allCategoryRecords.map((record) => record.opponent).filter(Boolean),
+  ])).sort((a, b) => a.localeCompare(b)), [activeCategory, matchSummaries, allCategoryRecords]);
+
+  const currentPlayer = data.players.find((player) => player.id === playerDraft.playerId) ?? playersBySource[0];
+  const goalkeeper = isGoalkeeper(currentPlayer);
+  const editingRecord = editingRecordId ? data.competitionRecords.find((record) => record.id === editingRecordId) : undefined;
+
+  const kpiMinutes = matchRecords.reduce((acc, record) => acc + (record.minutesPlayed ?? 0), 0);
+  const medicalAlerts = matchRecords.filter((record) => (record.medicalStatus ?? (record.postCompetitionStatus === 'Lesionado' ? 'Lesionado' : 'Sin lesión')) === 'Lesionado');
+  const matchCenterStats = buildMatchCenterStats(matchRecords, data.players);
+  const competitionReport = selectedMatch
+    ? buildCompetitionReportData({ data, match: selectedMatch, records: matchRecords, activeCategory })
+    : undefined;
 
   useEffect(() => {
-    if (editing?.playerId) {
-      setSelectedPlayerId(editing.playerId);
-      return;
+    setSourceCategory(activeCategory);
+  }, [activeCategory]);
+
+  useEffect(() => {
+    if (!selectedMatchId && matchSummaries[0]) setSelectedMatchId(matchSummaries[0].id);
+    if (selectedMatchId && !matchSummaries.some((match) => match.id === selectedMatchId)) setSelectedMatchId(matchSummaries[0]?.id ?? '');
+  }, [matchSummaries, selectedMatchId]);
+
+  useEffect(() => {
+    if (!playerDraft.playerId || !playersBySource.some((player) => player.id === playerDraft.playerId)) {
+      setPlayerDraft((prev) => ({ ...prev, playerId: playersBySource[0]?.id ?? '' }));
     }
-    if (!sourcePlayers.some((player) => player.id === selectedPlayerId)) {
-      setSelectedPlayerId(sourcePlayers[0]?.id ?? '');
-    }
-  }, [sourceCategory, sourcePlayers, editing?.playerId, selectedPlayerId]);
+  }, [playersBySource, playerDraft.playerId]);
 
-  const currentPlayerId = editing?.playerId ?? selectedPlayerId ?? sourcePlayers[0]?.id ?? '';
-  const currentPlayer = data.players.find((player) => player.id === currentPlayerId) ?? sourcePlayers[0];
-  const isGoalkeeper = currentPlayer?.position === 'Portero';
+  const resetMatchDraft = () => {
+    setMatchDraft({ id: '', opponent: '', customOpponent: '', date: filters.date, venue: 'Local', goalsFor: '', goalsAgainst: '', observation: '' });
+    setMessage('Listo para crear un partido nuevo.');
+  };
 
-  const selectedRecords = currentPlayerId ? records.filter((record) => record.playerId === currentPlayerId) : records;
-  const uniqueMatches = Array.from(
-    new Map(
-      selectedRecords.map((record) => [
-        `${record.date}|${record.competitionName ?? ''}|${record.opponent ?? ''}|${record.actingCategory ?? record.category ?? activeCategory}`,
-        record,
-      ]),
-    ).values(),
-  );
-  const kpiMatches = uniqueMatches.length;
-  const kpiMinutes = selectedRecords.length ? selectedRecords.reduce((acc, record) => acc + record.minutesPlayed, 0) : 0;
-  const kpiGoals = selectedRecords.reduce((acc, record) => acc + (record.goals ?? 0), 0);
-  const kpiAssists = selectedRecords.reduce((acc, record) => acc + (record.assists ?? 0), 0);
-  const kpiGoalsConceded = selectedRecords.reduce((acc, record) => acc + (record.goalsConceded ?? 0), 0);
-  const kpiGoalsPrevented = selectedRecords.reduce((acc, record) => acc + (record.goalsPrevented ?? 0), 0);
-  const groupUniqueMatches = Array.from(new Map(records.map((record) => [`${record.date}|${record.competitionName ?? ''}|${record.opponent ?? ''}|${record.actingCategory ?? record.category ?? activeCategory}`, record])).values());
-  const groupMinutes = records.reduce((acc, record) => acc + record.minutesPlayed, 0);
-  const goalkeeperRecords = records.filter((record) => (data.players.find((player) => player.id === record.playerId)?.position) === 'Portero');
-  const fieldRecords = records.filter((record) => (data.players.find((player) => player.id === record.playerId)?.position) !== 'Portero');
-  const availableOpponents = Array.from(new Set([...(rivalsByCategory[activeCategory] ?? []), ...matchSummaries.map((match) => match.opponent), ...records.map((record) => record.opponent).filter(Boolean), ...(editingMatch?.opponent ? [editingMatch.opponent] : [])]));
-  const groupedHistory = matchSummaries.map((match) => ({
-    ...match,
-    records: records.filter((record) => record.matchId === match.id || (!record.matchId && record.date === match.date && (record.competitionName ?? '') === match.competitionName && (record.opponent ?? '') === match.opponent)),
-  }));
+  const loadMatchDraft = (matchId: string) => {
+    const match = matchSummaries.find((item) => item.id === matchId);
+    if (!match) return;
+    setSelectedMatchId(match.id);
+    setMatchDraft({
+      id: match.id,
+      opponent: availableOpponents.includes(match.opponent) ? match.opponent : 'new',
+      customOpponent: availableOpponents.includes(match.opponent) ? '' : match.opponent,
+      date: match.date,
+      venue: match.venue ?? 'Local',
+      goalsFor: displayOptionalNumber(match.goalsFor),
+      goalsAgainst: displayOptionalNumber(match.goalsAgainst),
+      observation: match.observation ?? '',
+    });
+    setMessage('Editando datos generales del partido.');
+  };
 
-  const submit = (formData: FormData) => {
-    const playerId = String(formData.get('playerId'));
-    const player = data.players.find((item) => item.id === playerId);
-    const goalkeeper = player?.position === 'Portero';
-    const movementType = sourceCategory === activeCategory ? 'base' : (String(formData.get('movementType')) as MovementType);
-    const date = String(formData.get('date'));
-    const competitionName = String(formData.get('competitionName'));
-    const opponent = String(formData.get('opponent') || '').trim();
-    const venue = String(formData.get('venue') || '').trim();
-    const result = String(formData.get('result') || '').trim();
-    const matchObservation = String(formData.get('matchObservation') || '').trim();
-    const minutesPlayed = Number(formData.get('minutesPlayed')) || 0;
-
-    if (!competitionName) {
-      setMessage('Debes seleccionar una competencia antes de guardar.');
-      return;
-    }
+  const saveMatch = () => {
+    const opponent = (matchDraft.opponent === 'new' ? matchDraft.customOpponent : matchDraft.opponent).trim();
+    const goalsFor = toNumber(matchDraft.goalsFor);
+    const goalsAgainst = toNumber(matchDraft.goalsAgainst);
 
     if (!opponent) {
-      setMessage('Debes seleccionar o escribir un rival antes de guardar.');
+      setMessage('No puedes guardar un partido sin rival.');
       return;
     }
-    const duplicatePlayerMatch = records.find((record) => record.id !== editingId && record.playerId === playerId && record.date === date && (record.competitionName ?? '') === competitionName && (record.opponent ?? '').trim() === opponent);
-    if (duplicatePlayerMatch) {
-      setMessage('Ese jugador ya tiene un registro en el mismo partido.');
+    if (!matchDraft.date) {
+      setMessage('No puedes guardar un partido sin fecha.');
       return;
     }
-    if (goalkeeper && ['goals', 'assists', 'acc', 'dcc', 'sprints', 'rhie', 'ima'].some((field) => Number(formData.get(field)) > 0)) {
-      setMessage('No se puede guardar un portero con métricas de jugador de campo.');
-      return;
-    }
-    if (!goalkeeper && (Number(formData.get('goalsConceded')) > 0 || Number(formData.get('goalsPrevented')) > 0)) {
-      setMessage('No se puede guardar un jugador de campo con métricas de portero.');
+    if ([matchDraft.goalsFor, matchDraft.goalsAgainst].some(isNegative)) {
+      setMessage('El resultado no puede tener goles negativos.');
       return;
     }
 
-    const existingMatch = matchSummaries.find((match) => match.id === editingMatch?.id || (match.date === date && match.category === activeCategory && match.competitionName === competitionName && match.opponent === opponent));
-    const matchId = existingMatch?.id ?? editingMatch?.id ?? crypto.randomUUID();
+    const id = matchDraft.id || crypto.randomUUID();
+    const resultType = calculateMatchResult(goalsFor, goalsAgainst);
     upsertCompetitionMatchSummary({
-      id: matchId,
-      date,
+      id,
+      date: matchDraft.date,
       category: activeCategory,
-      competitionName,
+      competitionName: 'Partido oficial',
       opponent,
-      venue,
-      result,
-      observation: matchObservation,
+      venue: matchDraft.venue,
+      goalsFor,
+      goalsAgainst,
+      resultType,
+      result: `${goalsFor}-${goalsAgainst}`,
+      observation: matchDraft.observation.trim(),
     });
+    setSelectedMatchId(id);
+    setMatchDraft((prev) => ({ ...prev, id, opponent: availableOpponents.includes(opponent) ? opponent : 'new', customOpponent: availableOpponents.includes(opponent) ? '' : opponent }));
+    setMessage(`Partido guardado: ${opponent} · ${resultType}. Ahora puedes cargar jugadores.`);
+  };
 
+  const editPlayerRecord = (record: CompetitionRecord) => {
+    const player = data.players.find((item) => item.id === record.playerId);
+    setSourceCategory((player?.category ?? activeCategory) as ClubCategory);
+    setEditingRecordId(record.id);
+    setPlayerDraft({
+      playerId: record.playerId,
+      minutesPlayed: displayNumber(record.minutesPlayed),
+      goals: displayNumber(record.goals),
+      assists: displayNumber(record.assists),
+      goalsConceded: displayNumber(record.goalsConceded),
+      goalsPrevented: displayNumber(record.goalsPrevented),
+      yellowCards: displayNumber(record.yellowCards),
+      redCards: displayNumber(record.redCards),
+      startingRole: record.startingRole ?? 'Titular',
+      medicalStatus: record.medicalStatus ?? (record.postCompetitionStatus === 'Lesionado' ? 'Lesionado' : 'Sin lesión'),
+      medicalObservation: record.medicalObservation ?? '',
+    });
+    setMessage('Editando jugador del partido.');
+  };
+
+  const resetPlayerDraft = () => {
+    setEditingRecordId('');
+    setPlayerDraft(emptyPlayerDraft(playersBySource[0]?.id ?? ''));
+  };
+
+  const savePlayerRecord = () => {
+    if (!selectedMatch) {
+      setMessage('Primero debes crear o seleccionar un partido.');
+      return;
+    }
+    const player = data.players.find((item) => item.id === playerDraft.playerId);
+    if (!player) {
+      setMessage('Debes seleccionar un jugador válido.');
+      return;
+    }
+    const numberFields = [playerDraft.minutesPlayed, playerDraft.yellowCards, playerDraft.redCards, playerDraft.goals, playerDraft.assists, playerDraft.goalsConceded, playerDraft.goalsPrevented];
+    if (numberFields.some(isNegative)) {
+      setMessage('Minutos, goles, asistencias y tarjetas no pueden ser negativos.');
+      return;
+    }
+    if (playerDraft.medicalStatus === 'Lesionado' && !playerDraft.medicalObservation.trim()) {
+      setMessage('Si el jugador está lesionado, debes agregar una observación médica breve.');
+      return;
+    }
+    const duplicated = matchRecords.find((record) => record.playerId === player.id && record.id !== editingRecordId);
+    if (duplicated) {
+      setMessage('Ese jugador ya está cargado en este partido.');
+      return;
+    }
+
+    const goalkeeperRecord = isGoalkeeper(player);
+    const movementType = (sourceCategory === activeCategory ? 'base' : 'subio_a_competir') as MovementType;
     const baseRecord = {
-      id: editingId || crypto.randomUUID(),
-      matchId,
-      playerId,
-      date,
-      opponent,
-      competitionName,
-      minutesPlayed,
-      yellowCards: Number(formData.get('yellowCards')) || 0,
-      redCards: Number(formData.get('redCards')) || 0,
+      id: editingRecordId || crypto.randomUUID(),
+      matchId: selectedMatch.id,
+      playerId: player.id,
+      date: selectedMatch.date,
+      opponent: selectedMatch.opponent,
+      competitionName: selectedMatch.competitionName,
+      minutesPlayed: toNumber(playerDraft.minutesPlayed),
+      yellowCards: toNumber(playerDraft.yellowCards),
+      redCards: toNumber(playerDraft.redCards),
+      startingRole: playerDraft.startingRole,
       category: activeCategory,
-      baseCategory: player?.category ?? sourceCategory,
+      baseCategory: player.category ?? sourceCategory,
       actingCategory: activeCategory,
       movementType,
-      movementNote: String(formData.get('movementNote') || ''),
       movementModule: 'competencia' as const,
       loggedBy: session.displayName,
-      postCompetitionStatus: String(formData.get('postCompetitionStatus') || ''),
-      injuryKind: String(formData.get('injuryKind') || '') as InjuryKind,
-      medicalObservation: String(formData.get('medicalObservation') || ''),
+      postCompetitionStatus: playerDraft.medicalStatus === 'Lesionado' ? 'Lesionado' : 'Sin novedad',
+      medicalStatus: playerDraft.medicalStatus,
+      medicalObservation: playerDraft.medicalStatus === 'Lesionado' ? playerDraft.medicalObservation.trim() : '',
     };
+    const record: CompetitionRecord = goalkeeperRecord
+      ? { ...baseRecord, goals: 0, assists: 0, goalsConceded: toNumber(playerDraft.goalsConceded), goalsPrevented: toNumber(playerDraft.goalsPrevented) }
+      : { ...baseRecord, goals: toNumber(playerDraft.goals), assists: toNumber(playerDraft.assists), goalsConceded: undefined, goalsPrevented: undefined };
 
-    const record = goalkeeper
-      ? { ...baseRecord, goals: 0, assists: 0, goalsConceded: Number(formData.get('goalsConceded')) || 0, goalsPrevented: Number(formData.get('goalsPrevented')) || 0, crossesDefended: 0, shotsOnTarget: 0 }
-      : youthSimple
-        ? { ...baseRecord, goals: Number(formData.get('goals')) || 0, assists: Number(formData.get('assists')) || 0 }
-        : { ...baseRecord, goals: Number(formData.get('goals')) || 0, assists: Number(formData.get('assists')) || 0, acc: Number(formData.get('acc')) || 0, dcc: Number(formData.get('dcc')) || 0, sprints: Number(formData.get('sprints')) || 0, rhie: Number(formData.get('rhie')) || 0, ima: Number(formData.get('ima')) || 0 };
-
-    if (editingId) updateCompetitionRecord(record);
+    if (editingRecord) updateCompetitionRecord(record);
     else addCompetitionRecord(record);
-    setEditingId('');
-    setMessage('Competencia guardada correctamente.');
+    resetPlayerDraft();
+    setMessage('Jugador guardado correctamente dentro del partido.');
+  };
+
+  const removeMatch = (matchId: string) => {
+    deleteCompetitionMatchSummary(matchId);
+    if (selectedMatchId === matchId) setSelectedMatchId('');
+    setMessage('Partido eliminado con sus jugadores asociados.');
   };
 
   return (
-    <div className="grid">
-      <AppHero title="Competencia" subtitle={`Orsomarso SC Performance · ${categoryLabel(activeCategory)}`} />
+    <div className="grid competition-page-root">
+      <div className="competition-operational no-print">
+      <AppHero title="Ficha profesional de partido" subtitle={`Competencia · ${categoryLabel(activeCategory)}`} />
 
       <div className="grid grid-4">
-        <KpiCard label="Partidos registrados" value={String(kpiMatches)} />
-        <KpiCard label="Minutos jugados" value={String(kpiMinutes)} />
-        <KpiCard label={isGoalkeeper ? "Goles encajados" : "Goles"} value={String(isGoalkeeper ? kpiGoalsConceded : kpiGoals)} />
-        <KpiCard label={isGoalkeeper ? "Goles evitados" : "Asistencias"} value={String(isGoalkeeper ? kpiGoalsPrevented : kpiAssists)} />
+        <KpiCard label="Partidos registrados" value={String(matchSummaries.length)} tone="blue" trend="Historial activo" />
+        <KpiCard label="Jugadores del partido" value={String(matchRecords.length)} tone="green" trend="Planilla cargada" />
+        <KpiCard label="Minutos del partido" value={String(kpiMinutes)} tone="dark" trend="Volumen competitivo" />
+        <KpiCard label="Alertas médicas" value={String(medicalAlerts.length)} tone={medicalAlerts.length ? "red" : "green"} trend="Incidencias" />
       </div>
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
@@ -198,163 +299,231 @@ export default function CompetenciaPage() {
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
-            <h3 style={{ margin: 0 }}>Informe grupal de competencia</h3>
-            <div className="summary-chip" style={{ marginTop: 8 }}>{categoryLabel(activeCategory)} · {groupUniqueMatches[0]?.competitionName ?? 'Competencia'} · {groupUniqueMatches[0]?.opponent ?? 'Sin rival'}</div>
+            <span className="section-eyebrow">Paso 1</span><h3 style={{ margin: 0 }}>Datos generales del partido</h3>
+            <div className="summary-chip" style={{ marginTop: 8 }}>Rival · Fecha · Local/Visitante · Resultado calculado</div>
           </div>
           <div className="btn-row">
-            <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar informe grupal' : 'Ver informe grupal'}</button>
-            <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
+            <button type="button" className="btn secondary" onClick={resetMatchDraft}>Nuevo partido</button>
+            <button type="button" className="btn secondary" onClick={() => downloadCsv('competencia-partidos.csv', matchSummaries.map((match) => ({ fecha: match.date, categoria: categoryLabel(match.category), rival: match.opponent, condicion: match.venue ?? '', marcador: formatMatchScore(match), resultado: match.resultType ?? '' })))}>Exportar partidos</button>
           </div>
         </div>
-        {showGroupReport ? (
-          <div className="grid" style={{ gap: 16, marginTop: 16 }}>
-            <div className="grid grid-4">
-              <KpiCard label="Partidos únicos" value={String(groupUniqueMatches.length)} />
-              <KpiCard label="Jugadores cargados" value={String(new Set(records.map((record) => record.playerId)).size)} />
-              <KpiCard label="Minutos del grupo" value={String(groupMinutes)} />
-              <KpiCard label="Alertas médicas" value={String(records.filter((record) => (record.postCompetitionStatus && record.postCompetitionStatus !== 'Sin novedad') || record.injuryKind).length)} />
+
+        <div className="grid grid-4" style={{ marginTop: 16 }}>
+          <div className="field">
+            <label>Rival existente</label>
+            <select className="select" value={matchDraft.opponent} onChange={(event) => setMatchDraft((prev) => ({ ...prev, opponent: event.target.value }))}>
+              <option value="">Selecciona rival</option>
+              {availableOpponents.map((name) => <option key={name} value={name}>{name}</option>)}
+              <option value="new">Escribir rival nuevo</option>
+            </select>
+          </div>
+          {matchDraft.opponent === 'new' ? (
+            <div className="field">
+              <label>Nombre del rival nuevo</label>
+              <input className="input" value={matchDraft.customOpponent} onChange={(event) => setMatchDraft((prev) => ({ ...prev, customOpponent: event.target.value }))} placeholder="Nombre del rival" />
             </div>
-            <div className="grid grid-4">
-              <KpiCard label="Goles" value={String(fieldRecords.reduce((acc, record) => acc + (record.goals ?? 0), 0))} />
-              <KpiCard label="Asistencias" value={String(fieldRecords.reduce((acc, record) => acc + (record.assists ?? 0), 0))} />
-              <KpiCard label="Goles encajados" value={String(goalkeeperRecords.reduce((acc, record) => acc + (record.goalsConceded ?? 0), 0))} />
-              <KpiCard label="Goles evitados" value={String(goalkeeperRecords.reduce((acc, record) => acc + (record.goalsPrevented ?? 0), 0))} />
+          ) : null}
+          <div className="field">
+            <label>Fecha</label>
+            <input className="input" type="date" value={matchDraft.date} onChange={(event) => setMatchDraft((prev) => ({ ...prev, date: event.target.value }))} />
+          </div>
+          <div className="field">
+            <label>Condición</label>
+            <select className="select" value={matchDraft.venue} onChange={(event) => setMatchDraft((prev) => ({ ...prev, venue: event.target.value as CompetitionVenue }))}>
+              <option value="Local">Local</option>
+              <option value="Visitante">Visitante</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>Goles Orsomarso</label>
+            <input className="input" min="0" type="number" value={matchDraft.goalsFor} onChange={(event) => setMatchDraft((prev) => ({ ...prev, goalsFor: event.target.value }))} />
+          </div>
+          <div className="field">
+            <label>Goles rival</label>
+            <input className="input" min="0" type="number" value={matchDraft.goalsAgainst} onChange={(event) => setMatchDraft((prev) => ({ ...prev, goalsAgainst: event.target.value }))} />
+          </div>
+          <div className="field">
+            <label>Resultado</label>
+            <input className="input" readOnly value={calculateMatchResult(toNumber(matchDraft.goalsFor), toNumber(matchDraft.goalsAgainst))} />
+          </div>
+          <div className="field">
+            <label>Observación general</label>
+            <input className="input" value={matchDraft.observation} onChange={(event) => setMatchDraft((prev) => ({ ...prev, observation: event.target.value }))} />
+          </div>
+        </div>
+        <div className="btn-row" style={{ marginTop: 16 }}>
+          <button type="button" className="btn" onClick={saveMatch}>{matchDraft.id ? 'Actualizar partido' : 'Guardar partido'}</button>
+        </div>
+      </div>
+
+      {selectedMatch ? (
+        <MatchCard
+          away={selectedMatch.opponent}
+          score={formatMatchScore(selectedMatch)}
+          meta={`${selectedMatch.date} · ${selectedMatch.venue ?? 'Local'}`}
+          result={<StatusBadge text={selectedMatch.resultType ?? 'Sin resultado'} tone={selectedMatch.resultType === 'Victoria' ? 'green' : selectedMatch.resultType === 'Derrota' ? 'red' : 'blue'} />}
+          stats={[
+            { label: 'Titulares', value: matchCenterStats.starters },
+            { label: 'Suplentes', value: matchCenterStats.substitutes },
+            { label: 'Porteros', value: matchCenterStats.goalkeepers },
+            { label: 'Goles', value: matchCenterStats.goals },
+            { label: 'Amarillas', value: matchCenterStats.yellowCards },
+            { label: 'Rojas', value: matchCenterStats.redCards },
+            { label: 'Lesionados', value: matchCenterStats.medical },
+          ]}
+        />
+      ) : null}
+
+      {matchSummaries.length ? (
+        <div className="card">
+          <SectionHeader eyebrow="Partido" title="Partido seleccionado" />
+          <div className="grid grid-3">
+            <div className="field">
+              <label>Seleccionar partido</label>
+              <select className="select" value={selectedMatch?.id ?? ''} onChange={(event) => setSelectedMatchId(event.target.value)}>
+                {matchSummaries.map((match) => <option key={match.id} value={match.id}>{match.date} · {match.venue ?? 'Local'} vs {match.opponent} · {formatMatchScore(match)}</option>)}
+              </select>
             </div>
-            <div className="card compact-card">
-              <strong>Resumen general del partido</strong>
-              <div className="muted-line" style={{ marginTop: 8 }}>Rivales cargados: {groupUniqueMatches.map((record) => `${record.date} · ${record.competitionName ?? '-'} vs ${record.opponent ?? '-'}`).join(' | ') || 'Sin registros'}</div>
-              <div className="muted-line">Jugadores de campo: {fieldRecords.length} · Porteros: {goalkeeperRecords.length}</div>
+            <div className="field">
+              <label>Resumen</label>
+              <input className="input" readOnly value={selectedMatch ? `${selectedMatch.resultType ?? ''} · ${formatMatchScore(selectedMatch)}` : 'Sin partido'} />
+            </div>
+            <div className="btn-row" style={{ alignSelf: 'end' }}>
+              {selectedMatch ? <button type="button" className="btn secondary" onClick={() => loadMatchDraft(selectedMatch.id)}>Editar datos</button> : null}
+              {selectedMatch ? <button type="button" className="btn danger" onClick={() => removeMatch(selectedMatch.id)}>Eliminar partido</button> : null}
             </div>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : <EmptyState title="Aún no hay partidos" text="Crea primero los datos generales del partido y luego carga los jugadores." />}
 
       {master ? (
         <div className="card"><strong>Usuario Maestro:</strong> acceso de lectura. Usa Informes y Ranking para el análisis global.</div>
-      ) : (
-        <form key={`${currentPlayerId}-${isGoalkeeper ? "gk" : "field"}-${editingId || "new"}`} className="card grid" action={submit}>
-          <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+      ) : selectedMatch ? (
+        <div className="card grid">
+          <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <h3 style={{ margin: 0 }}>{editing ? 'Editar competencia' : 'Cargar competencia'}</h3>
-              <div className="summary-chip" style={{ marginTop: 8 }}>Plantilla activa: {isGoalkeeper ? 'Portero' : 'Jugador de campo'}</div>
+              <span className="section-eyebrow">Paso 2</span><h3 style={{ margin: 0 }}>Jugadores del partido</h3>
+              <div className="summary-chip" style={{ marginTop: 8 }}>{selectedMatch.date} · {selectedMatch.venue ?? 'Local'} vs {selectedMatch.opponent} · {formatMatchScore(selectedMatch)}</div>
             </div>
-            <button type="button" className="btn secondary" onClick={() => downloadCsv('competencia.csv', records.map((r) => ({
-              fecha: r.date,
-              jugador: data.players.find((p) => p.id === r.playerId)?.name ?? 'Jugador',
-              categoria_base: categoryLabel(data.players.find((p) => p.id === r.playerId)?.category),
-              categoria_participacion: categoryLabel(r.actingCategory ?? r.category),
-              competencia: r.competitionName ?? '',
-              rival: r.opponent ?? '',
-              minutos: r.minutesPlayed,
-              goles: r.goals,
-              asistencias: r.assists,
-              estado_postcompetencia: r.postCompetitionStatus ?? '',
-              tipo_lesion: r.injuryKind ?? '',
-              observacion_medica: r.medicalObservation ?? '',
-            })))}>Exportar CSV</button>
+            <button type="button" className="btn secondary" onClick={resetPlayerDraft}>Limpiar jugador</button>
           </div>
 
           <div className="grid grid-4">
-            <div className="field"><label>Categoría del jugador</label><select className="select" value={sourceCategory} onChange={(e) => setSourceCategory(e.target.value as ClubCategory)}>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></div>
-            <div className="field"><label>Jugador</label><select className="select" name="playerId" value={currentPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)}>{sourcePlayers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-            <div className="field"><label>Fecha</label><input className="input" type="date" name="date" defaultValue={editing?.date ?? filters.date} required /></div>
-            <div className="field"><label>Competencia</label><select className="select" name="competitionName" defaultValue={editingMatch?.competitionName ?? editing?.competitionName ?? competitionsByCategory[activeCategory][0]}>{competitionsByCategory[activeCategory].map((name) => <option key={name}>{name}</option>)}</select></div>
-          </div>
-          <div className="grid grid-3">
-            <div className="field"><label>Local / visitante</label><input className="input" name="venue" defaultValue={editingMatch?.venue ?? ''} /></div>
-            <div className="field"><label>Resultado</label><input className="input" name="result" defaultValue={editingMatch?.result ?? ''} /></div>
-            <div className="field"><label>Observación general</label><input className="input" name="matchObservation" defaultValue={editingMatch?.observation ?? ''} /></div>
-          </div>
-          <div className="grid grid-2">
-            <div className="field">
-              <label>Rival</label>
-              <select className="select" name="opponent" defaultValue={editingMatch?.opponent ?? editing?.opponent ?? ''} required>
-                <option value="">Selecciona el rival</option>
-                {availableOpponents.map((name) => <option key={name} value={name}>{name}</option>)}
-              </select>
-            </div>
-            <div className="field"><label>Minutos jugados</label><input className="input" type="number" name="minutesPlayed" defaultValue={editing?.minutesPlayed ?? ''} required /></div>
-          </div>
-          <div className="grid grid-2">
-            <div className="field"><label>Movimiento</label><select className="select" name="movementType" defaultValue={editing?.movementType ?? (sourceCategory === activeCategory ? 'base' : 'subio_a_competir')}>{movementOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
-            <div className="field"><label>Observación movimiento</label><input className="input" name="movementNote" defaultValue={editing?.movementNote ?? ''} /></div>
+            <div className="field"><label>Categoría del jugador</label><select className="select" value={sourceCategory} onChange={(event) => setSourceCategory(event.target.value as ClubCategory)}>{categories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}</select></div>
+            <div className="field"><label>Jugador</label><select className="select" value={playerDraft.playerId} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, playerId: event.target.value }))}>{playersBySource.map((player) => <option key={player.id} value={player.id}>{player.name} · {player.position}</option>)}</select></div>
+            <div className="field"><label>Minutos jugados</label><input className="input" min="0" type="number" value={playerDraft.minutesPlayed} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, minutesPlayed: event.target.value }))} /></div>
+            <div className="field"><label>Titular / suplente</label><select className="select" value={playerDraft.startingRole} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, startingRole: event.target.value as CompetitionPlayerRole }))}>{starterOptions.map((option) => <option key={option}>{option}</option>)}</select></div>
           </div>
 
-          {isGoalkeeper ? (
+          {goalkeeper ? (
             <div className="grid grid-2">
-              <div className="field"><label>Goles encajados</label><input className="input" type="number" name="goalsConceded" placeholder="Goles encajados" defaultValue={editing?.goalsConceded ?? ''} /></div>
-              <div className="field"><label>Goles evitados</label><input className="input" type="number" name="goalsPrevented" placeholder="Goles evitados" defaultValue={editing?.goalsPrevented ?? ''} /></div>
-            </div>
-          ) : youthSimple ? (
-            <div className="grid grid-2">
-              <input className="input" type="number" name="goals" placeholder="Goles" defaultValue={editing?.goals ?? ''} />
-              <input className="input" type="number" name="assists" placeholder="Asistencias" defaultValue={editing?.assists ?? ''} />
+              <div className="field"><label>Goles encajados</label><input className="input" min="0" type="number" value={playerDraft.goalsConceded} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, goalsConceded: event.target.value }))} /></div>
+              <div className="field"><label>Goles evitados</label><input className="input" min="0" type="number" value={playerDraft.goalsPrevented} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, goalsPrevented: event.target.value }))} /></div>
             </div>
           ) : (
-            <>
-              <div className="grid grid-4">
-                <input className="input" type="number" name="goals" placeholder="Goles" defaultValue={editing?.goals ?? ''} />
-                <input className="input" type="number" name="assists" placeholder="Asistencias" defaultValue={editing?.assists ?? ''} />
-                <input className="input" type="number" name="acc" placeholder="ACC" defaultValue={editing?.acc ?? ''} />
-                <input className="input" type="number" name="dcc" placeholder="DCC" defaultValue={editing?.dcc ?? ''} />
-              </div>
-              <div className="grid grid-3">
-                <input className="input" type="number" name="sprints" placeholder="SPRINTS" defaultValue={editing?.sprints ?? ''} />
-                <input className="input" type="number" name="rhie" placeholder="RHIE" defaultValue={editing?.rhie ?? ''} />
-                <input className="input" type="number" name="ima" placeholder="IMA" defaultValue={editing?.ima ?? ''} />
-              </div>
-            </>
+            <div className="grid grid-2">
+              <div className="field"><label>Goles</label><input className="input" min="0" type="number" value={playerDraft.goals} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, goals: event.target.value }))} /></div>
+              <div className="field"><label>Asistencias</label><input className="input" min="0" type="number" value={playerDraft.assists} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, assists: event.target.value }))} /></div>
+            </div>
           )}
 
           <div className="grid grid-4">
-            <input className="input" type="number" name="yellowCards" placeholder="Tarjetas amarillas" defaultValue={editing?.yellowCards ?? ''} />
-            <input className="input" type="number" name="redCards" placeholder="Tarjetas rojas" defaultValue={editing?.redCards ?? ''} />
-            <select className="select" name="postCompetitionStatus" defaultValue={editing?.postCompetitionStatus ?? 'Sin novedad'}>{medicalStates.map((state) => <option key={state}>{state}</option>)}</select>
-            <select className="select" name="injuryKind" defaultValue={editing?.injuryKind ?? ''}>
-              <option value="">Sin lesión</option>
-              {injuryKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
-            </select>
+            <div className="field"><label>Tarjetas amarillas</label><input className="input" min="0" type="number" value={playerDraft.yellowCards} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, yellowCards: event.target.value }))} /></div>
+            <div className="field"><label>Tarjeta roja</label><input className="input" min="0" max="1" type="number" value={playerDraft.redCards} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, redCards: event.target.value }))} /></div>
+            <div className="field"><label>Estado médico</label><select className="select" value={playerDraft.medicalStatus} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, medicalStatus: event.target.value as CompetitionMedicalStatus, medicalObservation: event.target.value === 'Lesionado' ? prev.medicalObservation : '' }))}>{medicalOptions.map((option) => <option key={option}>{option}</option>)}</select></div>
+            <div className="field"><label>Plantilla</label><input className="input" readOnly value={goalkeeper ? 'Portero' : 'Jugador de campo'} /></div>
           </div>
-          <textarea className="input" name="medicalObservation" placeholder="Observación médica postcompetencia" defaultValue={editing?.medicalObservation ?? ''} />
-          <button className="btn" type="submit">{editing ? 'Actualizar competencia' : 'Guardar competencia'}</button>
-        </form>
-      )}
+
+          {playerDraft.medicalStatus === 'Lesionado' ? (
+            <div className="field">
+              <label>Observación médica</label>
+              <textarea className="input" value={playerDraft.medicalObservation} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, medicalObservation: event.target.value }))} placeholder="Describe la lesión o la novedad médica" />
+            </div>
+          ) : null}
+
+          <button type="button" className="btn" onClick={savePlayerRecord}>{editingRecordId ? 'Actualizar jugador' : 'Agregar jugador al partido'}</button>
+        </div>
+      ) : null}
+
+      {selectedMatch ? (
+        <div className="card">
+          <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <span className="section-eyebrow">Informe</span><h3 style={{ margin: 0 }}>Informe profesional de competencia</h3>
+              <div className="summary-chip" style={{ marginTop: 8 }}>{selectedMatch.date} · {selectedMatch.venue ?? 'Local'} vs {selectedMatch.opponent} · {selectedMatch.resultType ?? ''}</div>
+            </div>
+            <div className="btn-row">
+              <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver vista previa profesional'}</button>
+              <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
+            </div>
+          </div>
+          {showGroupReport && competitionReport ? (
+            <div style={{ marginTop: 16 }}>
+              <CompetitionReportTemplate report={competitionReport} category={activeCategory} compact />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="card table-wrap">
-        <h3>Historial de competencia</h3>
-        <table>
-          <thead>
-            <tr><th>Fecha</th><th>Categoría</th><th>Competencia</th><th>Rival</th><th>Jugadores</th><th>Min totales</th><th>Estado</th><th>Lesión</th><th>Acciones</th></tr>
-          </thead>
-          <tbody>
-            {groupedHistory.map((match) => {
-              const totalMinutes = match.records.reduce((acc, record) => acc + record.minutesPlayed, 0);
-              const hasMedicalAlert = match.records.some((record) => (record.postCompetitionStatus ?? 'Sin novedad') !== 'Sin novedad');
-              const injurySummary = Array.from(new Set(match.records.map((record) => record.injuryKind).filter(Boolean))).join(', ');
-              return (
-                <tr key={match.id}>
-                  <td>{match.date}</td>
-                  <td>{categoryLabel(match.category)}</td>
-                  <td>{match.competitionName}</td>
-                  <td>{match.opponent}</td>
-                  <td>{match.records.length}</td>
-                  <td>{totalMinutes}</td>
-                  <td>{hasMedicalAlert ? 'Con novedad' : 'Sin novedad'}</td>
-                  <td>{injurySummary || '-'}</td>
-                  <td>
-                    {master ? '-' : (
-                      <div className="btn-row">
-                        <button type="button" className="btn secondary" onClick={() => { setEditingId(match.records[0].id); setSelectedPlayerId(match.records[0].playerId); setMessage('Editando el primer registro del partido seleccionado.'); }}>Editar</button>
-                        <button type="button" className="btn danger" onClick={() => { deleteCompetitionMatchSummary(match.id); setMessage('Partido eliminado correctamente.'); }}>Eliminar</button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <SectionHeader eyebrow="Planilla" title="Jugadores cargados en el partido" subtitle="Titulares, suplentes, porteros e incidencias médicas." />
+        {selectedMatch && matchRecords.length ? (
+          <table>
+            <thead>
+              <tr><th>Jugador</th><th>Posición</th><th>Rol</th><th>MIN</th><th>G/A o Portero</th><th>Tarjetas</th><th>Estado médico</th><th>Observación</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+              {matchRecords.map((record) => {
+                const player = data.players.find((item) => item.id === record.playerId);
+                const recordGoalkeeper = isGoalkeeper(player);
+                const medicalStatus = record.medicalStatus ?? (record.postCompetitionStatus === 'Lesionado' ? 'Lesionado' : 'Sin lesión');
+                return (
+                  <tr key={record.id}>
+                    <td>{player?.name ?? 'Jugador'}</td>
+                    <td>{player?.position ?? '-'}</td>
+                    <td>{record.startingRole ?? '-'}</td>
+                    <td>{record.minutesPlayed}</td>
+                    <td>{recordGoalkeeper ? `GE ${record.goalsConceded ?? 0} · EV ${record.goalsPrevented ?? 0}` : `G ${record.goals ?? 0} · A ${record.assists ?? 0}`}</td>
+                    <td>TA {record.yellowCards ?? 0} · TR {record.redCards ?? 0}</td>
+                    <td>{medicalStatus}</td>
+                    <td>{medicalStatus === 'Lesionado' ? record.medicalObservation || '-' : '-'}</td>
+                    <td>{master ? '-' : <div className="btn-row"><button type="button" className="btn secondary" onClick={() => editPlayerRecord(record)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : <EmptyState title="Planilla vacía" text="Selecciona o crea un partido y carga jugadores." />}
       </div>
+
+      <div className="card table-wrap">
+        <SectionHeader eyebrow="Historial" title="Historial de partidos" subtitle="Registro competitivo por categoría." />
+        {matchSummaries.length ? (
+          <table>
+            <thead><tr><th>Fecha</th><th>Categoría</th><th>Rival</th><th>Condición</th><th>Marcador</th><th>Resultado</th><th>Jugadores</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {matchSummaries.map((match) => {
+                const records = data.competitionRecords.filter((record) => record.matchId === match.id);
+                return (
+                  <tr key={match.id}>
+                    <td>{match.date}</td>
+                    <td>{categoryLabel(match.category)}</td>
+                    <td>{match.opponent}</td>
+                    <td>{match.venue ?? '-'}</td>
+                    <td>{formatMatchScore(match)}</td>
+                    <td>{match.resultType ?? '-'}</td>
+                    <td>{records.length}</td>
+                    <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => { setSelectedMatchId(match.id); loadMatchDraft(match.id); }}>Editar</button>{master ? null : <button type="button" className="btn danger" onClick={() => removeMatch(match.id)}>Eliminar</button>}</div></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : <EmptyState title="Sin partidos guardados" text="Los partidos creados aparecerán en este historial." />}
+      </div>
+      </div>
+
+      {competitionReport ? <CompetitionReportTemplate report={competitionReport} category={activeCategory} className="print-only" /> : null}
     </div>
   );
 }

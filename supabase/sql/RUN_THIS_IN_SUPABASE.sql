@@ -1,0 +1,2 @@
+-- Paste the contents of ../migrations/202604290001_secure_initial_schema.sql here,
+-- or open that file and run it directly in Supabase SQL Editor.

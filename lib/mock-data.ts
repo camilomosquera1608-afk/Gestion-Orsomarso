@@ -152,12 +152,12 @@ export const initialData: AppData = {
     { id: 'f8', playerId: 'p6', date: '2026-04-23', shoulderMobility: 1, squat: 2, legRaise: 1, hurdleStep: 1, lunge: 2, trunkStability: 2, rotaryStability: 1 }
   ],
   competitionMatchSummaries: [
-    { id: 'm1', date: '2026-04-20', category: 'Sub20', competitionName: 'Super copa juvenil', opponent: 'Deportivo Pasto', venue: 'Local', result: '', observation: 'Partido base de referencia.' },
+    { id: 'm1', date: '2026-04-20', category: 'Sub20', competitionName: 'Partido oficial', opponent: 'Deportivo Pasto', venue: 'Local', goalsFor: 0, goalsAgainst: 0, resultType: 'Empate', result: '0-0', observation: 'Partido base de referencia.' },
   ],
   competitionRecords: [
-    { id: 'co1', playerId: 'p2', date: '2026-04-21', opponent: 'Atlético FC', minutesPlayed: 90, goals: 0, assists: 0, yellowCards: 1, redCards: 0 },
-    { id: 'co2', playerId: 'p4', date: '2026-04-21', opponent: 'Atlético FC', minutesPlayed: 88, goals: 1, assists: 1, yellowCards: 0, redCards: 0 },
-    { id: 'co3', playerId: 'p5', date: '2026-04-21', opponent: 'Atlético FC', minutesPlayed: 64, goals: 0, assists: 1, yellowCards: 0, redCards: 0 },
-    { id: 'co4', playerId: 'p1', date: '2026-04-21', opponent: 'Atlético FC', minutesPlayed: 90, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
+    { id: 'co1', matchId: 'm1', playerId: 'p2', date: '2026-04-20', opponent: 'Deportivo Pasto', competitionName: 'Partido oficial', minutesPlayed: 90, goals: 0, assists: 0, yellowCards: 1, redCards: 0, startingRole: 'Titular', medicalStatus: 'Sin lesión' },
+    { id: 'co2', matchId: 'm1', playerId: 'p4', date: '2026-04-20', opponent: 'Deportivo Pasto', competitionName: 'Partido oficial', minutesPlayed: 88, goals: 1, assists: 1, yellowCards: 0, redCards: 0, startingRole: 'Titular', medicalStatus: 'Sin lesión' },
+    { id: 'co3', matchId: 'm1', playerId: 'p5', date: '2026-04-20', opponent: 'Deportivo Pasto', competitionName: 'Partido oficial', minutesPlayed: 64, goals: 0, assists: 1, yellowCards: 0, redCards: 0, startingRole: 'Titular', medicalStatus: 'Sin lesión' },
+    { id: 'co4', matchId: 'm1', playerId: 'p1', date: '2026-04-20', opponent: 'Deportivo Pasto', competitionName: 'Partido oficial', minutesPlayed: 90, goals: 0, assists: 0, yellowCards: 0, redCards: 0, goalsConceded: 0, goalsPrevented: 0, startingRole: 'Titular', medicalStatus: 'Sin lesión' }
   ]
 };

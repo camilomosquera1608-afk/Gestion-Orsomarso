@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { ChangeEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { AppHero } from '@/components/app-hero';
+import { CompactInfoList, EmptyState, SectionHeader } from '@/components/pro-ui';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
@@ -82,25 +84,51 @@ export default function PlayerProfilePage() {
   return (
     <div className="grid">
       <AppHero title={`Perfil individual · ${player.name}`} subtitle={`Base ${categoryLabel(player.category)}`} />
-      <div className="card player-card executive-player-card">
-        <img src={player.photo} alt={player.name} width={90} height={90} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 18 }} />
-        <div>
-          <h3 style={{ margin: 0 }}>{player.name}</h3>
-          <div className="player-meta">
-            <span>{calcAge(player.birthDate) ?? player.age} años</span>
-            <span>{player.position}</span>
-            <span>Base {categoryLabel(player.category)}</span>
-            <span>{player.birthDate ? `Nac. ${formatBirthDateForDisplay(player.birthDate)}` : 'Sin fecha'}</span>
-            <span>{player.height} cm</span>
-            <span>{player.weight} kg</span>
+
+      <div className="player-profile-summary">
+        <div className="card player-card executive-player-card profile-cover-card">
+          <img src={player.photo || '/orsomarso-crest.jpg'} alt={player.name} width={90} height={90} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 18 }} />
+          <div>
+            <h3 style={{ margin: 0 }}>{player.name}</h3>
+            <div className="player-meta">
+              <span>{calcAge(player.birthDate) ?? player.age} años</span>
+              <span>{player.position}</span>
+              <span>Base {categoryLabel(player.category)}</span>
+              <span>{player.birthDate ? `Nac. ${formatBirthDateForDisplay(player.birthDate)}` : 'Sin fecha'}</span>
+              <span>{player.height} cm</span>
+              <span>{player.weight} kg</span>
+            </div>
+            <div className="btn-row" style={{ marginTop: 10 }}>
+              <PlayerStatusBadge status={player.status} />
+              <span className="summary-chip">Última fecha: {latestDate}</span>
+            </div>
           </div>
-          <div className="btn-row" style={{ marginTop: 10 }}>
-            <PlayerStatusBadge status={player.status} />
+          <div className="roster-actions">
+            <Link className="btn secondary" href="/jugadores">Volver a plantilla</Link>
+            <Link className="btn secondary" href="/informes">Generar informe</Link>
           </div>
         </div>
-        <div className="summary-chip">Última fecha: {latestDate}</div>
+        <div className="card">
+          <SectionHeader eyebrow="Jugador" title="Estado reciente" />
+          <CompactInfoList items={[
+            { label: 'Wellness', value: latestWellness ? averageWellness(latestWellness).toFixed(1) : 'Sin registro', tone: latestWellness ? 'blue' : 'neutral' },
+            { label: 'Carga interna', value: latestInternal ? calculateInternalLoad(latestInternal) : 'Sin registro', tone: latestInternal ? 'dark' : 'neutral' },
+            { label: 'Última sesión', value: latestExternal?.date ?? 'Sin registro' },
+            { label: 'Último partido', value: recentCompetition[0]?.date ?? 'Sin registro' },
+            { label: 'Minutos recientes', value: recentCompetition[0]?.minutesPlayed ?? 0 },
+            { label: 'Alertas actuales', value: alerts.length, tone: alerts.length ? 'amber' : 'green' },
+          ]} />
+        </div>
       </div>
 
+      <div className="player-detail-tabs no-print">
+        <span className="player-detail-tab">Resumen</span>
+        <span className="player-detail-tab">Carga</span>
+        <span className="player-detail-tab">Wellness</span>
+        <span className="player-detail-tab">Competencia</span>
+        <span className="player-detail-tab">Valoraciones</span>
+        <span className="player-detail-tab">Historial médico</span>
+      </div>
       {!master ? (
         <div className="card">
           <h3>Editar jugador</h3>

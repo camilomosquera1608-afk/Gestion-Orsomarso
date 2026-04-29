@@ -1,7 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { ChangeEvent, FormEvent, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
+import { EmptyState, FormSection, SectionHeader } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel, calcAge, formatBirthDateForDisplay } from '@/lib/labels';
@@ -32,7 +34,7 @@ export default function RegistroPage() {
     const birthDate = formatBirthDateForDisplay(String(form.get('birthDate')));
     addPlayer({
       id: crypto.randomUUID(),
-      name: String(form.get('name')),
+      name: String(form.get('name')).trim(),
       age: calcAge(birthDate) ?? 0,
       birthDate,
       position: String(form.get('position')) as Position,
@@ -44,38 +46,69 @@ export default function RegistroPage() {
     });
     event.currentTarget.reset();
     setPhotoPreview('/orsomarso-crest.jpg');
-    setMessage('Jugador creado correctamente.');
+    setMessage('Jugador agregado al plantel. La información quedó guardada en modo local seguro.');
   };
 
   return (
     <div className="grid">
-      <AppHero title="Registrar jugador" subtitle="Usa fecha de nacimiento en formato DD/MM/AAAA." />
-      {message ? <div className="card"><strong>{message}</strong></div> : null}
+      <AppHero title="Registro de plantilla" subtitle="Alta de jugadores con datos base, categoría y disponibilidad inicial." />
+
+      <div className="toolbar card">
+        <div>
+          <span className="section-eyebrow">Acción principal</span>
+          <h3 style={{ margin: 0 }}>Agregar jugador al plantel</h3>
+          <div className="muted-line">Completa los datos básicos del jugador.</div>
+        </div>
+        <div className="btn-row">
+          <Link className="btn secondary" href="/jugadores">Ver plantilla</Link>
+          <Link className="btn secondary" href="/diario">Volver al parte diario</Link>
+        </div>
+      </div>
+
+      {message ? <EmptyState icon="check" title="Registro guardado" text={message} action={<Link className="btn secondary" href="/jugadores">Revisar plantilla</Link>} /> : null}
+
       <form className="card grid" onSubmit={handlePlayerSubmit}>
-        <h3>Crear jugador</h3>
-        <div className="register-photo-box">
-          <img src={photoPreview} alt="Vista previa del jugador" className="register-photo-preview" />
-          <div className="field">
-            <label>Foto del jugador</label>
-            <input className="input" type="file" accept=".jpg,.jpeg,.png,image/png,image/jpeg" onChange={handlePhotoChange} />
+        <SectionHeader eyebrow="Formulario" title="Ficha base del jugador" subtitle="Información mínima del plantel." />
+
+        <FormSection title="Identificación" subtitle="Datos personales y foto de referencia del jugador.">
+          <div className="register-photo-box">
+            <img src={photoPreview} alt="Vista previa del jugador" className="register-photo-preview" />
+            <div className="field">
+              <label>Foto del jugador</label>
+              <input className="input" type="file" accept=".jpg,.jpeg,.png,image/png,image/jpeg" onChange={handlePhotoChange} />
+              <span className="field-help">Formato sugerido: JPG o PNG, rostro visible.</span>
+            </div>
           </div>
+          <div className="field">
+            <label>Nombre completo</label>
+            <input className="input" name="name" placeholder="Nombre y apellido" required />
+          </div>
+          <div className="grid grid-2">
+            <div className="field"><label>Fecha de nacimiento</label><input className="input" type="date" name="birthDate" required /></div>
+            <div className="field"><label>Estado inicial</label><select className="select" name="status" required>{statuses.map((s) => <option key={s}>{s}</option>)}</select></div>
+          </div>
+        </FormSection>
+
+        <FormSection title="Contexto deportivo" subtitle="Categoría, posición y datos físicos para lectura de rendimiento.">
+          <div className="grid grid-3">
+            <div className="field"><label>Posición</label><select className="select" name="position" required>{positions.map((p) => <option key={p}>{p}</option>)}</select></div>
+            {master ? (
+              <div className="field"><label>Categoría base</label><select className="select" name="category" required>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></div>
+            ) : (
+              <div className="field"><label>Categoría base</label><input className="input" name="category" value={categoryLabel(session.category)} readOnly /></div>
+            )}
+            
+          </div>
+          <div className="grid grid-2">
+            <div className="field"><label>Estatura (cm)</label><input className="input" type="number" step="0.01" name="height" placeholder="Ej. 178" required /></div>
+            <div className="field"><label>Peso (kg)</label><input className="input" type="number" step="0.01" name="weight" placeholder="Ej. 72.5" required /></div>
+          </div>
+        </FormSection>
+
+        <div className="toolbar">
+          <div className="muted-line">Después de guardar, abre la ficha del jugador para cargar seguimiento médico o revisar historial.</div>
+          <button className="btn" type="submit">Agregar jugador</button>
         </div>
-        <input className="input" name="name" placeholder="Nombre completo" required />
-        <div className="grid grid-3">
-          <input className="input" type="date" name="birthDate" required />
-          <select className="select" name="position" required>{positions.map((p) => <option key={p}>{p}</option>)}</select>
-          {master ? (
-            <select className="select" name="category" required>{categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select>
-          ) : (
-            <input className="input" name="category" value={categoryLabel(session.category)} readOnly />
-          )}
-        </div>
-        <div className="grid grid-2">
-          <input className="input" type="number" step="0.01" name="height" placeholder="Estatura (cm)" required />
-          <input className="input" type="number" step="0.01" name="weight" placeholder="Peso (kg)" required />
-        </div>
-        <select className="select" name="status" required>{statuses.map((s) => <option key={s}>{s}</option>)}</select>
-        <button className="btn" type="submit">Guardar jugador</button>
       </form>
     </div>
   );
