@@ -5,16 +5,14 @@ export const STAFF_AUTH_KEY = 'orsomarso_staff_auth_v2';
 /**
  * Local demo access only.
  *
- * These credentials are intentionally non-sensitive placeholders so the app can
- * be tested locally before Supabase Auth is implemented. They must not be used
- * as production security. The production line should replace this local gate
- * with authenticated users, roles and RLS policies in Supabase.
+ * The production flow uses Supabase Auth from /login. These credentials remain
+ * only as an optional fallback for development when explicitly enabled.
  */
 export const STAFF_CREDENTIALS: Record<StaffRole, { username: string; password: string; category?: ClubCategory; display: string }> = {
   sub15: { username: 'Sub15Local', password: 'local-sub15', category: 'Sub15', display: 'U15' },
   sub17: { username: 'Sub17Local', password: 'local-sub17', category: 'Sub17', display: 'U17' },
   sub20: { username: 'Sub20Local', password: 'local-sub20', category: 'Sub20', display: 'U20' },
-  master: { username: 'MaestroLocal', password: 'local-maestro', display: 'Maestro' },
+  master: { username: 'MaestroLocal', password: 'local-maestro', display: 'Dirección' },
 };
 
 export type StaffSession = {
@@ -22,6 +20,8 @@ export type StaffSession = {
   role: StaffRole | null;
   category: ClubCategory | 'all';
   displayName: string;
+  email?: string;
+  authProvider?: 'supabase' | 'local_demo';
 };
 
 const defaultSession: StaffSession = {
@@ -29,6 +29,20 @@ const defaultSession: StaffSession = {
   role: null,
   category: 'all',
   displayName: '',
+};
+
+const roleFromCategory = (category: ClubCategory | 'all'): StaffRole => {
+  if (category === 'Sub15') return 'sub15';
+  if (category === 'Sub17') return 'sub17';
+  if (category === 'Sub20') return 'sub20';
+  return 'master';
+};
+
+const displayFromCategory = (category: ClubCategory | 'all') => {
+  if (category === 'Sub15') return 'U15';
+  if (category === 'Sub17') return 'U17';
+  if (category === 'Sub20') return 'U20';
+  return 'Dirección';
 };
 
 export const getStaffSession = (): StaffSession => {
@@ -46,8 +60,28 @@ export const getStaffSession = (): StaffSession => {
 
 export const isStaffAuthenticated = () => getStaffSession().isAuthenticated;
 
+export const setStaffSession = (session: StaffSession) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STAFF_AUTH_KEY, JSON.stringify(session));
+  }
+};
+
+export const createSupabaseStaffSession = (email: string, category: ClubCategory | 'all' = 'Sub20'): StaffSession => {
+  const role = roleFromCategory(category);
+  const session: StaffSession = {
+    isAuthenticated: true,
+    role,
+    category,
+    displayName: displayFromCategory(category),
+    email: email.trim().toLowerCase(),
+    authProvider: 'supabase',
+  };
+  setStaffSession(session);
+  return session;
+};
+
 export const loginStaff = (user: string, password: string) => {
-  const localDemoAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_LOCAL_DEMO_AUTH !== 'false';
+  const localDemoAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_LOCAL_DEMO_AUTH === 'true';
   if (!localDemoAuthEnabled) return { ok: false as const, session: defaultSession };
 
   const normalizedUser = user.trim().toLowerCase();
@@ -60,10 +94,9 @@ export const loginStaff = (user: string, password: string) => {
     role,
     category: value.category ?? 'all',
     displayName: value.display,
+    authProvider: 'local_demo',
   };
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(STAFF_AUTH_KEY, JSON.stringify(session));
-  }
+  setStaffSession(session);
   return { ok: true as const, session };
 };
 

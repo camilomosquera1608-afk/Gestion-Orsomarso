@@ -37,18 +37,18 @@ export default function ResetPasswordPage() {
 
     setPassword('');
     setConfirmPassword('');
-    setMessage('Contraseña actualizada. Ya puedes iniciar sesión remota desde Configuración.');
+    setMessage('Contraseña actualizada. Ya puedes iniciar sesión.');
   };
 
   return (
     <div className="grid">
-      <AppHero title="Recuperar contraseña" subtitle="Actualiza el acceso remoto de Supabase." />
+      <AppHero title="Recuperar contraseña" subtitle="Crea una nueva contraseña de acceso." />
 
       <div className="card">
-        <SectionHeader eyebrow="Supabase" title="Nueva contraseña" subtitle={userEmail ? `Sesión de recuperación: ${userEmail}` : 'Abre esta pantalla desde el enlace enviado por Supabase.'} />
+        <SectionHeader eyebrow="Acceso" title="Nueva contraseña" subtitle={userEmail ? `Cuenta: ${userEmail}` : 'Abre esta pantalla desde el correo de recuperación.'} />
 
         {!hasSupabaseConfig || !tableSchemaSyncEnabled ? (
-          <EmptyState title="Supabase desactivado" text="Activa table_schema en .env.local para usar recuperación de contraseña." />
+          <EmptyState title="Supabase desactivado" text="Revisa las variables de entorno." />
         ) : (
           <div className="grid grid-2">
             <label className="field">Nueva contraseña
@@ -59,24 +59,12 @@ export default function ResetPasswordPage() {
             </label>
             <div className="btn-row">
               <button type="button" className="btn" onClick={handleUpdatePassword}>Actualizar contraseña</button>
-              <Link className="btn secondary" href="/configuracion">Ir a Configuración</Link>
+              <Link className="btn secondary" href="/login">Ir a login</Link>
             </div>
           </div>
         )}
 
         {message && <div className="empty" style={{ marginTop: 12 }}>{message}</div>}
-      </div>
-
-      <div className="card">
-        <SectionHeader eyebrow="Configuración requerida" title="URLs permitidas en Supabase" />
-        <div className="mini-stat-card">
-          <strong>Local</strong>
-          <div className="muted-line">http://localhost:3000/reset-password</div>
-        </div>
-        <div className="mini-stat-card" style={{ marginTop: 10 }}>
-          <strong>Producción</strong>
-          <div className="muted-line">https://tu-dominio.vercel.app/reset-password</div>
-        </div>
       </div>
     </div>
   );

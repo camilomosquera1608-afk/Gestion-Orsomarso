@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
+import { signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { ORSOMARSO_BRAND } from '@/lib/design-system';
 
 const staffGroups = [
@@ -107,8 +108,8 @@ export const Sidebar = () => {
       <div className="sidebar-status">
         <ShieldCheck size={16} />
         <div>
-          <strong>Local seguro</strong>
-          <span>Sin conexión remota</span>
+          <strong>{session.authProvider === 'supabase' ? 'Supabase' : 'Demo local'}</strong>
+          <span>{tableSchemaSyncEnabled ? 'Conexión remota' : 'Modo local'}</span>
         </div>
       </div>
 
@@ -135,7 +136,8 @@ export const Sidebar = () => {
       <button
         type="button"
         className="nav-link nav-logout"
-        onClick={() => {
+        onClick={async () => {
+          await signOutSupabase();
           logoutStaff();
           router.push('/login');
         }}

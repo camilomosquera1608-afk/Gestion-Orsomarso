@@ -20,9 +20,10 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
 
   const isPlayerWellness = pathname.startsWith('/wellness-jugadores');
   const isLogin = pathname.startsWith('/login');
+  const isResetPassword = pathname.startsWith('/reset-password');
 
   useEffect(() => {
-    if (isPlayerWellness) {
+    if (isPlayerWellness || isResetPassword) {
       setAllowed(true);
       return;
     }
@@ -53,7 +54,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     }
 
     setAllowed(true);
-  }, [pathname, router, isPlayerWellness, isLogin]);
+  }, [pathname, router, isPlayerWellness, isLogin, isResetPassword]);
 
   const topContext = useMemo(() => {
     const session = getStaffSession();
@@ -77,7 +78,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
 
   if (!allowed) return <main className="main main-public"><div className="empty">Cargando acceso…</div></main>;
 
-  if (isPlayerWellness || isLogin) {
+  if (isPlayerWellness || isLogin || isResetPassword) {
     return <main className="main main-public">{children}</main>;
   }
 
