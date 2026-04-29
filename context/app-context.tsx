@@ -175,7 +175,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
         setSyncStatus('syncing');
         const remote = await fetchSupabaseTablesAppData(supabase);
-        if (remote.ok && Object.values(remote.data).some((value) => Array.isArray(value) && value.length > 0)) {
+        if (remote.ok) {
+          // In table-schema mode, Supabase is the source of truth. Empty arrays are valid.
+          // Never fall back to mock/local data after a successful remote read; that creates ghost records on refresh.
           const next = hydrateData(remote.data);
           setData(next);
           dataRef.current = next;

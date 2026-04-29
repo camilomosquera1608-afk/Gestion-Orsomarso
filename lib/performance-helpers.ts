@@ -1,6 +1,29 @@
-import { AppData, CompetitionMatchSummary, CompetitionRecord, MatchResultType, Microcycle, Player } from './types';
+import {
+  AppData,
+  CMJRecord,
+  CompetitionMatchSummary,
+  CompetitionRecord,
+  DailyExternalLoadRecord,
+  DailyInternalLoadRecord,
+  DailyWellnessRecord,
+  FMSRecord,
+  MatchResultType,
+  Microcycle,
+  NeuromuscularRecord,
+  NutritionRecord,
+  Player,
+  TrainingSessionSummary,
+} from './types';
 
 export const asArray = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
+
+const hasOwnArray = <K extends keyof AppData>(stored: Partial<AppData> | null | undefined, key: K): stored is Partial<AppData> & Record<K, unknown[]> => {
+  return !!stored && Object.prototype.hasOwnProperty.call(stored, key) && Array.isArray(stored[key]);
+};
+
+const pickArray = <T, K extends keyof AppData>(stored: Partial<AppData> | null | undefined, fallback: AppData, key: K): T[] => {
+  return hasOwnArray(stored, key) ? (stored[key] as T[]) : ((fallback[key] as T[] | undefined) ?? []);
+};
 
 export const isGoalkeeper = (player?: Pick<Player, 'position'> | null) => player?.position === 'Portero';
 
@@ -39,7 +62,7 @@ export const findMicrocycleByDate = (microcycles: Microcycle[], date: string, pr
 };
 
 const ensureMicrocycles = (stored: Partial<AppData> | null | undefined, fallback: AppData): Microcycle[] => {
-  const source = asArray(stored?.microcycles).length ? asArray(stored?.microcycles) : asArray(fallback.microcycles);
+  const source = pickArray<Microcycle, 'microcycles'>(stored, fallback, 'microcycles');
   const byId = new Map<string, Microcycle>();
   source.forEach((item, index) => {
     if (!item) return;
@@ -76,7 +99,7 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
   const microcycles = ensureMicrocycles(stored, fallback);
   const defaultMicrocycleId = microcycles[0]?.id ?? fallback.microcycles[0]?.id ?? 'mc-1';
 
-  const players = (asArray(stored?.players).length ? asArray(stored?.players) : fallback.players).map((player) => ({
+  const players = pickArray<Player, 'players'>(stored, fallback, 'players').map((player) => ({
     ...player,
     category: player.category ?? 'Sub20',
     categoryHistory: player.categoryHistory?.length ? player.categoryHistory : [player.category ?? 'Sub20'],
@@ -84,19 +107,19 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
 
   const getPlayer = (playerId: string) => players.find((player) => player.id === playerId);
 
-  const matchSummaries = (asArray(stored?.competitionMatchSummaries).length ? asArray(stored?.competitionMatchSummaries) : asArray(fallback.competitionMatchSummaries)).map(normalizeMatchSummary);
+  const matchSummaries = pickArray<CompetitionMatchSummary, 'competitionMatchSummaries'>(stored, fallback, 'competitionMatchSummaries').map(normalizeMatchSummary);
 
   return {
     ...fallback,
     ...stored,
     players,
-    wellness: asArray(stored?.wellness).length ? asArray(stored?.wellness) : fallback.wellness,
-    internalLoads: (asArray(stored?.internalLoads).length ? asArray(stored?.internalLoads) : fallback.internalLoads).map((record) => ({
+    wellness: pickArray<DailyWellnessRecord, 'wellness'>(stored, fallback, 'wellness'),
+    internalLoads: pickArray<DailyInternalLoadRecord, 'internalLoads'>(stored, fallback, 'internalLoads').map((record) => ({
       ...record,
       microcycleId: record.microcycleId ?? findMicrocycleByDate(microcycles, record.date)?.id ?? defaultMicrocycleId,
       sessionNumber: record.sessionNumber ?? 1,
     })),
-    externalLoads: (asArray(stored?.externalLoads).length ? asArray(stored?.externalLoads) : fallback.externalLoads).map((record) => ({
+    externalLoads: pickArray<DailyExternalLoadRecord, 'externalLoads'>(stored, fallback, 'externalLoads').map((record) => ({
       ...record,
       microcycleId: record.microcycleId ?? findMicrocycleByDate(microcycles, record.date)?.id ?? defaultMicrocycleId,
       sessionNumber: record.sessionNumber ?? 1,
@@ -109,12 +132,12 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
       movementType: record.movementType ?? 'base',
       movementModule: record.movementModule ?? 'sesion',
     })),
-    cmjRecords: asArray(stored?.cmjRecords).length ? asArray(stored?.cmjRecords) : fallback.cmjRecords,
-    nutritionRecords: asArray(stored?.nutritionRecords).length ? asArray(stored?.nutritionRecords) : fallback.nutritionRecords,
-    neuromuscularRecords: asArray(stored?.neuromuscularRecords).length ? asArray(stored?.neuromuscularRecords) : fallback.neuromuscularRecords,
-    fmsRecords: asArray(stored?.fmsRecords).length ? asArray(stored?.fmsRecords) : fallback.fmsRecords,
+    cmjRecords: pickArray<CMJRecord, 'cmjRecords'>(stored, fallback, 'cmjRecords'),
+    nutritionRecords: pickArray<NutritionRecord, 'nutritionRecords'>(stored, fallback, 'nutritionRecords'),
+    neuromuscularRecords: pickArray<NeuromuscularRecord, 'neuromuscularRecords'>(stored, fallback, 'neuromuscularRecords'),
+    fmsRecords: pickArray<FMSRecord, 'fmsRecords'>(stored, fallback, 'fmsRecords'),
     competitionMatchSummaries: matchSummaries,
-    competitionRecords: (asArray(stored?.competitionRecords).length ? asArray(stored?.competitionRecords) : fallback.competitionRecords).map((record) => {
+    competitionRecords: pickArray<CompetitionRecord, 'competitionRecords'>(stored, fallback, 'competitionRecords').map((record) => {
       const player = getPlayer(record.playerId);
       const match = matchSummaries.find((item) => item.id === record.matchId || (item.date === record.date && item.opponent === record.opponent));
       const goalkeeper = isGoalkeeper(player);
@@ -139,7 +162,7 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
         movementModule: record.movementModule ?? 'competencia',
       } as CompetitionRecord;
     }),
-    trainingSessionSummaries: (asArray(stored?.trainingSessionSummaries).length ? asArray(stored?.trainingSessionSummaries) : fallback.trainingSessionSummaries).map((record) => ({
+    trainingSessionSummaries: pickArray<TrainingSessionSummary, 'trainingSessionSummaries'>(stored, fallback, 'trainingSessionSummaries').map((record) => ({
       ...record,
       microcycleId: record.microcycleId ?? findMicrocycleByDate(microcycles, record.date)?.id ?? defaultMicrocycleId,
     })),
