@@ -121,3 +121,48 @@ export async function saveRemoteAppState(payload: unknown) {
 
   return { ok: true };
 }
+
+export async function fetchCurrentUserProfile() {
+  if (!supabase || !tableSchemaSyncEnabled) {
+    return { ok: false as const, reason: 'Supabase no está configurado en modo table_schema.' };
+  }
+
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) return { ok: false as const, reason: userError.message };
+  const user = userData.user;
+  if (!user) return { ok: false as const, reason: 'No hay sesión activa.' };
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role, category_scope, access_level, is_active')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error) return { ok: false as const, reason: error.message };
+  if (!data) return { ok: false as const, reason: 'Tu usuario no tiene perfil asignado. Solicita rol y categoría al administrador.' };
+  if (data.is_active === false) return { ok: false as const, reason: 'Tu perfil está desactivado.' };
+
+  return {
+    ok: true as const,
+    profile: {
+      id: String(data.id),
+      email: String(data.email ?? user.email ?? '').toLowerCase(),
+      fullName: data.full_name ?? null,
+      role: data.role,
+      categoryScope: data.category_scope,
+      accessLevel: data.access_level,
+      isActive: Boolean(data.is_active),
+    },
+  };
+}
+
+export async function fetchAuditLogs(limit = 80) {
+  if (!supabase || !tableSchemaSyncEnabled) return { ok: false as const, reason: 'Supabase no está configurado.' };
+  const { data, error } = await supabase
+    .from('audit_logs')
+    .select('id, actor_email, actor_role, action, table_name, record_id, record_label, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) return { ok: false as const, reason: error.message };
+  return { ok: true as const, logs: data ?? [] };
+}

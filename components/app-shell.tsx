@@ -10,8 +10,6 @@ import { categoryLabel } from '@/lib/labels';
 import { findMicrocycleByDate } from '@/lib/utils';
 import { formatDateShort } from '@/lib/operational-helpers';
 
-const MASTER_ALLOWED = ['/ejecutivo', '/disponibilidad', '/carga', '/wellness', '/alertas', '/informes', '/jugadores', '/ranking'];
-
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
@@ -43,14 +41,6 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     if (!authed) {
       router.replace('/login');
       return;
-    }
-
-    if (isMasterRole(session)) {
-      const isAllowedRoute = MASTER_ALLOWED.some((route) => pathname === route || pathname.startsWith(`${route}/`));
-      if (!isAllowedRoute) {
-        router.replace('/informes');
-        return;
-      }
     }
 
     setAllowed(true);

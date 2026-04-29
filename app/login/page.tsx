@@ -2,17 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { LogIn, Mail, ShieldCheck } from 'lucide-react';
-import { createSupabaseStaffSession, loginStaff, STAFF_CREDENTIALS } from '@/lib/auth';
-import type { ClubCategory } from '@/lib/types';
-import { hasSupabaseConfig, sendSupabasePasswordReset, signInSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
+import { createSupabaseStaffSessionFromProfile, loginStaff, STAFF_CREDENTIALS } from '@/lib/auth';
+import { fetchCurrentUserProfile, hasSupabaseConfig, sendSupabasePasswordReset, signInSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
 const accessList = Object.values(STAFF_CREDENTIALS);
-type WorkScope = ClubCategory | 'all';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [category, setCategory] = useState<WorkScope>('Sub20');
   const [demoUser, setDemoUser] = useState('');
   const [demoPassword, setDemoPassword] = useState('');
   const [error, setError] = useState('');
@@ -39,8 +36,14 @@ export default function LoginPage() {
       return;
     }
 
-    createSupabaseStaffSession(result.user?.email ?? email, category);
-    window.location.assign(category === 'all' ? '/ejecutivo' : '/');
+    const profileResult = await fetchCurrentUserProfile();
+    if (!profileResult.ok) {
+      setError(profileResult.reason ?? 'Tu usuario no tiene perfil asignado.');
+      return;
+    }
+
+    const session = createSupabaseStaffSessionFromProfile(profileResult.profile);
+    window.location.assign(session.category === 'all' ? '/ejecutivo' : '/');
   };
 
   const handlePasswordReset = async () => {
@@ -78,7 +81,7 @@ export default function LoginPage() {
       <div className="login-card login-card-wide">
         <div className="login-brand">Orsomarso SC Performance</div>
         <h1>Iniciar sesión</h1>
-        <p className="login-subtitle">Acceso seguro con correo y contraseña.</p>
+        <p className="login-subtitle">Acceso seguro. Tu rol y categoría se asignan desde Supabase.</p>
 
         <form onSubmit={onSupabaseSubmit} className="grid">
           <div className="field">
@@ -88,15 +91,6 @@ export default function LoginPage() {
           <div className="field">
             <label>Contraseña</label>
             <input className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Contraseña" autoComplete="current-password" />
-          </div>
-          <div className="field">
-            <label>Área de trabajo</label>
-            <select className="input" value={category} onChange={(event) => setCategory(event.target.value as WorkScope)}>
-              <option value="Sub20">U20</option>
-              <option value="Sub17">U17</option>
-              <option value="Sub15">U15</option>
-              <option value="all">Dirección</option>
-            </select>
           </div>
           <button className="btn" type="submit"><LogIn size={18} /> Entrar</button>
         </form>

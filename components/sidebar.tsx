@@ -89,8 +89,8 @@ export const Sidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
   const session = getStaffSession();
-  const groups = session.role === 'master' ? masterGroups : staffGroups;
-  const displayCategory = session.role === 'master' ? 'Maestro' : categoryLabel(session.category);
+  const groups = staffGroups;
+  const displayCategory = session.category === 'all' ? 'Todas' : categoryLabel(session.category);
 
   return (
     <aside className="sidebar premium-sidebar">

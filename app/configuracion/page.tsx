@@ -6,7 +6,8 @@ import { AppHero } from '@/components/app-hero';
 import { EmptyState, SectionHeader } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
-import { getSupabaseUserEmail, hasSupabaseConfig, signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
+import { CATEGORY_SCOPE_LABELS, ROLE_LABELS } from '@/lib/access-control';
+import { fetchAuditLogs, getSupabaseUserEmail, hasSupabaseConfig, signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
 const formatDate = (value: string) => new Date(value).toLocaleString('es-CO', {
   dateStyle: 'medium',
@@ -30,10 +31,12 @@ export default function ConfiguracionPage() {
   const [message, setMessage] = useState('');
   const [supabaseUser, setSupabaseUser] = useState<string | null>(null);
   const [remoteMessage, setRemoteMessage] = useState('');
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const session = getStaffSession();
 
   useEffect(() => {
     void getSupabaseUserEmail().then(setSupabaseUser);
+    void fetchAuditLogs(30).then((result) => { if (result.ok) setAuditLogs(result.logs); });
   }, []);
 
   const shareLink = typeof window !== 'undefined' ? `${window.location.origin}/wellness-jugadores` : '/wellness-jugadores';
@@ -91,6 +94,8 @@ export default function ConfiguracionPage() {
           <div className="grid" style={{ gap: 10 }}>
             <div className="mini-stat-card"><strong>Correo</strong><div className="muted-line">{supabaseUser ?? session.email ?? 'No disponible'}</div></div>
             <div className="mini-stat-card"><strong>Área</strong><div className="muted-line">{session.displayName || 'Sin área'}</div></div>
+            <div className="mini-stat-card"><strong>Rol</strong><div className="muted-line">{session.platformRole ? ROLE_LABELS[session.platformRole] : 'No asignado'}</div></div>
+            <div className="mini-stat-card"><strong>Alcance</strong><div className="muted-line">{session.categoryScope ? CATEGORY_SCOPE_LABELS[session.categoryScope] : 'No asignado'} · {session.accessLevel === 'read' ? 'Solo lectura' : 'Edición completa'}</div></div>
             <button type="button" className="btn secondary" onClick={handleSupabaseSignOut}>Cerrar sesión</button>
           </div>
         </div>
@@ -151,6 +156,38 @@ export default function ConfiguracionPage() {
           <div className="copy-link">{shareLink}</div>
           <button type="button" className="btn secondary" onClick={() => navigator.clipboard.writeText(shareLink)}>Copiar link</button>
         </div>
+      </div>
+
+      <div className="card">
+        <SectionHeader eyebrow="Auditoría" title="Cambios recientes" />
+        {auditLogs.length === 0 ? (
+          <EmptyState title="Sin auditoría" text="Los próximos cambios quedarán registrados." />
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Usuario</th>
+                  <th>Acción</th>
+                  <th>Tabla</th>
+                  <th>Registro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td>{formatDate(log.created_at)}</td>
+                    <td>{log.actor_email ?? "Sistema"}</td>
+                    <td>{log.action}</td>
+                    <td>{log.table_name}</td>
+                    <td>{log.record_label ?? log.record_id ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card">

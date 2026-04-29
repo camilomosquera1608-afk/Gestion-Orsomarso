@@ -1,4 +1,5 @@
 import { ClubCategory, StaffRole } from './types';
+import type { AccessLevel, CategoryScope, PlatformRole, UserProfile } from './access-control';
 
 export const STAFF_AUTH_KEY = 'orsomarso_staff_auth_v2';
 
@@ -22,6 +23,10 @@ export type StaffSession = {
   displayName: string;
   email?: string;
   authProvider?: 'supabase' | 'local_demo';
+  platformRole?: PlatformRole;
+  categoryScope?: CategoryScope;
+  accessLevel?: AccessLevel;
+  profileId?: string;
 };
 
 const defaultSession: StaffSession = {
@@ -72,8 +77,30 @@ export const createSupabaseStaffSession = (email: string, category: ClubCategory
     isAuthenticated: true,
     role,
     category,
+    categoryScope: category === 'all' ? 'ALL' : category,
+    accessLevel: 'full',
+    platformRole: category === 'all' ? 'admin' : 'category_admin',
     displayName: displayFromCategory(category),
     email: email.trim().toLowerCase(),
+    authProvider: 'supabase',
+  };
+  setStaffSession(session);
+  return session;
+};
+
+export const createSupabaseStaffSessionFromProfile = (profile: UserProfile): StaffSession => {
+  const category = profile.categoryScope === 'ALL' ? 'all' : profile.categoryScope;
+  const role = roleFromCategory(category);
+  const session: StaffSession = {
+    isAuthenticated: true,
+    role,
+    category,
+    categoryScope: profile.categoryScope,
+    accessLevel: profile.accessLevel,
+    platformRole: profile.role,
+    profileId: profile.id,
+    displayName: profile.fullName || displayFromCategory(category),
+    email: profile.email.trim().toLowerCase(),
     authProvider: 'supabase',
   };
   setStaffSession(session);
@@ -89,10 +116,14 @@ export const loginStaff = (user: string, password: string) => {
   const entry = Object.entries(STAFF_CREDENTIALS).find(([, value]) => value.username.toLowerCase() === normalizedUser && value.password === normalizedPassword);
   if (!entry) return { ok: false as const, session: defaultSession };
   const [role, value] = entry as [StaffRole, (typeof STAFF_CREDENTIALS)[StaffRole]];
+  const category = value.category ?? 'all';
   const session: StaffSession = {
     isAuthenticated: true,
     role,
-    category: value.category ?? 'all',
+    category,
+    categoryScope: category === 'all' ? 'ALL' : category,
+    accessLevel: 'full',
+    platformRole: category === 'all' ? 'admin' : 'category_admin',
     displayName: value.display,
     authProvider: 'local_demo',
   };
@@ -106,5 +137,5 @@ export const logoutStaff = () => {
   }
 };
 
-export const getAllowedCategory = (session: StaffSession): ClubCategory | 'all' => session.role === 'master' ? 'all' : session.category;
-export const isMasterRole = (session: StaffSession) => session.role === 'master';
+export const getAllowedCategory = (session: StaffSession): ClubCategory | 'all' => session.categoryScope === 'ALL' || session.role === 'master' ? 'all' : session.category;
+export const isMasterRole = (session: StaffSession) => session.categoryScope === 'ALL' || session.role === 'master' || session.platformRole === 'admin';

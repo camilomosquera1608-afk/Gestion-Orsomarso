@@ -7,6 +7,7 @@ import { fetchSupabaseTablesAppData, saveSupabaseTablesAppData } from '@/lib/sup
 import { createLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAppData, saveLocalAppData } from '@/lib/app-storage';
 import type { LocalBackupMeta } from '@/lib/app-storage';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
+import { canWrite, filterAppDataForSession } from '@/lib/access-control';
 import { findMicrocycleByDate } from '@/lib/utils';
 import { normalizeAppData } from '@/lib/performance-helpers';
 import { AppData, CMJRecord, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
@@ -56,6 +57,8 @@ interface AppContextValue {
   exportAppDataJson: () => string;
   forceSync: () => Promise<void>;
   pushLocalToRemote: () => Promise<void>;
+  canEdit: boolean;
+  permissionMessage: string;
 }
 
 const defaultFilters: GlobalFilters = {
@@ -84,13 +87,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [localBackups, setLocalBackups] = useState<LocalBackupMeta[]>([]);
   const dataRef = useRef<AppData>(initialData);
   const backendMode: 'supabase' | 'local' = hasSupabaseConfig ? 'supabase' : 'local';
+  const currentSession = getStaffSession();
+  const canEdit = !currentSession.isAuthenticated || canWrite(currentSession);
+  const permissionMessage = currentSession.isAuthenticated && !canWrite(currentSession) ? 'Tu perfil es de solo lectura.' : 'Cambios guardados automaticamente.';
 
   const persistData = async (nextData: AppData) => {
     saveLocalAppData(nextData);
     setLocalBackups(listLocalBackups());
     if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
       setSyncStatus('syncing');
-      const result = await saveSupabaseTablesAppData(supabase, nextData);
+      const session = getStaffSession();
+      const scopedData = filterAppDataForSession(nextData, session);
+      const result = await saveSupabaseTablesAppData(supabase, scopedData);
       setSyncStatus(result.ok ? 'ready' : 'error');
     } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
       setSyncStatus('syncing');
@@ -103,6 +111,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const applyMutation = (updater: (prev: AppData) => AppData) => {
     setData((prev) => {
+      const session = getStaffSession();
+      if (session.isAuthenticated && !canWrite(session)) {
+        setSyncStatus('error');
+        return prev;
+      }
       const next = updater(prev);
       dataRef.current = next;
       void persistData(next);
@@ -212,7 +225,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     if (!hasSupabaseConfig) return;
     setSyncStatus('syncing');
     if (tableSchemaSyncEnabled && supabase) {
-      const result = await saveSupabaseTablesAppData(supabase, dataRef.current);
+      const session = getStaffSession();
+      const scopedData = filterAppDataForSession(dataRef.current, session);
+      const result = await saveSupabaseTablesAppData(supabase, scopedData);
       setSyncStatus(result.ok ? 'ready' : 'error');
       return;
     }
@@ -408,7 +423,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     exportAppDataJson,
     forceSync,
     pushLocalToRemote,
-  }), [data, filters, backendMode, syncStatus, localBackups]);
+    canEdit,
+    permissionMessage,
+  }), [data, filters, backendMode, syncStatus, localBackups, canEdit, permissionMessage]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
