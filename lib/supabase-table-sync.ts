@@ -307,6 +307,20 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
   }
 };
 
+
+export const deleteSupabaseTableRowByLegacyId = async (supabase: SupabaseClient, table: string, legacyId: string): Promise<SyncResult> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return { ok: false, reason: 'not_authenticated' };
+
+  try {
+    const { error } = await supabase.from(table).delete().eq('legacy_id', legacyId);
+    if (error) throw error;
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: isAuthError(error) ? 'not_authorized' : 'delete_failed', error };
+  }
+};
+
 export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: AppData): Promise<SyncResult> => {
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) return { ok: false, reason: 'not_authenticated' };

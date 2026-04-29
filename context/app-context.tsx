@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, legacyAppStateSyncEnabled, saveRemoteAppState, supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
-import { fetchSupabaseTablesAppData, saveSupabaseTablesAppData } from '@/lib/supabase-table-sync';
+import { deleteSupabaseTableRowByLegacyId, fetchSupabaseTablesAppData, saveSupabaseTablesAppData } from '@/lib/supabase-table-sync';
 import { createLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAppData, saveLocalAppData } from '@/lib/app-storage';
 import type { LocalBackupMeta } from '@/lib/app-storage';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
@@ -86,20 +86,56 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ready' | 'error'>('idle');
   const [localBackups, setLocalBackups] = useState<LocalBackupMeta[]>([]);
   const dataRef = useRef<AppData>(initialData);
+  const remoteRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipRemoteRefreshUntilRef = useRef(0);
+  const lastRemotePullRef = useRef(0);
   const backendMode: 'supabase' | 'local' = hasSupabaseConfig ? 'supabase' : 'local';
   const currentSession = getStaffSession();
   const canEdit = !currentSession.isAuthenticated || canWrite(currentSession);
   const permissionMessage = currentSession.isAuthenticated && !canWrite(currentSession) ? 'Tu perfil es de solo lectura.' : 'Cambios guardados automaticamente.';
 
+  const refreshFromSupabase = async (source: 'manual' | 'realtime' | 'poll' = 'manual') => {
+    if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase) return;
+    if (source !== 'manual' && Date.now() < skipRemoteRefreshUntilRef.current) return;
+
+    setSyncStatus(source === 'manual' ? 'syncing' : 'ready');
+    const remote = await fetchSupabaseTablesAppData(supabase);
+    if (!remote.ok) {
+      setSyncStatus('error');
+      return;
+    }
+
+    const next = hydrateData(remote.data);
+    const currentSnapshot = JSON.stringify(dataRef.current);
+    const nextSnapshot = JSON.stringify(next);
+    if (currentSnapshot !== nextSnapshot) {
+      setData(next);
+      dataRef.current = next;
+      saveLocalAppData(next);
+      setLocalBackups(listLocalBackups());
+    }
+    lastRemotePullRef.current = Date.now();
+    setSyncStatus('ready');
+  };
+
+  const scheduleRemoteRefresh = (source: 'realtime' | 'poll') => {
+    if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
+    remoteRefreshTimerRef.current = setTimeout(() => {
+      void refreshFromSupabase(source);
+    }, source === 'realtime' ? 650 : 0);
+  };
+
   const persistData = async (nextData: AppData) => {
     saveLocalAppData(nextData);
     setLocalBackups(listLocalBackups());
     if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
+      skipRemoteRefreshUntilRef.current = Date.now() + 2500;
       setSyncStatus('syncing');
       const session = getStaffSession();
       const scopedData = filterAppDataForSession(nextData, session);
       const result = await saveSupabaseTablesAppData(supabase, scopedData);
       setSyncStatus(result.ok ? 'ready' : 'error');
+      skipRemoteRefreshUntilRef.current = Date.now() + 1200;
     } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
       setSyncStatus('syncing');
       const result = await saveRemoteAppState(nextData);
@@ -121,6 +157,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       void persistData(next);
       return next;
     });
+  };
+
+
+  const deleteRemoteLegacy = async (table: string, legacyId: string) => {
+    if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase) return;
+    const session = getStaffSession();
+    if (session.isAuthenticated && !canWrite(session)) return;
+    skipRemoteRefreshUntilRef.current = Date.now() + 2500;
+    const result = await deleteSupabaseTableRowByLegacyId(supabase, table, legacyId);
+    setSyncStatus(result.ok ? 'ready' : 'error');
+    skipRemoteRefreshUntilRef.current = Date.now() + 1200;
   };
 
   useEffect(() => {
@@ -193,20 +240,56 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     return () => clearInterval(interval);
   }, [isHydrated]);
 
+
+  useEffect(() => {
+    if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase || !isHydrated) return;
+
+    const supabaseClient = supabase;
+
+    const realtimeTables = [
+      'players',
+      'microcycles',
+      'daily_wellness',
+      'daily_internal_loads',
+      'daily_external_loads',
+      'training_sessions',
+      'competition_matches',
+      'competition_players',
+      'nutrition_records',
+      'cmj_records',
+      'neuromuscular_records',
+      'fms_records',
+      'medical_notes',
+    ];
+
+    let channel = supabaseClient.channel('orsomarso-v99-live-sync');
+    realtimeTables.forEach((table) => {
+      channel = channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table },
+        () => scheduleRemoteRefresh('realtime'),
+      );
+    });
+
+    channel.subscribe();
+
+    const interval = setInterval(() => {
+      const shouldPoll = Date.now() - lastRemotePullRef.current > 12000;
+      if (shouldPoll) scheduleRemoteRefresh('poll');
+    }, 15000);
+
+    return () => {
+      if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
+      clearInterval(interval);
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [isHydrated]);
+
   const forceSync = async () => {
     if (!hasSupabaseConfig) return;
     setSyncStatus('syncing');
     if (tableSchemaSyncEnabled && supabase) {
-      const remote = await fetchSupabaseTablesAppData(supabase);
-      if (remote.ok) {
-        const next = hydrateData(remote.data);
-        setData(next);
-        dataRef.current = next;
-        saveLocalAppData(next);
-        setSyncStatus('ready');
-      } else {
-        setSyncStatus('error');
-      }
+      await refreshFromSupabase('manual');
       return;
     }
 
@@ -350,7 +433,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         )
         .sort((a, b) => a.name.localeCompare(b.name)),
     })),
-    deletePlayer: (playerId) => applyMutation((prev) => ({
+    deletePlayer: (playerId) => {
+      applyMutation((prev) => ({
       ...prev,
       players: prev.players.filter((p) => p.id !== playerId),
       wellness: prev.wellness.filter((x) => x.playerId !== playerId),
@@ -361,7 +445,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       neuromuscularRecords: prev.neuromuscularRecords.filter((x) => x.playerId !== playerId),
       fmsRecords: prev.fmsRecords.filter((x) => x.playerId !== playerId),
       competitionRecords: prev.competitionRecords.filter((x) => x.playerId !== playerId),
-    })),
+      }));
+      void deleteRemoteLegacy('players', playerId);
+    },
     addWellness: (record) => applyMutation((prev) => ({ ...prev, wellness: [record, ...prev.wellness] })),
     upsertWellness: (record) => applyMutation((prev) => ({
       ...prev,
@@ -373,27 +459,51 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       internalLoads: [{ ...record, microcycleId: record.microcycleId ?? filters.microcycleId, sessionNumber: record.sessionNumber ?? filters.sessionNumber }, ...prev.internalLoads.filter((item) => !(item.playerId === record.playerId && item.date === record.date && (item.sessionNumber ?? filters.sessionNumber) === (record.sessionNumber ?? filters.sessionNumber)))],
     })),
     updateInternalLoad: (record) => applyMutation((prev) => ({ ...prev, internalLoads: prev.internalLoads.map((item) => item.id === record.id ? record : item) })),
-    deleteInternalLoad: (recordId) => applyMutation((prev) => ({ ...prev, internalLoads: prev.internalLoads.filter((item) => item.id !== recordId) })),
+    deleteInternalLoad: (recordId) => {
+      applyMutation((prev) => ({ ...prev, internalLoads: prev.internalLoads.filter((item) => item.id !== recordId) }));
+      void deleteRemoteLegacy('daily_internal_loads', recordId);
+    },
     addExternalLoad: (record) => applyMutation((prev) => ({ ...prev, externalLoads: [{ ...record, microcycleId: record.microcycleId ?? filters.microcycleId, sessionNumber: record.sessionNumber ?? filters.sessionNumber, sessionType: record.sessionType ?? 'cdEf', participation: record.participation ?? 'Completa' }, ...prev.externalLoads] })),
     updateExternalLoad: (record) => applyMutation((prev) => ({ ...prev, externalLoads: prev.externalLoads.map((item) => item.id === record.id ? record : item) })),
-    deleteExternalLoad: (recordId) => applyMutation((prev) => ({ ...prev, externalLoads: prev.externalLoads.filter((item) => item.id !== recordId) })),
+    deleteExternalLoad: (recordId) => {
+      applyMutation((prev) => ({ ...prev, externalLoads: prev.externalLoads.filter((item) => item.id !== recordId) }));
+      void deleteRemoteLegacy('daily_external_loads', recordId);
+    },
     addCMJRecord: (record) => applyMutation((prev) => ({ ...prev, cmjRecords: [record, ...prev.cmjRecords] })),
     updateCMJRecord: (record) => applyMutation((prev) => ({ ...prev, cmjRecords: prev.cmjRecords.map((item) => item.id === record.id ? record : item) })),
-    deleteCMJRecord: (recordId) => applyMutation((prev) => ({ ...prev, cmjRecords: prev.cmjRecords.filter((item) => item.id !== recordId) })),
+    deleteCMJRecord: (recordId) => {
+      applyMutation((prev) => ({ ...prev, cmjRecords: prev.cmjRecords.filter((item) => item.id !== recordId) }));
+      void deleteRemoteLegacy('cmj_records', recordId);
+    },
     addNutritionRecord: (record) => applyMutation((prev) => ({ ...prev, nutritionRecords: [record, ...prev.nutritionRecords] })),
     updateNutritionRecord: (record) => applyMutation((prev) => ({ ...prev, nutritionRecords: prev.nutritionRecords.map((item) => item.id === record.id ? record : item) })),
-    deleteNutritionRecord: (recordId) => applyMutation((prev) => ({ ...prev, nutritionRecords: prev.nutritionRecords.filter((item) => item.id !== recordId) })),
+    deleteNutritionRecord: (recordId) => {
+      applyMutation((prev) => ({ ...prev, nutritionRecords: prev.nutritionRecords.filter((item) => item.id !== recordId) }));
+      void deleteRemoteLegacy('nutrition_records', recordId);
+    },
     addNeuromuscularRecord: (record) => applyMutation((prev) => ({ ...prev, neuromuscularRecords: [record, ...prev.neuromuscularRecords] })),
     updateNeuromuscularRecord: (record) => applyMutation((prev) => ({ ...prev, neuromuscularRecords: prev.neuromuscularRecords.map((item) => item.id === record.id ? record : item) })),
-    deleteNeuromuscularRecord: (recordId) => applyMutation((prev) => ({ ...prev, neuromuscularRecords: prev.neuromuscularRecords.filter((item) => item.id !== recordId) })),
+    deleteNeuromuscularRecord: (recordId) => {
+      applyMutation((prev) => ({ ...prev, neuromuscularRecords: prev.neuromuscularRecords.filter((item) => item.id !== recordId) }));
+      void deleteRemoteLegacy('neuromuscular_records', recordId);
+    },
     addFMSRecord: (record) => applyMutation((prev) => ({ ...prev, fmsRecords: [record, ...prev.fmsRecords] })),
     updateFMSRecord: (record) => applyMutation((prev) => ({ ...prev, fmsRecords: prev.fmsRecords.map((item) => item.id === record.id ? record : item) })),
-    deleteFMSRecord: (recordId) => applyMutation((prev) => ({ ...prev, fmsRecords: prev.fmsRecords.filter((item) => item.id !== recordId) })),
+    deleteFMSRecord: (recordId) => {
+      applyMutation((prev) => ({ ...prev, fmsRecords: prev.fmsRecords.filter((item) => item.id !== recordId) }));
+      void deleteRemoteLegacy('fms_records', recordId);
+    },
     addCompetitionRecord: (record) => applyMutation((prev) => ({ ...prev, competitionRecords: [record, ...prev.competitionRecords] })),
     updateCompetitionRecord: (record) => applyMutation((prev) => ({ ...prev, competitionRecords: prev.competitionRecords.map((item) => item.id === record.id ? record : item) })),
-    deleteCompetitionRecord: (recordId) => applyMutation((prev) => ({ ...prev, competitionRecords: prev.competitionRecords.filter((item) => item.id !== recordId) })),
+    deleteCompetitionRecord: (recordId) => {
+      applyMutation((prev) => ({ ...prev, competitionRecords: prev.competitionRecords.filter((item) => item.id !== recordId) }));
+      void deleteRemoteLegacy('competition_players', recordId);
+    },
     upsertCompetitionMatchSummary: (record) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: [record, ...prev.competitionMatchSummaries.filter((item) => item.id !== record.id)] })),
-    deleteCompetitionMatchSummary: (matchId) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: prev.competitionMatchSummaries.filter((item) => item.id !== matchId), competitionRecords: prev.competitionRecords.filter((item) => item.matchId !== matchId) })),
+    deleteCompetitionMatchSummary: (matchId) => {
+      applyMutation((prev) => ({ ...prev, competitionMatchSummaries: prev.competitionMatchSummaries.filter((item) => item.id !== matchId), competitionRecords: prev.competitionRecords.filter((item) => item.matchId !== matchId) }));
+      void deleteRemoteLegacy('competition_matches', matchId);
+    },
     upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.date === record.date && item.category === record.category && item.sessionNumber === record.sessionNumber))] })),
     updateMicrocycle: (record) => {
       applyMutation((prev) => ({
