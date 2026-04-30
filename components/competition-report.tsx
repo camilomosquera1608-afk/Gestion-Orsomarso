@@ -20,6 +20,7 @@ import { categoryLabel } from '@/lib/labels';
 import { formatMatchScore } from '@/lib/performance-helpers';
 import { CompetitionReportData, CompetitionReportPlayerRow, CompetitionReportTone } from '@/lib/competition-report';
 import { ClubCategory } from '@/lib/types';
+import { ReportCover } from './report-ui';
 
 type Props = {
   report: CompetitionReportData;
@@ -159,6 +160,20 @@ export function CompetitionReportTemplate({ report, category, className = '', co
 
   return (
     <article className={`pdf-report-document competition-report-document ${compact ? 'pdf-report-compact' : ''} ${className}`}>
+      {!compact ? (
+        <ReportCover
+          title="Informe postpartido"
+          subject={`Orsomarso SC ${report.score} ${match.opponent}`}
+          subtitle={`${formatDate(match.date)} · ${categoryLabel(category)} · ${match.venue ?? 'Local'}`}
+          meta={[microcycleLabel, report.resultType, report.generatedAt]}
+          metrics={[
+            { label: 'Resultado', value: report.resultType, note: 'Marcador', tone: resultTone },
+            { label: 'Jugadores', value: report.stats.players, note: 'Planilla', tone: 'blue' },
+            { label: 'Goles', value: report.stats.goals, note: 'Orsomarso', tone: 'green' },
+            { label: 'Minutos', value: report.stats.minutes, note: 'Total', tone: 'dark' },
+          ]}
+        />
+      ) : null}
       <header className="pdf-report-header">
         <div className="pdf-report-brand">
           <img src="/orsomarso-crest.jpg" alt="Orsomarso SC" />

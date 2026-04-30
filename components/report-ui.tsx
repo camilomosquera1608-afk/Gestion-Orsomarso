@@ -5,6 +5,13 @@ import { getPdfSafeText, reportDash } from '@/lib/report-utils';
 
 export type ReportTone = 'blue' | 'green' | 'amber' | 'red' | 'neutral' | 'dark';
 
+export type ReportCoverMetric = {
+  label: string;
+  value: ReactNode;
+  note?: string;
+  tone?: ReportTone;
+};
+
 export const reportToneClass = (tone: ReportTone = 'neutral') => `pdf-report-tone-${tone}`;
 
 export function ReportLayout({ title, subtitle, category, generatedAt, children, className = '' }: { title: string; subtitle?: string; category?: string; generatedAt?: string; children: ReactNode; className?: string }) {
@@ -24,7 +31,7 @@ export function ReportHeader({ title, subtitle, category, generatedAt }: { title
       <div className="pdf-report-brand">
         <img src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={52} height={52} />
         <div>
-          <span>Orsomarso SC Performance</span>
+          <span>Orsomarso Performance</span>
           <h1>{getPdfSafeText(title, 'Informe')}</h1>
           {meta ? <p>{meta}</p> : null}
         </div>
@@ -37,9 +44,64 @@ export function ReportHeader({ title, subtitle, category, generatedAt }: { title
 export function ReportFooter({ category }: { category?: string }) {
   return (
     <footer className="pdf-report-footer premium-report-footer">
-      <span>Orsomarso SC Performance</span>
+      <span>Orsomarso Performance</span>
       <span>{category ? categoryLabel(category) : 'Informe institucional'}</span>
     </footer>
+  );
+}
+
+export function ReportCover({
+  kicker = 'Orsomarso Performance',
+  title,
+  subject,
+  subtitle,
+  meta = [],
+  metrics = [],
+  tone = 'blue',
+  className = '',
+}: {
+  kicker?: string;
+  title: string;
+  subject?: string;
+  subtitle?: string;
+  meta?: Array<string | undefined | null | false>;
+  metrics?: ReportCoverMetric[];
+  tone?: ReportTone;
+  className?: string;
+}) {
+  const safeMeta = meta.map((item) => getPdfSafeText(item, '')).filter(Boolean);
+  return (
+    <section className={`pdf-report-cover pdf-report-cover-${tone} ${className}`}>
+      <div className="pdf-report-cover-mark">
+        <img src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={92} height={92} />
+        <span>{getPdfSafeText(kicker, 'Orsomarso Performance')}</span>
+      </div>
+      <div className="pdf-report-cover-main">
+        <span>{getPdfSafeText(title, 'Informe')}</span>
+        <h2>{getPdfSafeText(subject || title, 'Informe')}</h2>
+        {subtitle ? <p>{getPdfSafeText(subtitle)}</p> : null}
+      </div>
+      {safeMeta.length ? (
+        <div className="pdf-report-cover-meta">
+          {safeMeta.map((item) => <span key={item}>{item}</span>)}
+        </div>
+      ) : null}
+      {metrics.length ? (
+        <div className="pdf-report-cover-kpis">
+          {metrics.map((metric) => (
+            <div key={`${metric.label}-${String(metric.value)}`} className={`pdf-report-cover-kpi ${reportToneClass(metric.tone ?? 'neutral')}`}>
+              <span>{getPdfSafeText(metric.label, 'Dato')}</span>
+              <strong>{typeof metric.value === 'string' || typeof metric.value === 'number' ? reportDash(metric.value) : metric.value ?? '—'}</strong>
+              {metric.note ? <small>{getPdfSafeText(metric.note, '')}</small> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="pdf-report-cover-footer">
+        <span>Documento institucional</span>
+        <span>Rendimiento deportivo</span>
+      </div>
+    </section>
   );
 }
 
@@ -82,4 +144,20 @@ export function ReportEmptyState({ text = 'Sin registros.', compact = false }: {
 
 export function ReportInsightBox({ children, tone = 'blue' }: { children: ReactNode; tone?: ReportTone }) {
   return <div className={`pdf-report-insight ${reportToneClass(tone)}`}>{children}</div>;
+}
+
+export function ReportComparisonBar({ label, value, max = 100, note }: { label: string; value: number; max?: number; note?: string }) {
+  const safeMax = Number.isFinite(max) && max > 0 ? max : 100;
+  const safeValue = Number.isFinite(value) && value >= 0 ? value : 0;
+  const percent = Math.max(0, Math.min(100, (safeValue / safeMax) * 100));
+  return (
+    <div className="pdf-report-comparison-bar">
+      <div>
+        <span>{getPdfSafeText(label, 'Indicador')}</span>
+        <strong>{reportDash(safeValue)}</strong>
+      </div>
+      <i><em style={{ width: `${percent}%` }} /></i>
+      {note ? <small>{getPdfSafeText(note, '')}</small> : null}
+    </div>
+  );
 }

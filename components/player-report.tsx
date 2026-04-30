@@ -2,7 +2,7 @@ import { Activity, AlertTriangle, BarChart3, CalendarDays, HeartPulse, Scale, Sh
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory, Player } from '@/lib/types';
 import { calculateAgeSafe, formatPdfValue, getPdfSafeText, reportDash, supportsGps } from '@/lib/report-utils';
-import { ReportBadge, ReportEmptyState, ReportInsightBox, ReportKpiCard, ReportLayout, ReportSection } from './report-ui';
+import { ReportBadge, ReportCover, ReportEmptyState, ReportInsightBox, ReportKpiCard, ReportLayout, ReportSection } from './report-ui';
 import { groupAverage } from '@/lib/utils';
 
 type PlayerReportProps = {
@@ -47,6 +47,18 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
 
   return (
     <ReportLayout title="Perfil 360" subtitle={player.name} category={playerCategory} generatedAt={generatedAt} className={`player-report-document ${className}`}>
+      <ReportCover
+        title="Informe individual"
+        subject={player.name}
+        subtitle={`${player.position} · ${categoryLabel(playerCategory)} · ${ageLabel}`}
+        meta={[player.status, generatedAt]}
+        metrics={[
+          { label: 'Estado', value: player.status, note: 'Disponibilidad', tone: player.status === 'Disponible' ? 'green' : player.status === 'Lesionado' ? 'red' : 'amber' },
+          { label: 'Partidos', value: competitionHistory.length, note: `${minutes} min`, tone: 'dark' },
+          { label: 'Carga', value: Math.round(internalTotal), note: 'UA acumulada', tone: 'blue' },
+          { label: 'Última valoración', value: latestNutrition?.date ?? latestCmj?.date ?? 'Sin registro', note: 'Control', tone: 'neutral' },
+        ]}
+      />
       <section className="pdf-report-hero player-report-hero">
         <div className="player-report-avatar"><span>{initials}</span></div>
         <div className="player-report-core">

@@ -1909,3 +1909,157 @@ textarea.input, .textarea { resize: vertical; }
   .safe-bottom { padding-bottom: calc(126px + env(safe-area-inset-bottom)); }
   .pdf-report, .pdf-section, .pdf-kpi-grid, .pdf-clean-table { max-width: 100%; min-width: 0; }
 }
+
+/* v105 - premium dossier reports inspired by professional football deliverables */
+.pdf-report-cover {
+  position: relative;
+  overflow: hidden;
+  min-height: 520px;
+  display: grid;
+  align-content: space-between;
+  gap: 24px;
+  padding: 34px;
+  border-radius: 34px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 78% 12%, rgba(56, 189, 248, .32), transparent 28%),
+    linear-gradient(135deg, #06152f 0%, #0e3274 54%, #1557d6 100%);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.pdf-report-cover:before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, rgba(255,255,255,.08) 0 18%, transparent 18% 100%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.09) 0 2px, transparent 2px 10px);
+  clip-path: polygon(0 0, 48% 0, 28% 100%, 0 100%);
+  opacity: .9;
+}
+.pdf-report-cover:after {
+  content: '';
+  position: absolute;
+  right: -140px;
+  bottom: -180px;
+  width: 440px;
+  height: 440px;
+  border-radius: 50%;
+  border: 70px solid rgba(255,255,255,.08);
+}
+.pdf-report-cover > * { position: relative; z-index: 1; }
+.pdf-report-cover-mark { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.pdf-report-cover-mark img { width: 92px; height: 92px; object-fit: contain; border-radius: 28px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.92); padding: 9px; }
+.pdf-report-cover-mark span { color: #dbeafe; font-size: 12px; font-weight: 950; letter-spacing: .06em; }
+.pdf-report-cover-main { display: grid; gap: 10px; max-width: 760px; }
+.pdf-report-cover-main > span { width: fit-content; padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.18); color: #e0f2fe; font-size: 12px; font-weight: 950; }
+.pdf-report-cover-main h2 { margin: 0; font-size: clamp(42px, 7vw, 82px); line-height: .9; letter-spacing: -.07em; max-width: 860px; }
+.pdf-report-cover-main p { margin: 0; max-width: 720px; color: #dbeafe; font-size: 18px; font-weight: 850; line-height: 1.35; }
+.pdf-report-cover-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.pdf-report-cover-meta span { display: inline-flex; padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.18); color: #f8fbff; font-size: 12px; font-weight: 850; }
+.pdf-report-cover-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.pdf-report-cover-kpi { min-height: 96px; display: grid; align-content: center; gap: 5px; padding: 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.94); color: #0f172a; }
+.pdf-report-cover-kpi span { color: #64748b; font-size: 10px; font-weight: 950; }
+.pdf-report-cover-kpi strong { color: #06152f; font-size: 28px; line-height: 1; letter-spacing: -.04em; }
+.pdf-report-cover-kpi small { color: #64748b; font-size: 11px; font-weight: 850; }
+.pdf-report-cover-footer { display: flex; justify-content: space-between; gap: 14px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.18); color: #bfdbfe; font-size: 12px; font-weight: 850; }
+.pdf-report-comparison-bar { display: grid; gap: 7px; padding: 10px 11px; border: 1px solid #d8e1ee; border-radius: 14px; background: #fff; break-inside: avoid; }
+.pdf-report-comparison-bar > div { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.pdf-report-comparison-bar span { color: #64748b; font-size: 10px; font-weight: 950; }
+.pdf-report-comparison-bar strong { color: #06152f; font-size: 14px; }
+.pdf-report-comparison-bar i { display: block; height: 7px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.pdf-report-comparison-bar em { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #1557d6, #22c55e); }
+.pdf-report-comparison-bar small { color: #64748b; font-size: 10px; font-weight: 800; }
+.pdf-report-document { gap: 18px; }
+.pdf-report-section { padding: 16px; border-radius: 22px; }
+.pdf-report-table th { background: #06152f !important; color: #fff !important; }
+.report-preview-shell .pdf-report-cover { min-height: 420px; }
+@media (max-width: 900px) {
+  .pdf-report-cover { min-height: auto; padding: 24px; border-radius: 26px; }
+  .pdf-report-cover-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pdf-report-cover-main h2 { font-size: clamp(34px, 10vw, 56px); }
+}
+@media (max-width: 640px) {
+  .pdf-report-cover-kpis { grid-template-columns: 1fr; }
+  .pdf-report-cover-footer, .pdf-report-cover-mark { align-items: flex-start; flex-direction: column; }
+}
+@media print {
+  @page { size: A4 portrait; margin: 8mm; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .pdf-report-document, .premium-report-document, .competition-report-document {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    font-size: 9.5px !important;
+  }
+  .pdf-report-cover {
+    min-height: calc(297mm - 16mm) !important;
+    height: calc(297mm - 16mm) !important;
+    padding: 18mm 14mm !important;
+    margin: 0 0 8mm 0 !important;
+    border-radius: 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  .pdf-report-cover-mark img { width: 28mm !important; height: 28mm !important; border-radius: 8mm !important; }
+  .pdf-report-cover-main h2 { font-size: 38pt !important; line-height: .9 !important; }
+  .pdf-report-cover-main p { font-size: 11pt !important; }
+  .pdf-report-cover-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 4mm !important; }
+  .pdf-report-cover-kpi { min-height: 22mm !important; padding: 4mm !important; border-radius: 5mm !important; }
+  .pdf-report-cover-kpi strong { font-size: 17pt !important; }
+  .pdf-report-header, .premium-report-header {
+    display: flex !important;
+    padding: 0 0 4mm !important;
+    margin-bottom: 4mm !important;
+    border: 0 !important;
+    border-bottom: 1px solid #d8e1ee !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+  }
+  .pdf-report-brand img { width: 12mm !important; height: 12mm !important; border-radius: 3mm !important; }
+  .pdf-report-brand h1 { font-size: 18pt !important; }
+  .pdf-report-brand span { font-size: 7pt !important; color: #1557d6 !important; }
+  .pdf-report-section, .premium-report-section {
+    display: grid !important;
+    gap: 2.5mm !important;
+    padding: 4mm !important;
+    margin-bottom: 3mm !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 4mm !important;
+    background: #fff !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .pdf-report-hero, .session-report-hero, .player-report-hero, .competition-report-hero-premium, .evaluations-report-hero {
+    margin-bottom: 3mm !important;
+    padding: 5mm !important;
+    border-radius: 5mm !important;
+  }
+  .pdf-report-section-heading h3 { font-size: 12pt !important; }
+  .pdf-report-summary, .pdf-report-insight { font-size: 8.5pt !important; line-height: 1.35 !important; padding: 3mm !important; }
+  .pdf-report-kpi-grid, .session-kpi-grid, .player-report-kpis, .competition-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 2.5mm !important; }
+  .pdf-report-kpi, .premium-report-kpi { min-height: 18mm !important; padding: 3mm !important; border-radius: 4mm !important; }
+  .pdf-report-kpi strong { font-size: 15pt !important; }
+  .pdf-report-kpi span { font-size: 6.5pt !important; }
+  .pdf-report-kpi small { font-size: 6.5pt !important; }
+  .pdf-report-table { font-size: 7.2pt !important; border-radius: 3mm !important; overflow: hidden !important; }
+  .pdf-report-table th { padding: 2mm !important; font-size: 6pt !important; background: #06152f !important; color: #fff !important; }
+  .pdf-report-table td { padding: 1.8mm !important; }
+  .pdf-report-badge, .pdf-report-small-badge { font-size: 6pt !important; padding: 1mm 2mm !important; }
+  .pdf-report-two-columns, .nutrition-report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 3mm !important; }
+  .pdf-report-footer, .premium-report-footer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    padding-top: 2mm !important;
+    border-top: 1px solid #d8e1ee !important;
+    font-size: 6.5pt !important;
+  }
+}

@@ -71,3 +71,24 @@ export const hasPdfValue = (value: unknown): boolean => formatPdfValue(value, ''
 export const sanitizeReportData = <T extends Record<string, unknown>>(data: T): T => Object.fromEntries(
   Object.entries(data).map(([key, value]) => [key, value === undefined || value === null || (typeof value === 'number' && !Number.isFinite(value)) ? '—' : value]),
 ) as T;
+
+export const formatPdfNumber = (value: unknown, decimals = 0, fallback = '—'): string => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return numeric.toLocaleString('es-CO', { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+};
+
+export const formatPdfPercentage = (value: unknown, decimals = 0, fallback = '—'): string => {
+  const formatted = formatPdfNumber(value, decimals, '');
+  return formatted ? `${formatted}%` : fallback;
+};
+
+export const formatPdfList = (values: Array<unknown> | null | undefined, fallback = 'Sin registro'): string => {
+  const items = safeArray(values as string[] | null | undefined).map((item) => getPdfSafeText(item, '')).filter(Boolean);
+  return items.length ? items.join(' · ') : fallback;
+};
+
+export const getReportSectionVisibility = (...values: unknown[]): boolean => values.some((value) => {
+  if (Array.isArray(value)) return value.length > 0;
+  return hasPdfValue(value);
+});

@@ -17,6 +17,7 @@ import {
 import { categoryLabel } from '@/lib/labels';
 import { formatNutritionText, formatNutritionValue, getNutritionPlanLabel, getNutritionRangeLabel, getNutritionTechnicalReading, normalizeNutritionRecord } from '@/lib/nutrition';
 import { EvaluationReportData, EvaluationReportTone } from '@/lib/evaluations-report';
+import { ReportCover } from './report-ui';
 
 type Props = {
   report: EvaluationReportData;
@@ -94,6 +95,20 @@ export function EvaluationsReportTemplate({ report, className = '', compact = fa
 
   return (
     <article className={`pdf-report-document evaluations-report-document ${compact ? 'pdf-report-compact' : ''} ${className}`}>
+      {!compact ? (
+        <ReportCover
+          title="Informe de valoraciones"
+          subject={player?.name ?? categoryLabel(report.category)}
+          subtitle={`${categoryLabel(report.category)} · ${report.mode === 'individual' ? 'Individual' : 'Grupal'}`}
+          meta={[`Corte ${report.referenceDate}`, report.generatedAt]}
+          metrics={[
+            { label: 'Bloques', value: [report.latestNutrition, report.latestNeuromuscular, report.latestCmj, report.latestFms].filter(Boolean).length, note: 'Registrados', tone: 'blue' },
+            { label: 'Jugadores', value: report.mode === 'individual' ? 1 : report.group.players, note: 'Cobertura', tone: 'dark' },
+            { label: 'Nutrición', value: latestNutrition ? 'Disponible' : 'Sin registro', note: latestNutrition?.date ?? 'Control', tone: latestNutrition ? 'green' : 'neutral' },
+            { label: 'CMJ', value: latestCmj ? `${latestCmj.value} cm` : latestNeuromuscular ? `${latestNeuromuscular.cmj} cm` : 'Sin registro', note: 'Potencia', tone: latestCmj || latestNeuromuscular ? 'green' : 'neutral' },
+          ]}
+        />
+      ) : null}
       <header className="pdf-report-header">
         <div className="pdf-report-brand">
           <Image src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={54} height={54} />

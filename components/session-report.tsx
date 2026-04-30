@@ -2,7 +2,7 @@ import { Activity, AlertTriangle, CalendarDays, Clock, Gauge, Target, Users, Zap
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory, Microcycle, Player, SessionParticipation, TrainingSessionType } from '@/lib/types';
 import { formatPdfDate, getPdfSafeText, supportsGps, pluralize, reportDash } from '@/lib/report-utils';
-import { ReportBadge, ReportEmptyState, ReportInsightBox, ReportKpiCard, ReportLayout, ReportSection } from './report-ui';
+import { ReportBadge, ReportCover, ReportEmptyState, ReportInsightBox, ReportKpiCard, ReportLayout, ReportSection } from './report-ui';
 import { groupAverage } from '@/lib/utils';
 
 type SessionReportRow = {
@@ -61,6 +61,20 @@ export function SessionReportTemplate({ date, category, microcycle, sessionNumbe
 
   return (
     <ReportLayout title="Informe de sesión" subtitle={`${formatPdfDate(date)} · Sesión ${sessionNumber || '—'}`} category={category} generatedAt={generatedAt} className={`session-report-document ${compact ? 'pdf-report-compact' : ''} ${className}`}>
+      {!compact ? (
+        <ReportCover
+          title="Informe de sesión"
+          subject={sessionTypeLabel(sessionType)}
+          subtitle={microcycleText}
+          meta={[formatPdfDate(date), categoryLabel(category), `Sesión ${sessionNumber || '—'}`]}
+          metrics={[
+            { label: 'Jugadores', value: registeredRows.length, note: 'Registrados', tone: 'blue' },
+            { label: 'Carga total', value: Math.round(totalLoad), note: 'UA', tone: 'green' },
+            { label: 'RPE prom.', value: avgRpe.toFixed(1), note: 'Promedio', tone: 'amber' },
+            { label: 'Calidad', value: `${dataQualityPercent}%`, note: 'Completitud', tone: dataQualityPercent >= 75 ? 'green' : dataQualityPercent >= 45 ? 'amber' : 'red' },
+          ]}
+        />
+      ) : null}
       <section className="pdf-report-hero session-report-hero">
         <div className="session-hero-main">
           <span>Sesión</span>
