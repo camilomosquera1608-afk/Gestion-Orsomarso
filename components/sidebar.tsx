@@ -70,7 +70,14 @@ const staffGroups = [
   },
 ];
 
-const getNavigationGroups = (session: ReturnType<typeof getStaffSession>) => session.platformRole === 'admin'
+const canManageAdministration = (session: ReturnType<typeof getStaffSession>) => {
+  const normalizedAccess = session.accessLevel ?? 'full';
+  const isSupabaseAdmin = session.platformRole === 'admin';
+  const isMasterAdmin = session.role === 'master' && session.category === 'all';
+  return normalizedAccess === 'full' && (isSupabaseAdmin || isMasterAdmin);
+};
+
+const getNavigationGroups = (session: ReturnType<typeof getStaffSession>) => canManageAdministration(session)
   ? staffGroups.map((group) => group.title === 'Sistema'
       ? { ...group, items: [{ href: '/administracion', label: 'Administración', icon: AdminShield }, ...group.items] }
       : group)
@@ -85,7 +92,7 @@ const getMobileItems = (session: ReturnType<typeof getStaffSession>) => {
     { href: '/informes', label: 'Informes', icon: FileText },
   ];
 
-  if (session.platformRole === 'admin') {
+  if (canManageAdministration(session)) {
     return [...base.slice(0, 4), { href: '/administracion', label: 'Admin', icon: AdminShield }];
   }
 

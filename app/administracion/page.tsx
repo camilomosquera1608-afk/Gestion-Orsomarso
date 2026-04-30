@@ -39,7 +39,8 @@ const roleTone = (role: PlatformRole): 'blue' | 'neutral' | 'green' => role === 
 
 export default function AdministracionPage() {
   const session = getStaffSession();
-  const isAdmin = session.platformRole === 'admin' && session.accessLevel === 'full';
+  const normalizedAccess = session.accessLevel ?? 'full';
+  const isAdmin = normalizedAccess === 'full' && (session.platformRole === 'admin' || (session.role === 'master' && session.category === 'all'));
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(true);
