@@ -141,7 +141,7 @@ export const buildCompetitionReportData = ({
   }).format(new Date());
 
   const executiveSummary = rows.length
-    ? `Orsomarso SC ${resultVerb(resultType)} ${score} frente a ${match.opponent} en condición de ${match.venue ?? 'Local'}. La planilla registró ${plural(stats.players, 'jugador', 'jugadores')}, ${plural(stats.minutes, 'minuto acumulado', 'minutos acumulados')}, ${plural(stats.goals, 'gol', 'goles')}, ${plural(stats.assists, 'asistencia', 'asistencias')} y ${plural(stats.medical, 'incidencia médica', 'incidencias médicas')}`
+    ? `Orsomarso SC ${resultVerb(resultType)} ${score} frente a ${match.opponent} en condición de ${match.venue ?? 'Local'}. La planilla registró ${plural(stats.players, 'jugador', 'jugadores')}, ${plural(stats.starters, 'titular', 'titulares')}, ${plural(stats.substitutes, 'suplente', 'suplentes')}, ${plural(stats.goals, 'gol', 'goles')}, ${plural(stats.assists, 'asistencia', 'asistencias')} y ${plural(stats.medical, 'incidencia médica', 'incidencias médicas')}`
     : 'Sin planilla disponible.';
 
   const recentMatches = data.competitionMatchSummaries

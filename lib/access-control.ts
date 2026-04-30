@@ -179,6 +179,28 @@ export const getWritableDeniedMessage = (session: StaffSession | null | undefine
   return 'Sin permisos.';
 };
 
+export const canDeletePlayers = (session: StaffSession | null | undefined) => {
+  const snapshot = getSessionAccessSnapshot(session);
+  return Boolean(
+    snapshot.isAuthenticated
+    && snapshot.normalizedRole === 'admin'
+    && snapshot.normalizedAccessLevel === 'full'
+    && snapshot.canReadAll
+  );
+};
+
+export const canDeletePlayer = (session: StaffSession | null | undefined, player?: { category?: ClubCategory | string | null }) => {
+  if (!canDeletePlayers(session)) return false;
+  if (!player?.category) return true;
+  return canAccessCategory(session, player.category);
+};
+
+export const getDeleteDeniedMessage = (session: StaffSession | null | undefined) => {
+  if (!session?.isAuthenticated) return 'Inicia sesión para eliminar.';
+  if (!canDeletePlayers(session)) return 'Solo admin ALL puede eliminar jugadores.';
+  return 'Sin permisos para eliminar.';
+};
+
 const byCategory = <T extends { category?: ClubCategory }>(items: T[], session: StaffSession) => {
   if (canReadAllCategories(session)) return items;
   return items.filter((item) => canAccessCategory(session, item.category));

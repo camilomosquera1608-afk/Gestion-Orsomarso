@@ -7,13 +7,24 @@ import { EmptyState, SectionHeader } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
 import { CATEGORY_SCOPE_LABELS, ROLE_LABELS } from '@/lib/access-control';
-import { getDataTotals, getOverallDataQuality, getU20ReadinessChecks, qualityLabel, qualityToneClass } from '@/lib/data-quality';
+import { categoryLabel } from '@/lib/labels';
+import type { ClubCategory } from '@/lib/types';
+import { getCategoryReadinessChecks, getCategoryReadinessSummary, getDataTotals, getOverallDataQuality, qualityLabel, qualityToneClass } from '@/lib/data-quality';
 import { fetchAuditLogs, getSupabaseUserEmail, hasSupabaseConfig, signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
 const formatDate = (value: string) => new Date(value).toLocaleString('es-CO', {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
+
+const categories: ClubCategory[] = ['Sub20', 'Sub17', 'Sub15'];
+
+const categoryFromScope = (scope?: string): ClubCategory => {
+  if (scope === 'U15') return 'Sub15';
+  if (scope === 'U17') return 'Sub17';
+  if (scope === 'U20') return 'Sub20';
+  return 'Sub20';
+};
 
 export default function ConfiguracionPage() {
   const router = useRouter();
@@ -34,17 +45,25 @@ export default function ConfiguracionPage() {
   const [remoteMessage, setRemoteMessage] = useState('');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const session = getStaffSession();
+  const [safePointCategory, setSafePointCategory] = useState<ClubCategory>(categoryFromScope(session.categoryScope));
 
   useEffect(() => {
     void getSupabaseUserEmail().then(setSupabaseUser);
     void fetchAuditLogs(30).then((result) => { if (result.ok) setAuditLogs(result.logs); });
   }, []);
 
-  const shareLink = typeof window !== 'undefined' ? `${window.location.origin}/wellness-jugadores` : '/wellness-jugadores';
-  const readinessChecks = getU20ReadinessChecks(data);
+  const wellnessOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const wellnessLinks = [
+    { category: 'Sub20' as ClubCategory, href: `${wellnessOrigin}/wellness/u20`, label: 'Wellness U20' },
+    { category: 'Sub17' as ClubCategory, href: `${wellnessOrigin}/wellness/u17`, label: 'Wellness U17' },
+    { category: 'Sub15' as ClubCategory, href: `${wellnessOrigin}/wellness/u15`, label: 'Wellness U15' },
+  ];
+  const readinessChecks = getCategoryReadinessChecks(data, safePointCategory);
   const dataTotals = getDataTotals(data);
+  const categorySummary = getCategoryReadinessSummary(data, safePointCategory);
+  const selectedCategoryLabel = categoryLabel(safePointCategory);
   const qualityStatus = getOverallDataQuality(readinessChecks);
-  const safePointLabel = `Punto seguro antes de carga U20 · ${new Date().toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}`;
+  const safePointLabel = `Punto seguro antes de carga ${selectedCategoryLabel} · ${new Date().toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}`;
   const totalRecords = data.wellness.length + data.internalLoads.length + data.externalLoads.length + data.cmjRecords.length + data.nutritionRecords.length + data.neuromuscularRecords.length + data.fmsRecords.length + data.competitionRecords.length + data.competitionMatchSummaries.length + data.trainingSessionSummaries.length;
 
   const handleExport = () => {
@@ -134,12 +153,32 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className="card backup-control-card">
-        <SectionHeader eyebrow="Respaldos" title="Punto seguro antes de cargar U20" subtitle="Crea una copia manual y descarga JSON antes de cargar datos reales." />
+        <SectionHeader eyebrow="Respaldos" title={`Punto seguro antes de cargar ${selectedCategoryLabel}`} subtitle="Crea una copia manual por categoría y descarga JSON antes de cargar datos reales." />
         <div className="backup-summary-grid">
           <div className="mini-stat-card"><strong>{localBackups.length}</strong><div className="muted-line">copias locales</div></div>
-          <div className="mini-stat-card"><strong>{dataTotals.u20Players}</strong><div className="muted-line">jugadores U20</div></div>
-          <div className="mini-stat-card"><strong>{dataTotals.microcyclesU20}</strong><div className="muted-line">microciclos U20</div></div>
-          <div className="mini-stat-card"><strong>{dataTotals.gpsRecords}</strong><div className="muted-line">registros GPS</div></div>
+          <div className="mini-stat-card"><strong>{categorySummary.players}</strong><div className="muted-line">jugadores {selectedCategoryLabel}</div></div>
+          <div className="mini-stat-card"><strong>{categorySummary.microcycles}</strong><div className="muted-line">microciclos {selectedCategoryLabel}</div></div>
+          <div className="mini-stat-card"><strong>{safePointCategory === 'Sub20' ? dataTotals.gpsRecords : 'N/A'}</strong><div className="muted-line">GPS solo U20</div></div>
+        </div>
+        <div className="backup-category-panel">
+          <label className="field">
+            <span>Categoría del punto seguro</span>
+            <select value={safePointCategory} onChange={(event) => setSafePointCategory(event.target.value as ClubCategory)}>
+              {categories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}
+            </select>
+          </label>
+          <div className="backup-quick-actions">
+            {categories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                className={safePointCategory === category ? 'btn' : 'btn secondary'}
+                onClick={() => setSafePointCategory(category)}
+              >
+                {categoryLabel(category)}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="btn-row">
           <button
@@ -147,18 +186,18 @@ export default function ConfiguracionPage() {
             className="btn"
             onClick={() => {
               createLocalSnapshot(safePointLabel);
-              setMessage('Punto seguro creado. Exporta JSON para guardar una copia fuera del navegador.');
+              setMessage(`Punto seguro ${selectedCategoryLabel} creado. Exporta JSON para guardar una copia fuera del navegador.`);
             }}
           >
-            Crear punto seguro U20
+            Crear punto seguro {selectedCategoryLabel}
           </button>
           <button type="button" className="btn secondary" onClick={handleExport}>Descargar JSON completo</button>
           <button
             type="button"
             className="btn secondary"
             onClick={() => {
-              createLocalSnapshot('Copia manual');
-              setMessage('Copia local creada.');
+              createLocalSnapshot(`Copia manual ${selectedCategoryLabel}`);
+              setMessage(`Copia local ${selectedCategoryLabel} creada.`);
             }}
           >
             Copia rápida
@@ -172,10 +211,10 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className="card data-quality-card">
-        <SectionHeader eyebrow="Calidad de datos" title="Checklist U20" subtitle="Validación rápida antes de cargar información real." />
+        <SectionHeader eyebrow="Calidad de datos" title={`Checklist ${selectedCategoryLabel}`} subtitle="Validación rápida antes de cargar información real por categoría." />
         <div className={`quality-overview ${qualityToneClass(qualityStatus)}`}>
           <strong>{qualityLabel(qualityStatus)}</strong>
-          <span>{qualityStatus === 'ok' ? 'Base lista para cargar U20 con mayor confianza.' : 'Revisa los puntos marcados antes de hacer carga masiva.'}</span>
+          <span>{qualityStatus === 'ok' ? `Base ${selectedCategoryLabel} lista para cargar con mayor confianza.` : 'Revisa los puntos marcados antes de hacer carga masiva.'}</span>
         </div>
         <div className="quality-check-grid">
           {readinessChecks.map((check) => (
@@ -191,10 +230,18 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className="card">
-        <SectionHeader eyebrow="Wellness" title="Link jugadores" />
-        <div className="copy-box">
-          <div className="copy-link">{shareLink}</div>
-          <button type="button" className="btn secondary" onClick={() => navigator.clipboard.writeText(shareLink)}>Copiar link</button>
+        <SectionHeader eyebrow="Wellness" title="Links por categoría" subtitle="Comparte el enlace correspondiente en cada grupo de WhatsApp." />
+        <div className="wellness-links-grid">
+          {wellnessLinks.map((link) => (
+            <div key={link.href} className="wellness-link-card">
+              <div>
+                <strong>{link.label}</strong>
+                <span>{categoryLabel(link.category)}</span>
+              </div>
+              <div className="copy-link">{link.href}</div>
+              <button type="button" className="btn secondary" onClick={() => navigator.clipboard.writeText(link.href)}>Copiar link</button>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -218,10 +265,10 @@ export default function ConfiguracionPage() {
                 {auditLogs.map((log) => (
                   <tr key={log.id}>
                     <td>{formatDate(log.created_at)}</td>
-                    <td>{log.actor_email ?? "Sistema"}</td>
+                    <td>{log.actor_email ?? 'Sistema'}</td>
                     <td>{log.action}</td>
                     <td>{log.table_name}</td>
-                    <td>{log.record_label ?? log.record_id ?? "-"}</td>
+                    <td>{log.record_label ?? log.record_id ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -111,7 +111,6 @@ export default function CompetenciaPage() {
   const goalkeeper = isGoalkeeper(currentPlayer);
   const editingRecord = editingRecordId ? data.competitionRecords.find((record) => record.id === editingRecordId) : undefined;
 
-  const kpiMinutes = matchRecords.reduce((acc, record) => acc + (record.minutesPlayed ?? 0), 0);
   const medicalAlerts = matchRecords.filter((record) => (record.medicalStatus ?? (record.postCompetitionStatus === 'Lesionado' ? 'Lesionado' : 'Sin lesión')) === 'Lesionado');
   const matchCenterStats = buildMatchCenterStats(matchRecords, data.players);
   const competitionReport = selectedMatch
@@ -290,7 +289,7 @@ export default function CompetenciaPage() {
       <div className="grid grid-4">
         <KpiCard label="Partidos registrados" value={String(matchSummaries.length)} tone="blue" trend="Historial activo" />
         <KpiCard label="Jugadores del partido" value={String(matchRecords.length)} tone="green" trend="Planilla cargada" />
-        <KpiCard label="Minutos del partido" value={String(kpiMinutes)} tone="dark" trend="Volumen competitivo" />
+        <KpiCard label="Titulares" value={String(matchCenterStats.starters)} tone="dark" trend="Once inicial" />
         <KpiCard label="Alertas médicas" value={String(medicalAlerts.length)} tone={medicalAlerts.length ? "red" : "green"} trend="Incidencias" />
       </div>
 
@@ -389,7 +388,7 @@ export default function CompetenciaPage() {
               <input className="input" readOnly value={selectedMatch ? `${selectedMatch.resultType ?? ''} · ${formatMatchScore(selectedMatch)}` : 'Sin partido'} />
             </div>
             <div className="btn-row" style={{ alignSelf: 'end' }}>
-              {selectedMatch ? <button type="button" className="btn secondary" onClick={() => loadMatchDraft(selectedMatch.id)}>Editar datos</button> : null}
+              {selectedMatch ? <button type="button" className="btn secondary" onClick={() => { loadMatchDraft(selectedMatch.id); setMessage('Editando partido. También puedes editar cada jugador desde la planilla inferior.'); }}>Editar partido y jugadores</button> : null}
               {selectedMatch ? <button type="button" className="btn danger" onClick={() => removeMatch(selectedMatch.id)}>Eliminar partido</button> : null}
             </div>
           </div>
@@ -513,7 +512,7 @@ export default function CompetenciaPage() {
                     <td>{formatMatchScore(match)}</td>
                     <td>{match.resultType ?? '-'}</td>
                     <td>{records.length}</td>
-                    <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => { setSelectedMatchId(match.id); loadMatchDraft(match.id); }}>Editar</button>{master ? null : <button type="button" className="btn danger" onClick={() => removeMatch(match.id)}>Eliminar</button>}</div></td>
+                    <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => { setSelectedMatchId(match.id); loadMatchDraft(match.id); setMessage('Editando partido. Baja a la planilla para editar jugadores, minutos y novedades.'); }}>Editar partido y jugadores</button>{master ? null : <button type="button" className="btn danger" onClick={() => removeMatch(match.id)}>Eliminar</button>}</div></td>
                   </tr>
                 );
               })}

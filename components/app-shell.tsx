@@ -16,7 +16,9 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const { data, filters, backendMode } = useApp();
   const [allowed, setAllowed] = useState(false);
 
-  const isPlayerWellness = pathname.startsWith('/wellness-jugadores');
+  const normalizedPathname = pathname.toLowerCase().replace(/\/$/, '');
+  const isCategoryWellness = ['/wellness/u20', '/wellness/u17', '/wellness/u15', '/wellness/sub20', '/wellness/sub17', '/wellness/sub15'].includes(normalizedPathname);
+  const isPlayerWellness = pathname.startsWith('/wellness-jugadores') || isCategoryWellness;
   const isLogin = pathname.startsWith('/login');
   const isResetPassword = pathname.startsWith('/reset-password');
 

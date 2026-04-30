@@ -7,7 +7,7 @@ import { deleteSupabaseTableRowByLegacyId, fetchSupabaseTablesAppData, saveSupab
 import { createLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAppData, saveLocalAppData } from '@/lib/app-storage';
 import type { LocalBackupMeta } from '@/lib/app-storage';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
-import { canWrite, filterAppDataForSession } from '@/lib/access-control';
+import { canDeletePlayer, canWrite, filterAppDataForSession } from '@/lib/access-control';
 import { findMicrocycleByDate, getMicrocyclesForCategory, microcycleBelongsToCategory } from '@/lib/utils';
 import { normalizeAppData } from '@/lib/performance-helpers';
 import { AppData, CMJRecord, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
@@ -444,17 +444,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         .sort((a, b) => a.name.localeCompare(b.name)),
     })),
     deletePlayer: (playerId) => {
+      const session = getStaffSession();
+      const player = dataRef.current.players.find((item) => item.id === playerId);
+      if (!canDeletePlayer(session, player)) {
+        setSyncStatus('error');
+        return;
+      }
       applyMutation((prev) => ({
-      ...prev,
-      players: prev.players.filter((p) => p.id !== playerId),
-      wellness: prev.wellness.filter((x) => x.playerId !== playerId),
-      internalLoads: prev.internalLoads.filter((x) => x.playerId !== playerId),
-      externalLoads: prev.externalLoads.filter((x) => x.playerId !== playerId),
-      cmjRecords: prev.cmjRecords.filter((x) => x.playerId !== playerId),
-      nutritionRecords: prev.nutritionRecords.filter((x) => x.playerId !== playerId),
-      neuromuscularRecords: prev.neuromuscularRecords.filter((x) => x.playerId !== playerId),
-      fmsRecords: prev.fmsRecords.filter((x) => x.playerId !== playerId),
-      competitionRecords: prev.competitionRecords.filter((x) => x.playerId !== playerId),
+        ...prev,
+        players: prev.players.filter((p) => p.id !== playerId),
+        wellness: prev.wellness.filter((x) => x.playerId !== playerId),
+        internalLoads: prev.internalLoads.filter((x) => x.playerId !== playerId),
+        externalLoads: prev.externalLoads.filter((x) => x.playerId !== playerId),
+        cmjRecords: prev.cmjRecords.filter((x) => x.playerId !== playerId),
+        nutritionRecords: prev.nutritionRecords.filter((x) => x.playerId !== playerId),
+        neuromuscularRecords: prev.neuromuscularRecords.filter((x) => x.playerId !== playerId),
+        fmsRecords: prev.fmsRecords.filter((x) => x.playerId !== playerId),
+        competitionRecords: prev.competitionRecords.filter((x) => x.playerId !== playerId),
       }));
       void deleteRemoteLegacy('players', playerId);
     },

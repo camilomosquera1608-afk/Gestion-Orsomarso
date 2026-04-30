@@ -2228,3 +2228,144 @@ textarea.input, .textarea { resize: vertical; }
     align-items: flex-start;
   }
 }
+
+/* v107.2 - Puntos seguros por categoria */
+.backup-category-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 12px;
+  align-items: end;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.backup-category-panel .field {
+  margin: 0;
+}
+
+.backup-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .backup-category-panel {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .backup-quick-actions {
+    justify-content: stretch;
+  }
+
+  .backup-quick-actions .btn {
+    flex: 1 1 30%;
+  }
+}
+
+/* v107.4 - Wellness publico por categoria */
+.wellness-public-page {
+  width: min(100%, 920px);
+  margin: 0 auto;
+}
+.wellness-public-header {
+  gap: 14px;
+}
+.wellness-public-badges .status-badge,
+.wellness-public-badges .badge {
+  white-space: nowrap;
+}
+.wellness-public-fields {
+  align-items: start;
+}
+.wellness-public-question-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.wellness-form-message {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--blue-soft);
+  color: var(--blue-dark);
+  border: 1px solid #bfdbfe;
+  font-weight: 900;
+}
+.wellness-submit-button:disabled,
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.wellness-links-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.wellness-link-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+}
+.wellness-link-card strong,
+.wellness-link-card span {
+  display: block;
+}
+.wellness-link-card span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+.wellness-link-card .copy-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .main-public {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 12px 36px;
+  }
+  .wellness-public-page {
+    width: 100%;
+  }
+  .wellness-public-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .wellness-public-fields,
+  .wellness-public-question-grid,
+  .wellness-links-grid {
+    grid-template-columns: 1fr;
+  }
+  .wellness-preview-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+  .wellness-question-label {
+    font-size: 11px;
+    line-height: 1.28;
+  }
+  .wellness-select-large,
+  .wellness-public-fields .select,
+  .wellness-public-fields .input {
+    min-height: 48px;
+    font-size: 16px;
+  }
+  .wellness-submit-button {
+    width: 100%;
+    min-height: 52px;
+  }
+}

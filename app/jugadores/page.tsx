@@ -9,6 +9,7 @@ import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
 import { CompactInfoList, EmptyState, SectionHeader } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
+import { canDeletePlayer, canDeletePlayers, canWrite, getDeleteDeniedMessage } from '@/lib/access-control';
 import { categoryLabel, calcAge } from '@/lib/labels';
 import { PlayerStatus } from '@/lib/types';
 import { averageWellness, calculateInternalLoad } from '@/lib/utils';
@@ -19,6 +20,8 @@ export default function JugadoresPage() {
   const { data, filters, deletePlayer, updatePlayer } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
+  const canEditPlayers = canWrite(session);
+  const canDeleteRosterPlayers = canDeletePlayers(session);
   const activeCategory = master ? filters.category : session.category;
   const players = data.players.filter((player) =>
     (filters.playerId === 'all' || player.id === filters.playerId) &&
@@ -45,7 +48,7 @@ export default function JugadoresPage() {
           <div className="muted-line">Cada card abre una ficha con carga, wellness, competencia, valoraciones e historial médico.</div>
         </div>
         <div className="btn-row">
-          {!master ? <Link className="btn" href="/registro"><PlusCircle size={16} />Agregar jugador</Link> : null}
+          {canEditPlayers ? <Link className="btn" href="/registro"><PlusCircle size={16} />Agregar jugador</Link> : null}
           <Link className="btn secondary" href="/diario">Parte diario</Link>
         </div>
       </div>
@@ -94,29 +97,33 @@ export default function JugadoresPage() {
                 </div>
                 <div className="roster-actions">
                   <Link className="btn secondary" href={`/jugadores/${player.id}`}>Abrir ficha</Link>
-                  {!master ? (
-                    <>
-                      <select className="select" value={player.status} style={{ maxWidth: 190 }} onChange={(e) => updatePlayer({ ...player, status: e.target.value as PlayerStatus })}>
-                        {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                      </select>
-                      <button
-                        type="button"
-                        className="btn danger"
-                        onClick={() => {
-                          const confirmed = window.confirm(`¿Deseas eliminar a ${player.name}? Esta acción borrará sus registros relacionados.`);
-                          if (confirmed) deletePlayer(player.id);
-                        }}
-                      >
-                        Eliminar
-                      </button>
-                    </>
+                  {canEditPlayers ? (
+                    <select className="select" value={player.status} style={{ maxWidth: 190 }} onChange={(e) => updatePlayer({ ...player, status: e.target.value as PlayerStatus })}>
+                      {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  ) : null}
+                  {canDeleteRosterPlayers ? (
+                    <button
+                      type="button"
+                      className="btn danger"
+                      onClick={() => {
+                        if (!canDeletePlayer(session, player)) {
+                          window.alert(getDeleteDeniedMessage(session));
+                          return;
+                        }
+                        const confirmed = window.confirm(`¿Deseas eliminar a ${player.name}? Esta acción borrará sus registros relacionados.`);
+                        if (confirmed) deletePlayer(player.id);
+                      }}
+                    >
+                      Eliminar
+                    </button>
                   ) : null}
                 </div>
               </div>
             );
           })}
         </div>
-        {!players.length ? <EmptyState title="No hay jugadores con los filtros actuales" text="Ajusta los filtros o agrega un jugador para iniciar seguimiento de plantilla." action={!master ? <Link className="btn" href="/registro">Agregar jugador</Link> : undefined} /> : null}
+        {!players.length ? <EmptyState title="No hay jugadores con los filtros actuales" text="Ajusta los filtros o agrega un jugador para iniciar seguimiento de plantilla." action={canEditPlayers ? <Link className="btn" href="/registro">Agregar jugador</Link> : undefined} /> : null}
       </div>
     </div>
   );

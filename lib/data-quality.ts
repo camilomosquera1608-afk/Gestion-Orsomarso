@@ -1,4 +1,5 @@
-import type { AppData } from './types';
+import type { AppData, ClubCategory } from './types';
+import { categoryLabel } from './labels';
 import { supportsGps } from './report-utils';
 
 export type QualitySeverity = 'ok' | 'warning' | 'error';
@@ -10,6 +11,32 @@ export interface QualityCheck {
   detail: string;
 }
 
+export interface CategoryDataTotals {
+  players: number;
+  u15Players: number;
+  u17Players: number;
+  u20Players: number;
+  microcycles: number;
+  microcyclesU15: number;
+  microcyclesU17: number;
+  microcyclesU20: number;
+  sessions: number;
+  matches: number;
+  nutrition: number;
+  evaluations: number;
+  gpsRecords: number;
+}
+
+export interface CategoryReadinessSummary {
+  players: number;
+  microcycles: number;
+  sessions: number;
+  matches: number;
+  evaluations: number;
+  nutrition: number;
+  gpsRecords: number;
+}
+
 const hasValue = (value: unknown) => value !== undefined && value !== null && String(value).trim() !== '';
 
 const isGpsLike = (record: { totalDistance?: number; playerLoad?: number; highSpeedDistance?: number; sprintDistance?: number; maxVelocity?: number }) =>
@@ -19,20 +46,36 @@ const isGpsLike = (record: { totalDistance?: number; playerLoad?: number; highSp
   Number(record.sprintDistance ?? 0) > 0 ||
   Number(record.maxVelocity ?? 0) > 0;
 
-export const getDataTotals = (data: AppData) => {
-  const u20Players = data.players.filter((player) => player.category === 'Sub20');
+const categoryKeys: Record<ClubCategory, keyof CategoryDataTotals> = {
+  Sub15: 'u15Players',
+  Sub17: 'u17Players',
+  Sub20: 'u20Players',
+};
+
+const microcycleKeys: Record<ClubCategory, keyof CategoryDataTotals> = {
+  Sub15: 'microcyclesU15',
+  Sub17: 'microcyclesU17',
+  Sub20: 'microcyclesU20',
+};
+
+export const getDataTotals = (data: AppData): CategoryDataTotals => {
+  const u15Players = data.players.filter((player) => player.category === 'Sub15');
   const u17Players = data.players.filter((player) => player.category === 'Sub17');
-  const microcyclesU20 = data.microcycles.filter((item) => item.category === 'Sub20');
+  const u20Players = data.players.filter((player) => player.category === 'Sub20');
+  const microcyclesU15 = data.microcycles.filter((item) => item.category === 'Sub15');
   const microcyclesU17 = data.microcycles.filter((item) => item.category === 'Sub17');
+  const microcyclesU20 = data.microcycles.filter((item) => item.category === 'Sub20');
   const gpsRecords = data.externalLoads.filter(isGpsLike);
 
   return {
     players: data.players.length,
-    u20Players: u20Players.length,
+    u15Players: u15Players.length,
     u17Players: u17Players.length,
+    u20Players: u20Players.length,
     microcycles: data.microcycles.length,
-    microcyclesU20: microcyclesU20.length,
+    microcyclesU15: microcyclesU15.length,
     microcyclesU17: microcyclesU17.length,
+    microcyclesU20: microcyclesU20.length,
     sessions: data.trainingSessionSummaries.length,
     matches: data.competitionMatchSummaries.length,
     nutrition: data.nutritionRecords.length,
@@ -41,29 +84,55 @@ export const getDataTotals = (data: AppData) => {
   };
 };
 
-export const getU20ReadinessChecks = (data: AppData): QualityCheck[] => {
-  const totals = getDataTotals(data);
-  const u20PlayerIds = new Set(data.players.filter((player) => player.category === 'Sub20').map((player) => player.id));
-  const playersWithoutPosition = data.players.filter((player) => player.category === 'Sub20' && !hasValue(player.position));
-  const playersWithoutStatus = data.players.filter((player) => player.category === 'Sub20' && !hasValue(player.status));
-  const microcyclesWithoutCategory = data.microcycles.filter((item) => !hasValue(item.category));
-  const u20Sessions = data.trainingSessionSummaries.filter((item) => item.category === 'Sub20');
-  const u20Matches = data.competitionMatchSummaries.filter((item) => item.category === 'Sub20');
-  const gpsOutsideU20 = data.externalLoads.filter((record) => isGpsLike(record) && !supportsGps(record.category));
-  const gpsWithoutKnownPlayer = data.externalLoads.filter((record) => isGpsLike(record) && !u20PlayerIds.has(record.playerId));
+export const getCategoryReadinessSummary = (data: AppData, category: ClubCategory): CategoryReadinessSummary => {
+  const playerIds = new Set(data.players.filter((player) => player.category === category).map((player) => player.id));
+  const gpsRecords = data.externalLoads.filter((record) => isGpsLike(record) && playerIds.has(record.playerId));
 
-  return [
+  return {
+    players: data.players.filter((player) => player.category === category).length,
+    microcycles: data.microcycles.filter((item) => item.category === category).length,
+    sessions: data.trainingSessionSummaries.filter((item) => item.category === category).length,
+    matches: data.competitionMatchSummaries.filter((item) => item.category === category).length,
+    evaluations:
+      data.cmjRecords.filter((item) => item.category === category).length +
+      data.neuromuscularRecords.filter((item) => item.category === category).length +
+      data.fmsRecords.filter((item) => item.category === category).length,
+    nutrition: data.nutritionRecords.filter((item) => item.category === category).length,
+    gpsRecords: gpsRecords.length,
+  };
+};
+
+export const getCategoryReadinessChecks = (data: AppData, category: ClubCategory): QualityCheck[] => {
+  const label = categoryLabel(category);
+  const playerIds = new Set(data.players.filter((player) => player.category === category).map((player) => player.id));
+  const playersWithoutPosition = data.players.filter((player) => player.category === category && !hasValue(player.position));
+  const playersWithoutStatus = data.players.filter((player) => player.category === category && !hasValue(player.status));
+  const microcyclesWithoutCategory = data.microcycles.filter((item) => !hasValue(item.category));
+  const categoryPlayers = data.players.filter((player) => player.category === category);
+  const categoryMicrocycles = data.microcycles.filter((item) => item.category === category);
+  const categorySessions = data.trainingSessionSummaries.filter((item) => item.category === category);
+  const categoryMatches = data.competitionMatchSummaries.filter((item) => item.category === category);
+  const categoryNutrition = data.nutritionRecords.filter((item) => item.category === category);
+  const categoryEvaluations = [
+    ...data.cmjRecords.filter((item) => item.category === category),
+    ...data.neuromuscularRecords.filter((item) => item.category === category),
+    ...data.fmsRecords.filter((item) => item.category === category),
+  ];
+  const gpsOutsideU20 = data.externalLoads.filter((record) => isGpsLike(record) && !supportsGps(record.category));
+  const gpsWithoutKnownPlayer = data.externalLoads.filter((record) => isGpsLike(record) && supportsGps(record.category) && !playerIds.has(record.playerId));
+
+  const checks: QualityCheck[] = [
     {
-      id: 'u20-players',
-      label: 'Jugadores U20',
-      severity: totals.u20Players > 0 ? 'ok' : 'warning',
-      detail: totals.u20Players > 0 ? `${totals.u20Players} jugadores U20 disponibles.` : 'Carga jugadores U20 antes de sesiones, competencia o GPS.',
+      id: `${category}-players`,
+      label: `Jugadores ${label}`,
+      severity: categoryPlayers.length > 0 ? 'ok' : 'warning',
+      detail: categoryPlayers.length > 0 ? `${categoryPlayers.length} jugadores ${label} disponibles.` : `Carga jugadores ${label} antes de sesiones, competencia o valoraciones.`,
     },
     {
-      id: 'u20-microcycles',
-      label: 'Microciclos U20',
-      severity: totals.microcyclesU20 > 0 ? 'ok' : 'warning',
-      detail: totals.microcyclesU20 > 0 ? `${totals.microcyclesU20} microciclos U20 creados.` : 'Crea el microciclo U20 actual antes de cargar sesiones.',
+      id: `${category}-microcycles`,
+      label: `Microciclos ${label}`,
+      severity: categoryMicrocycles.length > 0 ? 'ok' : 'warning',
+      detail: categoryMicrocycles.length > 0 ? `${categoryMicrocycles.length} microciclos ${label} creados.` : `Crea el microciclo ${label} actual antes de cargar sesiones.`,
     },
     {
       id: 'microcycle-category',
@@ -72,22 +141,28 @@ export const getU20ReadinessChecks = (data: AppData): QualityCheck[] => {
       detail: microcyclesWithoutCategory.length === 0 ? 'Todos los microciclos tienen categoría.' : `${microcyclesWithoutCategory.length} microciclos no tienen categoría.`,
     },
     {
-      id: 'u20-player-profile',
-      label: 'Perfiles de jugador U20',
+      id: `${category}-player-profile`,
+      label: `Perfiles de jugador ${label}`,
       severity: playersWithoutPosition.length === 0 && playersWithoutStatus.length === 0 ? 'ok' : 'warning',
-      detail: playersWithoutPosition.length === 0 && playersWithoutStatus.length === 0 ? 'Jugadores U20 con datos operativos básicos.' : `${playersWithoutPosition.length} sin posición · ${playersWithoutStatus.length} sin estado.`,
+      detail: playersWithoutPosition.length === 0 && playersWithoutStatus.length === 0 ? `Jugadores ${label} con datos operativos básicos.` : `${playersWithoutPosition.length} sin posición · ${playersWithoutStatus.length} sin estado.`,
     },
     {
-      id: 'u20-sessions',
-      label: 'Sesiones U20',
-      severity: u20Sessions.length > 0 ? 'ok' : 'warning',
-      detail: u20Sessions.length > 0 ? `${u20Sessions.length} sesiones U20 registradas.` : 'Todavía no hay sesiones U20 registradas.',
+      id: `${category}-sessions`,
+      label: `Sesiones ${label}`,
+      severity: categorySessions.length > 0 ? 'ok' : 'warning',
+      detail: categorySessions.length > 0 ? `${categorySessions.length} sesiones ${label} registradas.` : `Todavía no hay sesiones ${label} registradas.`,
     },
     {
-      id: 'u20-matches',
-      label: 'Competencia U20',
-      severity: u20Matches.length > 0 ? 'ok' : 'warning',
-      detail: u20Matches.length > 0 ? `${u20Matches.length} partidos U20 registrados.` : 'Todavía no hay partidos U20 registrados.',
+      id: `${category}-matches`,
+      label: `Competencia ${label}`,
+      severity: categoryMatches.length > 0 ? 'ok' : 'warning',
+      detail: categoryMatches.length > 0 ? `${categoryMatches.length} partidos ${label} registrados.` : `Todavía no hay partidos ${label} registrados.`,
+    },
+    {
+      id: `${category}-evaluations`,
+      label: `Valoraciones ${label}`,
+      severity: categoryEvaluations.length > 0 || categoryNutrition.length > 0 ? 'ok' : 'warning',
+      detail: categoryEvaluations.length > 0 || categoryNutrition.length > 0 ? `${categoryEvaluations.length} valoraciones · ${categoryNutrition.length} nutrición.` : `Todavía no hay valoraciones ${label}.`,
     },
     {
       id: 'gps-u20-only',
@@ -95,14 +170,21 @@ export const getU20ReadinessChecks = (data: AppData): QualityCheck[] => {
       severity: gpsOutsideU20.length === 0 ? 'ok' : 'error',
       detail: gpsOutsideU20.length === 0 ? 'No hay métricas GPS fuera de U20.' : `${gpsOutsideU20.length} registros GPS están fuera de U20.`,
     },
-    {
+  ];
+
+  if (supportsGps(category)) {
+    checks.push({
       id: 'gps-player-link',
       label: 'GPS asociado a jugadores U20',
       severity: gpsWithoutKnownPlayer.length === 0 ? 'ok' : 'warning',
       detail: gpsWithoutKnownPlayer.length === 0 ? 'Registros GPS asociados a jugadores U20 conocidos.' : `${gpsWithoutKnownPlayer.length} registros GPS no coinciden con jugadores U20 cargados.`,
-    },
-  ];
+    });
+  }
+
+  return checks;
 };
+
+export const getU20ReadinessChecks = (data: AppData): QualityCheck[] => getCategoryReadinessChecks(data, 'Sub20');
 
 export const getOverallDataQuality = (checks: QualityCheck[]): QualitySeverity => {
   if (checks.some((check) => check.severity === 'error')) return 'error';

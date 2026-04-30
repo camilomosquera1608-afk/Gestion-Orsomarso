@@ -170,7 +170,6 @@ export function CompetitionReportTemplate({ report, category, className = '', co
             { label: 'Resultado', value: report.resultType, note: 'Marcador', tone: resultTone },
             { label: 'Jugadores', value: report.stats.players, note: 'Planilla', tone: 'blue' },
             { label: 'Goles', value: report.stats.goals, note: 'Orsomarso', tone: 'green' },
-            { label: 'Minutos', value: report.stats.minutes, note: 'Total', tone: 'dark' },
           ]}
         />
       ) : null}
@@ -215,12 +214,11 @@ export function CompetitionReportTemplate({ report, category, className = '', co
         <p className="pdf-report-summary">{report.executiveSummary}</p>
       </ReportSection>
 
-      <ReportSection icon={Medal} eyebrow="Métricas" title="Métricas">
+      <ReportSection icon={Medal} eyebrow="Resumen" title="Indicadores del partido">
         <div className="pdf-report-kpi-grid competition-kpi-grid">
           <ReportKpi icon={Users} label="Jugadores" value={report.stats.players} note="Planilla" tone="blue" />
           <ReportKpi icon={Trophy} label="Titulares" value={report.stats.starters} note="Titulares" tone="green" />
           <ReportKpi icon={UserRound} label="Suplentes" value={report.stats.substitutes} note="Suplentes" tone="neutral" />
-          <ReportKpi icon={Clock} label="Minutos" value={report.stats.minutes} note="Total" tone="dark" />
           <ReportKpi icon={Zap} label="Goles" value={report.stats.goals} note="Ataque" tone="green" />
           <ReportKpi icon={Medal} label="Asistencias" value={report.stats.assists} note="Ataque" tone="blue" />
           <ReportKpi icon={Shield} label="Porteros" value={report.stats.goalkeepers} note="Portería" tone="dark" />
@@ -232,7 +230,7 @@ export function CompetitionReportTemplate({ report, category, className = '', co
         </div>
       </ReportSection>
 
-      <ReportSection icon={ClipboardList} eyebrow="Planilla" title="Participación">
+      <ReportSection icon={ClipboardList} eyebrow="Planilla" title="Participación individual" subtitle="Los minutos se presentan únicamente por jugador.">
         <PlayerTable rows={report.rows} />
       </ReportSection>
 
