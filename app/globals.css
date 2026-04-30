@@ -2388,3 +2388,67 @@ textarea.input, .textarea { resize: vertical; }
     min-width: 96px;
   }
 }
+
+/* v107.7 player profile and session operations */
+.player-profile-summary {
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr);
+  align-items: stretch;
+}
+.profile-cover-card {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 28px !important;
+  min-height: 250px;
+}
+.profile-cover-card .roster-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+.player-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.player-meta span {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.14);
+  line-height: 1.25;
+}
+.profile-cover-card h3 {
+  font-size: clamp(24px, 3.2vw, 40px);
+  line-height: 1.04;
+  letter-spacing: -.04em;
+}
+.session-history-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+@media (max-width: 980px) {
+  .player-profile-summary { grid-template-columns: 1fr; }
+  .profile-cover-card { grid-template-columns: auto 1fr !important; min-height: auto; }
+  .player-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .profile-cover-card { grid-template-columns: 1fr !important; padding: 20px !important; }
+  .player-meta { grid-template-columns: 1fr; }
+  .profile-cover-card .roster-actions .btn { width: 100%; }
+}
+@media print {
+  .session-player-card,
+  .session-table-card,
+  .session-history-actions,
+  .player-detail-tabs,
+  .profile-cover-card .roster-actions { display: none !important; }
+}

@@ -1,6 +1,6 @@
 {
   "name": "orsomarso-performance-app",
-  "version": "1.4.15-v107-6-botones-operativos",
+  "version": "1.4.16-v107-7-sesion-ficha-pdf",
   "private": true,
   "scripts": {
     "dev": "next dev",

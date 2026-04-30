@@ -48,6 +48,7 @@ interface AppContextValue {
   upsertCompetitionMatchSummary: (record: CompetitionMatchSummary) => void;
   deleteCompetitionMatchSummary: (matchId: string) => void;
   upsertTrainingSessionSummary: (record: TrainingSessionSummary) => void;
+  deleteTrainingSessionSummary: (sessionId: string) => void;
   updateMicrocycle: (record: Microcycle) => void;
   deleteMicrocycle: (microcycleId: string) => void;
   backendMode: 'supabase' | 'local';
@@ -523,6 +524,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       void deleteRemoteLegacy('competition_matches', matchId);
     },
     upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.id === record.id || (item.date === record.date && item.category === record.category)))] })),
+    deleteTrainingSessionSummary: (sessionId) => {
+      const current = dataRef.current;
+      applyMutation((prev) => ({
+        ...prev,
+        trainingSessionSummaries: prev.trainingSessionSummaries.filter((item) => item.id !== sessionId),
+        externalLoads: prev.externalLoads.filter((item) => item.sessionId !== sessionId),
+        internalLoads: prev.internalLoads.filter((item) => item.sessionId !== sessionId),
+      }));
+      void deleteRemoteLegacy('training_sessions', sessionId);
+      current.externalLoads.filter((item) => item.sessionId === sessionId).forEach((item) => { void deleteRemoteLegacy('daily_external_loads', item.id); });
+      current.internalLoads.filter((item) => item.sessionId === sessionId).forEach((item) => { void deleteRemoteLegacy('daily_internal_loads', item.id); });
+    },
     updateMicrocycle: (record) => {
       const normalizedRecord = { ...record, category: record.category ?? (filters.category === 'all' ? 'Sub20' : filters.category as any) };
       applyMutation((prev) => {

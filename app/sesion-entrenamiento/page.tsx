@@ -52,7 +52,7 @@ type RowState = {
 const renderNumberInput = (value: number) => (value === 0 ? '' : String(value));
 
 export default function SesionEntrenamientoPage() {
-  const { data, filters, setFilters, addExternalLoad, updateExternalLoad, deleteExternalLoad, upsertInternalLoad, upsertTrainingSessionSummary } = useApp();
+  const { data, filters, setFilters, addExternalLoad, updateExternalLoad, deleteExternalLoad, upsertInternalLoad, upsertTrainingSessionSummary, deleteTrainingSessionSummary } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
@@ -74,6 +74,7 @@ export default function SesionEntrenamientoPage() {
   const [showGroupReport, setShowGroupReport] = useState(false);
   const [sessionNumberInput, setSessionNumberInput] = useState(filters.sessionNumber ? String(filters.sessionNumber) : '');
   const [isSavingSession, setIsSavingSession] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     setSourceCategory(activeCategory);
@@ -83,7 +84,10 @@ export default function SesionEntrenamientoPage() {
     setSessionNumberInput(filters.sessionNumber ? String(filters.sessionNumber) : '');
   }, [filters.sessionNumber]);
 
-  const summaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory);
+  const summaryRecord = editingSessionId
+    ? data.trainingSessionSummaries.find((item) => item.id === editingSessionId)
+    : data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory);
+  const dateSummaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory);
   const sessionHistory = useMemo(
     () => data.trainingSessionSummaries
       .filter((item) => item.category === activeCategory)
@@ -100,10 +104,27 @@ export default function SesionEntrenamientoPage() {
     setSessionObservation(summaryRecord?.observation ?? '');
   }, [summaryRecord?.id, summaryRecord?.sessionType, summaryRecord?.objective, summaryRecord?.observation]);
 
+  useEffect(() => {
+    if (summaryRecord?.sessionNumber) {
+      setSessionNumberInput(String(summaryRecord.sessionNumber));
+      return;
+    }
+    const previousSessions = data.trainingSessionSummaries
+      .filter((item) => item.category === activeCategory && item.date < filters.date)
+      .map((item) => Number(item.sessionNumber) || 0);
+    const nextNumber = previousSessions.length ? Math.max(...previousSessions) + 1 : 1;
+    setSessionNumberInput(String(nextNumber));
+  }, [summaryRecord?.id, summaryRecord?.sessionNumber, filters.date, activeCategory, data.trainingSessionSummaries]);
+
   const sessionPlayers = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
   const existingRecords = useMemo(
-    () => activeMicrocycleId ? data.externalLoads.filter((record) => record.date === filters.date && (record.category ?? record.actingCategory) === activeCategory && (record.microcycleId ?? activeMicrocycleId) === activeMicrocycleId && (record.sessionNumber ?? filters.sessionNumber) === filters.sessionNumber) : [],
-    [data.externalLoads, filters.date, activeMicrocycleId, filters.sessionNumber, activeCategory],
+    () => data.externalLoads.filter((record) => {
+      if (summaryRecord?.id && record.sessionId === summaryRecord.id) return true;
+      return record.date === filters.date
+        && (record.category ?? record.actingCategory) === activeCategory
+        && (record.sessionNumber ?? filters.sessionNumber) === (summaryRecord?.sessionNumber ?? filters.sessionNumber);
+    }),
+    [data.externalLoads, summaryRecord?.id, summaryRecord?.sessionNumber, filters.date, filters.sessionNumber, activeCategory],
   );
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
 
@@ -166,8 +187,9 @@ export default function SesionEntrenamientoPage() {
     setSessionType(target.sessionType ?? 'cdEf');
     setSessionObjective(target.objective ?? '');
     setSessionObservation(target.observation ?? '');
+    setEditingSessionId(target.id);
     setSessionNumberInput(String(target.sessionNumber || 1));
-    setMessage(`Editando sesión ${categoryLabel(target.category ?? activeCategory)} del ${target.date}.`);
+    setMessage(`Editando sesión ${target.sessionNumber || '-'} · ${categoryLabel(target.category ?? activeCategory)} · ${target.date}. Los datos cargados se muestran en la planilla.`);
   };
 
   const updateRow = (playerId: string, patch: Partial<RowState>) =>
@@ -223,7 +245,7 @@ export default function SesionEntrenamientoPage() {
       return;
     }
 
-    const duplicateSummary = findDuplicateTrainingSession(data.trainingSessionSummaries, { id: summaryRecord?.id, date: filters.date, category: activeCategory });
+    const duplicateSummary = findDuplicateTrainingSession(data.trainingSessionSummaries, { id: summaryRecord?.id ?? editingSessionId ?? undefined, date: filters.date, category: activeCategory });
     if (duplicateSummary) {
       setMessage('Ya existe una sesión de esta categoría para esta fecha. Edita la sesión existente o cambia la fecha.');
       return;
@@ -299,11 +321,28 @@ export default function SesionEntrenamientoPage() {
 
     existingRecords.filter((record) => !selectedRows.find((row) => row.player.id === record.playerId)).forEach((record) => deleteExternalLoad(record.id));
     setIsSavingSession(false);
-    setMessage('Sesión guardada correctamente.');
+    setEditingSessionId(sessionId);
+    setMessage(summaryRecord ? 'Sesión actualizada correctamente.' : 'Sesión guardada correctamente.');
+  };
+
+  const deleteSession = (sessionId: string) => {
+    const target = data.trainingSessionSummaries.find((item) => item.id === sessionId);
+    if (!target) return;
+    const confirmed = window.confirm(`¿Eliminar la sesión ${target.sessionNumber || '-'} del ${target.date}? También se quitará la participación de jugadores asociada.`);
+    if (!confirmed) return;
+    deleteTrainingSessionSummary(sessionId);
+    if (editingSessionId === sessionId) setEditingSessionId(null);
+    setMessage('Sesión eliminada correctamente.');
+  };
+
+  const cancelSessionEditing = () => {
+    setEditingSessionId(null);
+    setMessage('Edición cancelada. Selecciona una fecha o una sesión del historial.');
   };
 
   return (
-    <div className="grid">
+    <>
+    <div className="grid no-print">
       <AppHero title="Ficha técnica de entrenamiento" subtitle={`Sesión · ${categoryLabel(activeCategory)}${gpsEnabled ? ' · GPS Catapult U20' : ''}`} />
 
 
@@ -317,9 +356,12 @@ export default function SesionEntrenamientoPage() {
             <span className="section-eyebrow">Sesión</span><h3 style={{ margin: 0 }}>Sesión de entrenamiento</h3>
             
             <div className="muted-line" style={{ marginTop: 8 }}>{microcycleNotice}</div>
-            {summaryRecord ? <div className="muted-line" style={{ marginTop: 4, color: '#1d4ed8', fontWeight: 800 }}>Sesión existente detectada: estás editando una sesión guardada.</div> : null}
+            {summaryRecord ? <div className="muted-line" style={{ marginTop: 4, color: '#1d4ed8', fontWeight: 800 }}>Sesión existente detectada: estás editando la sesión {summaryRecord.sessionNumber} del {summaryRecord.date}.</div> : null}
           </div>
-          <button type="button" className="btn secondary" onClick={() => setMessage('')}>Limpiar aviso</button>
+          <div className="btn-row">
+            {summaryRecord ? <button type="button" className="btn secondary" onClick={cancelSessionEditing}>Cancelar edición</button> : null}
+            <button type="button" className="btn secondary" onClick={() => setMessage('')}>Limpiar aviso</button>
+          </div>
         </div>
         <div className="grid grid-4" style={{ marginTop: 16 }}>
           <div className="field">
@@ -484,13 +526,15 @@ export default function SesionEntrenamientoPage() {
                     <td>{item.sessionNumber}</td>
                     <td>{item.sessionType}</td>
                     <td>{item.objective || '-'}</td>
-                    <td><button type="button" className="btn secondary" onClick={() => editSessionSummary(item.id)}>Editar sesión</button></td>
+                    <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => editSessionSummary(item.id)}>Editar sesión</button><button type="button" className="btn danger" onClick={() => deleteSession(item.id)}>Eliminar</button></div></td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         ) : <EmptyState title="Sin sesiones cargadas" text="Las sesiones guardadas aparecerán aquí para edición." />}
+      </div>
+
       </div>
 
       <SessionReportTemplate
@@ -506,6 +550,6 @@ export default function SesionEntrenamientoPage() {
         dataQualityPercent={ops.dataQualityPercent}
         className="print-only"
       />
-    </div>
+    </>
   );
 }
