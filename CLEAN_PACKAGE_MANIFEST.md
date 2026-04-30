@@ -1,28 +1,30 @@
-# Clean package manifest
+# Orsomarso Performance App - v105 admin profiles fix
 
-Incluye el proyecto completo listo para copiar en la carpeta de la app.
+Paquete limpio del proyecto completo.
 
-Se eliminaron restos de versiones anteriores como documentación histórica, SQL histórico, cachés, zips, Python y archivos temporales.
+Incluye la correccion para que Administracion pueda listar todos los perfiles autorizados desde Supabase cuando el usuario tenga rol administrador o administrador de categoria con alcance ALL/TODO.
 
-Archivos/carpetas principales incluidos:
+## Importante
 
-- app
-- components
-- context
-- lib
-- public
-- scripts
-- supabase
-- package.json
-- package-lock.json, si existiera en la base
-- tsconfig.json
-- next.config.ts
-- next-env.d.ts
-- .env.example
-- .env.vercel.example
-- .gitignore
-- README.md
-- DEPLOYMENT.md
-- PRODUCTION_CHECKLIST.md
-- SECURITY.md
-- SUPABASE_RUN_THIS.sql
+Si en Administracion solo aparece un perfil aunque Supabase tenga varios registros, ejecuta en Supabase SQL Editor:
+
+`SUPABASE_FIX_ADMIN_PROFILES_RLS.sql`
+
+Ese archivo no borra datos. Ajusta politicas/RPC de perfiles para permitir que el administrador vea y actualice todos los perfiles.
+
+## Limpieza del paquete
+
+No incluye:
+
+- node_modules
+- .next
+- tsconfig.tsbuildinfo
+- archivos Python
+- __pycache__
+- notebooks
+- zips anteriores
+- builds temporales
+
+## Verificacion
+
+Preflight ejecutado correctamente.

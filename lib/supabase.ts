@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { normalizeCategoryScope, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from '@/lib/access-control';
+import { normalizeAccessLevel, normalizeCategoryScope, normalizePlatformRole, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from '@/lib/access-control';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -133,28 +133,32 @@ export async function fetchCurrentUserProfile() {
   const user = userData.user;
   if (!user) return { ok: false as const, reason: 'No hay sesión activa.' };
 
-  const { data, error } = await supabase
+  const primaryResult = await supabase
     .from('profiles')
     .select('id, email, full_name, role, category_scope, access_level, is_active')
     .eq('id', user.id)
     .maybeSingle();
 
+  let data = primaryResult.data;
+  let error = primaryResult.error;
+
+  if (error) {
+    const fallbackResult = await supabase
+      .from('perfiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
+
   if (error) return { ok: false as const, reason: error.message };
   if (!data) return { ok: false as const, reason: 'Tu usuario no tiene perfil asignado. Solicita rol y categoría al administrador.' };
-  if (data.is_active === false) return { ok: false as const, reason: 'Tu perfil está desactivado.' };
 
-  return {
-    ok: true as const,
-    profile: {
-      id: String(data.id),
-      email: String(data.email ?? user.email ?? '').toLowerCase(),
-      fullName: data.full_name ?? null,
-      role: data.role,
-      categoryScope: normalizeCategoryScope(data.category_scope),
-      accessLevel: data.access_level,
-      isActive: Boolean(data.is_active),
-    },
-  };
+  const profile = mapProfileRow({ ...data, email: readRowValue(data, ['email', 'correo_electronico', 'correo electrónico']) ?? user.email });
+  if (!profile.isActive) return { ok: false as const, reason: 'Tu perfil está desactivado.' };
+
+  return { ok: true as const, profile };
 }
 
 export async function fetchAuditLogs(limit = 80) {
@@ -181,27 +185,50 @@ export type AuditLogRow = {
   after_data?: unknown;
 };
 
-const mapProfileRow = (row: any): UserProfile => ({
-  id: String(row.id),
-  email: String(row.email ?? '').toLowerCase(),
-  fullName: row.full_name ?? null,
-  role: row.role as PlatformRole,
-  categoryScope: normalizeCategoryScope(row.category_scope),
-  accessLevel: row.access_level as AccessLevel,
-  isActive: Boolean(row.is_active),
-  createdAt: row.created_at ?? undefined,
-  updatedAt: row.updated_at ?? undefined,
-});
+const readRowValue = (row: any, keys: string[]) => {
+  for (const key of keys) {
+    if (row?.[key] !== undefined && row?.[key] !== null) return row[key];
+  }
+  return undefined;
+};
+
+const mapProfileRow = (row: any): UserProfile => {
+  const role = normalizePlatformRole(readRowValue(row, ['role', 'rol']));
+  return {
+    id: String(readRowValue(row, ['id', 'identificacion', 'identificación']) ?? ''),
+    email: String(readRowValue(row, ['email', 'correo_electronico', 'correo electrónico']) ?? '').toLowerCase(),
+    fullName: readRowValue(row, ['full_name', 'nombre_completo', 'nombre completo']) ?? null,
+    role,
+    categoryScope: normalizeCategoryScope(readRowValue(row, ['category_scope', 'ambito_de_categoria', 'ámbito_de_categoría', 'ambito categoria'])),
+    accessLevel: normalizeAccessLevel(readRowValue(row, ['access_level', 'nivel_acceso', 'permiso']), role),
+    isActive: readRowValue(row, ['is_active', 'activo']) === undefined ? true : Boolean(readRowValue(row, ['is_active', 'activo'])),
+    createdAt: readRowValue(row, ['created_at', 'creado_en']) ?? undefined,
+    updatedAt: readRowValue(row, ['updated_at', 'actualizado_en']) ?? undefined,
+  };
+};
 
 export async function fetchProfiles() {
   if (!supabase || !tableSchemaSyncEnabled) return { ok: false as const, reason: 'Supabase no configurado.' };
+
+  const rpcResult = await supabase.rpc('admin_list_profiles');
+  if (!rpcResult.error) {
+    return { ok: true as const, profiles: (rpcResult.data ?? []).map(mapProfileRow) };
+  }
+
   const { data, error } = await supabase
     .from('profiles')
     .select('id, email, full_name, role, category_scope, access_level, is_active, created_at, updated_at')
     .order('email', { ascending: true });
 
-  if (error) return { ok: false as const, reason: error.message };
-  return { ok: true as const, profiles: (data ?? []).map(mapProfileRow) };
+  if (!error) return { ok: true as const, profiles: (data ?? []).map(mapProfileRow) };
+
+  const { data: spanishData, error: spanishError } = await supabase
+    .from('perfiles')
+    .select('*');
+
+  if (!spanishError) return { ok: true as const, profiles: (spanishData ?? []).map(mapProfileRow) };
+
+  return { ok: false as const, reason: rpcResult.error.message || error.message || spanishError.message };
 }
 
 export async function updateProfileAccess(profile: {
@@ -213,6 +240,18 @@ export async function updateProfileAccess(profile: {
   isActive: boolean;
 }) {
   if (!supabase || !tableSchemaSyncEnabled) return { ok: false as const, reason: 'Supabase no configurado.' };
+
+  const rpcResult = await supabase.rpc('admin_update_profile', {
+    profile_id: profile.id,
+    profile_full_name: profile.fullName || null,
+    profile_role: profile.role,
+    profile_category_scope: profile.categoryScope,
+    profile_access_level: profile.accessLevel,
+    profile_is_active: profile.isActive,
+  });
+
+  if (!rpcResult.error) return { ok: true as const };
+
   const { error } = await supabase
     .from('profiles')
     .update({
@@ -225,7 +264,21 @@ export async function updateProfileAccess(profile: {
     })
     .eq('id', profile.id);
 
-  if (error) return { ok: false as const, reason: error.message };
+  if (!error) return { ok: true as const };
+
+  const { error: spanishError } = await supabase
+    .from('perfiles')
+    .update({
+      nombre_completo: profile.fullName || null,
+      role: profile.role,
+      ambito_de_categoria: profile.categoryScope,
+      access_level: profile.accessLevel,
+      activo: profile.isActive,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', profile.id);
+
+  if (spanishError) return { ok: false as const, reason: rpcResult.error.message || error.message || spanishError.message };
   return { ok: true as const };
 }
 

@@ -44,34 +44,80 @@ export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
   read: 'Solo lectura',
 };
 
+const normalizeTextKey = (value?: string | null) => String(value ?? '')
+  .trim()
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/\s+/g, '_')
+  .replace(/-/g, '_');
+
+export const normalizePlatformRole = (role?: string | null): PlatformRole => {
+  const value = normalizeTextKey(role);
+  if (['admin', 'administracion', 'administrador', 'administrador_general', 'master', 'maestro'].includes(value)) return 'admin';
+  if (['category_admin', 'categoria_admin', 'administrador_de_categoria', 'admin_categoria'].includes(value)) return 'category_admin';
+  if (['director', 'direccion', 'director_deportivo'].includes(value)) return 'director';
+  if (['preparador', 'preparador_fisico', 'fisio', 'pf'].includes(value)) return 'preparador';
+  if (['medico', 'area_medica', 'medicina'].includes(value)) return 'medico';
+  if (['analista', 'analisis'].includes(value)) return 'analista';
+  if (['valorador', 'valoraciones'].includes(value)) return 'valorador';
+  if (['solo_lectura', 'lectura', 'read', 'readonly', 'viewer'].includes(value)) return 'solo_lectura';
+  return 'solo_lectura';
+};
+
+export const normalizeAccessLevel = (level?: string | null, role?: PlatformRole): AccessLevel => {
+  const value = normalizeTextKey(level);
+  if (['full', 'edicion_completa', 'completa', 'admin', 'total'].includes(value)) return 'full';
+  if (['write', 'edicion', 'editar', 'escritura'].includes(value)) return 'write';
+  if (['read', 'solo_lectura', 'lectura', 'viewer'].includes(value)) return 'read';
+  if (role === 'solo_lectura') return 'read';
+  if (role === 'admin' || role === 'category_admin') return 'full';
+  return 'write';
+};
+
 export const normalizeCategoryScope = (scope?: string | null): CategoryScope => {
-  if (scope === 'ALL') return 'ALL';
-  if (scope === 'U15' || scope === 'Sub15') return 'Sub15';
-  if (scope === 'U17' || scope === 'Sub17') return 'Sub17';
-  if (scope === 'U20' || scope === 'Sub20') return 'Sub20';
+  const value = normalizeTextKey(scope);
+  if (['all', 'todo', 'todos', 'todas', 'global', 'general'].includes(value)) return 'ALL';
+  if (['u15', 'sub15', 'sub_15'].includes(value)) return 'Sub15';
+  if (['u17', 'sub17', 'sub_17'].includes(value)) return 'Sub17';
+  if (['u20', 'sub20', 'sub_20'].includes(value)) return 'Sub20';
   return 'Sub20';
 };
 
 export const normalizeClubCategory = (category?: string | null): ClubCategory | undefined => {
-  if (category === 'U15' || category === 'Sub15') return 'Sub15';
-  if (category === 'U17' || category === 'Sub17') return 'Sub17';
-  if (category === 'U20' || category === 'Sub20') return 'Sub20';
+  const value = normalizeTextKey(category);
+  if (['u15', 'sub15', 'sub_15'].includes(value)) return 'Sub15';
+  if (['u17', 'sub17', 'sub_17'].includes(value)) return 'Sub17';
+  if (['u20', 'sub20', 'sub_20'].includes(value)) return 'Sub20';
   return undefined;
+};
+
+export const hasAdministrationAccess = (session: StaffSession | null | undefined) => {
+  if (!session?.isAuthenticated) return false;
+  const accessLevel = session.accessLevel ?? (session.platformRole === 'solo_lectura' ? 'read' : 'full');
+  const scope = session.categoryScope ? normalizeCategoryScope(session.categoryScope) : session.category === 'all' ? 'ALL' : normalizeCategoryScope(session.category);
+  const role = normalizePlatformRole(session.platformRole ?? session.role);
+  const isMasterSession = session.role === 'master' && session.category === 'all';
+  return accessLevel === 'full' && (role === 'admin' || isMasterSession || (role === 'category_admin' && scope === 'ALL'));
 };
 
 export const canWrite = (session: StaffSession | null | undefined) => {
   if (!session?.isAuthenticated) return false;
-  return session.accessLevel === 'full' || session.accessLevel === 'write' || session.platformRole === 'admin' || session.platformRole === 'category_admin';
+  const accessLevel = session.accessLevel ?? (session.platformRole === 'solo_lectura' ? 'read' : 'full');
+  const role = normalizePlatformRole(session.platformRole ?? session.role);
+  return accessLevel === 'full' || accessLevel === 'write' || role === 'admin' || role === 'category_admin';
 };
 
 export const canReadAllCategories = (session: StaffSession | null | undefined) => {
-  return session?.categoryScope === 'ALL' || session?.category === 'all' || session?.platformRole === 'admin';
+  const scope = session?.categoryScope ? normalizeCategoryScope(session.categoryScope) : undefined;
+  const role = normalizePlatformRole(session?.platformRole ?? session?.role);
+  return scope === 'ALL' || session?.category === 'all' || role === 'admin';
 };
 
 export const getSessionCategoryScope = (session: StaffSession | null | undefined): CategoryScope => {
   if (!session?.isAuthenticated) return 'Sub20';
   if (session.categoryScope) return normalizeCategoryScope(session.categoryScope);
-  return session.category === 'all' ? 'ALL' : session.category;
+  return session.category === 'all' ? 'ALL' : normalizeCategoryScope(session.category);
 };
 
 export const canAccessCategory = (session: StaffSession | null | undefined, category?: ClubCategory | 'all' | string | null) => {

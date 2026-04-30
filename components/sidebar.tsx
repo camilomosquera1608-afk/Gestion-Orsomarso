@@ -24,6 +24,7 @@ import {
   Users,
 } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
+import { hasAdministrationAccess } from '@/lib/access-control';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
 import { signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { ORSOMARSO_BRAND } from '@/lib/design-system';
@@ -70,12 +71,7 @@ const staffGroups = [
   },
 ];
 
-const canManageAdministration = (session: ReturnType<typeof getStaffSession>) => {
-  const normalizedAccess = session.accessLevel ?? 'full';
-  const isSupabaseAdmin = session.platformRole === 'admin';
-  const isMasterAdmin = session.role === 'master' && session.category === 'all';
-  return normalizedAccess === 'full' && (isSupabaseAdmin || isMasterAdmin);
-};
+const canManageAdministration = (session: ReturnType<typeof getStaffSession>) => hasAdministrationAccess(session);
 
 const getNavigationGroups = (session: ReturnType<typeof getStaffSession>) => canManageAdministration(session)
   ? staffGroups.map((group) => group.title === 'Sistema'

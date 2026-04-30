@@ -400,3 +400,6 @@ begin
 end $$;
 
 commit;
+
+-- Optional/admin hardening for existing projects:
+-- If Administración only shows the current user, run SUPABASE_FIX_ADMIN_PROFILES_RLS.sql.

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { EmptyState, SectionHeader, StatusBadge } from '@/components/pro-ui';
-import { ACCESS_LEVEL_LABELS, CATEGORY_SCOPE_LABELS, ROLE_LABELS, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from '@/lib/access-control';
+import { ACCESS_LEVEL_LABELS, CATEGORY_SCOPE_LABELS, ROLE_LABELS, hasAdministrationAccess, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from '@/lib/access-control';
 import { getStaffSession } from '@/lib/auth';
 import { fetchAuditLogsDetailed, fetchProfiles, updateProfileAccess, type AuditLogRow } from '@/lib/supabase';
 
@@ -39,8 +39,7 @@ const roleTone = (role: PlatformRole): 'blue' | 'neutral' | 'green' => role === 
 
 export default function AdministracionPage() {
   const session = getStaffSession();
-  const normalizedAccess = session.accessLevel ?? 'full';
-  const isAdmin = normalizedAccess === 'full' && (session.platformRole === 'admin' || (session.role === 'master' && session.category === 'all'));
+  const isAdmin = hasAdministrationAccess(session);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(true);
