@@ -76,7 +76,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     <div className="app-shell">
       <Sidebar />
       <MobileNavigation />
-      <main className="main">
+      <main className="main mobile-safe-page">
         <ContextTopBar {...topContext} />
         {children}
       </main>
