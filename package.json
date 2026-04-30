@@ -1,6 +1,6 @@
 {
   "name": "orsomarso-performance-app",
-  "version": "1.4.7-v105-admin-profiles-fix",
+  "version": "1.4.8-v106-stability-admin-diagnostics",
   "private": true,
   "scripts": {
     "dev": "next dev",

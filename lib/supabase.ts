@@ -123,6 +123,12 @@ export async function saveRemoteAppState(payload: unknown) {
   return { ok: true };
 }
 
+export type ProfileSource = 'rpc_safe' | 'rpc_profiles' | 'rpc_perfiles' | 'direct_profiles' | 'direct_perfiles';
+
+export type FetchProfilesResult =
+  | { ok: true; profiles: UserProfile[]; source: ProfileSource; reason?: string }
+  | { ok: false; reason: string; source?: ProfileSource };
+
 export async function fetchCurrentUserProfile() {
   if (!supabase || !tableSchemaSyncEnabled) {
     return { ok: false as const, reason: 'Supabase no está configurado en modo table_schema.' };
@@ -133,6 +139,14 @@ export async function fetchCurrentUserProfile() {
   const user = userData.user;
   if (!user) return { ok: false as const, reason: 'No hay sesión activa.' };
 
+  const rpcResult = await supabase.rpc('current_user_profile_safe');
+  if (!rpcResult.error && rpcResult.data) {
+    const rows = Array.isArray(rpcResult.data) ? rpcResult.data : [rpcResult.data];
+    const profile = mapProfileRow({ ...rows[0], email: readRowValue(rows[0], ['email', 'correo_electronico', 'correo electrónico']) ?? user.email });
+    if (!profile.isActive) return { ok: false as const, reason: 'Tu perfil está desactivado.' };
+    return { ok: true as const, profile };
+  }
+
   const primaryResult = await supabase
     .from('profiles')
     .select('id, email, full_name, role, category_scope, access_level, is_active')
@@ -142,7 +156,7 @@ export async function fetchCurrentUserProfile() {
   let data = primaryResult.data;
   let error = primaryResult.error;
 
-  if (error) {
+  if (error || !data) {
     const fallbackResult = await supabase
       .from('perfiles')
       .select('*')
@@ -192,27 +206,51 @@ const readRowValue = (row: any, keys: string[]) => {
   return undefined;
 };
 
+const booleanFromRowValue = (value: unknown, fallback = true) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'si', 'sí', 'activo', 'active'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'inactivo', 'inactive'].includes(normalized)) return false;
+  return fallback;
+};
+
 const mapProfileRow = (row: any): UserProfile => {
-  const role = normalizePlatformRole(readRowValue(row, ['role', 'rol']));
+  const role = normalizePlatformRole(readRowValue(row, ['role', 'rol', 'platform_role']));
   return {
-    id: String(readRowValue(row, ['id', 'identificacion', 'identificación']) ?? ''),
-    email: String(readRowValue(row, ['email', 'correo_electronico', 'correo electrónico']) ?? '').toLowerCase(),
-    fullName: readRowValue(row, ['full_name', 'nombre_completo', 'nombre completo']) ?? null,
+    id: String(readRowValue(row, ['id', 'identificacion', 'identificación', 'profile_id']) ?? ''),
+    email: String(readRowValue(row, ['email', 'correo_electronico', 'correo electrónico', 'correo', 'user_email']) ?? '').trim().toLowerCase(),
+    fullName: readRowValue(row, ['full_name', 'nombre_completo', 'nombre completo', 'name', 'display_name']) ?? null,
     role,
-    categoryScope: normalizeCategoryScope(readRowValue(row, ['category_scope', 'ambito_de_categoria', 'ámbito_de_categoría', 'ambito categoria'])),
-    accessLevel: normalizeAccessLevel(readRowValue(row, ['access_level', 'nivel_acceso', 'permiso']), role),
-    isActive: readRowValue(row, ['is_active', 'activo']) === undefined ? true : Boolean(readRowValue(row, ['is_active', 'activo'])),
-    createdAt: readRowValue(row, ['created_at', 'creado_en']) ?? undefined,
-    updatedAt: readRowValue(row, ['updated_at', 'actualizado_en']) ?? undefined,
+    categoryScope: normalizeCategoryScope(readRowValue(row, ['category_scope', 'ambito_de_categoria', 'ámbito_de_categoría', 'ambito categoria', 'scope', 'categoria'])),
+    accessLevel: normalizeAccessLevel(readRowValue(row, ['access_level', 'nivel_acceso', 'permiso', 'access']), role),
+    isActive: booleanFromRowValue(readRowValue(row, ['is_active', 'activo', 'active']), true),
+    createdAt: readRowValue(row, ['created_at', 'creado_en', 'created']) ?? undefined,
+    updatedAt: readRowValue(row, ['updated_at', 'actualizado_en', 'updated']) ?? undefined,
   };
 };
 
-export async function fetchProfiles() {
+const runProfilesRpc = async (name: string, source: ProfileSource) => {
+  if (!supabase) return null;
+  const result = await supabase.rpc(name);
+  if (result.error) return { ok: false as const, reason: result.error.message, source };
+  return { ok: true as const, profiles: (result.data ?? []).map(mapProfileRow), source };
+};
+
+export async function fetchProfiles(): Promise<FetchProfilesResult> {
   if (!supabase || !tableSchemaSyncEnabled) return { ok: false as const, reason: 'Supabase no configurado.' };
 
-  const rpcResult = await supabase.rpc('admin_list_profiles');
-  if (!rpcResult.error) {
-    return { ok: true as const, profiles: (rpcResult.data ?? []).map(mapProfileRow) };
+  const rpcNames: Array<[string, ProfileSource]> = [
+    ['admin_list_profiles_safe', 'rpc_safe'],
+    ['admin_list_profiles', 'rpc_profiles'],
+    ['admin_list_perfiles', 'rpc_perfiles'],
+  ];
+  const errors: string[] = [];
+
+  for (const [name, source] of rpcNames) {
+    const rpcResult = await runProfilesRpc(name, source);
+    if (rpcResult?.ok) return rpcResult;
+    if (rpcResult?.reason) errors.push(`${name}: ${rpcResult.reason}`);
   }
 
   const { data, error } = await supabase
@@ -220,15 +258,17 @@ export async function fetchProfiles() {
     .select('id, email, full_name, role, category_scope, access_level, is_active, created_at, updated_at')
     .order('email', { ascending: true });
 
-  if (!error) return { ok: true as const, profiles: (data ?? []).map(mapProfileRow) };
+  if (!error) return { ok: true as const, profiles: (data ?? []).map(mapProfileRow), source: 'direct_profiles' };
+  errors.push(`profiles: ${error.message}`);
 
   const { data: spanishData, error: spanishError } = await supabase
     .from('perfiles')
     .select('*');
 
-  if (!spanishError) return { ok: true as const, profiles: (spanishData ?? []).map(mapProfileRow) };
+  if (!spanishError) return { ok: true as const, profiles: (spanishData ?? []).map(mapProfileRow), source: 'direct_perfiles' };
+  errors.push(`perfiles: ${spanishError.message}`);
 
-  return { ok: false as const, reason: rpcResult.error.message || error.message || spanishError.message };
+  return { ok: false as const, reason: errors.join(' | ') || 'No se pudieron cargar perfiles.' };
 }
 
 export async function updateProfileAccess(profile: {
@@ -241,16 +281,22 @@ export async function updateProfileAccess(profile: {
 }) {
   if (!supabase || !tableSchemaSyncEnabled) return { ok: false as const, reason: 'Supabase no configurado.' };
 
-  const rpcResult = await supabase.rpc('admin_update_profile', {
+  const rpcPayload = {
     profile_id: profile.id,
     profile_full_name: profile.fullName || null,
     profile_role: profile.role,
     profile_category_scope: profile.categoryScope,
     profile_access_level: profile.accessLevel,
     profile_is_active: profile.isActive,
-  });
+  };
 
-  if (!rpcResult.error) return { ok: true as const };
+  const rpcNames = ['admin_update_profile_access_safe', 'admin_update_profile', 'admin_update_perfil'];
+  const errors: string[] = [];
+  for (const name of rpcNames) {
+    const rpcResult = await supabase.rpc(name, rpcPayload);
+    if (!rpcResult.error) return { ok: true as const };
+    errors.push(`${name}: ${rpcResult.error.message}`);
+  }
 
   const { error } = await supabase
     .from('profiles')
@@ -265,6 +311,7 @@ export async function updateProfileAccess(profile: {
     .eq('id', profile.id);
 
   if (!error) return { ok: true as const };
+  errors.push(`profiles: ${error.message}`);
 
   const { error: spanishError } = await supabase
     .from('perfiles')
@@ -278,7 +325,7 @@ export async function updateProfileAccess(profile: {
     })
     .eq('id', profile.id);
 
-  if (spanishError) return { ok: false as const, reason: rpcResult.error.message || error.message || spanishError.message };
+  if (spanishError) return { ok: false as const, reason: [...errors, `perfiles: ${spanishError.message}`].join(' | ') };
   return { ok: true as const };
 }
 

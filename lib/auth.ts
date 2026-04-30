@@ -1,5 +1,5 @@
 import { ClubCategory, StaffRole } from './types';
-import { normalizeCategoryScope, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from './access-control';
+import { getSessionAccessSnapshot, normalizeCategoryScope, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from './access-control';
 
 export const STAFF_AUTH_KEY = 'orsomarso_staff_auth_v2';
 
@@ -138,5 +138,5 @@ export const logoutStaff = () => {
   }
 };
 
-export const getAllowedCategory = (session: StaffSession): ClubCategory | 'all' => session.categoryScope === 'ALL' || session.role === 'master' ? 'all' : session.category;
-export const isMasterRole = (session: StaffSession) => session.categoryScope === 'ALL' || session.role === 'master' || session.platformRole === 'admin';
+export const getAllowedCategory = (session: StaffSession): ClubCategory | 'all' => getSessionAccessSnapshot(session).canReadAll ? 'all' : session.category;
+export const isMasterRole = (session: StaffSession) => getSessionAccessSnapshot(session).canReadAll;

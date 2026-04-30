@@ -1,30 +1,37 @@
-# Orsomarso Performance App - v105 admin profiles fix
+# Paquete limpio v106
 
-Paquete limpio del proyecto completo.
+Este ZIP contiene una carpeta completa lista para reemplazar la carpeta de trabajo de la app.
 
-Incluye la correccion para que Administracion pueda listar todos los perfiles autorizados desde Supabase cuando el usuario tenga rol administrador o administrador de categoria con alcance ALL/TODO.
+Incluye:
 
-## Importante
-
-Si en Administracion solo aparece un perfil aunque Supabase tenga varios registros, ejecuta en Supabase SQL Editor:
-
-`SUPABASE_FIX_ADMIN_PROFILES_RLS.sql`
-
-Ese archivo no borra datos. Ajusta politicas/RPC de perfiles para permitir que el administrador vea y actualice todos los perfiles.
-
-## Limpieza del paquete
+- `app/`
+- `components/`
+- `context/`
+- `lib/`
+- `public/`
+- `scripts/`
+- `supabase/`
+- `package.json`
+- `tsconfig.json`
+- `next.config.ts`
+- `.env.example`
+- `.env.vercel.example`
+- `.gitignore`
+- `README.md`
+- `DEPLOYMENT.md`
+- `PRODUCTION_CHECKLIST.md`
+- `SECURITY.md`
+- `SUPABASE_RUN_THIS.sql`
+- `SUPABASE_V106_STABILITY_ADMIN.sql`
+- `README_V106_ESTABILIDAD_PERMISOS.md`
 
 No incluye:
 
-- node_modules
-- .next
-- tsconfig.tsbuildinfo
-- archivos Python
-- __pycache__
+- `node_modules/`
+- `.next/`
+- archivos `.py`
 - notebooks
-- zips anteriores
+- caches
+- zips antiguos
 - builds temporales
-
-## Verificacion
-
-Preflight ejecutado correctamente.
+- SQL historicos obsoletos

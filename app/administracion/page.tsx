@@ -3,9 +3,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { EmptyState, SectionHeader, StatusBadge } from '@/components/pro-ui';
-import { ACCESS_LEVEL_LABELS, CATEGORY_SCOPE_LABELS, ROLE_LABELS, hasAdministrationAccess, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from '@/lib/access-control';
+import { useApp } from '@/context/app-context';
+import {
+  ACCESS_LEVEL_LABELS,
+  CATEGORY_SCOPE_LABELS,
+  ROLE_LABELS,
+  getSessionAccessSnapshot,
+  hasAdministrationAccess,
+  type AccessLevel,
+  type CategoryScope,
+  type PlatformRole,
+  type UserProfile,
+} from '@/lib/access-control';
 import { getStaffSession } from '@/lib/auth';
-import { fetchAuditLogsDetailed, fetchProfiles, updateProfileAccess, type AuditLogRow } from '@/lib/supabase';
+import {
+  fetchAuditLogsDetailed,
+  fetchProfiles,
+  hasSupabaseConfig,
+  tableSchemaSyncEnabled,
+  updateProfileAccess,
+  type AuditLogRow,
+  type ProfileSource,
+} from '@/lib/supabase';
 
 const roleOptions: PlatformRole[] = ['admin', 'category_admin', 'director', 'preparador', 'medico', 'analista', 'valorador', 'solo_lectura'];
 const categoryOptions: CategoryScope[] = ['ALL', 'Sub15', 'Sub17', 'Sub20'];
@@ -35,16 +54,29 @@ const actionLabel = (action: string) => {
   return action;
 };
 
+const profileSourceLabel: Record<ProfileSource, string> = {
+  rpc_safe: 'RPC segura v106',
+  rpc_profiles: 'RPC profiles',
+  rpc_perfiles: 'RPC perfiles',
+  direct_profiles: 'Tabla profiles',
+  direct_perfiles: 'Tabla perfiles',
+};
+
 const roleTone = (role: PlatformRole): 'blue' | 'neutral' | 'green' => role === 'admin' ? 'blue' : role === 'solo_lectura' ? 'neutral' : 'green';
 
 export default function AdministracionPage() {
   const session = getStaffSession();
+  const access = getSessionAccessSnapshot(session);
   const isAdmin = hasAdministrationAccess(session);
+  const { data, backendMode, syncStatus, localBackups, canEdit } = useApp();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [profileSource, setProfileSource] = useState<ProfileSource | null>(null);
+  const [profileLoadReason, setProfileLoadReason] = useState('');
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [auditUserFilter, setAuditUserFilter] = useState('');
   const [auditModuleFilter, setAuditModuleFilter] = useState('');
@@ -53,9 +85,18 @@ export default function AdministracionPage() {
   const loadData = async () => {
     setLoading(true);
     setError('');
+    setMessage('');
     const [profilesResult, logsResult] = await Promise.all([fetchProfiles(), fetchAuditLogsDetailed(30)]);
-    if (profilesResult.ok) setProfiles(profilesResult.profiles);
-    else setError(profilesResult.reason ?? 'No se pudieron cargar usuarios.');
+    if (profilesResult.ok) {
+      setProfiles(profilesResult.profiles);
+      setProfileSource(profilesResult.source);
+      setProfileLoadReason(profilesResult.reason ?? '');
+    } else {
+      setProfiles([]);
+      setProfileSource(null);
+      setProfileLoadReason(profilesResult.reason ?? '');
+      setError(profilesResult.reason ?? 'No se pudieron cargar usuarios.');
+    }
     if (logsResult.ok) setLogs(logsResult.logs);
     setLoading(false);
   };
@@ -68,7 +109,8 @@ export default function AdministracionPage() {
     const active = profiles.filter((profile) => profile.isActive).length;
     const admins = profiles.filter((profile) => profile.role === 'admin').length;
     const categoryAdmins = profiles.filter((profile) => profile.role === 'category_admin').length;
-    return { active, admins, categoryAdmins };
+    const readOnly = profiles.filter((profile) => profile.role === 'solo_lectura' || profile.accessLevel === 'read').length;
+    return { active, admins, categoryAdmins, readOnly };
   }, [profiles]);
 
   const filteredLogs = useMemo(() => logs.filter((log) => {
@@ -81,10 +123,18 @@ export default function AdministracionPage() {
   }), [logs, auditUserFilter, auditModuleFilter, auditActionFilter]);
 
   const visibleLogs = showAllLogs ? filteredLogs : filteredLogs.slice(0, 5);
+  const diagnosticWarnings: string[] = [
+    !hasSupabaseConfig ? 'Supabase no está activo desde variables de entorno.' : '',
+    hasSupabaseConfig && !tableSchemaSyncEnabled ? 'Supabase no está en modo table_schema.' : '',
+    isAdmin && !profiles.length && !loading ? 'No se cargaron perfiles. Revisa RLS/RPC v106.' : '',
+    isAdmin && profiles.length === 1 && !loading ? 'Solo se está leyendo un perfil. Ejecuta SUPABASE_V106_STABILITY_ADMIN.sql.' : '',
+    !access.canAccessAdmin ? 'La sesión actual no tiene acceso administrativo completo.' : '',
+  ].filter((item): item is string => Boolean(item));
 
   const updateProfile = async (profile: UserProfile, patch: Partial<UserProfile>) => {
     const next = { ...profile, ...patch };
     setProfiles((prev) => prev.map((item) => (item.id === profile.id ? next : item)));
+    setError('');
     setMessage('Guardando...');
     const result = await updateProfileAccess({
       id: next.id,
@@ -117,19 +167,72 @@ export default function AdministracionPage() {
   }
 
   return (
-    <div className="grid">
+    <div className="grid admin-page">
       <AppHero title="Administración" subtitle="Usuarios, permisos y auditoría." />
 
-      <div className="grid grid-3">
+      <div className="grid grid-4">
         <div className="card compact-card"><SectionHeader eyebrow="Usuarios" title={String(profiles.length)} subtitle="Perfiles" /></div>
         <div className="card compact-card"><SectionHeader eyebrow="Activos" title={String(stats.active)} subtitle="Con acceso" /></div>
         <div className="card compact-card"><SectionHeader eyebrow="Administradores" title={String(stats.admins + stats.categoryAdmins)} subtitle="General y categoría" /></div>
+        <div className="card compact-card"><SectionHeader eyebrow="Solo lectura" title={String(stats.readOnly)} subtitle="Consulta" /></div>
+      </div>
+
+      {diagnosticWarnings.length ? (
+        <div className="admin-warning-strip">
+          <strong>Revisión requerida</strong>
+          <span>{diagnosticWarnings[0]}</span>
+          <button type="button" className="btn secondary btn-compact" onClick={() => setShowDiagnostics(true)}>Ver diagnóstico</button>
+        </div>
+      ) : null}
+
+      <div className="card admin-diagnostics-card">
+        <SectionHeader
+          eyebrow="Sistema"
+          title="Diagnóstico"
+          subtitle="Lectura rápida de sesión, permisos y sincronización."
+          action={<button type="button" className="btn secondary btn-compact" onClick={() => setShowDiagnostics((value) => !value)}>{showDiagnostics ? 'Ocultar' : 'Ver diagnóstico'}</button>}
+        />
+        {showDiagnostics ? (
+          <div className="admin-diagnostics-grid">
+            <div className="diagnostic-box">
+              <span>Sesión</span>
+              <strong>{access.email ?? session.displayName ?? 'Sin correo'}</strong>
+              <small>{ROLE_LABELS[access.normalizedRole]} · {CATEGORY_SCOPE_LABELS[access.normalizedScope]} · {ACCESS_LEVEL_LABELS[access.normalizedAccessLevel]}</small>
+            </div>
+            <div className="diagnostic-box">
+              <span>Permisos</span>
+              <strong>{access.canAccessAdmin ? 'Administración activa' : 'Sin administración'}</strong>
+              <small>{access.canWrite ? 'Puede editar' : 'Solo lectura'} · {access.canReadAll ? 'Ve todas las categorías' : 'Alcance limitado'}</small>
+            </div>
+            <div className="diagnostic-box">
+              <span>Supabase</span>
+              <strong>{backendMode === 'supabase' ? 'Conectado' : 'Local'}</strong>
+              <small>{syncStatus} · {tableSchemaSyncEnabled ? 'table_schema' : 'sin table_schema'}</small>
+            </div>
+            <div className="diagnostic-box">
+              <span>Perfiles</span>
+              <strong>{profiles.length}</strong>
+              <small>{profileSource ? profileSourceLabel[profileSource] : profileLoadReason || 'Sin fuente'}</small>
+            </div>
+            <div className="diagnostic-box">
+              <span>Datos</span>
+              <strong>{data.players.length} jugadores</strong>
+              <small>{data.trainingSessionSummaries.length} sesiones · {data.competitionMatchSummaries.length} partidos</small>
+            </div>
+            <div className="diagnostic-box">
+              <span>Respaldo local</span>
+              <strong>{localBackups.length}</strong>
+              <small>{canEdit ? 'Edición habilitada' : 'Edición bloqueada'}</small>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="card">
         <SectionHeader
           eyebrow="Accesos"
           title="Usuarios"
+          subtitle={profileSource ? `Fuente: ${profileSourceLabel[profileSource]}` : undefined}
           action={<button type="button" className="btn secondary" onClick={() => void loadData()}>{loading ? 'Cargando...' : 'Actualizar'}</button>}
         />
         {error ? <div className="empty admin-message admin-error">{error}</div> : null}
@@ -149,7 +252,7 @@ export default function AdministracionPage() {
             <tbody>
               {profiles.map((profile) => (
                 <tr key={profile.id}>
-                  <td><strong>{profile.email}</strong></td>
+                  <td><strong>{profile.email || 'Sin correo'}</strong></td>
                   <td>
                     <input
                       className="input admin-input"
@@ -184,7 +287,7 @@ export default function AdministracionPage() {
             </tbody>
           </table>
         </div>
-        {!profiles.length && !loading ? <EmptyState title="Sin perfiles" text="Crea usuarios en Supabase Auth." /> : null}
+        {!profiles.length && !loading ? <EmptyState title="Sin perfiles" text="Ejecuta el SQL v106 o revisa RLS en Supabase." /> : null}
       </div>
 
       <div className="card audit-compact-card">
