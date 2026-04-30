@@ -17,7 +17,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Too
 const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación' };
 
 export default function MicrocicloPage() {
-  const { data, filters, setFilters, updateMicrocycle } = useApp();
+  const { data, filters, setFilters, updateMicrocycle, deleteMicrocycle } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
@@ -85,6 +85,16 @@ export default function MicrocicloPage() {
     acc: data.externalLoads.filter((x) => x.playerId === player.id && (!hasRange || recordsInRange(x.date))).reduce((acc, item) => acc + (item.acc ?? 0), 0),
   })).sort((a, b) => youthSimple ? b.minutos - a.minutos : b.acc - a.acc);
 
+  const deleteCurrentMicrocycle = () => {
+    if (!microcycle?.id) return;
+    const usedBySessions = data.trainingSessionSummaries.filter((item) => item.microcycleId === microcycle.id).length;
+    const usedByLoads = data.externalLoads.filter((item) => item.microcycleId === microcycle.id).length;
+    const warning = usedBySessions || usedByLoads ? ` Este microciclo tiene  sesiones y  registros asociados. Se quitará la asociación, pero no se borrarán las sesiones ni los datos.` : "";
+    if (!window.confirm(`¿Eliminar ?`)) return;
+    deleteMicrocycle(microcycle.id);
+    setMicrocycleMessage("Microciclo eliminado. Las sesiones y cargas asociadas se conservaron sin borrar datos.");
+  };
+
   const createNextMicrocycle = () => {
     const usedNumbers = categoryMicrocycles
       .map((item) => item.weekNumber ?? Number(String(item.id).match(/(\d+)$/)?.[1]))
@@ -119,7 +129,7 @@ export default function MicrocicloPage() {
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span className="section-eyebrow">Planificación</span><h3 style={{ margin: 0 }}>Datos del microciclo</h3>
-          <button type="button" className="btn secondary" onClick={createNextMicrocycle}>Crear microciclo</button>
+          <div className="btn-row"><button type="button" className="btn secondary" onClick={createNextMicrocycle}>Crear microciclo</button><button type="button" className="btn danger" onClick={deleteCurrentMicrocycle}>Eliminar microciclo</button></div>
         </div>
         <div className="summary-chip" style={{ marginBottom: 12 }}>Define nombre, categoría y rango. Cada categoría tiene su propio microciclo activo.</div>
         {microcycleMessage ? <div className="empty" style={{ marginBottom: 12 }}>{microcycleMessage}</div> : null}

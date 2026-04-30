@@ -2369,3 +2369,22 @@ textarea.input, .textarea { resize: vertical; }
     min-height: 52px;
   }
 }
+
+/* v107.6 operational edit controls */
+.compact-input {
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 6px 8px !important;
+  font-size: 0.82rem !important;
+  min-width: 72px;
+}
+.table-wrap .btn-row .compact-input {
+  max-width: 88px;
+}
+@media (max-width: 768px) {
+  .compact-input {
+    min-height: 44px !important;
+    height: 44px !important;
+    min-width: 96px;
+  }
+}

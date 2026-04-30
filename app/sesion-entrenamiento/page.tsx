@@ -84,6 +84,12 @@ export default function SesionEntrenamientoPage() {
   }, [filters.sessionNumber]);
 
   const summaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory);
+  const sessionHistory = useMemo(
+    () => data.trainingSessionSummaries
+      .filter((item) => item.category === activeCategory)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    [data.trainingSessionSummaries, activeCategory],
+  );
   const [sessionType, setSessionType] = useState<TrainingSessionType>(summaryRecord?.sessionType ?? 'cdEf');
   const [sessionObjective, setSessionObjective] = useState(summaryRecord?.objective ?? '');
   const [sessionObservation, setSessionObservation] = useState(summaryRecord?.observation ?? '');
@@ -152,6 +158,17 @@ export default function SesionEntrenamientoPage() {
   const reportRows = selectedRows.length ? selectedRows : rows.filter((row) => existingRecords.some((record) => record.playerId === row.player.id));
   const absentPlayers = sessionPlayers.filter((player) => !reportRows.some((row) => row.player.id === player.id));
   const sessionLoadTotal = reportRows.reduce((acc, row) => acc + row.min * row.rpe, 0);
+
+  const editSessionSummary = (sessionId: string) => {
+    const target = data.trainingSessionSummaries.find((item) => item.id === sessionId);
+    if (!target) return;
+    setFilters({ date: target.date, microcycleId: target.microcycleId, sessionNumber: target.sessionNumber, category: target.category ?? activeCategory });
+    setSessionType(target.sessionType ?? 'cdEf');
+    setSessionObjective(target.objective ?? '');
+    setSessionObservation(target.observation ?? '');
+    setSessionNumberInput(String(target.sessionNumber || 1));
+    setMessage(`Editando sesión ${categoryLabel(target.category ?? activeCategory)} del ${target.date}.`);
+  };
 
   const updateRow = (playerId: string, patch: Partial<RowState>) =>
     setRowStates((prev) => ({
@@ -446,6 +463,36 @@ export default function SesionEntrenamientoPage() {
           </div>
         </div>
       )}
+      <div className="card table-wrap">
+        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <span className="section-eyebrow">Historial</span><h3 style={{ margin: 0 }}>Sesiones cargadas</h3>
+            <div className="muted-line" style={{ marginTop: 8 }}>Edita una sesión guardada para corregir datos generales o participación de jugadores.</div>
+          </div>
+        </div>
+        {sessionHistory.length ? (
+          <table>
+            <thead><tr><th>Fecha</th><th>Categoría</th><th>Microciclo</th><th>Sesión</th><th>Tipo</th><th>Objetivo</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {sessionHistory.map((item) => {
+                const itemMicrocycle = data.microcycles.find((microcycle) => microcycle.id === item.microcycleId);
+                return (
+                  <tr key={item.id}>
+                    <td>{item.date}</td>
+                    <td>{categoryLabel(item.category ?? activeCategory)}</td>
+                    <td>{itemMicrocycle?.name ?? 'Sin microciclo'}</td>
+                    <td>{item.sessionNumber}</td>
+                    <td>{item.sessionType}</td>
+                    <td>{item.objective || '-'}</td>
+                    <td><button type="button" className="btn secondary" onClick={() => editSessionSummary(item.id)}>Editar sesión</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : <EmptyState title="Sin sesiones cargadas" text="Las sesiones guardadas aparecerán aquí para edición." />}
+      </div>
+
       <SessionReportTemplate
         date={filters.date}
         category={activeCategory}

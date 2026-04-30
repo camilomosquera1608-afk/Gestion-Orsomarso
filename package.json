@@ -1,6 +1,6 @@
 {
   "name": "orsomarso-performance-app",
-  "version": "1.4.14-v107-5-edicion-duplicados",
+  "version": "1.4.15-v107-6-botones-operativos",
   "private": true,
   "scripts": {
     "dev": "next dev",

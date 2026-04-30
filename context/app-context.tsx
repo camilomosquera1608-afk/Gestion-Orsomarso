@@ -49,6 +49,7 @@ interface AppContextValue {
   deleteCompetitionMatchSummary: (matchId: string) => void;
   upsertTrainingSessionSummary: (record: TrainingSessionSummary) => void;
   updateMicrocycle: (record: Microcycle) => void;
+  deleteMicrocycle: (microcycleId: string) => void;
   backendMode: 'supabase' | 'local';
   syncStatus: 'idle' | 'syncing' | 'ready' | 'error';
   localBackups: LocalBackupMeta[];
@@ -544,6 +545,22 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
           return { ...prev, date: '', microcycleId: normalizedRecord.id };
         });
+      }
+    },
+    deleteMicrocycle: (microcycleId) => {
+      const microcycle = dataRef.current.microcycles.find((item) => item.id === microcycleId);
+      if (!microcycle) return;
+      applyMutation((prev) => ({
+        ...prev,
+        microcycles: prev.microcycles.filter((item) => item.id !== microcycleId),
+        trainingSessionSummaries: prev.trainingSessionSummaries.map((item) => item.microcycleId === microcycleId ? { ...item, microcycleId: "" } : item),
+        internalLoads: prev.internalLoads.map((item) => item.microcycleId === microcycleId ? { ...item, microcycleId: "" } : item),
+        externalLoads: prev.externalLoads.map((item) => item.microcycleId === microcycleId ? { ...item, microcycleId: "" } : item),
+      }));
+      void deleteRemoteLegacy("microcycles", microcycleId);
+      if (filters.microcycleId === microcycleId) {
+        const fallback = dataRef.current.microcycles.find((item) => item.id !== microcycleId && item.category === microcycle.category);
+        setFiltersState((prev) => ({ ...prev, microcycleId: fallback?.id ?? "" }));
       }
     },
     backendMode,

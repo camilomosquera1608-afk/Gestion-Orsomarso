@@ -33,3 +33,12 @@ No incluye:
 - notebooks
 - __pycache__/
 - builds temporales
+
+
+## v107.6
+- app/sesion-entrenamiento/page.tsx
+- app/microciclo/page.tsx
+- app/competencia/page.tsx
+- context/app-context.tsx
+- app/globals.css
+- README_V107_6_BOTONES_OPERATIVOS.md
