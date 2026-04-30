@@ -11,19 +11,44 @@ import { ClubCategory } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { buildEvaluationsReportData } from '@/lib/evaluations-report';
-import { NutritionPlan } from '@/lib/types';
-import { Line, LineChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Line, LineChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  FAT_PERCENTAGE_RANGES,
+  MUSCLE_MASS_RANGES,
+  NUTRITION_PLANS,
+  SKINFOLD_RANGES,
+  formatNutritionText,
+  formatNutritionValue,
+  getNutritionPlanLabel,
+  getNutritionRangeLabel,
+  getNutritionRangeTone,
+  getNutritionStatus,
+  getNutritionTechnicalReading,
+  isValidNutritionNumber,
+  normalizeFatPercentageRange,
+  normalizeMuscleMassRange,
+  normalizeNutritionPlan,
+  normalizeNutritionRecord,
+  normalizeSkinfoldRange,
+  safeNutritionNumber,
+} from '@/lib/nutrition';
 
 const tabs = ['Nutrición', 'Perfil neuromuscular', 'CMJ', 'FMS'] as const;
-const plans: NutritionPlan[] = ['Normocalorico', 'Hipercalorico', 'Hipocalorico'];
 
 type TabName = (typeof tabs)[number];
+type NutritionBadgeTone = 'green' | 'yellow' | 'red' | 'neutral';
 
 const compareTone = (delta: number, reverse = false): 'green' | 'yellow' | 'red' => {
   if (delta === 0) return 'yellow';
   const improved = reverse ? delta < 0 : delta > 0;
   return improved ? 'green' : 'red';
 };
+
+const nutritionToneClass = (tone: NutritionBadgeTone) => tone === 'yellow' ? 'tone-yellow' : tone === 'neutral' ? 'ui-tone-neutral' : `tone-${tone}`;
+
+function NutritionBadge({ label, tone = 'neutral' }: { label: string; tone?: NutritionBadgeTone }) {
+  return <span className={`nutrition-badge ${nutritionToneClass(tone)}`}>{label}</span>;
+}
 
 export default function ValoracionesPage() {
   const {
@@ -42,6 +67,9 @@ export default function ValoracionesPage() {
     addFMSRecord,
     updateFMSRecord,
     deleteFMSRecord,
+    canEdit,
+    syncStatus,
+    permissionMessage,
   } = useApp();
 
   const session = getStaffSession();
@@ -50,6 +78,7 @@ export default function ValoracionesPage() {
 
   const [activeTab, setActiveTab] = useState<TabName>('Nutrición');
   const [message, setMessage] = useState('');
+  const [nutritionError, setNutritionError] = useState('');
   const [editingNutritionId, setEditingNutritionId] = useState('');
   const [editingNeuroId, setEditingNeuroId] = useState('');
   const [editingCmjId, setEditingCmjId] = useState('');
@@ -84,8 +113,8 @@ export default function ValoracionesPage() {
   const standoutCmj = latestCmjGroup.slice().sort((a, b) => b.value - a.value).slice(0, 3).map((row) => `${data.players.find((player) => player.id === row.playerId)?.name ?? 'Jugador'} (${row.value})`);
   const belowAverageCmj = latestCmjGroup.filter((row) => row.value < cmjGroupAverage).map((row) => data.players.find((player) => player.id === row.playerId)?.name ?? 'Jugador').slice(0, 5);
 
-  const latestNutrition = nutritionHistory[0];
-  const previousNutrition = nutritionHistory[1];
+  const latestNutrition = nutritionHistory[0] ? normalizeNutritionRecord(nutritionHistory[0]) : undefined;
+  const previousNutrition = nutritionHistory[1] ? normalizeNutritionRecord(nutritionHistory[1]) : undefined;
   const latestNeuro = neuromuscularHistory[0];
   const previousNeuro = neuromuscularHistory[1];
   const latestCmj = cmjHistory[0];
@@ -93,7 +122,8 @@ export default function ValoracionesPage() {
   const latestFms = fmsHistory[0];
   const previousFms = fmsHistory[1];
 
-  const editingNutrition = nutritionHistory.find((item) => item.id === editingNutritionId);
+  const editingNutritionSource = nutritionHistory.find((item) => item.id === editingNutritionId);
+  const editingNutrition = editingNutritionSource ? normalizeNutritionRecord(editingNutritionSource) : undefined;
   const editingNeuro = neuromuscularHistory.find((item) => item.id === editingNeuroId);
   const editingCmj = cmjHistory.find((item) => item.id === editingCmjId);
   const editingFms = fmsHistory.find((item) => item.id === editingFmsId);
@@ -106,23 +136,66 @@ export default function ValoracionesPage() {
   };
 
   const submitNutrition = (formData: FormData) => {
-    const record = {
+    if (!canEdit) {
+      setNutritionError('Solo lectura.');
+      return;
+    }
+
+    const date = String(formData.get('date') ?? '');
+    const skinfoldRange = normalizeSkinfoldRange(formData.get('skinfoldRange'));
+    const muscleMassRange = normalizeMuscleMassRange(formData.get('muscleMassRange'));
+    const fatPercentageRange = normalizeFatPercentageRange(formData.get('fatPercentageRange'));
+    const plan = normalizeNutritionPlan(formData.get('plan'));
+
+    const validations = [
+      isValidNutritionNumber(formData.get('weight'), { min: 0.01 }),
+      isValidNutritionNumber(formData.get('height'), { min: 0.01 }),
+      isValidNutritionNumber(formData.get('bodyFat'), { min: 0, max: 100 }),
+      isValidNutritionNumber(formData.get('skinfoldSum'), { min: 0.01 }),
+      isValidNutritionNumber(formData.get('muscleMassPercentage'), { min: 0, max: 100 }),
+      isValidNutritionNumber(formData.get('imo'), { required: false, min: 0 }),
+    ];
+
+    if (!date || validations.some((valid) => !valid)) {
+      setNutritionError('Valor inválido.');
+      setMessage('');
+      return;
+    }
+
+    if (!skinfoldRange || !muscleMassRange) {
+      setNutritionError('Selecciona un rango.');
+      setMessage('');
+      return;
+    }
+
+    const imo = String(formData.get('imo') ?? '').trim();
+    const record = normalizeNutritionRecord({
       id: editingNutritionId || crypto.randomUUID(),
       playerId: selectedPlayerId,
-      date: String(formData.get('date')),
-      weight: Number.parseFloat(String(formData.get('weight'))) || 0,
-      height: Number.parseFloat(String(formData.get('height'))) || 0,
-      bodyFat: Number.parseFloat(String(formData.get('bodyFat'))) || 0,
-      skinfoldSum: Number.parseFloat(String(formData.get('skinfoldSum'))) || 0,
-      plan: String(formData.get('plan')) as NutritionPlan,
-    };
+      date,
+      weight: safeNutritionNumber(formData.get('weight')),
+      height: safeNutritionNumber(formData.get('height')),
+      bodyFat: safeNutritionNumber(formData.get('bodyFat')),
+      skinfoldSum: safeNutritionNumber(formData.get('skinfoldSum')),
+      plan,
+      weightRange: String(formData.get('weightRange') ?? '').trim(),
+      skinfoldRange,
+      fatPercentageRange,
+      muscleMassPercentage: safeNutritionNumber(formData.get('muscleMassPercentage')),
+      muscleMassRange,
+      imo: imo ? safeNutritionNumber(imo) : undefined,
+      diagnosis: String(formData.get('diagnosis') ?? '').trim(),
+      category: activeCategory,
+    });
+
     if (editingNutritionId) {
       updateNutritionRecord(record);
-      setMessage('Valoración de nutrición actualizada.');
+      setMessage('Nutrición actualizada.');
     } else {
       addNutritionRecord(record);
-      setMessage('Valoración de nutrición guardada.');
+      setMessage('Nutrición guardada.');
     }
+    setNutritionError('');
     setEditingNutritionId('');
   };
 
@@ -194,6 +267,18 @@ export default function ValoracionesPage() {
   ] : ['Sin histórico suficiente para comparación.'];
 
   const evaluationReport = buildEvaluationsReportData({ data, player: selectedPlayer, activeCategory, referenceDate: filters.date });
+  const nutritionChartData = [...nutritionHistory].reverse().map((row) => {
+    const normalized = normalizeNutritionRecord(row);
+    return {
+      fecha: normalized.date.slice(5),
+      peso: normalized.weight,
+      grasa: normalized.bodyFat,
+      pliegues: normalized.skinfoldSum,
+      masaMuscular: normalized.muscleMassPercentage ?? null,
+    };
+  });
+  const nutritionSaveState = !canEdit ? 'Solo lectura' : syncStatus === 'syncing' ? 'Guardando' : syncStatus === 'error' ? 'Error' : message ? 'Guardado' : permissionMessage || 'Pendiente';
+  const nutritionReading = getNutritionTechnicalReading(latestNutrition);
 
   return (
     <div className="grid evaluations-page-root">
@@ -284,7 +369,6 @@ export default function ValoracionesPage() {
           <div className="card compact-card" style={{ gridColumn: 'span 2' }}>
             <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
               <h3 style={{ margin: 0 }}>Punto de mejora sugerido</h3>
-              {activeTab === 'Nutrición' ? <button className="btn secondary" onClick={() => downloadCsv(`nutricion-${selectedPlayerId}.csv`, nutritionHistory.map((r) => ({ fecha: r.date, peso: r.weight, estatura: r.height, grasa: r.bodyFat, sumatoria_pliegues: r.skinfoldSum, plan: r.plan })))}>Exportar CSV</button> : null}
               {activeTab === 'Perfil neuromuscular' ? <button className="btn secondary" onClick={() => downloadCsv(`neuromuscular-${selectedPlayerId}.csv`, neuromuscularHistory.map((r) => ({ fecha: r.date, cmj: r.cmj, sj: r.sj, reactivos: r.reactiveJumps })))}>Exportar CSV</button> : null}
               {activeTab === 'CMJ' ? <button className="btn secondary" onClick={() => downloadCsv(`cmj-${selectedPlayerId}.csv`, cmjHistory.map((r) => ({ fecha: r.date, cmj: r.value })))}>Exportar CSV</button> : null}
               {activeTab === 'FMS' ? <button className="btn secondary" onClick={() => downloadCsv(`fms-${selectedPlayerId}.csv`, fmsHistory.map((r) => ({ fecha: r.date, movilidad_hombros: r.shoulderMobility, sentadilla: r.squat, elevacion_pierna: r.legRaise, paso_obstaculo: r.hurdleStep, zancada: r.lunge, estabilidad_tronco: r.trunkStability, estabilidad_rotacion: r.rotaryStability, total: r.total })))}>Exportar CSV</button> : null}
@@ -294,41 +378,172 @@ export default function ValoracionesPage() {
         </div>
 
         {activeTab === 'Nutrición' && (
-          <div className="grid grid-2">
-            <form className="card grid" action={submitNutrition}>
-              <h3>{editingNutrition ? 'Editar nutrición' : 'Cargar nutrición'}</h3>
-              <input className="input" type="date" name="date" defaultValue={editingNutrition?.date ?? filters.date} key={`nutrition-${editingNutritionId || 'new'}`} required />
-              <div className="grid grid-2">
-                <input className="input" type="number" step="0.01" name="weight" placeholder="Peso" defaultValue={editingNutrition?.weight ?? selectedPlayer?.weight} key={`nutrition-weight-${editingNutritionId || 'new'}`} required />
-                <input className="input" type="number" step="0.01" name="height" placeholder="Estatura" defaultValue={editingNutrition?.height ?? selectedPlayer?.height} key={`nutrition-height-${editingNutritionId || 'new'}`} required />
+          <div className="nutrition-module">
+            <section className="nutrition-header-card card">
+              <div className="nutrition-header-main">
+                <span className="section-eyebrow">Ficha nutricional</span>
+                <h3>{selectedPlayer.name}</h3>
+                <div className="nutrition-meta-row">
+                  <span>{categoryLabel(selectedPlayer.category ?? activeCategory)}</span>
+                  <span>{latestNutrition?.date ?? filters.date}</span>
+                  <span>{getNutritionStatus(latestNutrition)}</span>
+                  <span>{nutritionSaveState}</span>
+                  <span>{session.displayName || session.email || 'Responsable no disponible'}</span>
+                </div>
               </div>
-              <div className="grid grid-2">
-                <input className="input" type="number" step="0.01" name="bodyFat" placeholder="% de grasa" defaultValue={editingNutrition?.bodyFat ?? ''} key={`nutrition-fat-${editingNutritionId || 'new'}`} required />
-                <input className="input" type="number" step="0.01" name="skinfoldSum" placeholder="Sumatoria de pliegues" defaultValue={editingNutrition?.skinfoldSum ?? ''} key={`nutrition-skin-${editingNutritionId || 'new'}`} required />
+              <div className="nutrition-header-actions">
+                <button className="btn secondary" type="button" onClick={() => downloadCsv(
+                  `nutricion-${selectedPlayerId}.csv`,
+                  nutritionHistory.map((row) => {
+                    const normalized = normalizeNutritionRecord(row);
+                    return {
+                      fecha: normalized.date,
+                      peso: normalized.weight,
+                      rango_peso: normalized.weightRange ?? '',
+                      talla: normalized.height,
+                      sumatoria_grasa: normalized.skinfoldSum,
+                      rango_sumatoria_grasa: normalized.skinfoldRange ?? '',
+                      porcentaje_grasa: normalized.bodyFat,
+                      rango_porcentaje_grasa: normalized.fatPercentageRange ?? '',
+                      porcentaje_masa_muscular: normalized.muscleMassPercentage ?? '',
+                      rango_masa_muscular: normalized.muscleMassRange ?? '',
+                      imo: normalized.imo ?? '',
+                      plan: getNutritionPlanLabel(normalized.plan),
+                      diagnostico: normalized.diagnosis ?? '',
+                    };
+                  }),
+                )}>Exportar CSV</button>
               </div>
-              <select className="select" name="plan" defaultValue={editingNutrition?.plan ?? 'Normocalorico'} key={`nutrition-plan-${editingNutritionId || 'new'}`}>{plans.map((plan) => <option key={plan}>{plan}</option>)}</select>
-              <button className="btn" type="submit">{editingNutrition ? 'Actualizar nutrición' : 'Guardar nutrición'}</button>
-            </form>
-            <div className="card">
-              <h3>Comparación histórica</h3>
-              <div style={{ width: '100%', height: 320 }}>
-                <ResponsiveContainer>
-                  <LineChart data={[...nutritionHistory].reverse().map((row) => ({ fecha: row.date.slice(5), peso: row.weight, grasa: row.bodyFat, pliegues: row.skinfoldSum }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="fecha" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="peso" stroke="#1d4ed8" strokeWidth={3} />
-                    <Line type="monotone" dataKey="grasa" stroke="#93c5fd" strokeWidth={3} />
-                    <Line type="monotone" dataKey="pliegues" stroke="#f59e0b" strokeWidth={3} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+            </section>
+
+            <section className="nutrition-kpi-grid">
+              <div className="nutrition-kpi-card"><span>Peso actual</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.weight, ' kg') : 'Sin registro'}</strong><small>{formatNutritionText(latestNutrition?.weightRange)}</small></div>
+              <div className="nutrition-kpi-card"><span>% grasa</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.bodyFat, '%') : 'Sin registro'}</strong><small>{getNutritionRangeLabel(latestNutrition?.fatPercentageRange)}</small></div>
+              <div className="nutrition-kpi-card"><span>Sumatoria grasa</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.skinfoldSum, '') : 'Sin registro'}</strong><small>{getNutritionRangeLabel(latestNutrition?.skinfoldRange)}</small></div>
+              <div className="nutrition-kpi-card"><span>% masa muscular</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.muscleMassPercentage, '%') : 'Sin registro'}</strong><small>{getNutritionRangeLabel(latestNutrition?.muscleMassRange)}</small></div>
+              <div className="nutrition-kpi-card"><span>IMO</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.imo, '') : 'Sin registro'}</strong><small>Indicador</small></div>
+              <div className="nutrition-kpi-card nutrition-kpi-plan"><span>Plan</span><strong>{latestNutrition ? getNutritionPlanLabel(latestNutrition.plan) : 'Sin registro'}</strong><small>{latestNutrition?.date ?? 'No disponible'}</small></div>
+            </section>
+
+            <div className="nutrition-layout">
+              <form className="card nutrition-form-card" action={submitNutrition}>
+                <div className="section-header compact-section-header">
+                  <div>
+                    <span className="section-eyebrow">Carga</span>
+                    <h3>{editingNutrition ? 'Editar valoración' : 'Nueva valoración'}</h3>
+                  </div>
+                  <NutritionBadge label={nutritionSaveState} tone={syncStatus === 'error' ? 'red' : canEdit ? 'green' : 'neutral'} />
+                </div>
+                {nutritionError ? <div className="nutrition-error">{nutritionError}</div> : null}
+
+                <div className="nutrition-form-section">
+                  <div className="nutrition-section-title"><strong>Datos antropométricos</strong><span>Talla, peso e IMO.</span></div>
+                  <div className="nutrition-field-grid">
+                    <label className="field"><span>Fecha</span><input className="input" type="date" name="date" defaultValue={editingNutrition?.date ?? filters.date} key={`nutrition-date-${editingNutritionId || 'new'}`} disabled={!canEdit} required /></label>
+                    <label className="field"><span>Talla</span><div className="input-unit"><input className="input" type="number" min="0" step="0.01" name="height" placeholder="Talla" defaultValue={editingNutrition?.height ?? selectedPlayer?.height} key={`nutrition-height-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>cm</em></div></label>
+                    <label className="field"><span>Peso</span><div className="input-unit"><input className="input" type="number" min="0" step="0.01" name="weight" placeholder="Peso" defaultValue={editingNutrition?.weight ?? selectedPlayer?.weight} key={`nutrition-weight-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>kg</em></div></label>
+                    <label className="field"><span>Rango de peso</span><input className="input" name="weightRange" placeholder="Ej. objetivo" defaultValue={editingNutrition?.weightRange ?? ''} key={`nutrition-weight-range-${editingNutritionId || 'new'}`} disabled={!canEdit} /></label>
+                    <label className="field"><span>IMO</span><input className="input" type="number" min="0" step="0.01" name="imo" placeholder="IMO" defaultValue={editingNutrition?.imo ?? ''} key={`nutrition-imo-${editingNutritionId || 'new'}`} disabled={!canEdit} /></label>
+                  </div>
+                </div>
+
+                <div className="nutrition-form-section">
+                  <div className="nutrition-section-title"><strong>Composición corporal</strong><span>Grasa, pliegues y masa muscular.</span></div>
+                  <div className="nutrition-field-grid">
+                    <label className="field"><span>Sumatoria grasa</span><input className="input" type="number" min="0" step="0.01" name="skinfoldSum" placeholder="Sumatoria" defaultValue={editingNutrition?.skinfoldSum ?? ''} key={`nutrition-skin-${editingNutritionId || 'new'}`} disabled={!canEdit} required /></label>
+                    <label className="field"><span>Rango sumatoria grasa</span><select className="select" name="skinfoldRange" defaultValue={editingNutrition?.skinfoldRange ?? ''} key={`nutrition-skin-range-${editingNutritionId || 'new'}`} disabled={!canEdit} required><option value="">Selecciona</option>{SKINFOLD_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}</select></label>
+                    <label className="field"><span>% grasa</span><div className="input-unit"><input className="input" type="number" min="0" max="100" step="0.01" name="bodyFat" placeholder="% grasa" defaultValue={editingNutrition?.bodyFat ?? ''} key={`nutrition-fat-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>%</em></div></label>
+                    <label className="field"><span>Rango % grasa</span><select className="select" name="fatPercentageRange" defaultValue={editingNutrition?.fatPercentageRange ?? ''} key={`nutrition-fat-range-${editingNutritionId || 'new'}`} disabled={!canEdit}><option value="">Sin rango</option>{FAT_PERCENTAGE_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}</select></label>
+                    <label className="field"><span>% masa muscular</span><div className="input-unit"><input className="input" type="number" min="0" max="100" step="0.01" name="muscleMassPercentage" placeholder="% masa" defaultValue={editingNutrition?.muscleMassPercentage ?? ''} key={`nutrition-muscle-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>%</em></div></label>
+                    <label className="field"><span>Rango % masa muscular</span><select className="select" name="muscleMassRange" defaultValue={editingNutrition?.muscleMassRange ?? ''} key={`nutrition-muscle-range-${editingNutritionId || 'new'}`} disabled={!canEdit} required><option value="">Selecciona</option>{MUSCLE_MASS_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}</select></label>
+                  </div>
+                </div>
+
+                <div className="nutrition-form-section">
+                  <div className="nutrition-section-title"><strong>Diagnóstico y plan</strong><span>Lectura breve y plan actual.</span></div>
+                  <div className="nutrition-field-grid diagnosis-grid">
+                    <label className="field"><span>Plan nutricional</span><select className="select" name="plan" defaultValue={editingNutrition?.plan ?? 'Normocalorico'} key={`nutrition-plan-${editingNutritionId || 'new'}`} disabled={!canEdit} required>{NUTRITION_PLANS.map((plan) => <option key={plan} value={plan}>{getNutritionPlanLabel(plan)}</option>)}</select></label>
+                    <label className="field nutrition-diagnosis-field"><span>Diagnóstico</span><textarea className="textarea" name="diagnosis" rows={3} placeholder="Lectura nutricional, objetivo y observaciones relevantes." defaultValue={editingNutrition?.diagnosis ?? ''} key={`nutrition-diagnosis-${editingNutritionId || 'new'}`} disabled={!canEdit} /></label>
+                  </div>
+                </div>
+
+                {canEdit ? (
+                  <div className="btn-row nutrition-actions">
+                    <button className="btn" type="submit">{editingNutrition ? 'Actualizar' : 'Guardar'}</button>
+                    {editingNutrition ? <button className="btn secondary" type="button" onClick={() => setEditingNutritionId('')}>Cancelar</button> : null}
+                  </div>
+                ) : <div className="nutrition-readonly">Modo lectura.</div>}
+              </form>
+
+              <aside className="card nutrition-summary-card">
+                <div className="section-header compact-section-header">
+                  <div>
+                    <span className="section-eyebrow">Resumen</span>
+                    <h3>Lectura rápida</h3>
+                  </div>
+                  <NutritionBadge label={latestNutrition ? getNutritionPlanLabel(latestNutrition.plan) : 'Sin plan'} tone="neutral" />
+                </div>
+                <div className="nutrition-summary-grid">
+                  <div><span>Peso</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.weight, ' kg') : 'No disponible'}</strong><small>{formatNutritionText(latestNutrition?.weightRange)}</small></div>
+                  <div><span>Sumatoria grasa</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.skinfoldSum) : 'No disponible'}</strong><NutritionBadge label={getNutritionRangeLabel(latestNutrition?.skinfoldRange)} tone={getNutritionRangeTone('skinfold', latestNutrition?.skinfoldRange)} /></div>
+                  <div><span>% grasa</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.bodyFat, '%') : 'No disponible'}</strong><NutritionBadge label={getNutritionRangeLabel(latestNutrition?.fatPercentageRange)} tone={getNutritionRangeTone('fat', latestNutrition?.fatPercentageRange)} /></div>
+                  <div><span>% masa muscular</span><strong>{latestNutrition ? formatNutritionValue(latestNutrition.muscleMassPercentage, '%') : 'No disponible'}</strong><NutritionBadge label={getNutritionRangeLabel(latestNutrition?.muscleMassRange)} tone={getNutritionRangeTone('muscle', latestNutrition?.muscleMassRange)} /></div>
+                </div>
+                <div className="nutrition-reading-box">
+                  <span>Lectura profesional</span>
+                  <p>{nutritionReading}</p>
+                  {latestNutrition?.diagnosis ? <p><strong>Diagnóstico:</strong> {latestNutrition.diagnosis}</p> : <p>Diagnóstico: No disponible.</p>}
+                </div>
+              </aside>
             </div>
-            <div className="card table-wrap" style={{ gridColumn: '1 / -1' }}>
-              <h3>Todas las valoraciones de nutrición</h3>
-              <table><thead><tr><th>Fecha</th><th>Peso</th><th>Estatura</th><th>% grasa</th><th>Σ pliegues</th><th>Plan</th><th>Acciones</th></tr></thead><tbody>{nutritionHistory.map((row) => <tr key={row.id}><td>{row.date}</td><td>{row.weight}</td><td>{row.height}</td><td>{row.bodyFat}</td><td>{row.skinfoldSum}</td><td>{row.plan}</td><td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => setEditingNutritionId(row.id)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteNutritionRecord(row.id)}>Eliminar</button></div></td></tr>)}</tbody></table>
-            </div>
+
+            <section className="card nutrition-chart-card">
+              <div className="section-header compact-section-header">
+                <div>
+                  <span className="section-eyebrow">Evolución</span>
+                  <h3>Histórico nutricional</h3>
+                </div>
+              </div>
+              {nutritionChartData.length ? (
+                <div className="nutrition-chart-box">
+                  <ResponsiveContainer>
+                    <LineChart data={nutritionChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="fecha" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="peso" name="Peso" stroke="#1d4ed8" strokeWidth={3} dot={false} />
+                      <Line type="monotone" dataKey="grasa" name="% grasa" stroke="#f59e0b" strokeWidth={3} dot={false} />
+                      <Line type="monotone" dataKey="pliegues" name="Sumatoria" stroke="#64748b" strokeWidth={3} dot={false} />
+                      <Line type="monotone" dataKey="masaMuscular" name="% masa muscular" stroke="#059669" strokeWidth={3} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <div className="empty"><strong>Sin registros nutricionales.</strong><br />Crea una valoración para iniciar el seguimiento.</div>}
+            </section>
+
+            <section className="card nutrition-history-card">
+              <div className="section-header compact-section-header">
+                <div>
+                  <span className="section-eyebrow">Histórico</span>
+                  <h3>Valoraciones nutricionales</h3>
+                </div>
+              </div>
+              {nutritionHistory.length ? (
+                <div className="table-wrap nutrition-table-wrap">
+                  <table className="data-table nutrition-table">
+                    <thead><tr><th>Fecha</th><th>Peso</th><th>Rango peso</th><th>Talla</th><th>Sumatoria</th><th>Rango sum.</th><th>% grasa</th><th>% masa</th><th>Rango masa</th><th>IMO</th><th>Plan</th><th>Diagnóstico</th>{canEdit ? <th>Acciones</th> : null}</tr></thead>
+                    <tbody>{nutritionHistory.map((record) => {
+                      const row = normalizeNutritionRecord(record);
+                      return <tr key={row.id}><td>{row.date}</td><td>{formatNutritionValue(row.weight, ' kg')}</td><td>{formatNutritionText(row.weightRange)}</td><td>{formatNutritionValue(row.height, ' cm')}</td><td>{formatNutritionValue(row.skinfoldSum)}</td><td><NutritionBadge label={getNutritionRangeLabel(row.skinfoldRange)} tone={getNutritionRangeTone('skinfold', row.skinfoldRange)} /></td><td>{formatNutritionValue(row.bodyFat, '%')}</td><td>{formatNutritionValue(row.muscleMassPercentage, '%')}</td><td><NutritionBadge label={getNutritionRangeLabel(row.muscleMassRange)} tone={getNutritionRangeTone('muscle', row.muscleMassRange)} /></td><td>{formatNutritionValue(row.imo)}</td><td>{getNutritionPlanLabel(row.plan)}</td><td className="diagnosis-cell">{formatNutritionText(row.diagnosis)}</td>{canEdit ? <td><div className="btn-row compact-actions"><button type="button" className="btn secondary" onClick={() => setEditingNutritionId(row.id)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteNutritionRecord(row.id)}>Eliminar</button></div></td> : null}</tr>;
+                    })}</tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty nutrition-empty"><strong>Sin registros nutricionales.</strong><span>Crea una valoración para iniciar el seguimiento.</span>{canEdit ? <button className="btn secondary" type="button">Nueva valoración</button> : null}</div>
+              )}
+            </section>
           </div>
         )}
 

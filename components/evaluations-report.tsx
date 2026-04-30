@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
+import { formatNutritionText, formatNutritionValue, getNutritionPlanLabel, getNutritionRangeLabel, getNutritionTechnicalReading, normalizeNutritionRecord } from '@/lib/nutrition';
 import { EvaluationReportData, EvaluationReportTone } from '@/lib/evaluations-report';
 
 type Props = {
@@ -84,7 +85,7 @@ function MiniHistoryTable({ rows, columns }: { rows: Array<Record<string, string
 
 export function EvaluationsReportTemplate({ report, className = '', compact = false }: Props) {
   const player = report.player;
-  const latestNutrition = report.latestNutrition;
+  const latestNutrition = report.latestNutrition ? normalizeNutritionRecord(report.latestNutrition) : undefined;
   const latestNeuromuscular = report.latestNeuromuscular;
   const latestCmj = report.latestCmj;
   const latestFms = report.latestFms;
@@ -127,9 +128,9 @@ export function EvaluationsReportTemplate({ report, className = '', compact = fa
 
       <ReportSection icon={Activity} eyebrow="Métricas" title="Métricas">
         <div className="pdf-report-kpi-grid evaluation-kpi-grid">
-          <ReportKpi icon={Scale} label="Peso" value={latestNutrition ? `${latestNutrition.weight} kg` : '-'} note={latestNutrition?.date ?? 'Sin registro'} tone="blue" />
-          <ReportKpi icon={Ruler} label="Estatura" value={latestNutrition ? `${latestNutrition.height} m` : '-'} note="Antropometría" tone="dark" />
-          <ReportKpi icon={Percent} label="Grasa" value={latestNutrition ? `${latestNutrition.bodyFat}%` : '-'} note="Composición" tone="amber" />
+          <ReportKpi icon={Scale} label="Peso" value={latestNutrition ? formatNutritionValue(latestNutrition.weight, ' kg') : '-'} note={latestNutrition?.date ?? 'Sin registro'} tone="blue" />
+          <ReportKpi icon={Ruler} label="Talla" value={latestNutrition ? formatNutritionValue(latestNutrition.height, ' cm') : '-'} note="Antropometría" tone="dark" />
+          <ReportKpi icon={Percent} label="Grasa" value={latestNutrition ? formatNutritionValue(latestNutrition.bodyFat, '%') : '-'} note="Composición" tone="amber" />
           <ReportKpi icon={Zap} label="CMJ" value={latestCmj ? `${latestCmj.value} cm` : latestNeuromuscular ? `${latestNeuromuscular.cmj} cm` : '-'} note={latestCmj?.date ?? latestNeuromuscular?.date ?? 'Sin registro'} tone="green" />
           <ReportKpi icon={Activity} label="FMS" value={latestFms ? `${latestFms.total} pts` : '-'} note="Funcional" tone="blue" />
           <ReportKpi icon={TrendingUp} label="Cobertura" value={`${report.group.nutrition}/${report.group.players}`} note="Grupo" tone="neutral" />
@@ -137,15 +138,30 @@ export function EvaluationsReportTemplate({ report, className = '', compact = fa
       </ReportSection>
 
       <div className="pdf-report-two-columns">
-        <ReportSection icon={Scale} eyebrow="Nutrición" title="Composición corporal">
+        <ReportSection icon={Scale} eyebrow="Nutrición" title="Nutrición">
           {latestNutrition ? (
-            <div className="pdf-report-feature-grid">
-              <div><span>Fecha</span><strong>{latestNutrition.date}</strong></div>
-              <div><span>Peso</span><strong>{latestNutrition.weight} kg</strong></div>
-              <div><span>Estatura</span><strong>{latestNutrition.height} m</strong></div>
-              <div><span>% grasa</span><strong>{latestNutrition.bodyFat}%</strong></div>
-              <div><span>Pliegues</span><strong>{latestNutrition.skinfoldSum}</strong></div>
-              <div><span>Plan</span><strong>{latestNutrition.plan}</strong></div>
+            <div className="pdf-nutrition-block">
+              <div className="pdf-report-feature-grid nutrition-report-grid">
+                <div><span>Fecha</span><strong>{latestNutrition.date}</strong></div>
+                <div><span>Talla</span><strong>{formatNutritionValue(latestNutrition.height, ' cm')}</strong></div>
+                <div><span>Peso</span><strong>{formatNutritionValue(latestNutrition.weight, ' kg')}</strong></div>
+                <div><span>Rango peso</span><strong>{formatNutritionText(latestNutrition.weightRange)}</strong></div>
+                <div><span>Sumatoria grasa</span><strong>{formatNutritionValue(latestNutrition.skinfoldSum)}</strong></div>
+                <div><span>Rango sumatoria</span><strong>{getNutritionRangeLabel(latestNutrition.skinfoldRange)}</strong></div>
+                <div><span>% grasa</span><strong>{formatNutritionValue(latestNutrition.bodyFat, '%')}</strong></div>
+                <div><span>% masa muscular</span><strong>{formatNutritionValue(latestNutrition.muscleMassPercentage, '%')}</strong></div>
+                <div><span>Rango masa</span><strong>{getNutritionRangeLabel(latestNutrition.muscleMassRange)}</strong></div>
+                <div><span>IMO</span><strong>{formatNutritionValue(latestNutrition.imo)}</strong></div>
+                <div><span>Plan</span><strong>{getNutritionPlanLabel(latestNutrition.plan)}</strong></div>
+              </div>
+              <div className="pdf-nutrition-diagnosis">
+                <span>Diagnóstico</span>
+                <p>{latestNutrition.diagnosis || 'No disponible.'}</p>
+              </div>
+              <div className="pdf-nutrition-diagnosis muted">
+                <span>Lectura</span>
+                <p>{getNutritionTechnicalReading(latestNutrition)}</p>
+              </div>
             </div>
           ) : <EmptyReportState text="Sin registros." />}
         </ReportSection>
@@ -194,8 +210,8 @@ export function EvaluationsReportTemplate({ report, className = '', compact = fa
         {hasEvaluationHistory ? (
           <div className="pdf-report-two-columns">
             <MiniHistoryTable
-              rows={report.nutritionHistory.map((row) => ({ fecha: row.date, peso: `${row.weight} kg`, grasa: `${row.bodyFat}%`, pliegues: row.skinfoldSum, plan: row.plan }))}
-              columns={[{ key: 'fecha', label: 'Fecha' }, { key: 'peso', label: 'Peso' }, { key: 'grasa', label: '% grasa' }, { key: 'pliegues', label: 'Pliegues' }]}
+              rows={report.nutritionHistory.map((record) => { const row = normalizeNutritionRecord(record); return { fecha: row.date, peso: formatNutritionValue(row.weight, ' kg'), grasa: formatNutritionValue(row.bodyFat, '%'), masa: formatNutritionValue(row.muscleMassPercentage, '%'), plan: getNutritionPlanLabel(row.plan) }; })}
+              columns={[{ key: 'fecha', label: 'Fecha' }, { key: 'peso', label: 'Peso' }, { key: 'grasa', label: '% grasa' }, { key: 'masa', label: '% masa' }]}
             />
             <MiniHistoryTable
               rows={report.cmjHistory.map((row) => ({ fecha: row.date, cmj: `${row.value} cm`, estado: 'Registrado' }))}

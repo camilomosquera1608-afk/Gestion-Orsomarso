@@ -18,6 +18,15 @@ const formatDate = (value?: string | null) => {
   return date.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
 };
 
+const formatShortDate = (value?: string | null) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+};
+
+const moduleLabel = (value?: string | null) => String(value ?? '-').replace(/_/g, ' ');
+
 const actionLabel = (action: string) => {
   const value = action.toLowerCase();
   if (value.includes('insert') || value.includes('create')) return 'Creó';
@@ -36,11 +45,15 @@ export default function AdministracionPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [showAllLogs, setShowAllLogs] = useState(false);
+  const [auditUserFilter, setAuditUserFilter] = useState('');
+  const [auditModuleFilter, setAuditModuleFilter] = useState('');
+  const [auditActionFilter, setAuditActionFilter] = useState('');
 
   const loadData = async () => {
     setLoading(true);
     setError('');
-    const [profilesResult, logsResult] = await Promise.all([fetchProfiles(), fetchAuditLogsDetailed(160)]);
+    const [profilesResult, logsResult] = await Promise.all([fetchProfiles(), fetchAuditLogsDetailed(30)]);
     if (profilesResult.ok) setProfiles(profilesResult.profiles);
     else setError(profilesResult.reason ?? 'No se pudieron cargar usuarios.');
     if (logsResult.ok) setLogs(logsResult.logs);
@@ -57,6 +70,17 @@ export default function AdministracionPage() {
     const categoryAdmins = profiles.filter((profile) => profile.role === 'category_admin').length;
     return { active, admins, categoryAdmins };
   }, [profiles]);
+
+  const filteredLogs = useMemo(() => logs.filter((log) => {
+    const user = (log.actor_email ?? 'Sistema').toLowerCase();
+    const module = moduleLabel(log.table_name).toLowerCase();
+    const action = log.action.toLowerCase();
+    return (!auditUserFilter || user.includes(auditUserFilter.toLowerCase()))
+      && (!auditModuleFilter || module.includes(auditModuleFilter.toLowerCase()))
+      && (!auditActionFilter || action.includes(auditActionFilter.toLowerCase()));
+  }), [logs, auditUserFilter, auditModuleFilter, auditActionFilter]);
+
+  const visibleLogs = showAllLogs ? filteredLogs : filteredLogs.slice(0, 5);
 
   const updateProfile = async (profile: UserProfile, patch: Partial<UserProfile>) => {
     const next = { ...profile, ...patch };
@@ -77,7 +101,7 @@ export default function AdministracionPage() {
       return;
     }
     setMessage('Guardado.');
-    const logsResult = await fetchAuditLogsDetailed(160);
+    const logsResult = await fetchAuditLogsDetailed(30);
     if (logsResult.ok) setLogs(logsResult.logs);
   };
 
@@ -163,36 +187,62 @@ export default function AdministracionPage() {
         {!profiles.length && !loading ? <EmptyState title="Sin perfiles" text="Crea usuarios en Supabase Auth." /> : null}
       </div>
 
-      <div className="card">
-        <SectionHeader eyebrow="Auditoría" title="Cambios" />
-        {logs.length ? (
-          <div className="table-wrap">
-            <table className="data-table admin-table">
+      <div className="card audit-compact-card">
+        <SectionHeader
+          eyebrow="Auditoría"
+          title="Últimos cambios"
+          action={<button type="button" className="btn secondary btn-compact" onClick={() => setShowAllLogs((value) => !value)}>{showAllLogs ? 'Contraer' : 'Ver historial'}</button>}
+        />
+        <div className="audit-filter-row">
+          <input className="input admin-input" placeholder="Usuario" value={auditUserFilter} onChange={(event) => setAuditUserFilter(event.target.value)} />
+          <input className="input admin-input" placeholder="Módulo" value={auditModuleFilter} onChange={(event) => setAuditModuleFilter(event.target.value)} />
+          <select className="input admin-input" value={auditActionFilter} onChange={(event) => setAuditActionFilter(event.target.value)}>
+            <option value="">Acción</option>
+            <option value="insert">Creó</option>
+            <option value="update">Editó</option>
+            <option value="delete">Eliminó</option>
+          </select>
+        </div>
+        {visibleLogs.length ? (
+          <div className="audit-mini-list">
+            {visibleLogs.map((log) => (
+              <div className="audit-mini-row" key={log.id}>
+                <span>{formatShortDate(log.created_at)}</span>
+                <strong>{log.actor_email ?? 'Sistema'}</strong>
+                <em>{moduleLabel(log.table_name)}</em>
+                <StatusBadge text={actionLabel(log.action)} tone="neutral" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="Sin cambios" text="La actividad aparecerá aquí." />
+        )}
+        {showAllLogs && filteredLogs.length ? (
+          <div className="table-wrap audit-full-table-wrap">
+            <table className="data-table admin-table audit-table-compact">
               <thead>
                 <tr>
                   <th>Fecha</th>
                   <th>Usuario</th>
                   <th>Acción</th>
-                  <th>Tabla</th>
+                  <th>Módulo</th>
                   <th>Registro</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <tr key={log.id}>
                     <td>{formatDate(log.created_at)}</td>
                     <td>{log.actor_email ?? 'Sistema'}</td>
                     <td>{actionLabel(log.action)}</td>
-                    <td>{log.table_name}</td>
+                    <td>{moduleLabel(log.table_name)}</td>
                     <td>{log.record_label ?? log.record_id ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : (
-          <EmptyState title="Sin cambios" text="La actividad aparecerá aquí." />
-        )}
+        ) : null}
       </div>
     </div>
   );

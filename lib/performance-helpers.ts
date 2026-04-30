@@ -1,3 +1,4 @@
+import { normalizeNutritionRecord } from './nutrition';
 import {
   AppData,
   CMJRecord,
@@ -133,7 +134,7 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
       movementModule: record.movementModule ?? 'sesion',
     })),
     cmjRecords: pickArray<CMJRecord, 'cmjRecords'>(stored, fallback, 'cmjRecords'),
-    nutritionRecords: pickArray<NutritionRecord, 'nutritionRecords'>(stored, fallback, 'nutritionRecords'),
+    nutritionRecords: pickArray<NutritionRecord, 'nutritionRecords'>(stored, fallback, 'nutritionRecords').map(normalizeNutritionRecord),
     neuromuscularRecords: pickArray<NeuromuscularRecord, 'neuromuscularRecords'>(stored, fallback, 'neuromuscularRecords'),
     fmsRecords: pickArray<FMSRecord, 'fmsRecords'>(stored, fallback, 'fmsRecords'),
     competitionMatchSummaries: matchSummaries,

@@ -122,9 +122,9 @@ export const initialData: AppData = {
     { id: 'c12', playerId: 'p6', date: '2026-04-18', value: 35.0 }
   ],
   nutritionRecords: [
-    { id: 'n1', playerId: 'p1', date: '2026-04-23', weight: 84, height: 189, bodyFat: 10.8, skinfoldSum: 42, plan: 'Normocalorico' },
+    { id: 'n1', playerId: 'p1', date: '2026-04-23', weight: 84, height: 189, bodyFat: 10.8, skinfoldSum: 42, plan: 'Normocalorico', weightRange: '83 - 86 kg', skinfoldRange: '40 - 45', fatPercentageRange: 'Seguimiento', muscleMassPercentage: 56, muscleMassRange: '55% - 60%', imo: 23.5, diagnosis: 'Control estable.' },
     { id: 'n2', playerId: 'p1', date: '2026-04-18', weight: 84.6, height: 189, bodyFat: 11.3, skinfoldSum: 45, plan: 'Normocalorico' },
-    { id: 'n3', playerId: 'p2', date: '2026-04-23', weight: 79, height: 184, bodyFat: 11.9, skinfoldSum: 48, plan: 'Normocalorico' },
+    { id: 'n3', playerId: 'p2', date: '2026-04-23', weight: 79, height: 184, bodyFat: 11.9, skinfoldSum: 48, plan: 'Normocalorico', weightRange: '78 - 81 kg', skinfoldRange: '45 - 50', fatPercentageRange: 'Seguimiento', muscleMassPercentage: 54, muscleMassRange: '50% - 55%', imo: 23.3, diagnosis: 'Seguimiento de composición.' },
     { id: 'n4', playerId: 'p2', date: '2026-04-18', weight: 79.7, height: 184, bodyFat: 12.2, skinfoldSum: 50, plan: 'Normocalorico' },
     { id: 'n5', playerId: 'p3', date: '2026-04-23', weight: 72, height: 176, bodyFat: 9.7, skinfoldSum: 38, plan: 'Hipercalorico' },
     { id: 'n6', playerId: 'p4', date: '2026-04-23', weight: 74, height: 178, bodyFat: 10.2, skinfoldSum: 40, plan: 'Normocalorico' },

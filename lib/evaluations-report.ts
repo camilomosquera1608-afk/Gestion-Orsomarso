@@ -120,6 +120,7 @@ export const buildEvaluationsReportData = ({
   const notes = [
     deltaText('Peso', latestNutrition?.weight, previousNutrition?.weight, ' kg'),
     deltaText('% grasa', latestNutrition?.bodyFat, previousNutrition?.bodyFat, '%'),
+    deltaText('% masa muscular', latestNutrition?.muscleMassPercentage, previousNutrition?.muscleMassPercentage, '%'),
     deltaText('CMJ neuromuscular', latestNeuromuscular?.cmj, previousNeuromuscular?.cmj, ' cm'),
     deltaText('CMJ', latestCmj?.value, previousCmj?.value, ' cm'),
     deltaText('FMS total', latestFms?.total, previousFms?.total, ' pts'),

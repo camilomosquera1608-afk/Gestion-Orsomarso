@@ -3,6 +3,9 @@ export type Position = 'Portero' | 'Defensa central' | 'Lateral' | 'Mediocampist
 export type ClubCategory = 'Sub15' | 'Sub17' | 'Sub20';
 export type StaffRole = 'sub15' | 'sub17' | 'sub20' | 'master';
 export type NutritionPlan = 'Normocalorico' | 'Hipercalorico' | 'Hipocalorico';
+export type SkinfoldRange = '30 - 35' | '35 - 40' | '40 - 45' | '45 - 50';
+export type MuscleMassRange = '50% - 55%' | '55% - 60%';
+export type FatPercentageRange = 'Adecuado' | 'Seguimiento' | 'Alerta';
 export type TrainingSessionType = 'cdef' | 'cdEf' | 'cdeF' | 'Cdef';
 export type SessionParticipation = 'Completa' | 'Parcial' | 'No participa' | 'Gimnasio' | 'Readaptación';
 export type MovementType = 'base' | 'subio_a_entrenar' | 'bajo_a_entrenar' | 'subio_a_competir' | 'bajo_a_competir';
@@ -118,6 +121,13 @@ export interface NutritionRecord {
   bodyFat: number;
   skinfoldSum: number;
   plan: NutritionPlan;
+  weightRange?: string;
+  skinfoldRange?: SkinfoldRange;
+  fatPercentageRange?: FatPercentageRange;
+  muscleMassPercentage?: number;
+  muscleMassRange?: MuscleMassRange;
+  imo?: number;
+  diagnosis?: string;
   category?: ClubCategory;
 }
 

@@ -250,6 +250,13 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
       bodyFat: num(row.body_fat),
       skinfoldSum: num(row.skinfold_sum),
       plan: row.plan ?? 'Normocalorico',
+      weightRange: row.weight_range ?? undefined,
+      skinfoldRange: row.skinfold_range ?? undefined,
+      fatPercentageRange: row.fat_percentage_range ?? undefined,
+      muscleMassPercentage: row.muscle_mass_percentage === null || row.muscle_mass_percentage === undefined ? undefined : num(row.muscle_mass_percentage),
+      muscleMassRange: row.muscle_mass_range ?? undefined,
+      imo: row.imo === null || row.imo === undefined ? undefined : num(row.imo),
+      diagnosis: row.diagnosis ?? undefined,
       category: category(row.category),
     }));
 
@@ -491,6 +498,13 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         body_fat: record.bodyFat ?? null,
         skinfold_sum: record.skinfoldSum ?? null,
         plan: record.plan ?? null,
+        weight_range: record.weightRange || null,
+        skinfold_range: record.skinfoldRange || null,
+        fat_percentage_range: record.fatPercentageRange || null,
+        muscle_mass_percentage: record.muscleMassPercentage ?? null,
+        muscle_mass_range: record.muscleMassRange || null,
+        imo: record.imo ?? null,
+        diagnosis: record.diagnosis || null,
       })));
 
     await upsertRows(supabase, 'cmj_records', data.cmjRecords

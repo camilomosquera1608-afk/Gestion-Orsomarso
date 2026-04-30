@@ -234,6 +234,13 @@ create table if not exists public.nutrition_records (
   body_fat numeric,
   skinfold_sum numeric,
   plan text,
+  weight_range text,
+  skinfold_range text check (skinfold_range is null or skinfold_range in ('30 - 35', '35 - 40', '40 - 45', '45 - 50')),
+  fat_percentage_range text check (fat_percentage_range is null or fat_percentage_range in ('Adecuado', 'Seguimiento', 'Alerta')),
+  muscle_mass_percentage numeric,
+  muscle_mass_range text check (muscle_mass_range is null or muscle_mass_range in ('50% - 55%', '55% - 60%')),
+  imo numeric,
+  diagnosis text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
