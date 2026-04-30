@@ -17,6 +17,10 @@ export interface LocalBackupMeta {
   sizeKb: number;
   playersCount: number;
   recordsCount: number;
+  microcyclesCount: number;
+  gpsRecordsCount: number;
+  sessionsCount: number;
+  matchesCount: number;
 }
 
 interface LocalBackup extends LocalBackupMeta {
@@ -56,6 +60,15 @@ const writeBackups = (backups: LocalBackup[]) => {
 
 const asArray = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
 
+const gpsRecordsCount = (payload: Partial<AppData> | null | undefined) =>
+  asArray(payload?.externalLoads).filter((record) =>
+    Number(record.totalDistance ?? 0) > 0 ||
+    Number(record.playerLoad ?? 0) > 0 ||
+    Number(record.highSpeedDistance ?? 0) > 0 ||
+    Number(record.sprintDistance ?? 0) > 0 ||
+    Number(record.maxVelocity ?? 0) > 0
+  ).length;
+
 const recordsCount = (payload: Partial<AppData> | null | undefined) =>
   asArray(payload?.wellness).length +
   asArray(payload?.internalLoads).length +
@@ -81,6 +94,10 @@ const makeBackup = (payload: Partial<AppData>, label: string, kind: LocalBackupK
     sizeKb: Math.max(1, Math.round(raw.length / 1024)),
     playersCount: asArray(safePayload.players).length,
     recordsCount: recordsCount(safePayload),
+    microcyclesCount: asArray(safePayload.microcycles).length,
+    gpsRecordsCount: gpsRecordsCount(safePayload),
+    sessionsCount: asArray(safePayload.trainingSessionSummaries).length,
+    matchesCount: asArray(safePayload.competitionMatchSummaries).length,
     payload: safePayload,
   };
 };
@@ -135,6 +152,10 @@ export const listLocalBackups = (): LocalBackupMeta[] =>
     ...meta,
     playersCount: Number.isFinite(meta.playersCount) ? meta.playersCount : 0,
     recordsCount: Number.isFinite(meta.recordsCount) ? meta.recordsCount : 0,
+    microcyclesCount: Number.isFinite(meta.microcyclesCount) ? meta.microcyclesCount : 0,
+    gpsRecordsCount: Number.isFinite(meta.gpsRecordsCount) ? meta.gpsRecordsCount : 0,
+    sessionsCount: Number.isFinite(meta.sessionsCount) ? meta.sessionsCount : 0,
+    matchesCount: Number.isFinite(meta.matchesCount) ? meta.matchesCount : 0,
   }));
 
 export const getLocalBackupPayload = (backupId: string): Partial<AppData> | null => {

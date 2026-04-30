@@ -1,6 +1,6 @@
 {
   "name": "orsomarso-performance-app",
-  "version": "1.4.9-v107-microcycles-gps-u20",
+  "version": "1.4.10-v107-1-backup-validacion",
   "private": true,
   "scripts": {
     "dev": "next dev",

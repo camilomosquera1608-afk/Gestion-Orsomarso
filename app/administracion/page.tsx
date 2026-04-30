@@ -25,6 +25,7 @@ import {
   type AuditLogRow,
   type ProfileSource,
 } from '@/lib/supabase';
+import { getDataTotals } from '@/lib/data-quality';
 
 const roleOptions: PlatformRole[] = ['admin', 'category_admin', 'director', 'preparador', 'medico', 'analista', 'valorador', 'solo_lectura'];
 const categoryOptions: CategoryScope[] = ['ALL', 'Sub15', 'Sub17', 'Sub20'];
@@ -123,6 +124,8 @@ export default function AdministracionPage() {
   }), [logs, auditUserFilter, auditModuleFilter, auditActionFilter]);
 
   const visibleLogs = showAllLogs ? filteredLogs : filteredLogs.slice(0, 5);
+  const dataTotals = getDataTotals(data);
+
   const diagnosticWarnings: string[] = [
     !hasSupabaseConfig ? 'Supabase no está activo desde variables de entorno.' : '',
     hasSupabaseConfig && !tableSchemaSyncEnabled ? 'Supabase no está en modo table_schema.' : '',
@@ -216,13 +219,13 @@ export default function AdministracionPage() {
             </div>
             <div className="diagnostic-box">
               <span>Datos</span>
-              <strong>{data.players.length} jugadores</strong>
-              <small>{data.trainingSessionSummaries.length} sesiones · {data.competitionMatchSummaries.length} partidos</small>
+              <strong>{dataTotals.players} jugadores</strong>
+              <small>{dataTotals.sessions} sesiones · {dataTotals.matches} partidos · {dataTotals.microcycles} microciclos</small>
             </div>
             <div className="diagnostic-box">
               <span>Respaldo local</span>
               <strong>{localBackups.length}</strong>
-              <small>{canEdit ? 'Edición habilitada' : 'Edición bloqueada'}</small>
+              <small>{dataTotals.gpsRecords} GPS · {canEdit ? 'Edición habilitada' : 'Edición bloqueada'}</small>
             </div>
           </div>
         ) : null}

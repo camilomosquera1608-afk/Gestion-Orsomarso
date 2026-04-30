@@ -7,6 +7,7 @@ import { EmptyState, SectionHeader } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
 import { CATEGORY_SCOPE_LABELS, ROLE_LABELS } from '@/lib/access-control';
+import { getDataTotals, getOverallDataQuality, getU20ReadinessChecks, qualityLabel, qualityToneClass } from '@/lib/data-quality';
 import { fetchAuditLogs, getSupabaseUserEmail, hasSupabaseConfig, signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
 const formatDate = (value: string) => new Date(value).toLocaleString('es-CO', {
@@ -40,6 +41,10 @@ export default function ConfiguracionPage() {
   }, []);
 
   const shareLink = typeof window !== 'undefined' ? `${window.location.origin}/wellness-jugadores` : '/wellness-jugadores';
+  const readinessChecks = getU20ReadinessChecks(data);
+  const dataTotals = getDataTotals(data);
+  const qualityStatus = getOverallDataQuality(readinessChecks);
+  const safePointLabel = `Punto seguro antes de carga U20 · ${new Date().toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}`;
   const totalRecords = data.wellness.length + data.internalLoads.length + data.externalLoads.length + data.cmjRecords.length + data.nutritionRecords.length + data.neuromuscularRecords.length + data.fmsRecords.length + data.competitionRecords.length + data.competitionMatchSummaries.length + data.trainingSessionSummaries.length;
 
   const handleExport = () => {
@@ -128,26 +133,61 @@ export default function ConfiguracionPage() {
         {remoteMessage && <div className="empty" style={{ marginTop: 12 }}>{remoteMessage}</div>}
       </div>
 
-      <div className="card">
-        <SectionHeader eyebrow="Respaldos" title="Datos locales" />
+      <div className="card backup-control-card">
+        <SectionHeader eyebrow="Respaldos" title="Punto seguro antes de cargar U20" subtitle="Crea una copia manual y descarga JSON antes de cargar datos reales." />
+        <div className="backup-summary-grid">
+          <div className="mini-stat-card"><strong>{localBackups.length}</strong><div className="muted-line">copias locales</div></div>
+          <div className="mini-stat-card"><strong>{dataTotals.u20Players}</strong><div className="muted-line">jugadores U20</div></div>
+          <div className="mini-stat-card"><strong>{dataTotals.microcyclesU20}</strong><div className="muted-line">microciclos U20</div></div>
+          <div className="mini-stat-card"><strong>{dataTotals.gpsRecords}</strong><div className="muted-line">registros GPS</div></div>
+        </div>
         <div className="btn-row">
           <button
             type="button"
             className="btn"
             onClick={() => {
+              createLocalSnapshot(safePointLabel);
+              setMessage('Punto seguro creado. Exporta JSON para guardar una copia fuera del navegador.');
+            }}
+          >
+            Crear punto seguro U20
+          </button>
+          <button type="button" className="btn secondary" onClick={handleExport}>Descargar JSON completo</button>
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => {
               createLocalSnapshot('Copia manual');
               setMessage('Copia local creada.');
             }}
           >
-            Crear copia local
+            Copia rápida
           </button>
-          <button type="button" className="btn secondary" onClick={handleExport}>Exportar JSON</button>
           <label className="btn secondary" style={{ cursor: 'pointer' }}>
             Importar JSON
             <input type="file" accept="application/json,.json" onChange={handleImport} style={{ display: 'none' }} />
           </label>
         </div>
         {message && <div className="empty" style={{ marginTop: 12 }}>{message}</div>}
+      </div>
+
+      <div className="card data-quality-card">
+        <SectionHeader eyebrow="Calidad de datos" title="Checklist U20" subtitle="Validación rápida antes de cargar información real." />
+        <div className={`quality-overview ${qualityToneClass(qualityStatus)}`}>
+          <strong>{qualityLabel(qualityStatus)}</strong>
+          <span>{qualityStatus === 'ok' ? 'Base lista para cargar U20 con mayor confianza.' : 'Revisa los puntos marcados antes de hacer carga masiva.'}</span>
+        </div>
+        <div className="quality-check-grid">
+          {readinessChecks.map((check) => (
+            <div key={check.id} className={`quality-check ${qualityToneClass(check.severity)}`}>
+              <div>
+                <strong>{check.label}</strong>
+                <span>{check.detail}</span>
+              </div>
+              <em>{qualityLabel(check.severity)}</em>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="card">
@@ -210,14 +250,15 @@ export default function ConfiguracionPage() {
                   <tr key={backup.id}>
                     <td>{formatDate(backup.createdAt)}</td>
                     <td>{backup.label}</td>
-                    <td>{backup.playersCount} jugadores · {backup.recordsCount} registros · {backup.sizeKb} KB</td>
+                    <td>{backup.playersCount} jugadores · {backup.recordsCount} registros · {backup.microcyclesCount} microciclos · {backup.gpsRecordsCount} GPS · {backup.sizeKb} KB</td>
                     <td>
                       <button
                         type="button"
                         className="btn secondary"
                         onClick={() => {
+                          if (!confirm('Antes de restaurar, la app creará una copia del estado actual. ¿Continuar?')) return;
                           const ok = restoreLocalSnapshot(backup.id);
-                          setMessage(ok ? 'Respaldo restaurado.' : 'No se pudo restaurar.');
+                          setMessage(ok ? 'Respaldo restaurado. Se creó una copia previa del estado actual.' : 'No se pudo restaurar.');
                         }}
                       >
                         Restaurar

@@ -2119,3 +2119,112 @@ textarea.input, .textarea { resize: vertical; }
   .admin-diagnostics-grid { grid-template-columns: 1fr; }
   .admin-warning-strip .btn { width: 100%; }
 }
+
+/* v107.1 - Backup seguro y checklist de carga real */
+.backup-control-card,
+.data-quality-card {
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.backup-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.quality-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.quality-overview span {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.quality-check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quality-check {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+}
+
+.quality-check strong,
+.quality-check span {
+  display: block;
+}
+
+.quality-check span {
+  color: #64748b;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  margin-top: 3px;
+}
+
+.quality-check em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 5px 8px;
+}
+
+.quality-ok {
+  background: #f0fdf4;
+  border-color: rgba(22, 163, 74, 0.18);
+}
+.quality-ok em {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.quality-warning {
+  background: #fffbeb;
+  border-color: rgba(245, 158, 11, 0.22);
+}
+.quality-warning em {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.quality-error {
+  background: #fff1f2;
+  border-color: rgba(225, 29, 72, 0.2);
+}
+.quality-error em {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+@media (max-width: 760px) {
+  .backup-summary-grid,
+  .quality-check-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quality-overview,
+  .quality-check {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

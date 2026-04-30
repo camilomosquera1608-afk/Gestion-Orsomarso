@@ -30,3 +30,8 @@ No incluye:
 - zips historicos
 - cache temporal
 - builds locales
+
+
+## v107.1
+
+Incluye validación previa a carga real U20, punto seguro manual, metadata extendida de backups y checklist de calidad de datos.
