@@ -90,6 +90,12 @@ export interface DailyExternalLoadRecord {
   ima: number;
   rpe?: number;
   totalDistance?: number;
+  distancePerMin?: number;
+  maxVelocity?: number;
+  playerLoad?: number;
+  playerLoadPerMin?: number;
+  highSpeedDistance?: number;
+  sprintDistance?: number;
   hsr?: number;
   participation?: SessionParticipation;
   microcycleId?: string;
@@ -219,6 +225,7 @@ export interface CompetitionMatchSummary {
 export interface Microcycle {
   id: string;
   name: string;
+  category?: ClubCategory;
   startDate: string;
   endDate: string;
   objective?: string;

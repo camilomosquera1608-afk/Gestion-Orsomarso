@@ -51,7 +51,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     const category = getAllowedCategory(session);
     const activeCategory = isMasterRole(session) ? filters.category : category;
     const microcycle = filters.date
-      ? findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId)
+      ? findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, activeCategory)
       : data.microcycles.find((item) => item.id === filters.microcycleId);
     const microcycleLabel = microcycle
       ? microcycle.startDate && microcycle.endDate

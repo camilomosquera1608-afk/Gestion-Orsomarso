@@ -125,9 +125,13 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
     const microcycles: Microcycle[] = ((microcyclesRes.data ?? []) as DbRow[]).map((row) => ({
       id: String(row.legacy_id ?? row.id),
       name: text(row.name),
+      category: category(row.category),
       weekNumber: row.week_number ?? undefined,
       startDate: row.start_date ?? '',
       endDate: row.end_date ?? '',
+      objective: row.objective ?? undefined,
+      notes: row.notes ?? undefined,
+      status: row.status ?? undefined,
     }));
 
     const wellness: DailyWellnessRecord[] = ((wellnessRes.data ?? []) as DbRow[]).map((row) => ({
@@ -172,7 +176,13 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
       ima: num(row.ima),
       rpe: row.rpe ?? undefined,
       totalDistance: row.total_distance ?? undefined,
-      hsr: row.hsr ?? undefined,
+      distancePerMin: row.distance_per_min ?? undefined,
+      maxVelocity: row.max_velocity ?? undefined,
+      playerLoad: row.player_load ?? undefined,
+      playerLoadPerMin: row.player_load_per_min ?? undefined,
+      highSpeedDistance: row.high_speed_distance ?? row.hsr ?? undefined,
+      sprintDistance: row.sprint_distance ?? undefined,
+      hsr: row.hsr ?? row.high_speed_distance ?? undefined,
       participation: row.participation ?? undefined,
       microcycleId: row.microcycle_id ? microcycleUuidToLegacy[String(row.microcycle_id)] : undefined,
       sessionNumber: row.session_number ?? undefined,
@@ -358,7 +368,10 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         week_number: item.weekNumber ?? null,
         start_date: isoDate(item.startDate),
         end_date: isoDate(item.endDate),
-        category: 'Sub20',
+        category: category(item.category),
+        objective: item.objective ?? null,
+        notes: item.notes ?? null,
+        status: item.status ?? null,
       })));
 
     const playerMap = await fetchLegacyIdMap(supabase, 'players');
@@ -420,7 +433,13 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         ima: num(record.ima),
         rpe: record.rpe ?? null,
         total_distance: record.totalDistance ?? null,
-        hsr: record.hsr ?? null,
+        distance_per_min: record.distancePerMin ?? (record.totalDistance && record.min ? Number((record.totalDistance / record.min).toFixed(1)) : null),
+        max_velocity: record.maxVelocity ?? null,
+        player_load: record.playerLoad ?? null,
+        player_load_per_min: record.playerLoadPerMin ?? (record.playerLoad && record.min ? Number((record.playerLoad / record.min).toFixed(2)) : null),
+        high_speed_distance: record.highSpeedDistance ?? record.hsr ?? null,
+        sprint_distance: record.sprintDistance ?? null,
+        hsr: record.hsr ?? record.highSpeedDistance ?? null,
         participation: record.participation ?? null,
         session_type: record.sessionType ?? null,
         movement_type: record.movementType ?? null,

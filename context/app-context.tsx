@@ -8,7 +8,7 @@ import { createLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAp
 import type { LocalBackupMeta } from '@/lib/app-storage';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
 import { canWrite, filterAppDataForSession } from '@/lib/access-control';
-import { findMicrocycleByDate } from '@/lib/utils';
+import { findMicrocycleByDate, getMicrocyclesForCategory, microcycleBelongsToCategory } from '@/lib/utils';
 import { normalizeAppData } from '@/lib/performance-helpers';
 import { AppData, CMJRecord, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
@@ -370,22 +370,31 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       merged.category = allowedCategory;
     }
 
+    const activeCategory = merged.category || allowedCategory;
+    const scopedMicrocycles = getMicrocyclesForCategory(microcycles, activeCategory);
+    const selected = microcycles.find((item) => item.id === merged.microcycleId);
+    const categoryChanged = next.category !== undefined && next.category !== prev.category;
+
+    if (categoryChanged || (selected && !microcycleBelongsToCategory(selected, activeCategory))) {
+      const detected = merged.date ? findMicrocycleByDate(microcycles, merged.date, undefined, activeCategory) : undefined;
+      const fallback = detected ?? scopedMicrocycles[0];
+      if (fallback) merged.microcycleId = fallback.id;
+    }
+
     if (next.microcycleId !== undefined) {
-      const selected = microcycles.find((item) => item.id === next.microcycleId);
-      if (selected?.startDate && selected?.endDate) {
+      const current = microcycles.find((item) => item.id === next.microcycleId);
+      if (current?.startDate && current?.endDate) {
         const currentDate = merged.date;
-        if (!currentDate || currentDate < selected.startDate || currentDate > selected.endDate) {
-          merged.date = selected.startDate;
+        if (!currentDate || currentDate < current.startDate || currentDate > current.endDate) {
+          merged.date = current.startDate;
         }
-      } else if (selected && next.date === undefined) {
-        // A microcycle without dates cannot be detected by Diario or Sesion.
-        // Clear the stale date so the app does not keep showing another microcycle.
+      } else if (current && next.date === undefined) {
         merged.date = '';
       }
     }
 
     if (next.date !== undefined && next.date) {
-      const detected = findMicrocycleByDate(microcycles, next.date, merged.microcycleId);
+      const detected = findMicrocycleByDate(microcycles, next.date, merged.microcycleId, activeCategory);
       if (detected) merged.microcycleId = detected.id;
     }
 
@@ -394,11 +403,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const resetFilters = () => {
     const session = getStaffSession();
-    const detected = findMicrocycleByDate(dataRef.current.microcycles, defaultFilters.date, defaultFilters.microcycleId);
-    const fallbackMicrocycle = detected ?? dataRef.current.microcycles[0];
+    const category = getAllowedCategory(session);
+    const detected = findMicrocycleByDate(dataRef.current.microcycles, defaultFilters.date, defaultFilters.microcycleId, category);
+    const fallbackMicrocycle = detected ?? getMicrocyclesForCategory(dataRef.current.microcycles, category)[0] ?? dataRef.current.microcycles[0];
     setFiltersState({
       ...defaultFilters,
-      category: getAllowedCategory(session),
+      category,
       microcycleId: fallbackMicrocycle?.id ?? defaultFilters.microcycleId,
     });
   };
@@ -506,21 +516,22 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     },
     upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.date === record.date && item.category === record.category && item.sessionNumber === record.sessionNumber))] })),
     updateMicrocycle: (record) => {
+      const normalizedRecord = { ...record, category: record.category ?? (filters.category === 'all' ? 'Sub20' : filters.category as any) };
       applyMutation((prev) => ({
         ...prev,
-        microcycles: prev.microcycles.some((item) => item.id === record.id)
-          ? prev.microcycles.map((item) => item.id === record.id ? { ...item, ...record } : item)
-          : [...prev.microcycles, record].sort((a, b) => (a.startDate || a.id).localeCompare(b.startDate || b.id)),
+        microcycles: prev.microcycles.some((item) => item.id === normalizedRecord.id)
+          ? prev.microcycles.map((item) => item.id === normalizedRecord.id ? { ...item, ...normalizedRecord } : item)
+          : [...prev.microcycles, normalizedRecord].sort((a, b) => (a.startDate || a.id).localeCompare(b.startDate || b.id)),
       }));
 
-      if (record.id === filters.microcycleId) {
+      if (normalizedRecord.id === filters.microcycleId) {
         setFiltersState((prev) => {
-          if (record.startDate && record.endDate) {
-            if (prev.date >= record.startDate && prev.date <= record.endDate) return { ...prev, microcycleId: record.id };
-            return { ...prev, date: record.startDate, microcycleId: record.id };
+          if (normalizedRecord.startDate && normalizedRecord.endDate) {
+            if (prev.date >= normalizedRecord.startDate && prev.date <= normalizedRecord.endDate) return { ...prev, microcycleId: normalizedRecord.id };
+            return { ...prev, date: normalizedRecord.startDate, microcycleId: normalizedRecord.id };
           }
 
-          return { ...prev, date: '', microcycleId: record.id };
+          return { ...prev, date: '', microcycleId: normalizedRecord.id };
         });
       }
     },

@@ -21,7 +21,7 @@ export default function DiarioPage() {
   const ops = buildDailyOperations(data, filters, activeCategory);
   const youthSimple = activeCategory !== 'Sub20';
   const selectedMicrocycle = data.microcycles.find((microcycle) => microcycle.id === filters.microcycleId);
-  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId);
+  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, activeCategory);
   const visibleMicrocycle = filters.date ? detectedMicrocycle : selectedMicrocycle;
   const microcycleNotice = filters.date
     ? detectedMicrocycle

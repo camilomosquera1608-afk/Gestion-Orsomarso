@@ -1,6 +1,6 @@
 {
   "name": "orsomarso-performance-app",
-  "version": "1.4.8-v106-stability-admin-diagnostics",
+  "version": "1.4.9-v107-microcycles-gps-u20",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -39,10 +39,20 @@ export const formatMatchScore = (match: Pick<CompetitionMatchSummary, 'goalsFor'
   return match.result?.trim() || '-';
 };
 
-export const findMicrocycleByDate = (microcycles: Microcycle[], date: string, preferredMicrocycleId?: string) => {
+export const isAllCategory = (category?: string | null) => !category || category === 'all';
+
+export const microcycleBelongsToCategory = (microcycle: Pick<Microcycle, 'category'>, activeCategory?: string | null) => {
+  if (isAllCategory(activeCategory)) return true;
+  return (microcycle.category ?? 'Sub20') === activeCategory;
+};
+
+export const getMicrocyclesForCategory = (microcycles: Microcycle[], activeCategory?: string | null) =>
+  asArray(microcycles).filter((microcycle) => microcycleBelongsToCategory(microcycle, activeCategory));
+
+export const findMicrocycleByDate = (microcycles: Microcycle[], date: string, preferredMicrocycleId?: string, activeCategory?: string | null) => {
   if (!date) return undefined;
 
-  const candidates = asArray(microcycles).filter((microcycle) => microcycle.startDate && microcycle.endDate);
+  const candidates = getMicrocyclesForCategory(microcycles, activeCategory).filter((microcycle) => microcycle.startDate && microcycle.endDate);
   const containsDate = (microcycle: Microcycle) => date >= microcycle.startDate && date <= microcycle.endDate;
 
   const preferred = preferredMicrocycleId
@@ -77,6 +87,7 @@ const ensureMicrocycles = (stored: Partial<AppData> | null | undefined, fallback
       notes: item.notes || '',
       status: item.status || '',
       weekNumber: item.weekNumber,
+      category: item.category ?? 'Sub20',
     });
   });
   return Array.from(byId.values());
@@ -99,6 +110,8 @@ const normalizeMatchSummary = (match: CompetitionMatchSummary): CompetitionMatch
 export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fallback: AppData): AppData => {
   const microcycles = ensureMicrocycles(stored, fallback);
   const defaultMicrocycleId = microcycles[0]?.id ?? fallback.microcycles[0]?.id ?? 'mc-1';
+  const microcycleFor = (date: string, categoryValue?: string, preferredMicrocycleId?: string) =>
+    findMicrocycleByDate(microcycles, date, preferredMicrocycleId, categoryValue)?.id ?? defaultMicrocycleId;
 
   const players = pickArray<Player, 'players'>(stored, fallback, 'players').map((player) => ({
     ...player,
@@ -117,17 +130,26 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
     wellness: pickArray<DailyWellnessRecord, 'wellness'>(stored, fallback, 'wellness'),
     internalLoads: pickArray<DailyInternalLoadRecord, 'internalLoads'>(stored, fallback, 'internalLoads').map((record) => ({
       ...record,
-      microcycleId: record.microcycleId ?? findMicrocycleByDate(microcycles, record.date)?.id ?? defaultMicrocycleId,
+      microcycleId: record.microcycleId ?? microcycleFor(record.date, record.category ?? getPlayer(record.playerId)?.category),
       sessionNumber: record.sessionNumber ?? 1,
+      category: record.category ?? getPlayer(record.playerId)?.category,
     })),
     externalLoads: pickArray<DailyExternalLoadRecord, 'externalLoads'>(stored, fallback, 'externalLoads').map((record) => ({
       ...record,
-      microcycleId: record.microcycleId ?? findMicrocycleByDate(microcycles, record.date)?.id ?? defaultMicrocycleId,
+      microcycleId: record.microcycleId ?? microcycleFor(record.date, record.category ?? getPlayer(record.playerId)?.category),
       sessionNumber: record.sessionNumber ?? 1,
+      category: record.category ?? getPlayer(record.playerId)?.category ?? 'Sub20',
       sessionType: record.sessionType ?? 'cdEf',
       participation: record.participation ?? 'Completa',
       sprints: record.sprints ?? 0,
       ima: record.ima ?? 0,
+      hsr: record.hsr ?? record.highSpeedDistance ?? 0,
+      highSpeedDistance: record.highSpeedDistance ?? record.hsr ?? 0,
+      sprintDistance: record.sprintDistance ?? 0,
+      distancePerMin: record.distancePerMin ?? (record.totalDistance && record.min ? Number((record.totalDistance / record.min).toFixed(1)) : undefined),
+      maxVelocity: record.maxVelocity ?? undefined,
+      playerLoad: record.playerLoad ?? undefined,
+      playerLoadPerMin: record.playerLoadPerMin ?? (record.playerLoad && record.min ? Number((record.playerLoad / record.min).toFixed(2)) : undefined),
       baseCategory: record.baseCategory ?? record.category ?? getPlayer(record.playerId)?.category,
       actingCategory: record.actingCategory ?? record.category ?? getPlayer(record.playerId)?.category,
       movementType: record.movementType ?? 'base',
@@ -165,7 +187,7 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
     }),
     trainingSessionSummaries: pickArray<TrainingSessionSummary, 'trainingSessionSummaries'>(stored, fallback, 'trainingSessionSummaries').map((record) => ({
       ...record,
-      microcycleId: record.microcycleId ?? findMicrocycleByDate(microcycles, record.date)?.id ?? defaultMicrocycleId,
+      microcycleId: record.microcycleId ?? microcycleFor(record.date, record.category),
     })),
     microcycles,
   };

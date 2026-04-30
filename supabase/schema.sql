@@ -56,6 +56,9 @@ create table if not exists public.microcycles (
   legacy_id text unique,
   name text not null,
   week_number integer,
+  objective text,
+  notes text,
+  status text,
   start_date date not null,
   end_date date not null,
   category text not null default 'Sub20' check (category in ('Sub15', 'Sub17', 'Sub20')),
@@ -123,6 +126,12 @@ create table if not exists public.daily_external_loads (
   ima numeric not null default 0,
   rpe numeric,
   total_distance numeric,
+  distance_per_min numeric,
+  max_velocity numeric,
+  player_load numeric,
+  player_load_per_min numeric,
+  high_speed_distance numeric,
+  sprint_distance numeric,
   hsr numeric,
   participation text,
   session_type text,
@@ -768,7 +777,7 @@ grant execute on function public.admin_update_profile_access_safe(uuid, text, te
 grant execute on function public.admin_list_profiles() to authenticated;
 grant execute on function public.admin_update_profile(uuid, text, text, text, text, boolean) to authenticated;
 
-do $
+do $$
 declare
   target_table text := public.orsomarso_profile_table_name();
   id_col text;
@@ -783,6 +792,6 @@ begin
     execute format('drop policy if exists profiles_update_admin_v106 on public.%I', target_table);
     execute format('create policy profiles_update_admin_v106 on public.%I for update to authenticated using (public.current_user_can_manage_profiles_safe()) with check (public.current_user_can_manage_profiles_safe())', target_table);
   end if;
-end $;
+end $$;
 
 commit;

@@ -7,7 +7,7 @@ import { categoryLabel } from '@/lib/labels';
 import { ClubCategory, MovementType, Position, PlayerStatus } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { findMicrocycleByDate } from '@/lib/utils';
+import { findMicrocycleByDate, getMicrocyclesForCategory } from '@/lib/utils';
 
 const allPositions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
 const allStatuses: PlayerStatus[] = ['Disponible', 'Lesionado', 'Molestia', 'Readaptación'];
@@ -47,9 +47,10 @@ export const GlobalFiltersBar = () => {
   const pathname = usePathname();
   const layout = getFilterLayout(pathname);
   const allowedCategory = master ? filters.category : session.category;
-  const allMicrocycles = data.microcycles.length ? data.microcycles : [{ id: 'mc-1', name: 'Microciclo 1', startDate: '', endDate: '' }];
+  const categoryMicrocycles = getMicrocyclesForCategory(data.microcycles, allowedCategory);
+  const allMicrocycles = categoryMicrocycles.length ? categoryMicrocycles : [{ id: 'mc-empty', name: `Sin microciclo ${categoryLabel(allowedCategory)}`, category: allowedCategory === 'all' ? undefined : allowedCategory, startDate: '', endDate: '' }];
   const selectedMicrocycle = allMicrocycles.find((m) => m.id === filters.microcycleId) ?? allMicrocycles[0];
-  const detectedMicrocycle = filters.date ? findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId) : undefined;
+  const detectedMicrocycle = filters.date ? findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, allowedCategory) : undefined;
   const activeMicrocycle = detectedMicrocycle ?? selectedMicrocycle;
   const filteredPlayers = data.players.filter((player) => allowedCategory === 'all' || player.category === allowedCategory);
 
@@ -98,7 +99,7 @@ export const GlobalFiltersBar = () => {
             <select className="select" value={filters.microcycleId} onChange={(e) => setFilters({ microcycleId: e.target.value })}>
               {allMicrocycles.map((microcycle) => (
                 <option key={microcycle.id} value={microcycle.id}>
-                  {microcycle.name}
+                  {microcycle.name}{microcycle.category ? ` · ${categoryLabel(microcycle.category)}` : ''}
                 </option>
               ))}
             </select>

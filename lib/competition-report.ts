@@ -134,7 +134,7 @@ export const buildCompetitionReportData = ({
 
   const resultType = getCompetitionResult(match);
   const score = formatMatchScore(match);
-  const microcycle = findMicrocycleByDate(data.microcycles, match.date);
+  const microcycle = findMicrocycleByDate(data.microcycles, match.date, undefined, activeCategory);
   const generatedAt = new Intl.DateTimeFormat('es-CO', {
     dateStyle: 'medium',
     timeStyle: 'short',

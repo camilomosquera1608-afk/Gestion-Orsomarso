@@ -8,8 +8,9 @@ import { EmptyState, SectionHeader, WeekCalendar } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
+import { averageWellness, calculateInternalLoad, groupAverage, getMicrocyclesForCategory, findMicrocycleByDate } from '@/lib/utils';
 import { buildMicrocycleWeek } from '@/lib/operational-helpers';
+import { supportsGps } from '@/lib/report-utils';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación' };
@@ -19,20 +20,24 @@ export default function MicrocicloPage() {
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
-  const youthSimple = activeCategory !== 'Sub20';
-  const microcycle = data.microcycles.find((x) => x.id === filters.microcycleId) ?? data.microcycles[0] ?? { id: 'mc-1', name: 'Microciclo 1', startDate: '', endDate: '' };
+  const effectiveCategory = (activeCategory === 'all' ? 'Sub20' : activeCategory) as 'Sub15' | 'Sub17' | 'Sub20';
+  const gpsEnabled = supportsGps(effectiveCategory);
+  const youthSimple = !gpsEnabled;
+  const categoryMicrocycles = getMicrocyclesForCategory(data.microcycles, effectiveCategory);
+  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, effectiveCategory);
+  const microcycle = detectedMicrocycle ?? categoryMicrocycles.find((x) => x.id === filters.microcycleId) ?? categoryMicrocycles[0] ?? { id: `mc-${effectiveCategory.toLowerCase()}-1`, name: 'Microciclo 1', category: effectiveCategory, startDate: '', endDate: '' };
   const hasRange = Boolean(microcycle.startDate && microcycle.endDate);
-  const weekDays = buildMicrocycleWeek(data, microcycle, activeCategory);
+  const weekDays = buildMicrocycleWeek(data, microcycle, effectiveCategory);
 
   useEffect(() => {
     if (microcycle.id !== filters.microcycleId) setFilters({ microcycleId: microcycle.id });
   }, [filters.microcycleId, microcycle.id, setFilters]);
 
-  const players = data.players.filter((player) => (activeCategory === 'all' || player.category === activeCategory) && (filters.playerId === 'all' || player.id === filters.playerId));
+  const players = data.players.filter((player) => player.category === effectiveCategory && (filters.playerId === 'all' || player.id === filters.playerId));
   const recordsInRange = (date: string) => hasRange && date >= microcycle.startDate && date <= microcycle.endDate;
   const recordBelongsToMicrocycle = (date: string, microcycleId?: string) => hasRange ? recordsInRange(date) : (microcycleId ?? microcycle.id) === microcycle.id;
   const sessionRecords = data.externalLoads
-    .filter((x) => (activeCategory === 'all' || x.category === activeCategory || data.players.find((p) => p.id === x.playerId)?.category === activeCategory) && recordBelongsToMicrocycle(x.date, x.microcycleId))
+    .filter((x) => (x.category === effectiveCategory || data.players.find((p) => p.id === x.playerId)?.category === effectiveCategory) && recordBelongsToMicrocycle(x.date, x.microcycleId))
     .sort((a, b) => (a.date + (a.sessionNumber ?? 0)).localeCompare(b.date + (b.sessionNumber ?? 0)));
 
   const uniqueDays = Array.from(new Set<string>(sessionRecords.map((record) => record.date))).filter((date) => !hasRange || recordsInRange(date));
@@ -61,12 +66,12 @@ export default function MicrocicloPage() {
   })).sort((a, b) => youthSimple ? b.minutos - a.minutos : b.acc - a.acc);
 
   const createNextMicrocycle = () => {
-    const usedNumbers = data.microcycles
-      .map((item) => Number(String(item.id).replace('mc-', '')))
+    const usedNumbers = categoryMicrocycles
+      .map((item) => item.weekNumber ?? Number(String(item.id).match(/(\d+)$/)?.[1]))
       .filter((value) => Number.isFinite(value));
-    const nextNumber = (usedNumbers.length ? Math.max(...usedNumbers) : data.microcycles.length) + 1;
-    const id = `mc-${nextNumber}`;
-    updateMicrocycle({ id, name: `Microciclo ${nextNumber}`, startDate: '', endDate: '', weekNumber: nextNumber });
+    const nextNumber = (usedNumbers.length ? Math.max(...usedNumbers) : categoryMicrocycles.length) + 1;
+    const id = `mc-${effectiveCategory.toLowerCase()}-${nextNumber}`;
+    updateMicrocycle({ id, name: `Microciclo ${nextNumber}`, category: effectiveCategory, startDate: '', endDate: '', weekNumber: nextNumber, status: 'activo' });
     setFilters({ microcycleId: id });
   };
 
@@ -89,30 +94,34 @@ export default function MicrocicloPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Planificación semanal" subtitle={youthSimple ? `Microciclo operativo ${categoryLabel(activeCategory)}.` : 'Vista avanzada de planificación y carga Sub20.'} />
+      <AppHero title="Planificación semanal" subtitle={`${categoryLabel(effectiveCategory)} · microciclo independiente por categoría${gpsEnabled ? ' · GPS Catapult' : ''}`} />
       <GlobalFiltersBar />
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span className="section-eyebrow">Planificación</span><h3 style={{ margin: 0 }}>Datos del microciclo</h3>
           <button type="button" className="btn secondary" onClick={createNextMicrocycle}>Crear microciclo</button>
         </div>
-        <div className="summary-chip" style={{ marginBottom: 12 }}>Define aquí el nombre y el rango. Diario y Sesión detectan el microciclo por la fecha seleccionada.</div>
+        <div className="summary-chip" style={{ marginBottom: 12 }}>Define nombre, categoría y rango. Cada categoría tiene su propio microciclo activo.</div>
         <div className="grid grid-4">
           <div className="field">
             <label>Nombre</label>
-            <input className="input" value={microcycle.name} onChange={(e) => updateMicrocycle({ ...microcycle, name: e.target.value })} />
+            <input className="input" value={microcycle.name} onChange={(e) => updateMicrocycle({ ...microcycle, category: effectiveCategory, name: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>Categoría</label>
+            <input className="input" value={categoryLabel(microcycle.category ?? effectiveCategory)} readOnly />
           </div>
           <div className="field">
             <label>Semana</label>
-            <input className="input" type="number" value={microcycle.weekNumber ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, weekNumber: Number(e.target.value) || undefined })} />
+            <input className="input" type="number" value={microcycle.weekNumber ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, category: effectiveCategory, weekNumber: Number(e.target.value) || undefined })} />
           </div>
           <div className="field">
             <label>Fecha de inicio</label>
-            <input className="input" type="date" value={microcycle.startDate ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, startDate: e.target.value })} />
+            <input className="input" type="date" value={microcycle.startDate ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, category: effectiveCategory, startDate: e.target.value })} />
           </div>
           <div className="field">
             <label>Fecha de fin</label>
-            <input className="input" type="date" value={microcycle.endDate ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, endDate: e.target.value })} />
+            <input className="input" type="date" value={microcycle.endDate ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, category: effectiveCategory, endDate: e.target.value })} />
           </div>
         </div>
         <div className="muted-line" style={{ marginTop: 12 }}>

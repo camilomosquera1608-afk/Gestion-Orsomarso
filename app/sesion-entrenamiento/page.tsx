@@ -39,6 +39,11 @@ type RowState = {
   sprints: number;
   rhie: number;
   ima: number;
+  totalDistance: number;
+  maxVelocity: number;
+  playerLoad: number;
+  highSpeedDistance: number;
+  sprintDistance: number;
   movementType: MovementType;
   movementNote: string;
 };
@@ -54,7 +59,7 @@ export default function SesionEntrenamientoPage() {
   const gpsEnabled = supportsGps(activeCategory);
   const youthSimple = !gpsEnabled;
   const selectedMicrocycle = data.microcycles.find((microcycle) => microcycle.id === filters.microcycleId);
-  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId);
+  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, activeCategory);
   const activeMicrocycleId = detectedMicrocycle?.id ?? '';
   const microcycleNotice = filters.date
     ? detectedMicrocycle
@@ -108,6 +113,11 @@ export default function SesionEntrenamientoPage() {
         sprints: existing?.sprints ?? 0,
         rhie: existing?.rhie ?? 0,
         ima: existing?.ima ?? 0,
+        totalDistance: existing?.totalDistance ?? 0,
+        maxVelocity: existing?.maxVelocity ?? 0,
+        playerLoad: existing?.playerLoad ?? 0,
+        highSpeedDistance: existing?.highSpeedDistance ?? existing?.hsr ?? 0,
+        sprintDistance: existing?.sprintDistance ?? 0,
         movementType: existing?.movementType ?? 'base',
         movementNote: existing?.movementNote ?? '',
       };
@@ -127,6 +137,11 @@ export default function SesionEntrenamientoPage() {
       sprints: 0,
       rhie: 0,
       ima: 0,
+      totalDistance: 0,
+      maxVelocity: 0,
+      playerLoad: 0,
+      highSpeedDistance: 0,
+      sprintDistance: 0,
       movementType: 'base',
       movementNote: '',
     }),
@@ -150,6 +165,11 @@ export default function SesionEntrenamientoPage() {
           sprints: 0,
           rhie: 0,
           ima: 0,
+          totalDistance: 0,
+          maxVelocity: 0,
+          playerLoad: 0,
+          highSpeedDistance: 0,
+          sprintDistance: 0,
           movementType: 'base',
           movementNote: '',
         }),
@@ -216,6 +236,14 @@ export default function SesionEntrenamientoPage() {
         sprints: youthSimple ? 0 : row.sprints,
         rhie: youthSimple ? 0 : row.rhie,
         ima: youthSimple ? 0 : row.ima,
+        totalDistance: youthSimple ? undefined : row.totalDistance,
+        distancePerMin: youthSimple || !row.totalDistance || !row.min ? undefined : Number((row.totalDistance / row.min).toFixed(1)),
+        maxVelocity: youthSimple ? undefined : row.maxVelocity,
+        playerLoad: youthSimple ? undefined : row.playerLoad,
+        playerLoadPerMin: youthSimple || !row.playerLoad || !row.min ? undefined : Number((row.playerLoad / row.min).toFixed(2)),
+        highSpeedDistance: youthSimple ? undefined : row.highSpeedDistance,
+        sprintDistance: youthSimple ? undefined : row.sprintDistance,
+        hsr: youthSimple ? undefined : row.highSpeedDistance,
         participation: row.participation,
         microcycleId: activeMicrocycleId,
         sessionNumber: parsedSessionNumber,
@@ -254,7 +282,7 @@ export default function SesionEntrenamientoPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Ficha técnica de entrenamiento" subtitle={`Sesión · ${categoryLabel(activeCategory)}`} />
+      <AppHero title="Ficha técnica de entrenamiento" subtitle={`Sesión · ${categoryLabel(activeCategory)}${gpsEnabled ? ' · GPS Catapult U20' : ''}`} />
 
 
       <div className="grid grid-2">
@@ -400,6 +428,11 @@ export default function SesionEntrenamientoPage() {
                       <div className="field"><label>SPRINTS</label><input className="input session-input-large" type="number" value={renderNumberInput(row.sprints)} onChange={(e) => updateRow(row.player.id, { sprints: Number(e.target.value) || 0 })} /></div>
                       <div className="field"><label>RHIE</label><input className="input session-input-large" type="number" value={renderNumberInput(row.rhie)} onChange={(e) => updateRow(row.player.id, { rhie: Number(e.target.value) || 0 })} /></div>
                       <div className="field"><label>IMA</label><input className="input session-input-large" type="number" value={renderNumberInput(row.ima)} onChange={(e) => updateRow(row.player.id, { ima: Number(e.target.value) || 0 })} /></div>
+                      <div className="field"><label>Distancia total (m)</label><input className="input session-input-large" type="number" value={renderNumberInput(row.totalDistance)} onChange={(e) => updateRow(row.player.id, { totalDistance: Number(e.target.value) || 0 })} /></div>
+                      <div className="field"><label>Vel. máx. (km/h)</label><input className="input session-input-large" type="number" step="0.1" value={renderNumberInput(row.maxVelocity)} onChange={(e) => updateRow(row.player.id, { maxVelocity: Number(e.target.value) || 0 })} /></div>
+                      <div className="field"><label>Player Load</label><input className="input session-input-large" type="number" value={renderNumberInput(row.playerLoad)} onChange={(e) => updateRow(row.player.id, { playerLoad: Number(e.target.value) || 0 })} /></div>
+                      <div className="field"><label>Alta velocidad (m)</label><input className="input session-input-large" type="number" value={renderNumberInput(row.highSpeedDistance)} onChange={(e) => updateRow(row.player.id, { highSpeedDistance: Number(e.target.value) || 0 })} /></div>
+                      <div className="field"><label>Sprint dist. (m)</label><input className="input session-input-large" type="number" value={renderNumberInput(row.sprintDistance)} onChange={(e) => updateRow(row.player.id, { sprintDistance: Number(e.target.value) || 0 })} /></div>
                     </> : null}
                   </div>
                 </div>

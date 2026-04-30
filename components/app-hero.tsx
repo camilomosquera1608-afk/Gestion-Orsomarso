@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Database, ShieldCheck, Trophy } from 'lucide-react';
 import { useApp } from '@/context/app-context';
-import { getStaffSession } from '@/lib/auth';
+import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { findMicrocycleByDate } from '@/lib/utils';
 import { ORSOMARSO_BRAND } from '@/lib/design-system';
@@ -34,9 +34,10 @@ export const AppHero = ({
   }, []);
 
   const activeMicrocycle = useMemo(() => {
-    if (filters.date) return findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId);
-    return data.microcycles.find((item) => item.id === filters.microcycleId);
-  }, [data.microcycles, filters.date, filters.microcycleId]);
+    const activeCategory = isMasterRole(getStaffSession()) ? filters.category : getStaffSession().category;
+    if (filters.date) return findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, activeCategory);
+    return data.microcycles.find((item) => item.id === filters.microcycleId && (activeCategory === 'all' || (item.category ?? 'Sub20') === activeCategory));
+  }, [data.microcycles, filters.category, filters.date, filters.microcycleId]);
 
   const microcycleText = activeMicrocycle
     ? activeMicrocycle.startDate && activeMicrocycle.endDate

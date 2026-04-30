@@ -1,37 +1,32 @@
-# Paquete limpio v106
+# Paquete limpio v107
 
-Este ZIP contiene una carpeta completa lista para reemplazar la carpeta de trabajo de la app.
+Este ZIP contiene el proyecto completo listo para usar como carpeta de trabajo.
 
 Incluye:
-
-- `app/`
-- `components/`
-- `context/`
-- `lib/`
-- `public/`
-- `scripts/`
-- `supabase/`
-- `package.json`
-- `tsconfig.json`
-- `next.config.ts`
-- `.env.example`
-- `.env.vercel.example`
-- `.gitignore`
-- `README.md`
-- `DEPLOYMENT.md`
-- `PRODUCTION_CHECKLIST.md`
-- `SECURITY.md`
-- `SUPABASE_RUN_THIS.sql`
-- `SUPABASE_V106_STABILITY_ADMIN.sql`
-- `README_V106_ESTABILIDAD_PERMISOS.md`
+- app/
+- components/
+- context/
+- lib/
+- public/
+- scripts/
+- supabase/
+- package.json
+- tsconfig.json
+- next.config.ts
+- next-env.d.ts
+- .env.example
+- .env.vercel.example
+- .gitignore
+- README.md
+- README_V107_MICROCICLOS_GPS_U20.md
+- SUPABASE_RUN_THIS.sql
+- SUPABASE_V107_MICROCYCLES_GPS.sql
 
 No incluye:
-
-- `node_modules/`
-- `.next/`
-- archivos `.py`
+- node_modules/
+- .next/
+- archivos Python
 - notebooks
-- caches
-- zips antiguos
-- builds temporales
-- SQL historicos obsoletos
+- zips historicos
+- cache temporal
+- builds locales

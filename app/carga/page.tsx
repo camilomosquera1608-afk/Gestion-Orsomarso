@@ -24,11 +24,36 @@ export default function LoadCenterPage() {
     ? `${center.microcycle.name} · ${formatDateShort(center.microcycle.startDate)} - ${formatDateShort(center.microcycle.endDate)}`
     : formatDateShort(filters.date);
   const playerChart = center.rows.slice(0, 10).map((row) => ({ jugador: row.player.name.split(' ')[0], Carga: Number(row.internalLoad.toFixed(0)), Min: row.minutes }));
+  const gpsChart = center.rows.slice(0, 10).map((row) => ({ jugador: row.player.name.split(' ')[0], Distancia: row.totalDistance, PL: Number(row.playerLoad.toFixed(0)), HSR: row.highSpeedDistance }));
 
   return (
     <div className="grid load-center-page">
       <AppHero title="Centro de carga" subtitle={`Carga, RPE y volumen · ${activePeriod}${gpsEnabled ? " · GPS" : ""}`} />
       <GlobalFiltersBar />
+
+      {gpsEnabled ? (
+        <div className="card gps-catapult-panel">
+          <SectionHeader eyebrow="Catapult U20" title="Dashboard GPS del microciclo" subtitle="Carga externa real: distancia, Player Load, alta velocidad y sprint. Solo visible para U20." />
+          <div className="grid grid-4">
+            <KpiCard label="Distancia total" value={`${center.totals.totalDistance.toFixed(0)} m`} tone="dark" trend="Catapult" />
+            <KpiCard label="Player Load" value={center.totals.playerLoad.toFixed(0)} tone="blue" trend="Acumulado" />
+            <KpiCard label="Alta velocidad" value={`${center.totals.highSpeedDistance.toFixed(0)} m`} tone="green" trend="HSR" />
+            <KpiCard label="Vel. máxima" value={`${center.totals.maxVelocity.toFixed(1)} km/h`} tone="amber" trend="Pico" />
+          </div>
+          <div style={{ width: '100%', height: 300, marginTop: 16 }}>
+            <ResponsiveContainer>
+              <BarChart data={gpsChart}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="jugador" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="Distancia" fill="#0f172a" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="HSR" fill="#16a34a" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-4">
         <KpiCard label="Carga acumulada" value={center.totals.internalLoad.toFixed(0)} tone="dark" icon={<Gauge size={18} />} trend="UA" />
@@ -97,8 +122,10 @@ export default function LoadCenterPage() {
                 <th>RPE</th>
                 <th>Carga interna</th>
                 {gpsEnabled ? <>
-                  <th>ACC</th>
-                  <th>DCC</th>
+                  <th>Distancia</th>
+                  <th>PL</th>
+                  <th>Vel. máx.</th>
+                  <th>HSR</th>
                   <th>Sprints</th>
                 </> : null}
                 <th>Estado</th>
@@ -113,8 +140,10 @@ export default function LoadCenterPage() {
                   <td>{row.avgRpe.toFixed(1)}</td>
                   <td>{row.internalLoad.toFixed(0)}</td>
                   {gpsEnabled ? <>
-                    <td>{row.acc}</td>
-                    <td>{row.dcc}</td>
+                    <td>{row.totalDistance.toFixed(0)} m</td>
+                    <td>{row.playerLoad.toFixed(0)}</td>
+                    <td>{row.maxVelocity.toFixed(1)}</td>
+                    <td>{row.highSpeedDistance.toFixed(0)} m</td>
                     <td>{row.sprints}</td>
                   </> : null}
                   <td><StatusBadge text={row.exposure} tone={row.tone} /></td>

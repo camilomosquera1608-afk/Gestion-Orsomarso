@@ -22,9 +22,9 @@ const dateInRange = (date: string, dates: string[]) => dates.includes(date);
 
 const playerIds = (players: Player[]) => new Set(players.map((player) => player.id));
 
-export const getActiveRange = (data: AppData, filters: GlobalFilters) => {
+export const getActiveRange = (data: AppData, filters: GlobalFilters, activeCategory: string) => {
   const microcycle = filters.date
-    ? findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId)
+    ? findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, activeCategory)
     : data.microcycles.find((item) => item.id === filters.microcycleId);
   const dates = microcycle?.startDate && microcycle?.endDate ? eachDateInRange(microcycle.startDate, microcycle.endDate) : [filters.date].filter(Boolean);
   return { microcycle, dates };
@@ -45,7 +45,7 @@ export const buildAvailabilityCenter = (data: AppData, filters: GlobalFilters, a
   const gpsEnabled = supportsGps(activeCategory);
   const players = getVisiblePlayers(data, filters, activeCategory);
   const ids = playerIds(players);
-  const { dates } = getActiveRange(data, filters);
+  const { dates } = getActiveRange(data, filters, activeCategory);
   const rows: AvailabilityRow[] = players.map((player) => {
     const wellnessToday = data.wellness.find((item) => item.playerId === player.id && item.date === filters.date);
     const externalToday = gpsEnabled ? data.externalLoads.find((item) => item.playerId === player.id && item.date === filters.date) : undefined;
@@ -94,6 +94,12 @@ export interface LoadPlayerRow {
   acc: number;
   dcc: number;
   sprints: number;
+  totalDistance: number;
+  highSpeedDistance: number;
+  sprintDistance: number;
+  maxVelocity: number;
+  playerLoad: number;
+  distancePerMin: number;
   exposure: 'Alta' | 'Moderada' | 'Baja' | 'Sin datos';
   tone: UiHealthTone;
 }
@@ -115,7 +121,7 @@ const exposureTone = (value: LoadPlayerRow['exposure']): UiHealthTone => {
 export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCategory: string) => {
   const players = getVisiblePlayers(data, filters, activeCategory);
   const ids = playerIds(players);
-  const { microcycle, dates } = getActiveRange(data, filters);
+  const { microcycle, dates } = getActiveRange(data, filters, activeCategory);
   const gpsEnabled = supportsGps(activeCategory);
   const internal = data.internalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
   const external = data.externalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
@@ -133,6 +139,12 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
       acc: playerExternal.reduce((acc, item) => acc + (item.acc ?? 0), 0),
       dcc: playerExternal.reduce((acc, item) => acc + (item.dcc ?? 0), 0),
       sprints: playerExternal.reduce((acc, item) => acc + (item.sprints ?? 0), 0),
+      totalDistance: playerExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0),
+      highSpeedDistance: playerExternal.reduce((acc, item) => acc + (item.highSpeedDistance ?? item.hsr ?? 0), 0),
+      sprintDistance: playerExternal.reduce((acc, item) => acc + (item.sprintDistance ?? 0), 0),
+      maxVelocity: playerExternal.reduce((max, item) => Math.max(max, item.maxVelocity ?? 0), 0),
+      playerLoad: playerExternal.reduce((acc, item) => acc + (item.playerLoad ?? 0), 0),
+      distancePerMin: minutes ? Number((playerExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0) / minutes).toFixed(1)) : 0,
       exposure: status,
       tone: exposureTone(status),
     };
@@ -146,6 +158,10 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
     return {
       date: formatDateShort(date),
       min: dayExternal.reduce((acc, item) => acc + (item.min ?? 0), 0),
+      totalDistance: dayExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0),
+      playerLoad: dayExternal.reduce((acc, item) => acc + (item.playerLoad ?? 0), 0),
+      hsr: dayExternal.reduce((acc, item) => acc + (item.highSpeedDistance ?? item.hsr ?? 0), 0),
+      sprints: dayExternal.reduce((acc, item) => acc + (item.sprints ?? 0), 0),
       rpe: groupAverage(dayExternal.map((item) => item.rpe ?? 0).filter((value) => value > 0)),
       carga: dayInternal.reduce((acc, item) => acc + calculateInternalLoad(item), 0),
     };
@@ -163,6 +179,12 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
       minutes: external.reduce((acc, item) => acc + (item.min ?? 0), 0),
       avgRpe: groupAverage(external.map((item) => item.rpe ?? 0).filter((value) => value > 0)),
       playersWithLoad: rows.filter((row) => row.minutes > 0 || row.internalLoad > 0).length,
+      totalDistance: rows.reduce((acc, row) => acc + row.totalDistance, 0),
+      playerLoad: rows.reduce((acc, row) => acc + row.playerLoad, 0),
+      highSpeedDistance: rows.reduce((acc, row) => acc + row.highSpeedDistance, 0),
+      sprintDistance: rows.reduce((acc, row) => acc + row.sprintDistance, 0),
+      sprints: rows.reduce((acc, row) => acc + row.sprints, 0),
+      maxVelocity: rows.reduce((max, row) => Math.max(max, row.maxVelocity), 0),
     },
   };
 };
@@ -191,7 +213,7 @@ const wellnessTone = (value: number): UiHealthTone => {
 export const buildWellnessCenter = (data: AppData, filters: GlobalFilters, activeCategory: string) => {
   const players = getVisiblePlayers(data, filters, activeCategory);
   const ids = playerIds(players);
-  const { microcycle, dates } = getActiveRange(data, filters);
+  const { microcycle, dates } = getActiveRange(data, filters, activeCategory);
   const records = data.wellness.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
   const today = data.wellness.filter((item) => ids.has(item.playerId) && item.date === filters.date);
   const rows: WellnessPlayerRow[] = players.map((player) => {

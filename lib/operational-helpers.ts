@@ -127,7 +127,7 @@ export const buildDailyOperations = (data: AppData, filters: GlobalFilters, acti
   const date = filters.date;
   const gpsEnabled = supportsGps(activeCategory);
   const activeMicrocycle = date
-    ? findMicrocycleByDate(data.microcycles, date, filters.microcycleId)
+    ? findMicrocycleByDate(data.microcycles, date, filters.microcycleId, activeCategory)
     : data.microcycles.find((microcycle) => microcycle.id === filters.microcycleId);
 
   const wellnessRecords = uniqueRecordsByPlayer(data.wellness.filter((record) => record.date === date && playerIds.has(record.playerId)));
