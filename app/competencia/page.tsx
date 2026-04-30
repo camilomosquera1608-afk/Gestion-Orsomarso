@@ -12,6 +12,7 @@ import { categoryLabel } from '@/lib/labels';
 import { calculateMatchResult, formatMatchScore, isGoalkeeper } from '@/lib/performance-helpers';
 import { buildMatchCenterStats } from '@/lib/operational-helpers';
 import { buildCompetitionReportData } from '@/lib/competition-report';
+import { findDuplicateMatch } from '@/lib/operational-validation';
 import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue } from '@/lib/types';
 
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
@@ -83,6 +84,8 @@ export default function CompetenciaPage() {
   const [matchDraft, setMatchDraft] = useState<MatchDraft>({ id: '', opponent: '', customOpponent: '', date: filters.date, venue: 'Local', goalsFor: '', goalsAgainst: '', observation: '' });
   const [playerDraft, setPlayerDraft] = useState<PlayerDraft>(emptyPlayerDraft());
   const [showGroupReport, setShowGroupReport] = useState(false);
+  const [isSavingMatch, setIsSavingMatch] = useState(false);
+  const [isSavingPlayer, setIsSavingPlayer] = useState(false);
 
   const playersBySource = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
   const matchSummaries = useMemo(
@@ -172,6 +175,15 @@ export default function CompetenciaPage() {
       return;
     }
 
+    const duplicateMatch = findDuplicateMatch(data.competitionMatchSummaries, { id: matchDraft.id || undefined, date: matchDraft.date, category: activeCategory, opponent });
+    if (duplicateMatch) {
+      setMessage('Ya existe un partido de esta categoría contra ese rival en esta fecha. Edita el partido existente.');
+      return;
+    }
+
+    if (isSavingMatch) return;
+    setIsSavingMatch(true);
+
     const id = matchDraft.id || crypto.randomUUID();
     const resultType = calculateMatchResult(goalsFor, goalsAgainst);
     upsertCompetitionMatchSummary({
@@ -188,6 +200,7 @@ export default function CompetenciaPage() {
       observation: matchDraft.observation.trim(),
     });
     setSelectedMatchId(id);
+    setIsSavingMatch(false);
     setMatchDraft((prev) => ({ ...prev, id, opponent: availableOpponents.includes(opponent) ? opponent : 'new', customOpponent: availableOpponents.includes(opponent) ? '' : opponent }));
     setMessage(`Partido guardado: ${opponent} · ${resultType}. Ahora puedes cargar jugadores.`);
   };
@@ -232,6 +245,14 @@ export default function CompetenciaPage() {
       setMessage('Minutos, goles, asistencias y tarjetas no pueden ser negativos.');
       return;
     }
+    if (toNumber(playerDraft.minutesPlayed) > 120) {
+      setMessage('Los minutos por jugador no pueden superar 120.');
+      return;
+    }
+    if (playerDraft.redCards.trim() && toNumber(playerDraft.redCards) > 1) {
+      setMessage('La tarjeta roja debe ser 0 o 1.');
+      return;
+    }
     if (playerDraft.medicalStatus === 'Lesionado' && !playerDraft.medicalObservation.trim()) {
       setMessage('Si el jugador está lesionado, debes agregar una observación médica breve.');
       return;
@@ -241,6 +262,9 @@ export default function CompetenciaPage() {
       setMessage('Ese jugador ya está cargado en este partido.');
       return;
     }
+
+    if (isSavingPlayer) return;
+    setIsSavingPlayer(true);
 
     const goalkeeperRecord = isGoalkeeper(player);
     const movementType = (sourceCategory === activeCategory ? 'base' : 'subio_a_competir') as MovementType;
@@ -271,6 +295,7 @@ export default function CompetenciaPage() {
 
     if (editingRecord) updateCompetitionRecord(record);
     else addCompetitionRecord(record);
+    setIsSavingPlayer(false);
     resetPlayerDraft();
     setMessage('Jugador guardado correctamente dentro del partido.');
   };
@@ -351,7 +376,7 @@ export default function CompetenciaPage() {
           </div>
         </div>
         <div className="btn-row" style={{ marginTop: 16 }}>
-          <button type="button" className="btn" onClick={saveMatch}>{matchDraft.id ? 'Actualizar partido' : 'Guardar partido'}</button>
+          <button type="button" className="btn" disabled={isSavingMatch} onClick={saveMatch}>{isSavingMatch ? 'Guardando...' : matchDraft.id ? 'Actualizar partido' : 'Guardar partido'}</button>
         </div>
       </div>
 
@@ -440,7 +465,7 @@ export default function CompetenciaPage() {
             </div>
           ) : null}
 
-          <button type="button" className="btn" onClick={savePlayerRecord}>{editingRecordId ? 'Actualizar jugador' : 'Agregar jugador al partido'}</button>
+          <button type="button" className="btn" disabled={isSavingPlayer} onClick={savePlayerRecord}>{isSavingPlayer ? 'Guardando...' : editingRecordId ? 'Actualizar jugador' : 'Agregar jugador al partido'}</button>
         </div>
       ) : null}
 

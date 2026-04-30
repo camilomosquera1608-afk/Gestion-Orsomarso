@@ -32,6 +32,7 @@ export default function ConfiguracionPage() {
     backendMode,
     syncStatus,
     data,
+    filters,
     localBackups,
     createLocalSnapshot,
     restoreLocalSnapshot,
@@ -51,6 +52,12 @@ export default function ConfiguracionPage() {
     void getSupabaseUserEmail().then(setSupabaseUser);
     void fetchAuditLogs(30).then((result) => { if (result.ok) setAuditLogs(result.logs); });
   }, []);
+
+  useEffect(() => {
+    if (filters.category === 'Sub20' || filters.category === 'Sub17' || filters.category === 'Sub15') {
+      setSafePointCategory(filters.category);
+    }
+  }, [filters.category]);
 
   const wellnessOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const wellnessLinks = [

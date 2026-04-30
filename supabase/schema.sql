@@ -159,7 +159,7 @@ create table if not exists public.training_sessions (
   observation text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (date, category, session_number)
+  unique (date, category)
 );
 
 create table if not exists public.session_players (
@@ -340,6 +340,8 @@ create index if not exists idx_internal_date_category on public.daily_internal_l
 create index if not exists idx_external_date_category on public.daily_external_loads(date, category);
 create index if not exists idx_sessions_date_category on public.training_sessions(date, category);
 create index if not exists idx_matches_date_category on public.competition_matches(date, category);
+create unique index if not exists ux_competition_matches_category_date_opponent on public.competition_matches(category, date, lower(trim(opponent)));
+create unique index if not exists ux_microcycles_category_name on public.microcycles(category, lower(trim(name)));
 create index if not exists idx_competition_players_match on public.competition_players(match_id);
 create index if not exists idx_nutrition_player_date on public.nutrition_records(player_id, date desc);
 create index if not exists idx_cmj_player_date on public.cmj_records(player_id, date desc);

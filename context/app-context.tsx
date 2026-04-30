@@ -9,6 +9,7 @@ import type { LocalBackupMeta } from '@/lib/app-storage';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
 import { canDeletePlayer, canWrite, filterAppDataForSession } from '@/lib/access-control';
 import { findMicrocycleByDate, getMicrocyclesForCategory, microcycleBelongsToCategory } from '@/lib/utils';
+import { findOverlappingMicrocycle } from '@/lib/operational-validation';
 import { normalizeAppData } from '@/lib/performance-helpers';
 import { AppData, CMJRecord, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
 
@@ -515,20 +516,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       applyMutation((prev) => ({ ...prev, competitionRecords: prev.competitionRecords.filter((item) => item.id !== recordId) }));
       void deleteRemoteLegacy('competition_players', recordId);
     },
-    upsertCompetitionMatchSummary: (record) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: [record, ...prev.competitionMatchSummaries.filter((item) => item.id !== record.id)] })),
+    upsertCompetitionMatchSummary: (record) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: [record, ...prev.competitionMatchSummaries.filter((item) => !(item.id === record.id || (item.date === record.date && item.category === record.category && item.opponent.trim().toLowerCase() === record.opponent.trim().toLowerCase())))] })),
     deleteCompetitionMatchSummary: (matchId) => {
       applyMutation((prev) => ({ ...prev, competitionMatchSummaries: prev.competitionMatchSummaries.filter((item) => item.id !== matchId), competitionRecords: prev.competitionRecords.filter((item) => item.matchId !== matchId) }));
       void deleteRemoteLegacy('competition_matches', matchId);
     },
-    upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.date === record.date && item.category === record.category && item.sessionNumber === record.sessionNumber))] })),
+    upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.id === record.id || (item.date === record.date && item.category === record.category)))] })),
     updateMicrocycle: (record) => {
       const normalizedRecord = { ...record, category: record.category ?? (filters.category === 'all' ? 'Sub20' : filters.category as any) };
-      applyMutation((prev) => ({
-        ...prev,
+      applyMutation((prev) => {
+        const duplicated = findOverlappingMicrocycle(prev.microcycles, normalizedRecord);
+        if (duplicated) return prev;
+        return {
+          ...prev,
         microcycles: prev.microcycles.some((item) => item.id === normalizedRecord.id)
           ? prev.microcycles.map((item) => item.id === normalizedRecord.id ? { ...item, ...normalizedRecord } : item)
           : [...prev.microcycles, normalizedRecord].sort((a, b) => (a.startDate || a.id).localeCompare(b.startDate || b.id)),
-      }));
+        };
+      });
 
       if (normalizedRecord.id === filters.microcycleId) {
         setFiltersState((prev) => {

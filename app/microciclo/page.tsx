@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
@@ -11,6 +11,7 @@ import { categoryLabel } from '@/lib/labels';
 import { averageWellness, calculateInternalLoad, groupAverage, getMicrocyclesForCategory, findMicrocycleByDate } from '@/lib/utils';
 import { buildMicrocycleWeek } from '@/lib/operational-helpers';
 import { supportsGps } from '@/lib/report-utils';
+import { findOverlappingMicrocycle } from '@/lib/operational-validation';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación' };
@@ -28,6 +29,25 @@ export default function MicrocicloPage() {
   const microcycle = detectedMicrocycle ?? categoryMicrocycles.find((x) => x.id === filters.microcycleId) ?? categoryMicrocycles[0] ?? { id: `mc-${effectiveCategory.toLowerCase()}-1`, name: 'Microciclo 1', category: effectiveCategory, startDate: '', endDate: '' };
   const hasRange = Boolean(microcycle.startDate && microcycle.endDate);
   const weekDays = buildMicrocycleWeek(data, microcycle, effectiveCategory);
+  const [microcycleMessage, setMicrocycleMessage] = useState('');
+  const saveMicrocycleDraft = (nextMicrocycle: typeof microcycle) => {
+    const normalized = { ...nextMicrocycle, category: effectiveCategory };
+    if (!normalized.name?.trim()) {
+      setMicrocycleMessage('El microciclo debe tener nombre.');
+      return;
+    }
+    if (normalized.startDate && normalized.endDate && normalized.startDate > normalized.endDate) {
+      setMicrocycleMessage('La fecha de inicio no puede ser posterior a la fecha de fin.');
+      return;
+    }
+    const overlap = findOverlappingMicrocycle(data.microcycles, normalized);
+    if (overlap) {
+      setMicrocycleMessage('Ya existe un microciclo de esta categoría con el mismo nombre o con fechas solapadas.');
+      return;
+    }
+    setMicrocycleMessage('Microciclo guardado.');
+    updateMicrocycle(normalized);
+  };
 
   useEffect(() => {
     if (microcycle.id !== filters.microcycleId) setFilters({ microcycleId: microcycle.id });
@@ -102,10 +122,11 @@ export default function MicrocicloPage() {
           <button type="button" className="btn secondary" onClick={createNextMicrocycle}>Crear microciclo</button>
         </div>
         <div className="summary-chip" style={{ marginBottom: 12 }}>Define nombre, categoría y rango. Cada categoría tiene su propio microciclo activo.</div>
+        {microcycleMessage ? <div className="empty" style={{ marginBottom: 12 }}>{microcycleMessage}</div> : null}
         <div className="grid grid-4">
           <div className="field">
             <label>Nombre</label>
-            <input className="input" value={microcycle.name} onChange={(e) => updateMicrocycle({ ...microcycle, category: effectiveCategory, name: e.target.value })} />
+            <input className="input" value={microcycle.name} onChange={(e) => saveMicrocycleDraft({ ...microcycle, category: effectiveCategory, name: e.target.value })} />
           </div>
           <div className="field">
             <label>Categoría</label>
@@ -113,15 +134,15 @@ export default function MicrocicloPage() {
           </div>
           <div className="field">
             <label>Semana</label>
-            <input className="input" type="number" value={microcycle.weekNumber ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, category: effectiveCategory, weekNumber: Number(e.target.value) || undefined })} />
+            <input className="input" type="number" value={microcycle.weekNumber ?? ''} onChange={(e) => saveMicrocycleDraft({ ...microcycle, category: effectiveCategory, weekNumber: Number(e.target.value) || undefined })} />
           </div>
           <div className="field">
             <label>Fecha de inicio</label>
-            <input className="input" type="date" value={microcycle.startDate ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, category: effectiveCategory, startDate: e.target.value })} />
+            <input className="input" type="date" value={microcycle.startDate ?? ''} onChange={(e) => saveMicrocycleDraft({ ...microcycle, category: effectiveCategory, startDate: e.target.value })} />
           </div>
           <div className="field">
             <label>Fecha de fin</label>
-            <input className="input" type="date" value={microcycle.endDate ?? ''} onChange={(e) => updateMicrocycle({ ...microcycle, category: effectiveCategory, endDate: e.target.value })} />
+            <input className="input" type="date" value={microcycle.endDate ?? ''} onChange={(e) => saveMicrocycleDraft({ ...microcycle, category: effectiveCategory, endDate: e.target.value })} />
           </div>
         </div>
         <div className="muted-line" style={{ marginTop: 12 }}>

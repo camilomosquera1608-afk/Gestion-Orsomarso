@@ -1,6 +1,6 @@
 {
   "name": "orsomarso-performance-app",
-  "version": "1.4.13-v107-4-wellness-categorias",
+  "version": "1.4.14-v107-5-edicion-duplicados",
   "private": true,
   "scripts": {
     "dev": "next dev",

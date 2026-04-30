@@ -14,6 +14,7 @@ import { ClubCategory, MovementType, SessionParticipation, TrainingSessionType }
 import { findMicrocycleByDate, groupAverage } from '@/lib/utils';
 import { buildDailyOperations } from '@/lib/operational-helpers';
 import { supportsGps } from '@/lib/report-utils';
+import { findDuplicateTrainingSession } from '@/lib/operational-validation';
 
 const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
   { value: 'cdef', label: 'cdef · Recuperación' },
@@ -72,6 +73,7 @@ export default function SesionEntrenamientoPage() {
   const [message, setMessage] = useState('');
   const [showGroupReport, setShowGroupReport] = useState(false);
   const [sessionNumberInput, setSessionNumberInput] = useState(filters.sessionNumber ? String(filters.sessionNumber) : '');
+  const [isSavingSession, setIsSavingSession] = useState(false);
 
   useEffect(() => {
     setSourceCategory(activeCategory);
@@ -81,7 +83,7 @@ export default function SesionEntrenamientoPage() {
     setSessionNumberInput(filters.sessionNumber ? String(filters.sessionNumber) : '');
   }, [filters.sessionNumber]);
 
-  const summaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory && item.sessionNumber === filters.sessionNumber && (!activeMicrocycleId || item.microcycleId === activeMicrocycleId));
+  const summaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory);
   const [sessionType, setSessionType] = useState<TrainingSessionType>(summaryRecord?.sessionType ?? 'cdEf');
   const [sessionObjective, setSessionObjective] = useState(summaryRecord?.objective ?? '');
   const [sessionObservation, setSessionObservation] = useState(summaryRecord?.observation ?? '');
@@ -178,6 +180,7 @@ export default function SesionEntrenamientoPage() {
     }));
 
   const saveSession = () => {
+    if (isSavingSession) return;
     const parsedSessionNumber = Number(sessionNumberInput);
     if (!sessionNumberInput.trim() || !Number.isFinite(parsedSessionNumber) || parsedSessionNumber <= 0) {
       setMessage('Debes ingresar un número de sesión válido antes de guardar.');
@@ -203,12 +206,13 @@ export default function SesionEntrenamientoPage() {
       return;
     }
 
-    const duplicateSummary = data.trainingSessionSummaries.find((item) => item.id !== summaryRecord?.id && item.date === filters.date && item.category === activeCategory && item.sessionNumber === parsedSessionNumber);
+    const duplicateSummary = findDuplicateTrainingSession(data.trainingSessionSummaries, { id: summaryRecord?.id, date: filters.date, category: activeCategory });
     if (duplicateSummary) {
-      setMessage('Ya existe una sesión con la misma fecha, categoría y número de sesión.');
+      setMessage('Ya existe una sesión de esta categoría para esta fecha. Edita la sesión existente o cambia la fecha.');
       return;
     }
 
+    setIsSavingSession(true);
     const sessionId = summaryRecord?.id ?? crypto.randomUUID();
     upsertTrainingSessionSummary({
       id: sessionId,
@@ -277,6 +281,7 @@ export default function SesionEntrenamientoPage() {
     });
 
     existingRecords.filter((record) => !selectedRows.find((row) => row.player.id === record.playerId)).forEach((record) => deleteExternalLoad(record.id));
+    setIsSavingSession(false);
     setMessage('Sesión guardada correctamente.');
   };
 
@@ -396,7 +401,7 @@ export default function SesionEntrenamientoPage() {
                 </select>
               </div>
               <button type="button" className="btn secondary" onClick={() => downloadCsv(`sesion-${activeCategory}.csv`, selectedRows.map((r) => ({ fecha: filters.date, jugador: r.player.name, categoria_base: categoryLabel(r.player.category), categoria_participacion: categoryLabel(activeCategory), movimiento: sourceCategory === activeCategory ? 'base' : r.movementType, minutos: r.min, rpe: r.rpe })))}>Exportar CSV</button>
-              <button type="button" className="btn" onClick={saveSession}>Guardar sesión</button>
+              <button type="button" className="btn" disabled={isSavingSession} onClick={saveSession}>{isSavingSession ? 'Guardando...' : summaryRecord ? 'Actualizar sesión' : 'Guardar sesión'}</button>
             </div>
           </div>
 
