@@ -86,7 +86,7 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Configuración" subtitle="Seguridad, sincronización y respaldos." />
+      <AppHero title="Configuración" subtitle="Cuenta y respaldos." />
 
       <div className="grid grid-2">
         <div className="card">
@@ -111,9 +111,9 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className="card">
-        <SectionHeader eyebrow="Supabase" title="Sincronización" />
+        <SectionHeader eyebrow="Supabase" title="Estado" />
         {!hasSupabaseConfig || !tableSchemaSyncEnabled ? (
-          <EmptyState title="Supabase desactivado" text="Revisa las variables de entorno." />
+          <EmptyState title="Supabase desactivado" text="Variables no configuradas." />
         ) : supabaseUser ? (
           <div className="grid" style={{ gap: 12 }}>
             <div className="mini-stat-card"><strong>Sesión activa</strong><div className="muted-line">{supabaseUser}</div></div>
@@ -123,7 +123,7 @@ export default function ConfiguracionPage() {
             </div>
           </div>
         ) : (
-          <EmptyState title="Sesión remota no detectada" text="Vuelve a iniciar sesión." />
+          <EmptyState title="Sesión no detectada" text="Inicia sesión nuevamente." />
         )}
         {remoteMessage && <div className="empty" style={{ marginTop: 12 }}>{remoteMessage}</div>}
       </div>
@@ -135,7 +135,7 @@ export default function ConfiguracionPage() {
             type="button"
             className="btn"
             onClick={() => {
-              createLocalSnapshot('Copia manual desde Configuración');
+              createLocalSnapshot('Copia manual');
               setMessage('Copia local creada.');
             }}
           >
@@ -159,9 +159,9 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className="card">
-        <SectionHeader eyebrow="Auditoría" title="Cambios recientes" />
+        <SectionHeader eyebrow="Auditoría" title="Cambios" />
         {auditLogs.length === 0 ? (
-          <EmptyState title="Sin auditoría" text="Los próximos cambios quedarán registrados." />
+          <EmptyState title="Sin auditoría" text="Sin actividad reciente." />
         ) : (
           <div className="table-wrap">
             <table className="data-table">
@@ -193,7 +193,7 @@ export default function ConfiguracionPage() {
       <div className="card">
         <SectionHeader eyebrow="Historial" title="Copias locales" />
         {localBackups.length === 0 ? (
-          <EmptyState title="Sin copias locales" text="Crea una copia antes de cambios importantes." />
+          <EmptyState title="Sin copias locales" text="Sin copias disponibles." />
         ) : (
           <div className="table-wrap">
             <table className="data-table">

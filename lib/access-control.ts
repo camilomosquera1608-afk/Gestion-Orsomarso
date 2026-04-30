@@ -2,7 +2,7 @@ import type { AppData, ClubCategory } from '@/lib/types';
 import type { StaffSession } from '@/lib/auth';
 
 export type PlatformRole = 'admin' | 'category_admin' | 'director' | 'preparador' | 'medico' | 'analista' | 'valorador' | 'solo_lectura';
-export type CategoryScope = 'ALL' | ClubCategory;
+export type CategoryScope = 'ALL' | 'U15' | 'U17' | 'U20' | ClubCategory;
 export type AccessLevel = 'full' | 'write' | 'read';
 
 export type UserProfile = {
@@ -13,6 +13,8 @@ export type UserProfile = {
   categoryScope: CategoryScope;
   accessLevel: AccessLevel;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export const ROLE_LABELS: Record<PlatformRole, string> = {
@@ -28,9 +30,33 @@ export const ROLE_LABELS: Record<PlatformRole, string> = {
 
 export const CATEGORY_SCOPE_LABELS: Record<CategoryScope, string> = {
   ALL: 'Todas',
+  U15: 'U15',
+  U17: 'U17',
+  U20: 'U20',
   Sub15: 'U15',
   Sub17: 'U17',
   Sub20: 'U20',
+};
+
+export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
+  full: 'Edición completa',
+  write: 'Edición',
+  read: 'Solo lectura',
+};
+
+export const normalizeCategoryScope = (scope?: string | null): CategoryScope => {
+  if (scope === 'ALL') return 'ALL';
+  if (scope === 'U15' || scope === 'Sub15') return 'Sub15';
+  if (scope === 'U17' || scope === 'Sub17') return 'Sub17';
+  if (scope === 'U20' || scope === 'Sub20') return 'Sub20';
+  return 'Sub20';
+};
+
+export const normalizeClubCategory = (category?: string | null): ClubCategory | undefined => {
+  if (category === 'U15' || category === 'Sub15') return 'Sub15';
+  if (category === 'U17' || category === 'Sub17') return 'Sub17';
+  if (category === 'U20' || category === 'Sub20') return 'Sub20';
+  return undefined;
 };
 
 export const canWrite = (session: StaffSession | null | undefined) => {
@@ -44,20 +70,21 @@ export const canReadAllCategories = (session: StaffSession | null | undefined) =
 
 export const getSessionCategoryScope = (session: StaffSession | null | undefined): CategoryScope => {
   if (!session?.isAuthenticated) return 'Sub20';
-  if (session.categoryScope) return session.categoryScope;
+  if (session.categoryScope) return normalizeCategoryScope(session.categoryScope);
   return session.category === 'all' ? 'ALL' : session.category;
 };
 
 export const canAccessCategory = (session: StaffSession | null | undefined, category?: ClubCategory | 'all' | string | null) => {
   if (!category || category === 'all') return true;
   const scope = getSessionCategoryScope(session);
-  return scope === 'ALL' || scope === category;
+  const normalizedCategory = normalizeClubCategory(String(category));
+  return scope === 'ALL' || (normalizedCategory ? scope === normalizedCategory : scope === category);
 };
 
 export const getWritableDeniedMessage = (session: StaffSession | null | undefined) => {
-  if (!session?.isAuthenticated) return 'Inicia sesión para guardar cambios.';
-  if (!canWrite(session)) return 'Tu perfil es de solo lectura.';
-  return 'No tienes permisos para modificar esta información.';
+  if (!session?.isAuthenticated) return 'Inicia sesión para guardar.';
+  if (!canWrite(session)) return 'Solo lectura.';
+  return 'Sin permisos.';
 };
 
 const byCategory = <T extends { category?: ClubCategory }>(items: T[], session: StaffSession) => {

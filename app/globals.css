@@ -831,3 +831,13 @@ th {
   cursor: pointer;
 }
 .quick-access-toggle:hover { border-color: rgba(37, 99, 235, .42); background: #f8fafc; }
+
+/* v101 administration and cleaner operations */
+.admin-table { min-width: 920px; }
+.admin-input { min-height: 38px; padding: 8px 10px; border-radius: 12px; font-weight: 800; }
+.admin-message { margin-bottom: 12px; }
+.admin-error { color: #b91c1c; border-color: #fecaca; background: #fff7f7; }
+.button-plain { border: 0; background: transparent; padding: 0; cursor: pointer; }
+.sidebar-status strong { letter-spacing: 0; }
+.login-subtitle { margin-top: -4px; color: var(--muted); font-weight: 750; }
+.empty-state p:empty { display: none; }

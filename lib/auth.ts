@@ -1,5 +1,5 @@
 import { ClubCategory, StaffRole } from './types';
-import type { AccessLevel, CategoryScope, PlatformRole, UserProfile } from './access-control';
+import { normalizeCategoryScope, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from './access-control';
 
 export const STAFF_AUTH_KEY = 'orsomarso_staff_auth_v2';
 
@@ -89,13 +89,14 @@ export const createSupabaseStaffSession = (email: string, category: ClubCategory
 };
 
 export const createSupabaseStaffSessionFromProfile = (profile: UserProfile): StaffSession => {
-  const category = profile.categoryScope === 'ALL' ? 'all' : profile.categoryScope;
+  const normalizedScope = normalizeCategoryScope(profile.categoryScope);
+  const category: ClubCategory | 'all' = normalizedScope === 'ALL' ? 'all' : normalizedScope === 'U15' ? 'Sub15' : normalizedScope === 'U17' ? 'Sub17' : normalizedScope === 'U20' ? 'Sub20' : normalizedScope;
   const role = roleFromCategory(category);
   const session: StaffSession = {
     isAuthenticated: true,
     role,
     category,
-    categoryScope: profile.categoryScope,
+    categoryScope: normalizedScope,
     accessLevel: profile.accessLevel,
     platformRole: profile.role,
     profileId: profile.id,

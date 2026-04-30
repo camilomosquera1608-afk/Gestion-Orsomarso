@@ -81,7 +81,7 @@ export default function LoginPage() {
       <div className="login-card login-card-wide">
         <div className="login-brand">Orsomarso SC Performance</div>
         <h1>Iniciar sesión</h1>
-        <p className="login-subtitle">Acceso seguro. Tu rol y categoría se asignan desde Supabase.</p>
+        <p className="login-subtitle">Acceso del staff autorizado.</p>
 
         <form onSubmit={onSupabaseSubmit} className="grid">
           <div className="field">
@@ -137,7 +137,7 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        <div className="login-footnote">{remoteAuthReady ? 'Supabase activo' : 'Supabase no configurado'}</div>
+        <div className="login-footnote">{remoteAuthReady ? 'Acceso remoto' : 'Sin acceso remoto'}</div>
       </div>
     </main>
   );

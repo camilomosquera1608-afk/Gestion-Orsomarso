@@ -92,7 +92,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const backendMode: 'supabase' | 'local' = hasSupabaseConfig ? 'supabase' : 'local';
   const currentSession = getStaffSession();
   const canEdit = !currentSession.isAuthenticated || canWrite(currentSession);
-  const permissionMessage = currentSession.isAuthenticated && !canWrite(currentSession) ? 'Tu perfil es de solo lectura.' : 'Cambios guardados automaticamente.';
+  const permissionMessage = currentSession.isAuthenticated && !canWrite(currentSession) ? 'Solo lectura.' : 'Guardado.';
 
   const refreshFromSupabase = async (source: 'manual' | 'realtime' | 'poll' = 'manual') => {
     if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase) return;
@@ -176,8 +176,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setSyncStatus('syncing');
         const remote = await fetchSupabaseTablesAppData(supabase);
         if (remote.ok) {
-          // In table-schema mode, Supabase is the source of truth. Empty arrays are valid.
-          // Never fall back to mock/local data after a successful remote read; that creates ghost records on refresh.
           const next = hydrateData(remote.data);
           setData(next);
           dataRef.current = next;

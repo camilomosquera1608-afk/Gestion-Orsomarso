@@ -16,6 +16,7 @@ import {
   LogOut,
   Medal,
   Settings,
+  ShieldCheck as AdminShield,
   ShieldCheck,
   TimerReset,
   Trophy,
@@ -89,7 +90,11 @@ export const Sidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
   const session = getStaffSession();
-  const groups = staffGroups;
+  const groups = session.platformRole === 'admin'
+    ? staffGroups.map((group) => group.title === 'Sistema'
+        ? { ...group, items: [{ href: '/administracion', label: 'Administración', icon: AdminShield }, ...group.items] }
+        : group)
+    : staffGroups;
   const displayCategory = session.category === 'all' ? 'Todas' : categoryLabel(session.category);
 
   return (
