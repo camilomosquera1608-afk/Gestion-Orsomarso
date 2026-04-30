@@ -1,44 +1,16 @@
-# Paquete limpio v107.5
+# Paquete limpio Orsomarso v107.8
 
-Este ZIP contiene el proyecto completo necesario para trabajar la aplicación Orsomarso Performance App.
-
-Incluye:
-- app/
-- components/
-- context/
-- lib/
-- public/
-- scripts/
-- supabase/
-- package.json
-- tsconfig.json
-- next.config.ts
-- next-env.d.ts
-- .env.example
-- .env.vercel.example
-- .gitignore
-- README.md
-- DEPLOYMENT.md
-- PRODUCTION_CHECKLIST.md
-- SECURITY.md
-- SUPABASE_RUN_THIS.sql
-- SUPABASE_V107_5_OPERATIONAL_GUARDS.sql
-- README_V107_5_EDICION_DUPLICADOS.md
+Incluye el proyecto completo necesario para ejecutar la aplicación.
 
 No incluye:
-- node_modules/
-- .next/
-- zips anteriores
+- node_modules
+- .next
 - archivos Python
 - notebooks
-- __pycache__/
-- builds temporales
+- zips anteriores
+- cachés temporales
 
-
-## v107.6
-- app/sesion-entrenamiento/page.tsx
-- app/microciclo/page.tsx
-- app/competencia/page.tsx
-- context/app-context.tsx
-- app/globals.css
-- README_V107_6_BOTONES_OPERATIVOS.md
+Cambios principales:
+- Informe de sesión estilo reporte Catapult para U20.
+- Informe U17/U15 con combinaciones de RPE, minutos y wellness.
+- Estilos PDF nuevos para gauges, barras, participación y tablas limpias.

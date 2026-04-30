@@ -178,6 +178,7 @@ export default function SesionEntrenamientoPage() {
   const selectedRows = rows.filter((row) => row.selected);
   const reportRows = selectedRows.length ? selectedRows : rows.filter((row) => existingRecords.some((record) => record.playerId === row.player.id));
   const absentPlayers = sessionPlayers.filter((player) => !reportRows.some((row) => row.player.id === player.id));
+  const sessionWellnessRecords = data.wellness.filter((record) => record.date === filters.date && sessionPlayers.some((player) => player.id === record.playerId));
   const sessionLoadTotal = reportRows.reduce((acc, row) => acc + row.min * row.rpe, 0);
 
   const editSessionSummary = (sessionId: string) => {
@@ -440,6 +441,7 @@ export default function SesionEntrenamientoPage() {
               rows={reportRows}
               absentPlayers={absentPlayers}
               dataQualityPercent={ops.dataQualityPercent}
+              wellnessRecords={sessionWellnessRecords}
               compact
             />
           </div>
@@ -548,6 +550,7 @@ export default function SesionEntrenamientoPage() {
         rows={reportRows}
         absentPlayers={absentPlayers}
         dataQualityPercent={ops.dataQualityPercent}
+        wellnessRecords={sessionWellnessRecords}
         className="print-only"
       />
     </>
