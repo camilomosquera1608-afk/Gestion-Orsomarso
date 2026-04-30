@@ -70,31 +70,33 @@ const staffGroups = [
   },
 ];
 
-const masterGroups = [
-  {
-    title: 'Dirección',
-    items: [
-      { href: '/ejecutivo', label: 'Panel ejecutivo', icon: Briefcase },
-      { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
-      { href: '/carga', label: 'Carga', icon: Dumbbell },
-      { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
-      { href: '/alertas', label: 'Alertas', icon: Bell },
-      { href: '/informes', label: 'Informes', icon: FileText },
-      { href: '/ranking', label: 'Ranking', icon: Medal },
-      { href: '/jugadores', label: 'Jugadores', icon: Users },
-    ],
-  },
-];
+const getNavigationGroups = (session: ReturnType<typeof getStaffSession>) => session.platformRole === 'admin'
+  ? staffGroups.map((group) => group.title === 'Sistema'
+      ? { ...group, items: [{ href: '/administracion', label: 'Administración', icon: AdminShield }, ...group.items] }
+      : group)
+  : staffGroups;
+
+const getMobileItems = (session: ReturnType<typeof getStaffSession>) => {
+  const base = [
+    { href: '/', label: 'Inicio', icon: Home },
+    { href: '/jugadores', label: 'Jugadores', icon: Users },
+    { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
+    { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
+    { href: '/informes', label: 'Informes', icon: FileText },
+  ];
+
+  if (session.platformRole === 'admin') {
+    return [...base.slice(0, 4), { href: '/administracion', label: 'Admin', icon: AdminShield }];
+  }
+
+  return base;
+};
 
 export const Sidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
   const session = getStaffSession();
-  const groups = session.platformRole === 'admin'
-    ? staffGroups.map((group) => group.title === 'Sistema'
-        ? { ...group, items: [{ href: '/administracion', label: 'Administración', icon: AdminShield }, ...group.items] }
-        : group)
-    : staffGroups;
+  const groups = getNavigationGroups(session);
   const displayCategory = session.category === 'all' ? 'Todas' : categoryLabel(session.category);
 
   return (
@@ -151,5 +153,26 @@ export const Sidebar = () => {
         <span>Cerrar sesión</span>
       </button>
     </aside>
+  );
+};
+
+export const MobileNavigation = () => {
+  const pathname = usePathname();
+  const session = getStaffSession();
+  const items = getMobileItems(session);
+
+  return (
+    <nav className="mobile-bottom-nav no-print" aria-label="Navegación móvil principal">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+        return (
+          <Link key={item.href} href={item.href} className={`mobile-bottom-link ${active ? 'active' : ''}`}>
+            <Icon size={18} strokeWidth={2.35} />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 };

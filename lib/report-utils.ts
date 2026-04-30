@@ -47,3 +47,27 @@ export const reportDash = (value: unknown) => {
   const text = String(value).trim();
   return text ? text : '—';
 };
+
+export const getPdfSafeText = (value: unknown, fallback = 'Sin registro'): string => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'number' && !Number.isFinite(value)) return fallback;
+  const text = String(value).trim();
+  if (!text || text === 'undefined' || text === 'null' || text === 'NaN') return fallback;
+  return text;
+};
+
+export const formatPdfValue = (value: unknown, suffix = '', fallback = '—'): string => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'number') return Number.isFinite(value) ? `${value}${suffix}` : fallback;
+  const text = String(value).trim();
+  if (!text || text === 'undefined' || text === 'null' || text === 'NaN') return fallback;
+  return `${text}${suffix}`;
+};
+
+export const formatPdfDate = (value?: string | null, fallback = 'Sin fecha'): string => formatDateSafe(value, fallback);
+
+export const hasPdfValue = (value: unknown): boolean => formatPdfValue(value, '', '').trim().length > 0;
+
+export const sanitizeReportData = <T extends Record<string, unknown>>(data: T): T => Object.fromEntries(
+  Object.entries(data).map(([key, value]) => [key, value === undefined || value === null || (typeof value === 'number' && !Number.isFinite(value)) ? '—' : value]),
+) as T;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/sidebar';
+import { MobileNavigation, Sidebar } from '@/components/sidebar';
 import { ContextTopBar } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getAllowedCategory, getStaffSession, isStaffAuthenticated, isMasterRole } from '@/lib/auth';
@@ -75,6 +75,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="app-shell">
       <Sidebar />
+      <MobileNavigation />
       <main className="main">
         <ContextTopBar {...topContext} />
         {children}

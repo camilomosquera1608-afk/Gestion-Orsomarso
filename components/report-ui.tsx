@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import Image from 'next/image';
 import { AlertTriangle, CheckCircle2, FileText, LucideIcon } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
+import { getPdfSafeText, reportDash } from '@/lib/report-utils';
 
 export type ReportTone = 'blue' | 'green' | 'amber' | 'red' | 'neutral' | 'dark';
 
@@ -18,18 +18,18 @@ export function ReportLayout({ title, subtitle, category, generatedAt, children,
 }
 
 export function ReportHeader({ title, subtitle, category, generatedAt }: { title: string; subtitle?: string; category?: string; generatedAt?: string }) {
-  const meta = [category ? categoryLabel(category) : undefined, generatedAt].filter(Boolean).join(' · ');
+  const meta = [category ? categoryLabel(category) : undefined, generatedAt ? getPdfSafeText(generatedAt, '') : undefined].filter(Boolean).join(' · ');
   return (
     <header className="pdf-report-header premium-report-header">
       <div className="pdf-report-brand">
-        <Image src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={52} height={52} />
+        <img src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={52} height={52} />
         <div>
           <span>Orsomarso SC Performance</span>
-          <h1>{title}</h1>
+          <h1>{getPdfSafeText(title, 'Informe')}</h1>
           {meta ? <p>{meta}</p> : null}
         </div>
       </div>
-      {subtitle ? <div className="pdf-report-header-meta"><strong>{subtitle}</strong></div> : null}
+      {subtitle ? <div className="pdf-report-header-meta"><strong>{getPdfSafeText(subtitle)}</strong></div> : null}
     </header>
   );
 }
@@ -49,9 +49,9 @@ export function ReportSection({ icon: Icon = FileText, eyebrow, title, subtitle,
       <div className="pdf-report-section-heading">
         <span className="pdf-report-icon pdf-report-tone-blue"><Icon size={15} strokeWidth={2.4} /></span>
         <div>
-          {eyebrow ? <span>{eyebrow}</span> : null}
-          <h3>{title}</h3>
-          {subtitle ? <p>{subtitle}</p> : null}
+          {eyebrow ? <span>{getPdfSafeText(eyebrow, '')}</span> : null}
+          <h3>{getPdfSafeText(title, 'Sección')}</h3>
+          {subtitle ? <p>{getPdfSafeText(subtitle, '')}</p> : null}
         </div>
       </div>
       {children}
@@ -60,7 +60,7 @@ export function ReportSection({ icon: Icon = FileText, eyebrow, title, subtitle,
 }
 
 export function ReportBadge({ children, tone = 'neutral' }: { children: ReactNode; tone?: ReportTone }) {
-  return <span className={`pdf-report-badge ${reportToneClass(tone)}`}>{children}</span>;
+  return <span className={`pdf-report-badge ${reportToneClass(tone)}`}>{children || '—'}</span>;
 }
 
 export function ReportKpiCard({ icon: Icon = CheckCircle2, label, value, note, tone = 'blue' }: { icon?: LucideIcon; label: string; value: ReactNode; note?: string; tone?: ReportTone }) {
@@ -68,16 +68,16 @@ export function ReportKpiCard({ icon: Icon = CheckCircle2, label, value, note, t
     <div className="pdf-report-kpi premium-report-kpi">
       <span className={`pdf-report-icon ${reportToneClass(tone)}`}><Icon size={15} strokeWidth={2.4} /></span>
       <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-        {note ? <small>{note}</small> : null}
+        <span>{getPdfSafeText(label, 'Dato')}</span>
+        <strong>{typeof value === 'string' || typeof value === 'number' ? reportDash(value) : value ?? '—'}</strong>
+        {note ? <small>{getPdfSafeText(note, '')}</small> : null}
       </div>
     </div>
   );
 }
 
 export function ReportEmptyState({ text = 'Sin registros.', compact = false }: { text?: string; compact?: boolean }) {
-  return <div className={`pdf-report-empty ${compact ? 'compact' : ''}`}><AlertTriangle size={14} /><span>{text}</span></div>;
+  return <div className={`pdf-report-empty ${compact ? 'compact' : ''}`}><AlertTriangle size={14} /><span>{getPdfSafeText(text, 'Sin registros.')}</span></div>;
 }
 
 export function ReportInsightBox({ children, tone = 'blue' }: { children: ReactNode; tone?: ReportTone }) {

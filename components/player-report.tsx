@@ -1,7 +1,7 @@
 import { Activity, AlertTriangle, BarChart3, CalendarDays, HeartPulse, Scale, ShieldCheck, Trophy, UserRound, Zap } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory, Player } from '@/lib/types';
-import { calculateAgeSafe, pluralize, reportDash, supportsGps } from '@/lib/report-utils';
+import { calculateAgeSafe, formatPdfValue, getPdfSafeText, reportDash, supportsGps } from '@/lib/report-utils';
 import { ReportBadge, ReportEmptyState, ReportInsightBox, ReportKpiCard, ReportLayout, ReportSection } from './report-ui';
 import { groupAverage } from '@/lib/utils';
 
@@ -13,7 +13,7 @@ type PlayerReportProps = {
   internalHistory: Array<{ date: string; load: number; rpe: number; duration: number }>;
   externalHistory: Array<{ date: string; min: number; acc?: number; dcc?: number; sprints?: number; rhie?: number; ima?: number; rpe?: number }>;
   competitionHistory: Array<{ date: string; competitionName?: string; opponent: string; minutesPlayed: number; goals: number; assists: number; yellowCards: number; redCards: number; goalsConceded?: number; goalsPrevented?: number }>;
-  nutritionHistory: Array<{ date: string; weight: number; height: number; bodyFat: number; skinfoldSum: number; plan: string }>;
+  nutritionHistory: Array<{ date: string; weight: number; height: number; bodyFat: number; skinfoldSum: number; plan: string; weightRange?: string; skinfoldRange?: string; fatPercentageRange?: string; muscleMassPercentage?: number; muscleMassRange?: string; imo?: number; diagnosis?: string; nutritionPlan?: string }>;
   cmjHistory: Array<{ date: string; value: number }>;
   fmsHistory: Array<{ date: string; total: number }>;
   neuromuscularHistory: Array<{ date: string; cmj: number; sj: number; reactiveJumps: number }>;
@@ -43,7 +43,7 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
   const ageLabel = calculateAgeSafe(player.birthDate, player.age);
   const wellnessAvg = groupAverage(wellnessHistory.map((row) => row.value).filter((value) => value > 0));
   const internalTotal = internalHistory.reduce((acc, row) => acc + (row.load || 0), 0);
-  const executiveText = `${player.name} pertenece a ${categoryLabel(playerCategory)} y se encuentra en estado ${player.status}..`;
+  const executiveText = `${getPdfSafeText(player.name, 'Jugador')} pertenece a ${categoryLabel(playerCategory)} y se encuentra en estado ${getPdfSafeText(player.status, 'sin estado')}.`;
 
   return (
     <ReportLayout title="Perfil 360" subtitle={player.name} category={playerCategory} generatedAt={generatedAt} className={`player-report-document ${className}`}>
@@ -70,7 +70,7 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
           <ReportKpiCard icon={HeartPulse} label="Wellness" value={wellnessAvg ? wellnessAvg.toFixed(1) : '—'} note={latestWellness?.date ?? 'Sin registro'} tone={wellnessAvg && wellnessAvg < 3.2 ? 'amber' : 'green'} />
           <ReportKpiCard icon={Activity} label="Carga interna" value={Math.round(internalTotal)} note="UA" tone="blue" />
           <ReportKpiCard icon={Trophy} label="Partidos" value={competitionHistory.length} note={`${minutes} min`} tone="dark" />
-          <ReportKpiCard icon={Scale} label="Peso" value={latestNutrition ? `${latestNutrition.weight} kg` : '—'} note={latestNutrition?.date ?? 'Nutrición'} tone="blue" />
+          <ReportKpiCard icon={Scale} label="Peso" value={latestNutrition ? formatPdfValue(latestNutrition.weight, ' kg') : '—'} note={latestNutrition?.date ?? 'Nutrición'} tone="blue" />
           <ReportKpiCard icon={Zap} label="CMJ" value={latestCmj ? `${latestCmj.value} cm` : latestNeuro ? `${latestNeuro.cmj} cm` : '—'} note={latestCmj?.date ?? latestNeuro?.date ?? 'Sin registro'} tone="green" />
           <ReportKpiCard icon={ShieldCheck} label="FMS" value={latestFms ? `${latestFms.total} pts` : '—'} note={latestFms?.date ?? 'Funcional'} tone="blue" />
           {gpsEnabled ? <ReportKpiCard icon={Zap} label="GPS último" value={latestExternal ? `${latestExternal.min} min` : '—'} note={latestExternal?.date ?? 'GPS'} tone="green" /> : null}
@@ -100,9 +100,9 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
 
       <ReportSection icon={Scale} eyebrow="Valoraciones" title="Valoraciones">
         <div className="pdf-report-feature-grid">
-          <div><span>Nutrición</span><strong>{latestNutrition ? `${latestNutrition.weight} kg · ${latestNutrition.bodyFat}%` : '—'}</strong></div>
-          <div><span>CMJ</span><strong>{latestCmj ? `${latestCmj.value} cm` : latestNeuro ? `${latestNeuro.cmj} cm` : '—'}</strong></div>
-          <div><span>FMS</span><strong>{latestFms ? `${latestFms.total} pts` : '—'}</strong></div>
+          <div><span>Nutrición</span><strong>{latestNutrition ? `${formatPdfValue(latestNutrition.weight, ' kg')} · ${formatPdfValue(latestNutrition.bodyFat, '%')}` : '—'}</strong></div>
+          <div><span>CMJ</span><strong>{latestCmj ? formatPdfValue(latestCmj.value, ' cm') : latestNeuro ? formatPdfValue(latestNeuro.cmj, ' cm') : '—'}</strong></div>
+          <div><span>FMS</span><strong>{latestFms ? formatPdfValue(latestFms.total, ' pts') : '—'}</strong></div>
           <div><span>Neuromuscular</span><strong>{latestNeuro ? `SJ ${latestNeuro.sj} · Reactivos ${latestNeuro.reactiveJumps}` : '—'}</strong></div>
         </div>
         {!latestNutrition && !latestCmj && !latestFms && !latestNeuro ? <ReportEmptyState text="Sin registros." /> : null}

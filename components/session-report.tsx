@@ -1,7 +1,7 @@
 import { Activity, AlertTriangle, CalendarDays, Clock, Gauge, Target, Users, Zap } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory, Microcycle, Player, SessionParticipation, TrainingSessionType } from '@/lib/types';
-import { supportsGps, pluralize, reportDash } from '@/lib/report-utils';
+import { formatPdfDate, getPdfSafeText, supportsGps, pluralize, reportDash } from '@/lib/report-utils';
 import { ReportBadge, ReportEmptyState, ReportInsightBox, ReportKpiCard, ReportLayout, ReportSection } from './report-ui';
 import { groupAverage } from '@/lib/utils';
 
@@ -54,21 +54,21 @@ export function SessionReportTemplate({ date, category, microcycle, sessionNumbe
   const avgSprints = avg(registeredRows.map((row) => row.sprints));
   const highRpeRows = registeredRows.filter((row) => row.rpe >= 8);
   const incompleteRows = registeredRows.filter((row) => !row.min || !row.rpe);
-  const microcycleText = microcycle ? `${microcycle.name}${microcycle.startDate && microcycle.endDate ? ` · ${microcycle.startDate} - ${microcycle.endDate}` : ''}` : 'Sin microciclo asignado';
+  const microcycleText = microcycle ? `${getPdfSafeText(microcycle.name, 'Microciclo')}${microcycle.startDate && microcycle.endDate ? ` · ${formatPdfDate(microcycle.startDate)} - ${formatPdfDate(microcycle.endDate)}` : ''}` : 'Sin microciclo asignado';
   const executiveText = registeredRows.length
-    ? `La sesión corresponde a ${microcycle?.name ?? 'la fecha activa'}, categoría ${categoryLabel(category)}. Se registraron ${pluralize(registeredRows.length, 'jugador', 'jugadores')}, con ${Math.round(avgMin)} minutos promedio, RPE promedio ${avgRpe.toFixed(1)} y carga interna total ${Math.round(totalLoad)} UA.`
+    ? `Sesión ${sessionNumber || '—'} de ${categoryLabel(category)}. ${pluralize(registeredRows.length, 'jugador registrado', 'jugadores registrados')}, ${Math.round(avgMin)} minutos promedio, RPE ${avgRpe.toFixed(1)} y ${Math.round(totalLoad)} UA de carga interna total.`
     : 'Sin registros para análisis de sesión.';
 
   return (
-    <ReportLayout title="Sesión" subtitle={`${date || 'Sin fecha'} · Sesión ${sessionNumber || '—'}`} category={category} generatedAt={generatedAt} className={`session-report-document ${compact ? 'pdf-report-compact' : ''} ${className}`}>
+    <ReportLayout title="Informe de sesión" subtitle={`${formatPdfDate(date)} · Sesión ${sessionNumber || '—'}`} category={category} generatedAt={generatedAt} className={`session-report-document ${compact ? 'pdf-report-compact' : ''} ${className}`}>
       <section className="pdf-report-hero session-report-hero">
         <div className="session-hero-main">
           <span>Sesión</span>
           <h2>{sessionTypeLabel(sessionType)}</h2>
-          <p>{date || 'Sin fecha'} · {microcycleText}</p>
+          <p>{formatPdfDate(date)} · {microcycleText}</p>
         </div>
         <div className="session-hero-grid">
-          <div><CalendarDays size={14} /><span>Fecha</span><strong>{date || '—'}</strong></div>
+          <div><CalendarDays size={14} /><span>Fecha</span><strong>{formatPdfDate(date, '—')}</strong></div>
           <div><Target size={14} /><span>Sesión</span><strong>{sessionNumber || '—'}</strong></div>
           <div><Users size={14} /><span>Categoría</span><strong>{categoryLabel(category)}</strong></div>
           <div><Gauge size={14} /><span>Completitud</span><strong>{dataQualityPercent}%</strong></div>
@@ -77,11 +77,11 @@ export function SessionReportTemplate({ date, category, microcycle, sessionNumbe
 
       <ReportSection icon={Activity} eyebrow="Resumen" title="Resumen">
         <p className="pdf-report-summary">{executiveText}</p>
-        {objective ? <ReportInsightBox><strong>Objetivo:</strong> {objective}</ReportInsightBox> : null}
-        {observation ? <ReportInsightBox tone="neutral"><strong>Observación:</strong> {observation}</ReportInsightBox> : null}
+        {objective?.trim() ? <ReportInsightBox><strong>Objetivo:</strong> {getPdfSafeText(objective)}</ReportInsightBox> : null}
+        {observation?.trim() ? <ReportInsightBox tone="neutral"><strong>Observación:</strong> {getPdfSafeText(observation)}</ReportInsightBox> : null}
       </ReportSection>
 
-      <ReportSection icon={Gauge} eyebrow="Métricas" title="Métricas">
+      <ReportSection icon={Gauge} eyebrow="Indicadores" title="Resumen de carga">
         <div className="pdf-report-kpi-grid session-kpi-grid">
           <ReportKpiCard icon={Users} label="Registrados" value={registeredRows.length} note="Registrados" tone="blue" />
           <ReportKpiCard icon={AlertTriangle} label="Pendientes" value={absentPlayers.length} note="Pendientes" tone={absentPlayers.length ? 'amber' : 'green'} />
@@ -95,7 +95,7 @@ export function SessionReportTemplate({ date, category, microcycle, sessionNumbe
         </div>
       </ReportSection>
 
-      <ReportSection icon={Users} eyebrow="Planilla" title="Participación">
+      <ReportSection icon={Users} eyebrow="Asistencia" title="Participación">
         {registeredRows.length ? (
           <table className="pdf-report-table session-report-table">
             <thead>
