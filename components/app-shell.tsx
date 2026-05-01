@@ -71,7 +71,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   if (!allowed) return <main className="main main-public"><div className="empty">Cargando acceso…</div></main>;
 
   if (isPlayerWellness || isLogin || isResetPassword) {
-    return <main className="main main-public">{children}</main>;
+    const publicClassName = isPlayerWellness ? 'main main-public main-public-wellness' : 'main main-public';
+    return <main className={publicClassName}>{children}</main>;
   }
 
   return (

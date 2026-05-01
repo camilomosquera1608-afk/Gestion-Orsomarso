@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AppHero } from '@/components/app-hero';
 import { ToneBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
 import { categoryLabel } from '@/lib/labels';
@@ -82,9 +81,10 @@ const toneText = {
 const isComplete = (values: WellnessFormState) => Object.values(values).every((value) => value >= 1 && value <= 5);
 
 export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCategory | null }) {
-  const { data, upsertWellness, backendMode, syncStatus } = useApp();
+  const { data, upsertWellness } = useApp();
   const [message, setMessage] = useState('');
-  const [loadMessage, setLoadMessage] = useState('Cargando jugadores…');
+  const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [loadMessage, setLoadMessage] = useState('Cargando jugadores...');
   const [remotePlayers, setRemotePlayers] = useState<WellnessPublicPlayer[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -97,7 +97,7 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
   useEffect(() => {
     let active = true;
     const loadPlayers = async () => {
-      setLoadMessage('Cargando jugadores…');
+      setLoadMessage('Cargando jugadores...');
       if (!supabase || !tableSchemaSyncEnabled) {
         setRemotePlayers([]);
         setLoadMessage(localPlayers.length ? 'Jugadores cargados localmente.' : 'No hay jugadores cargados en esta categoría.');
@@ -115,7 +115,7 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
       if (!active) return;
       if (error) {
         setRemotePlayers([]);
-        setLoadMessage(localPlayers.length ? 'Usando jugadores locales. Revisa permisos públicos de Wellness en Supabase.' : 'No se pudieron cargar jugadores. Ejecuta el SQL v107.4 de Wellness público.');
+        setLoadMessage(localPlayers.length ? 'Usando jugadores locales. Revisa permisos públicos de Wellness en Supabase.' : 'No se pudieron cargar jugadores. Ejecuta el SQL v108.1 de Wellness público.');
         return;
       }
 
@@ -155,6 +155,10 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
   }, [values]);
 
   const handleSubmit = async (formData: FormData) => {
+    if (submitState === 'saving') return;
+    setSubmitState('saving');
+    setMessage('Enviando wellness...');
+
     const playerId = String(formData.get('playerId'));
     const player = players.find((item) => item.id === playerId);
     const recordDate = String(formData.get('date'));
@@ -171,46 +175,71 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
     };
 
     if (!player) {
+      setSubmitState('error');
       setMessage('Selecciona un jugador.');
       return;
     }
     if (!isComplete(payload)) {
+      setSubmitState('error');
       setMessage('Completa las 5 respuestas antes de enviar.');
       return;
     }
 
-    if (player.source === 'remote' && player.remoteId && supabase && tableSchemaSyncEnabled) {
-      const { error } = await supabase.from('daily_wellness').upsert({
-        legacy_id: payload.id,
-        player_id: player.remoteId,
-        date: recordDate,
-        category: payload.category,
-        sleep: payload.sleep,
-        fatigue: payload.fatigue,
-        stress: payload.stress,
-        muscle_pain: payload.musclePain,
-        mood: payload.mood,
-      }, { onConflict: 'player_id,date' });
+    try {
+      if (player.source === 'remote' && player.remoteId && supabase && tableSchemaSyncEnabled) {
+        const { error: rpcError } = await supabase.rpc('submit_public_wellness', {
+          p_player_id: player.remoteId,
+          p_date: recordDate,
+          p_category: payload.category,
+          p_sleep: payload.sleep,
+          p_fatigue: payload.fatigue,
+          p_stress: payload.stress,
+          p_muscle_pain: payload.musclePain,
+          p_mood: payload.mood,
+        });
 
-      if (error) {
-        setMessage('No se pudo enviar. Revisa conexión o permisos de Wellness.');
-        return;
+        if (rpcError) {
+          const { error } = await supabase.from('daily_wellness').upsert({
+            legacy_id: payload.id,
+            player_id: player.remoteId,
+            date: recordDate,
+            category: payload.category,
+            sleep: payload.sleep,
+            fatigue: payload.fatigue,
+            stress: payload.stress,
+            muscle_pain: payload.musclePain,
+            mood: payload.mood,
+          }, { onConflict: 'player_id,date', ignoreDuplicates: false });
+
+          if (error) throw error;
+        }
+      } else {
+        upsertWellness(payload);
       }
-    } else {
-      upsertWellness(payload);
-    }
 
-    setSelectedPlayerId(playerId);
-    setDate(recordDate);
-    setValues(defaultState);
-    setMessage(`Wellness enviado correctamente por ${player.name}.`);
+      setSelectedPlayerId(playerId);
+      setDate(recordDate);
+      setValues(defaultState);
+      setSubmitState('success');
+      setMessage(`Wellness enviado correctamente por ${player.name}.`);
+    } catch (error) {
+      console.error('public wellness submit error', error);
+      setSubmitState('error');
+      setMessage('No se pudo enviar. Revisa conexión o ejecuta el SQL Wellness público.');
+    }
   };
 
   const categoryTitle = forcedCategory ? `Wellness ${categoryLabel(forcedCategory)}` : 'Wellness jugadores';
+  const connectionLabel = remotePlayers.length ? 'Conectado' : players.length ? 'Modo local' : 'Sin jugadores';
+  const connectionTone = remotePlayers.length ? 'green' : players.length ? 'yellow' : 'red';
 
   return (
     <div className="grid wellness-public-page">
-      <AppHero title="Wellness diario" subtitle={forcedCategory ? `Formulario público · ${categoryLabel(forcedCategory)}` : 'Formulario público para jugadores'} />
+      <div className="wellness-public-hero">
+        <span>Orsomarso Performance</span>
+        <h2>Wellness diario</h2>
+        <p>{forcedCategory ? `Formulario público · ${categoryLabel(forcedCategory)}` : 'Formulario público para jugadores'}</p>
+      </div>
 
       <div className="card wellness-form-card">
         <div className="wellness-public-header">
@@ -222,9 +251,7 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
           <div className="btn-row wellness-public-badges">
             <ToneBadge text="Escala 1 a 5" tone="green" />
             {forcedCategory ? <ToneBadge text={categoryLabel(forcedCategory)} tone="blue" /> : null}
-            {backendMode === 'supabase' ? (
-              <ToneBadge text={syncStatus === 'ready' ? 'Supabase' : syncStatus === 'error' ? 'Sync error' : 'Sincronizando'} tone={syncStatus === 'ready' ? 'green' : syncStatus === 'error' ? 'red' : 'yellow'} />
-            ) : null}
+            <ToneBadge text={connectionLabel} tone={connectionTone as 'green' | 'yellow' | 'red'} />
           </div>
         </div>
 
@@ -275,10 +302,12 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
             })}
           </div>
 
-          <button className="btn wellness-submit-button" type="submit" disabled={!players.length}>Enviar wellness</button>
+          <button className="btn wellness-submit-button" type="submit" disabled={!players.length || submitState === 'saving'}>
+            {submitState === 'saving' ? 'Enviando...' : 'Enviar wellness'}
+          </button>
         </form>
 
-        {message ? <div className="wellness-form-message">{message}</div> : null}
+        {message ? <div className={`wellness-form-message ${submitState === 'error' ? 'error' : submitState === 'success' ? 'success' : ''}`}>{message}</div> : null}
       </div>
     </div>
   );

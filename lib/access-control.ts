@@ -183,9 +183,8 @@ export const canDeletePlayers = (session: StaffSession | null | undefined) => {
   const snapshot = getSessionAccessSnapshot(session);
   return Boolean(
     snapshot.isAuthenticated
-    && snapshot.normalizedRole === 'admin'
-    && snapshot.normalizedAccessLevel === 'full'
-    && snapshot.canReadAll
+    && snapshot.normalizedAccessLevel !== 'read'
+    && ['admin', 'category_admin'].includes(snapshot.normalizedRole)
   );
 };
 
@@ -197,8 +196,8 @@ export const canDeletePlayer = (session: StaffSession | null | undefined, player
 
 export const getDeleteDeniedMessage = (session: StaffSession | null | undefined) => {
   if (!session?.isAuthenticated) return 'Inicia sesión para eliminar.';
-  if (!canDeletePlayers(session)) return 'Solo admin ALL puede eliminar jugadores.';
-  return 'Sin permisos para eliminar.';
+  if (!canDeletePlayers(session)) return 'Solo administradores pueden eliminar jugadores.';
+  return 'Sin permisos para eliminar este jugador.';
 };
 
 const byCategory = <T extends { category?: ClubCategory }>(items: T[], session: StaffSession) => {

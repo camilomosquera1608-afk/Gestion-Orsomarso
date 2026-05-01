@@ -102,7 +102,7 @@ export default function JugadoresPage() {
                       {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
                     </select>
                   ) : null}
-                  {canDeleteRosterPlayers ? (
+                  {canDeleteRosterPlayers && canDeletePlayer(session, player) ? (
                     <button
                       type="button"
                       className="btn danger"
