@@ -519,9 +519,7 @@ export default function CompetenciaPage() {
         </div>
       ) : <EmptyState title="Aún no hay partidos" text="Crea primero los datos generales del partido y luego carga los jugadores." />}
 
-      {master ? (
-        <div className="card"><strong>Usuario Maestro:</strong> acceso de lectura. Usa Informes y Ranking para el análisis global.</div>
-      ) : selectedMatch ? (
+      {selectedMatch ? (
         <div className="card grid">
           <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div>
@@ -617,7 +615,7 @@ export default function CompetenciaPage() {
                     <td>{editingMatchPlayers ? <div className="btn-row"><input className="input compact-input" type="number" min="0" value={draft.yellowCards} onChange={(event) => updateMatchPlayerDraft(record.id, { yellowCards: event.target.value })} /><input className="input compact-input" type="number" min="0" max="1" value={draft.redCards} onChange={(event) => updateMatchPlayerDraft(record.id, { redCards: event.target.value })} /></div> : <>TA {record.yellowCards ?? 0} · TR {record.redCards ?? 0}</>}</td>
                     <td>{editingMatchPlayers ? <select className="select compact-input" value={draft.medicalStatus} onChange={(event) => updateMatchPlayerDraft(record.id, { medicalStatus: event.target.value as CompetitionMedicalStatus })}>{medicalOptions.map((option) => <option key={option}>{option}</option>)}</select> : medicalStatus}</td>
                     <td>{editingMatchPlayers ? <input className="input compact-input" value={draft.medicalObservation} onChange={(event) => updateMatchPlayerDraft(record.id, { medicalObservation: event.target.value })} placeholder="Observación" /> : medicalStatus === 'Lesionado' ? record.medicalObservation || '-' : '-'}</td>
-                    <td>{master ? '-' : <div className="btn-row"><button type="button" className="btn secondary" onClick={() => editPlayerRecord(record)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div>}</td>
+                    <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => editPlayerRecord(record)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div></td>
                   </tr>
                 );
               })}
@@ -643,7 +641,7 @@ export default function CompetenciaPage() {
                     <td>{formatMatchScore(match)}</td>
                     <td>{match.resultType ?? '-'}</td>
                     <td>{records.length}</td>
-                    <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => { setSelectedMatchId(match.id); startEditFullMatch(match.id); }}>Editar partido y jugadores</button>{master ? null : <button type="button" className="btn danger" onClick={() => removeMatch(match.id)}>Eliminar</button>}</div></td>
+                    <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => { setSelectedMatchId(match.id); startEditFullMatch(match.id); }}>Editar partido y jugadores</button><button type="button" className="btn danger" onClick={() => removeMatch(match.id)}>Eliminar</button></div></td>
                   </tr>
                 );
               })}

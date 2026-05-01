@@ -607,3 +607,6 @@ grant execute on function public.submit_public_wellness(uuid, date, text, numeri
 grant execute on function public.submit_public_wellness(uuid, date, text, numeric, numeric, numeric, numeric, numeric) to authenticated;
 
 commit;
+
+-- v108.6 - Sesion unica por categoria y fecha
+-- Ejecuta SUPABASE_V108_6_SESSION_ONE_PER_DAY.sql por separado si quieres aplicar la guarda unica en base de datos.

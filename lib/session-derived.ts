@@ -7,20 +7,33 @@ export type DerivedSessionStatus = 'sin_actividad' | 'planificada' | 'parcial' |
 export const isAllCategory = (category?: string) => !category || category === 'all';
 export const sameCategory = (activeCategory: string, itemCategory?: string) => isAllCategory(activeCategory) || !itemCategory || itemCategory === activeCategory;
 
+const recordCountForSession = (data: AppData, session: TrainingSessionSummary) =>
+  data.externalLoads.filter((record) => {
+    if (record.sessionId === session.id) return true;
+    return record.date === session.date
+      && sameCategory(session.category ?? 'all', record.category ?? record.actingCategory)
+      && (record.sessionNumber ?? session.sessionNumber) === session.sessionNumber;
+  }).length;
+
 export const getSessionForDateAndCategory = (
   data: AppData,
   date: string,
   category: ClubCategory | 'all',
   preferredSessionId?: string | null,
 ): TrainingSessionSummary | undefined => {
+  if (!date) return undefined;
   if (preferredSessionId) {
     const preferred = data.trainingSessionSummaries.find((session) => session.id === preferredSessionId);
-    if (preferred) return preferred;
+    if (preferred && preferred.date === date && sameCategory(category, preferred.category)) return preferred;
   }
-  if (!date) return undefined;
+
   const categorySessions = data.trainingSessionSummaries
     .filter((session) => session.date === date && sameCategory(category, session.category))
-    .sort((a, b) => (Number(a.sessionNumber) || 0) - (Number(b.sessionNumber) || 0));
+    .sort((a, b) => {
+      const countDiff = recordCountForSession(data, b) - recordCountForSession(data, a);
+      if (countDiff !== 0) return countDiff;
+      return (Number(b.sessionNumber) || 0) - (Number(a.sessionNumber) || 0);
+    });
   return categorySessions[0];
 };
 

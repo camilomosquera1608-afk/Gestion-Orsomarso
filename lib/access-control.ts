@@ -120,20 +120,22 @@ export const getSessionAccessSnapshot = (session: StaffSession | null | undefine
   const rawRole = session?.platformRole ?? session?.role ?? null;
   const normalizedRole = normalizePlatformRole(rawRole);
   const rawScope = getRawScopeFromSession(session) ?? null;
-  const normalizedScope = normalizeCategoryScope(rawScope);
   const rawAccessLevel = session?.accessLevel ?? null;
-  const normalizedAccessLevel = normalizeAccessLevel(rawAccessLevel, normalizedRole);
   const isMasterSession = Boolean(session?.role === 'master' && session?.category === 'all');
-  const canReadAll = normalizedScope === 'ALL' || isMasterSession || normalizedRole === 'admin';
+  const isGeneralAdmin = normalizedRole === 'admin' || isMasterSession;
+
+  // v108.6.1: todo administrador general tiene alcance ALL y edición completa.
+  // Esto evita que perfiles antiguos con scope U20/TODO o access_level vacío queden limitados.
+  const normalizedScope = isGeneralAdmin ? 'ALL' : normalizeCategoryScope(rawScope);
+  const normalizedAccessLevel = isGeneralAdmin ? 'full' : normalizeAccessLevel(rawAccessLevel, normalizedRole);
+  const canReadAll = normalizedScope === 'ALL' || isGeneralAdmin;
   const canWriteAccess = normalizedAccessLevel === 'full' || normalizedAccessLevel === 'write';
-  const canWriteValue = Boolean(session?.isAuthenticated && canWriteAccess && normalizedRole !== 'solo_lectura');
+  const canWriteValue = Boolean(session?.isAuthenticated && (isGeneralAdmin || canWriteAccess) && normalizedRole !== 'solo_lectura');
   const canAccessAdmin = Boolean(
     session?.isAuthenticated
-    && normalizedAccessLevel === 'full'
     && (
-      normalizedRole === 'admin'
-      || isMasterSession
-      || (normalizedRole === 'category_admin' && normalizedScope === 'ALL')
+      isGeneralAdmin
+      || (normalizedAccessLevel === 'full' && normalizedRole === 'category_admin' && normalizedScope === 'ALL')
     )
   );
 
@@ -168,7 +170,9 @@ export const getSessionCategoryScope = (session: StaffSession | null | undefined
 
 export const canAccessCategory = (session: StaffSession | null | undefined, category?: ClubCategory | 'all' | string | null) => {
   if (!category || category === 'all') return true;
-  const scope = getSessionCategoryScope(session);
+  const snapshot = getSessionAccessSnapshot(session);
+  if (snapshot.normalizedRole === 'admin' || snapshot.canReadAll) return true;
+  const scope = snapshot.normalizedScope;
   const normalizedCategory = normalizeClubCategory(String(category));
   return scope === 'ALL' || (normalizedCategory ? scope === normalizedCategory : scope === category);
 };
@@ -183,8 +187,8 @@ export const canDeletePlayers = (session: StaffSession | null | undefined) => {
   const snapshot = getSessionAccessSnapshot(session);
   return Boolean(
     snapshot.isAuthenticated
-    && snapshot.normalizedAccessLevel !== 'read'
-    && ['admin', 'category_admin'].includes(snapshot.normalizedRole)
+    && snapshot.normalizedRole !== 'solo_lectura'
+    && (snapshot.normalizedRole === 'admin' || (snapshot.normalizedRole === 'category_admin' && snapshot.normalizedAccessLevel !== 'read'))
   );
 };
 

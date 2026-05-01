@@ -89,7 +89,8 @@ export const createSupabaseStaffSession = (email: string, category: ClubCategory
 };
 
 export const createSupabaseStaffSessionFromProfile = (profile: UserProfile): StaffSession => {
-  const normalizedScope = normalizeCategoryScope(profile.categoryScope);
+  const isGeneralAdmin = profile.role === 'admin';
+  const normalizedScope = isGeneralAdmin ? 'ALL' : normalizeCategoryScope(profile.categoryScope);
   const category: ClubCategory | 'all' = normalizedScope === 'ALL' ? 'all' : normalizedScope === 'U15' ? 'Sub15' : normalizedScope === 'U17' ? 'Sub17' : normalizedScope === 'U20' ? 'Sub20' : normalizedScope;
   const role = roleFromCategory(category);
   const session: StaffSession = {
@@ -97,7 +98,7 @@ export const createSupabaseStaffSessionFromProfile = (profile: UserProfile): Sta
     role,
     category,
     categoryScope: normalizedScope,
-    accessLevel: profile.accessLevel,
+    accessLevel: isGeneralAdmin ? 'full' : profile.accessLevel,
     platformRole: profile.role,
     profileId: profile.id,
     displayName: profile.fullName || displayFromCategory(category),

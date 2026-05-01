@@ -7,7 +7,8 @@ import { AppHero } from '@/components/app-hero';
 import { CompactInfoList, EmptyState, SectionHeader } from '@/components/pro-ui';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
-import { getStaffSession, isMasterRole } from '@/lib/auth';
+import { getStaffSession } from '@/lib/auth';
+import { canWrite } from '@/lib/access-control';
 import { categoryLabel, calcAge, formatBirthDateForDisplay, normalizeBirthDateInput } from '@/lib/labels';
 import { ClubCategory, PlayerStatus, Position } from '@/lib/types';
 import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
@@ -21,7 +22,7 @@ export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
   const { data, updatePlayer } = useApp();
   const session = getStaffSession();
-  const master = isMasterRole(session);
+  const canEditPlayer = canWrite(session);
   const player = data.players.find((item) => item.id === params.id);
 
   if (!player) return <div className="empty">Jugador no encontrado o eliminado.</div>;
@@ -129,7 +130,7 @@ export default function PlayerProfilePage() {
         <span className="player-detail-tab">Valoraciones</span>
         <span className="player-detail-tab">Historial médico</span>
       </div>
-      {!master ? (
+      {canEditPlayer ? (
         <div className="card">
           <h3>Editar jugador</h3>
           <div className="grid grid-3">
@@ -167,7 +168,7 @@ export default function PlayerProfilePage() {
         </div>
       ) : null}
 
-      {!master ? <div className="card">
+      {canEditPlayer ? <div className="card">
         <h3>Lesión o novedad física</h3>
         <div className="grid grid-4">
           <input className="input" placeholder="Zona afectada" value={player.injuryArea ?? ''} onChange={(e) => patchPlayer({ injuryArea: e.target.value })} />

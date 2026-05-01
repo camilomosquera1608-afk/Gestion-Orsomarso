@@ -394,6 +394,7 @@ export default function SesionEntrenamientoPage() {
           </div>
           <div className="btn-row">
             <button type="button" className="btn secondary" onClick={summaryRecord ? cancelSessionEditing : () => setMessage('')}>{summaryRecord ? 'Cancelar edición' : 'Limpiar formulario'}</button>
+            {summaryRecord ? <button type="button" className="btn danger" onClick={() => deleteSession(summaryRecord.id)}>Eliminar sesión</button> : null}
           </div>
         </div>
         <div className="grid grid-4" style={{ marginTop: 16 }}>
@@ -413,15 +414,18 @@ export default function SesionEntrenamientoPage() {
               className="input"
               type="number"
               min="1"
-              placeholder="Escribe el número de sesión"
+              placeholder="Se asigna automáticamente"
               value={sessionNumberInput}
+              readOnly={!!summaryRecord}
               onChange={(e) => {
+                if (summaryRecord) return;
                 setSessionNumberInput(e.target.value);
                 if (e.target.value === '') return;
                 const parsed = Number(e.target.value);
                 if (Number.isFinite(parsed) && parsed > 0) setFilters({ sessionNumber: parsed });
               }}
             />
+            <div className="muted-line" style={{ marginTop: 6 }}>{summaryRecord ? 'Número asociado a la sesión guardada para esta fecha.' : 'Se sugiere el siguiente número disponible.'}</div>
           </div>
           <div className="field">
             <label>Categoría base</label>
@@ -481,9 +485,10 @@ export default function SesionEntrenamientoPage() {
       </div>
 
       {master ? (
-        <EmptyState title="Administrador general" text="Edición completa habilitada. Puedes cargar sesión, planilla e informe por categoría." />
-      ) : (
-        <div className="card session-table-card">
+        <div className="summary-chip">Administrador general · edición completa habilitada para sesión, planilla e informe.</div>
+      ) : null}
+
+      <div className="card session-table-card">
           <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="section-eyebrow">Planilla</span><h3 style={{ margin: 0 }}>Participación</h3>
             <div className="btn-row">
@@ -538,7 +543,6 @@ export default function SesionEntrenamientoPage() {
             })}
           </div>
         </div>
-      )}
       <div className="card table-wrap">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>

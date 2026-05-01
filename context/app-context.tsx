@@ -268,6 +268,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase || !isHydrated) return;
 
+    const syncOnResume = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshFromSupabase('manual');
+      }
+    };
+
+    const syncOnFocus = () => {
+      void refreshFromSupabase('manual');
+    };
+
+    const syncOnOnline = () => {
+      void refreshFromSupabase('manual');
+    };
+
+    document.addEventListener('visibilitychange', syncOnResume);
+    window.addEventListener('focus', syncOnFocus);
+    window.addEventListener('online', syncOnOnline);
+
     const supabaseClient = supabase;
 
     const realtimeTables = [
@@ -303,6 +321,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }, 15000);
 
     return () => {
+      document.removeEventListener('visibilitychange', syncOnResume);
+      window.removeEventListener('focus', syncOnFocus);
+      window.removeEventListener('online', syncOnOnline);
       if (remoteRefreshTimerRef.current) clearTimeout(remoteRefreshTimerRef.current);
       clearInterval(interval);
       void supabaseClient.removeChannel(channel);
@@ -563,15 +584,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.id === record.id || (item.date === record.date && item.category === record.category)))] })),
     deleteTrainingSessionSummary: (sessionId) => {
       const current = dataRef.current;
+      const target = current.trainingSessionSummaries.find((item) => item.id === sessionId);
+      const matchesSession = (item: { sessionId?: string; date: string; category?: string; actingCategory?: string; sessionNumber?: number }) => {
+        if (item.sessionId === sessionId) return true;
+        if (!target) return false;
+        return item.date === target.date
+          && (item.category ?? item.actingCategory) === target.category
+          && (item.sessionNumber ?? target.sessionNumber) === target.sessionNumber;
+      };
       applyMutation((prev) => ({
         ...prev,
         trainingSessionSummaries: prev.trainingSessionSummaries.filter((item) => item.id !== sessionId),
-        externalLoads: prev.externalLoads.filter((item) => item.sessionId !== sessionId),
-        internalLoads: prev.internalLoads.filter((item) => item.sessionId !== sessionId),
+        externalLoads: prev.externalLoads.filter((item) => !matchesSession(item)),
+        internalLoads: prev.internalLoads.filter((item) => !matchesSession(item)),
       }));
       void deleteRemoteLegacy('training_sessions', sessionId);
-      current.externalLoads.filter((item) => item.sessionId === sessionId).forEach((item) => { void deleteRemoteLegacy('daily_external_loads', item.id); });
-      current.internalLoads.filter((item) => item.sessionId === sessionId).forEach((item) => { void deleteRemoteLegacy('daily_internal_loads', item.id); });
+      current.externalLoads.filter((item) => matchesSession(item)).forEach((item) => { void deleteRemoteLegacy('daily_external_loads', item.id); });
+      current.internalLoads.filter((item) => matchesSession(item)).forEach((item) => { void deleteRemoteLegacy('daily_internal_loads', item.id); });
     },
     updateMicrocycle: (record) => {
       const normalizedRecord = { ...record, category: record.category ?? (filters.category === 'all' ? 'Sub20' : filters.category as any) };
