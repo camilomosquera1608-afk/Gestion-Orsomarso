@@ -272,25 +272,35 @@ export const MatchCard = ({
 export const WeekCalendar = ({
   days,
 }: {
-  days: Array<{ date: string; label: string; sessions: unknown[]; matches: unknown[]; registeredPlayers: number; playersCount: number; avgRpe: number; avgMin: number }>;
+  days: Array<{ date: string; label: string; sessions: unknown[]; matches: unknown[]; registeredPlayers: number; playersCount: number; avgRpe: number; avgMin: number; status?: string; statusLabel?: string; actionLabel?: string; sessionNumber?: number; completeness?: number }>;
 }) => (
   <div className="week-planning-grid">
-    {days.map((day) => (
-      <div key={day.date} className="week-planning-day">
-        <div className="week-day-date">{day.label}</div>
-        <strong>{day.sessions.length ? `${day.sessions.length} sesión(es)` : day.matches.length ? `${day.matches.length} partido(s)` : 'Sin actividad'}</strong>
-        <div className="week-day-meta">{day.registeredPlayers}/{day.playersCount} jugadores con datos</div>
-        <div className="week-day-tags">
-          {day.sessions.length ? <span className="status-badge ui-tone-blue">Sesión</span> : null}
-          {day.matches.length ? <span className="status-badge ui-tone-dark">Partido</span> : null}
-          {!day.sessions.length && !day.matches.length ? <span className="status-badge ui-tone-neutral">Planificar</span> : null}
+    {days.map((day) => {
+      const hasSession = day.sessions.length > 0;
+      const hasMatch = day.matches.length > 0;
+      const title = hasSession
+        ? `Sesión ${day.sessionNumber ?? day.sessions.length}`
+        : hasMatch
+          ? `${day.matches.length} partido(s)`
+          : (day.statusLabel ?? 'Sin actividad');
+      const tone = day.status === 'completa' ? 'green' : day.status === 'parcial' ? 'amber' : hasSession ? 'blue' : hasMatch ? 'dark' : 'neutral';
+      return (
+        <div key={day.date} className={`week-planning-day ${hasSession ? 'has-session' : ''}`}>
+          <div className="week-day-date">{day.label}</div>
+          <strong>{title}</strong>
+          <div className="week-day-meta">{day.registeredPlayers}/{day.playersCount} jugadores con datos</div>
+          <div className="week-day-tags">
+            <span className={`status-badge ui-tone-${tone}`}>{day.statusLabel ?? (hasSession ? 'Sesión' : hasMatch ? 'Partido' : 'Sin actividad')}</span>
+            <span className="status-badge ui-tone-neutral">{day.actionLabel ?? (hasSession ? 'Editar sesión' : 'Planificar')}</span>
+          </div>
+          <div className="week-day-metrics">
+            <span>MIN {day.avgMin.toFixed(0)}</span>
+            <span>RPE {day.avgRpe.toFixed(1)}</span>
+            {typeof day.completeness === 'number' ? <span>{day.completeness}%</span> : null}
+          </div>
         </div>
-        <div className="week-day-metrics">
-          <span>MIN {day.avgMin.toFixed(0)}</span>
-          <span>RPE {day.avgRpe.toFixed(1)}</span>
-        </div>
-      </div>
-    ))}
+      );
+    })}
   </div>
 );
 

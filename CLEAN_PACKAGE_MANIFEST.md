@@ -1,20 +1,11 @@
-# Paquete limpio Orsomarso v108.2
+# Paquete limpio v108.4
 
-Incluye el proyecto completo necesario para ejecutar la app. No incluye dependencias instaladas ni builds temporales.
+Incluye el proyecto completo sin node_modules, .next, archivos Python, notebooks ni zips antiguos.
 
-## Excluido
-- node_modules
-- .next
-- archivos Python
-- notebooks
-- zips anteriores
-- cachés
-- builds temporales
-
-
-## v108.3
-
-- Sesión como fuente de carga.
-- Edición completa de planilla de jugadores en sesión.
-- Carga recalculada desde MIN x RPE.
-- Validaciones operativas de planilla.
+Archivos clave modificados:
+- lib/session-derived.ts
+- lib/operational-helpers.ts
+- app/sesion-entrenamiento/page.tsx
+- components/pro-ui.tsx
+- package.json
+- README_V108_4_LOGICA_SESION_MICROCICLO_CARGA.md

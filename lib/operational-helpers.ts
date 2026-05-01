@@ -2,6 +2,7 @@ import { AppData, ClubCategory, CompetitionMatchSummary, CompetitionRecord, Dail
 import { averageWellness, calculateInternalLoad, groupAverage } from './utils';
 import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performance-helpers';
 import { supportsGps } from './report-utils';
+import { getMicrocycleDayStatus } from './session-derived';
 
 export type AlertLevel = 'critical' | 'warning' | 'info';
 
@@ -139,7 +140,9 @@ export const buildDailyOperations = (data: AppData, filters: GlobalFilters, acti
   const matchRecordsToday = data.competitionRecords.filter((record) => (matchIds.has(record.matchId ?? '') || (record.date === date && matchesToday.some((match) => match.opponent === record.opponent))) && playerIds.has(record.playerId));
 
   const missingWellness = players.filter((player) => !wellnessRecords.some((record) => record.playerId === player.id));
-  const missingInternal = players.filter((player) => !internalRecords.some((record) => record.playerId === player.id));
+  const playersWithSessionLoad = new Set(externalRecords.filter((record) => (record.min ?? 0) > 0 || (record.rpe ?? 0) > 0).map((record) => record.playerId));
+  const playersWithInternalLoad = new Set([...internalRecords.map((record) => record.playerId), ...playersWithSessionLoad]);
+  const missingInternal = players.filter((player) => !playersWithInternalLoad.has(player.id));
   const missingExternal = gpsEnabled ? players.filter((player) => !externalRecords.some((record) => record.playerId === player.id)) : [];
   const lowWellnessPlayers = players.filter((player) => {
     const value = averageWellness(wellnessRecords.find((record) => record.playerId === player.id));
@@ -154,7 +157,7 @@ export const buildDailyOperations = (data: AppData, filters: GlobalFilters, acti
 
   const dataQualityItems = [
     asRatioItem('Wellness', wellnessRecords.length, players.length, `${wellnessRecords.length}/${players.length} jugadores`),
-    asRatioItem('Carga interna', internalRecords.length, players.length, `${internalRecords.length}/${players.length} jugadores`),
+    asRatioItem('Carga interna', playersWithInternalLoad.size, players.length, `${playersWithInternalLoad.size}/${players.length} jugadores`),
     ...(gpsEnabled ? [asRatioItem('Carga externa / GPS', externalRecords.length, players.length, `${externalRecords.length}/${players.length} jugadores`)] : []),
     asRatioItem('Sesión', sessionSummaries.length ? 1 : 0, 1, sessionSummaries.length ? 'Sesión registrada' : 'Sin sesión del día'),
     matchesToday.length
@@ -273,6 +276,8 @@ export const buildDailyOperations = (data: AppData, filters: GlobalFilters, acti
     averages: {
       wellness: groupAverage(players.map((player) => averageWellness(wellnessRecords.find((record) => record.playerId === player.id)))),
       internalLoad: groupAverage(players.map((player) => {
+        const sessionRecords = externalRecords.filter((item) => item.playerId === player.id);
+        if (sessionRecords.length) return sessionRecords.reduce((acc, item) => acc + ((item.min ?? 0) * (item.rpe ?? 0)), 0);
         const record = internalRecords.find((item) => item.playerId === player.id);
         return record ? calculateInternalLoad(record) : 0;
       })),
@@ -299,21 +304,21 @@ export const buildMicrocycleWeek = (data: AppData, microcycle: Microcycle, activ
   if (!microcycle.startDate || !microcycle.endDate) return [];
   const dates = eachDateInRange(microcycle.startDate, microcycle.endDate);
   return dates.map((date) => {
-    const players = data.players.filter((player) => isSameCategory(activeCategory, player.category));
-    const playerIds = new Set(players.map((player) => player.id));
-    const sessions = data.trainingSessionSummaries.filter((item) => item.date === date && isSameCategory(activeCategory, item.category));
-    const external = data.externalLoads.filter((item) => item.date === date && playerIds.has(item.playerId));
-    const wellness = data.wellness.filter((item) => item.date === date && playerIds.has(item.playerId));
-    const matches = data.competitionMatchSummaries.filter((item) => item.date === date && isSameCategory(activeCategory, item.category));
+    const dayStatus = getMicrocycleDayStatus(data, date, activeCategory as ClubCategory | 'all');
     return {
       date,
       label: formatDateShort(date),
-      sessions,
-      matches,
-      registeredPlayers: new Set([...external.map((item) => item.playerId), ...wellness.map((item) => item.playerId)]).size,
-      playersCount: players.length,
-      avgRpe: groupAverage(external.map((item) => item.rpe ?? 0)),
-      avgMin: groupAverage(external.map((item) => item.min ?? 0)),
+      sessions: dayStatus.session ? [dayStatus.session] : [],
+      matches: dayStatus.matches,
+      registeredPlayers: dayStatus.registeredPlayers,
+      playersCount: dayStatus.totalPlayers,
+      avgRpe: dayStatus.avgRpe,
+      avgMin: dayStatus.avgMin,
+      status: dayStatus.status,
+      statusLabel: dayStatus.label,
+      actionLabel: dayStatus.actionLabel,
+      sessionNumber: dayStatus.session?.sessionNumber,
+      completeness: dayStatus.completeness,
     };
   });
 };

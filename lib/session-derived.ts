@@ -1,0 +1,167 @@
+import type { AppData, ClubCategory, DailyExternalLoadRecord, DailyInternalLoadRecord, Microcycle, TrainingSessionSummary } from './types';
+import { groupAverage } from './utils';
+import { findMicrocycleByDate } from './performance-helpers';
+
+export type DerivedSessionStatus = 'sin_actividad' | 'planificada' | 'parcial' | 'completa' | 'cerrada';
+
+export const isAllCategory = (category?: string) => !category || category === 'all';
+export const sameCategory = (activeCategory: string, itemCategory?: string) => isAllCategory(activeCategory) || !itemCategory || itemCategory === activeCategory;
+
+export const getSessionForDateAndCategory = (
+  data: AppData,
+  date: string,
+  category: ClubCategory | 'all',
+  preferredSessionId?: string | null,
+): TrainingSessionSummary | undefined => {
+  if (preferredSessionId) {
+    const preferred = data.trainingSessionSummaries.find((session) => session.id === preferredSessionId);
+    if (preferred) return preferred;
+  }
+  if (!date) return undefined;
+  const categorySessions = data.trainingSessionSummaries
+    .filter((session) => session.date === date && sameCategory(category, session.category))
+    .sort((a, b) => (Number(a.sessionNumber) || 0) - (Number(b.sessionNumber) || 0));
+  return categorySessions[0];
+};
+
+export const getSessionPlayersForSession = (
+  data: AppData,
+  session?: TrainingSessionSummary,
+  fallbackDate?: string,
+  fallbackCategory?: ClubCategory | 'all',
+): DailyExternalLoadRecord[] => {
+  if (!session && !fallbackDate) return [];
+  const playerIds = new Set(data.players.filter((player) => sameCategory(fallbackCategory ?? session?.category ?? 'all', player.category)).map((player) => player.id));
+  return data.externalLoads
+    .filter((record) => {
+      if (session?.id && record.sessionId === session.id) return true;
+      if (session) {
+        return record.date === session.date
+          && playerIds.has(record.playerId)
+          && sameCategory(session.category ?? fallbackCategory ?? 'all', record.category ?? record.actingCategory)
+          && (record.sessionNumber ?? session.sessionNumber) === session.sessionNumber;
+      }
+      return record.date === fallbackDate && playerIds.has(record.playerId) && sameCategory(fallbackCategory ?? 'all', record.category ?? record.actingCategory);
+    })
+    .filter((record, index, records) => records.findIndex((item) => item.playerId === record.playerId && (item.sessionId || '') === (record.sessionId || '') && item.date === record.date) === index);
+};
+
+export const getInternalLoadsForSession = (
+  data: AppData,
+  session?: TrainingSessionSummary,
+  fallbackDate?: string,
+  fallbackCategory?: ClubCategory | 'all',
+): DailyInternalLoadRecord[] => {
+  if (!session && !fallbackDate) return [];
+  const playerIds = new Set(data.players.filter((player) => sameCategory(fallbackCategory ?? session?.category ?? 'all', player.category)).map((player) => player.id));
+  return data.internalLoads.filter((record) => {
+    if (session?.id && record.sessionId === session.id) return true;
+    if (session) {
+      return record.date === session.date
+        && playerIds.has(record.playerId)
+        && sameCategory(session.category ?? fallbackCategory ?? 'all', record.category ?? record.actingCategory)
+        && (record.sessionNumber ?? session.sessionNumber) === session.sessionNumber;
+    }
+    return record.date === fallbackDate && playerIds.has(record.playerId) && sameCategory(fallbackCategory ?? 'all', record.category ?? record.actingCategory);
+  });
+};
+
+export const getSessionCompleteness = (registeredPlayers: number, totalPlayers: number) => {
+  if (!totalPlayers) return 0;
+  return Math.round((Math.max(0, registeredPlayers) / totalPlayers) * 100);
+};
+
+export const getSessionStatusForDate = (
+  data: AppData,
+  date: string,
+  category: ClubCategory | 'all',
+) => {
+  const session = getSessionForDateAndCategory(data, date, category);
+  const players = data.players.filter((player) => sameCategory(category, player.category));
+  const records = getSessionPlayersForSession(data, session, date, category);
+  const registeredPlayers = records.filter((record) => (record.min ?? 0) > 0 || (record.rpe ?? 0) > 0 || record.participation).length;
+  const completeness = getSessionCompleteness(registeredPlayers, players.length);
+  const status: DerivedSessionStatus = !session && !registeredPlayers
+    ? 'sin_actividad'
+    : session && !registeredPlayers
+      ? 'planificada'
+      : completeness >= 70
+        ? 'completa'
+        : 'parcial';
+  return { session, players, records, registeredPlayers, totalPlayers: players.length, completeness, status };
+};
+
+export const getSessionStatusLabel = (status: DerivedSessionStatus) => {
+  if (status === 'sin_actividad') return 'Sin actividad';
+  if (status === 'planificada') return 'Planificada';
+  if (status === 'parcial') return 'Actividad parcial';
+  if (status === 'completa') return 'Completa';
+  return 'Cerrada';
+};
+
+export const getSessionActionLabel = (status: DerivedSessionStatus) => {
+  if (status === 'sin_actividad') return 'Planificar';
+  if (status === 'planificada') return 'Completar sesión';
+  if (status === 'parcial' || status === 'completa') return 'Editar sesión';
+  return 'Ver sesión';
+};
+
+export const getSessionLoadSummary = (records: DailyExternalLoadRecord[]) => {
+  const activeRecords = records.filter((record) => (record.min ?? 0) > 0 || (record.rpe ?? 0) > 0 || record.participation);
+  const totalMin = activeRecords.reduce((acc, record) => acc + (record.min ?? 0), 0);
+  const totalInternalLoad = activeRecords.reduce((acc, record) => acc + ((record.min ?? 0) * (record.rpe ?? 0)), 0);
+  return {
+    records: activeRecords,
+    registeredPlayers: activeRecords.length,
+    totalMin,
+    totalInternalLoad,
+    avgMin: groupAverage(activeRecords.map((record) => record.min ?? 0).filter((value) => value > 0)),
+    avgRpe: groupAverage(activeRecords.map((record) => record.rpe ?? 0).filter((value) => value > 0)),
+    acc: activeRecords.reduce((acc, record) => acc + (record.acc ?? 0), 0),
+    dcc: activeRecords.reduce((acc, record) => acc + (record.dcc ?? 0), 0),
+    sprints: activeRecords.reduce((acc, record) => acc + (record.sprints ?? 0), 0),
+    totalDistance: activeRecords.reduce((acc, record) => acc + (record.totalDistance ?? 0), 0),
+    playerLoad: activeRecords.reduce((acc, record) => acc + (record.playerLoad ?? 0), 0),
+    highSpeedDistance: activeRecords.reduce((acc, record) => acc + (record.highSpeedDistance ?? record.hsr ?? 0), 0),
+  };
+};
+
+export const getNextSessionNumberForCategory = (
+  data: AppData,
+  category: ClubCategory | 'all',
+  microcycleId?: string,
+) => {
+  const sessions = data.trainingSessionSummaries.filter((session) => sameCategory(category, session.category) && (!microcycleId || session.microcycleId === microcycleId));
+  const max = sessions.reduce((acc, session) => Math.max(acc, Number(session.sessionNumber) || 0), 0);
+  return max + 1;
+};
+
+export const getSessionNumberForDate = (
+  data: AppData,
+  date: string,
+  category: ClubCategory | 'all',
+  microcycleId?: string,
+  preferredSessionId?: string | null,
+) => {
+  const existing = getSessionForDateAndCategory(data, date, category, preferredSessionId);
+  if (existing?.sessionNumber) return existing.sessionNumber;
+  return getNextSessionNumberForCategory(data, category, microcycleId);
+};
+
+export const getMicrocycleDayStatus = (
+  data: AppData,
+  date: string,
+  category: ClubCategory | 'all',
+) => {
+  const sessionStatus = getSessionStatusForDate(data, date, category);
+  const summary = getSessionLoadSummary(sessionStatus.records);
+  const matches = data.competitionMatchSummaries.filter((match) => match.date === date && sameCategory(category, match.category));
+  return { ...sessionStatus, ...summary, matches, label: getSessionStatusLabel(sessionStatus.status), actionLabel: getSessionActionLabel(sessionStatus.status) };
+};
+
+export const getMicrocycleForSessionDate = (
+  data: AppData,
+  date: string,
+  category: ClubCategory | 'all',
+  fallbackMicrocycleId?: string,
+): Microcycle | undefined => findMicrocycleByDate(data.microcycles, date, fallbackMicrocycleId, category);

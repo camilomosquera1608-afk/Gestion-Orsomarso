@@ -15,6 +15,7 @@ import { findMicrocycleByDate, groupAverage } from '@/lib/utils';
 import { buildDailyOperations } from '@/lib/operational-helpers';
 import { supportsGps } from '@/lib/report-utils';
 import { findDuplicateTrainingSession } from '@/lib/operational-validation';
+import { getSessionForDateAndCategory, getSessionNumberForDate, getSessionPlayersForSession, getInternalLoadsForSession } from '@/lib/session-derived';
 
 const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
   { value: 'cdef', label: 'cdef · Recuperación' },
@@ -84,16 +85,29 @@ export default function SesionEntrenamientoPage() {
     setSessionNumberInput(filters.sessionNumber ? String(filters.sessionNumber) : '');
   }, [filters.sessionNumber]);
 
-  const summaryRecord = editingSessionId
-    ? data.trainingSessionSummaries.find((item) => item.id === editingSessionId)
-    : data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory);
-  const dateSummaryRecord = data.trainingSessionSummaries.find((item) => item.date === filters.date && item.category === activeCategory);
+  const summaryRecord = getSessionForDateAndCategory(data, filters.date, activeCategory, editingSessionId);
+  const dateSummaryRecord = getSessionForDateAndCategory(data, filters.date, activeCategory);
   const sessionHistory = useMemo(
     () => data.trainingSessionSummaries
       .filter((item) => item.category === activeCategory)
       .sort((a, b) => b.date.localeCompare(a.date)),
     [data.trainingSessionSummaries, activeCategory],
   );
+  useEffect(() => {
+    if (dateSummaryRecord && editingSessionId !== dateSummaryRecord.id) {
+      setEditingSessionId(dateSummaryRecord.id);
+      setSessionNumberInput(String(dateSummaryRecord.sessionNumber || 1));
+      setSessionType(dateSummaryRecord.sessionType ?? 'cdEf');
+      setSessionObjective(dateSummaryRecord.objective ?? '');
+      setSessionObservation(dateSummaryRecord.observation ?? '');
+      return;
+    }
+    if (!dateSummaryRecord && editingSessionId) {
+      const editing = data.trainingSessionSummaries.find((item) => item.id === editingSessionId);
+      if (!editing || editing.date !== filters.date || editing.category !== activeCategory) setEditingSessionId(null);
+    }
+  }, [dateSummaryRecord?.id, editingSessionId, filters.date, activeCategory, data.trainingSessionSummaries]);
+
   const [sessionType, setSessionType] = useState<TrainingSessionType>(summaryRecord?.sessionType ?? 'cdEf');
   const [sessionObjective, setSessionObjective] = useState(summaryRecord?.objective ?? '');
   const [sessionObservation, setSessionObservation] = useState(summaryRecord?.observation ?? '');
@@ -105,35 +119,19 @@ export default function SesionEntrenamientoPage() {
   }, [summaryRecord?.id, summaryRecord?.sessionType, summaryRecord?.objective, summaryRecord?.observation]);
 
   useEffect(() => {
-    if (summaryRecord?.sessionNumber) {
-      setSessionNumberInput(String(summaryRecord.sessionNumber));
-      return;
-    }
-    const previousSessions = data.trainingSessionSummaries
-      .filter((item) => item.category === activeCategory && item.date < filters.date)
-      .map((item) => Number(item.sessionNumber) || 0);
-    const nextNumber = previousSessions.length ? Math.max(...previousSessions) + 1 : 1;
-    setSessionNumberInput(String(nextNumber));
-  }, [summaryRecord?.id, summaryRecord?.sessionNumber, filters.date, activeCategory, data.trainingSessionSummaries]);
+    const canonicalNumber = getSessionNumberForDate(data, filters.date, activeCategory, activeMicrocycleId, editingSessionId);
+    setSessionNumberInput(String(canonicalNumber || 1));
+    if (canonicalNumber && canonicalNumber !== filters.sessionNumber) setFilters({ sessionNumber: canonicalNumber });
+  }, [summaryRecord?.id, summaryRecord?.sessionNumber, filters.date, activeCategory, activeMicrocycleId, editingSessionId, data.trainingSessionSummaries]);
 
   const sessionPlayers = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
   const existingRecords = useMemo(
-    () => data.externalLoads.filter((record) => {
-      if (summaryRecord?.id && record.sessionId === summaryRecord.id) return true;
-      return record.date === filters.date
-        && (record.category ?? record.actingCategory) === activeCategory
-        && (record.sessionNumber ?? filters.sessionNumber) === (summaryRecord?.sessionNumber ?? filters.sessionNumber);
-    }),
-    [data.externalLoads, summaryRecord?.id, summaryRecord?.sessionNumber, filters.date, filters.sessionNumber, activeCategory],
+    () => getSessionPlayersForSession(data, summaryRecord, filters.date, activeCategory),
+    [data.externalLoads, data.players, summaryRecord?.id, summaryRecord?.date, summaryRecord?.category, summaryRecord?.sessionNumber, filters.date, activeCategory],
   );
   const existingInternalRecords = useMemo(
-    () => data.internalLoads.filter((record) => {
-      if (summaryRecord?.id && record.sessionId === summaryRecord.id) return true;
-      return record.date === filters.date
-        && (record.category ?? record.actingCategory) === activeCategory
-        && (record.sessionNumber ?? filters.sessionNumber) === (summaryRecord?.sessionNumber ?? filters.sessionNumber);
-    }),
-    [data.internalLoads, summaryRecord?.id, summaryRecord?.sessionNumber, filters.date, filters.sessionNumber, activeCategory],
+    () => getInternalLoadsForSession(data, summaryRecord, filters.date, activeCategory),
+    [data.internalLoads, data.players, summaryRecord?.id, summaryRecord?.date, summaryRecord?.category, summaryRecord?.sessionNumber, filters.date, activeCategory],
   );
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
 
@@ -275,8 +273,9 @@ export default function SesionEntrenamientoPage() {
     }
 
     const duplicateSummary = findDuplicateTrainingSession(data.trainingSessionSummaries, { id: summaryRecord?.id ?? editingSessionId ?? undefined, date: filters.date, category: activeCategory });
-    if (duplicateSummary) {
-      setMessage('Ya existe una sesión de esta categoría para esta fecha. Edita la sesión existente o cambia la fecha.');
+    if (duplicateSummary && duplicateSummary.id !== summaryRecord?.id) {
+      setEditingSessionId(duplicateSummary.id);
+      setMessage(`Ya existe una sesión ${duplicateSummary.sessionNumber} para esta fecha. Se cargó para edición.`);
       return;
     }
 
@@ -394,8 +393,7 @@ export default function SesionEntrenamientoPage() {
             {summaryRecord ? <div className="muted-line" style={{ marginTop: 4, color: '#1d4ed8', fontWeight: 800 }}>Sesión existente detectada: estás editando la sesión {summaryRecord.sessionNumber} del {summaryRecord.date}.</div> : null}
           </div>
           <div className="btn-row">
-            {summaryRecord ? <button type="button" className="btn secondary" onClick={cancelSessionEditing}>Cancelar edición</button> : null}
-            <button type="button" className="btn secondary" onClick={() => setMessage('')}>Limpiar aviso</button>
+            <button type="button" className="btn secondary" onClick={summaryRecord ? cancelSessionEditing : () => setMessage('')}>{summaryRecord ? 'Cancelar edición' : 'Limpiar formulario'}</button>
           </div>
         </div>
         <div className="grid grid-4" style={{ marginTop: 16 }}>
@@ -483,7 +481,7 @@ export default function SesionEntrenamientoPage() {
       </div>
 
       {master ? (
-        <EmptyState title="Usuario maestro" text="Acceso de lectura. Usa Informes y Ranking para análisis global." />
+        <EmptyState title="Administrador general" text="Edición completa habilitada. Puedes cargar sesión, planilla e informe por categoría." />
       ) : (
         <div className="card session-table-card">
           <div className="btn-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
