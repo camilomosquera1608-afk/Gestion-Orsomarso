@@ -9,7 +9,7 @@ import { getStaffSession, logoutStaff } from '@/lib/auth';
 import { CATEGORY_SCOPE_LABELS, ROLE_LABELS } from '@/lib/access-control';
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory } from '@/lib/types';
-import { getCategoryReadinessChecks, getCategoryReadinessSummary, getDataTotals, getOverallDataQuality, qualityLabel, qualityToneClass } from '@/lib/data-quality';
+import { getCategoryReadinessChecks, getCategoryReadinessSummary, getDataTotals, getDuplicateChecks, getOverallDataQuality, qualityLabel, qualityToneClass } from '@/lib/data-quality';
 import { fetchAuditLogs, getSupabaseUserEmail, hasSupabaseConfig, signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
 const formatDate = (value: string) => new Date(value).toLocaleString('es-CO', {
@@ -66,6 +66,8 @@ export default function ConfiguracionPage() {
     { category: 'Sub15' as ClubCategory, href: `${wellnessOrigin}/wellness/u15`, label: 'Wellness U15' },
   ];
   const readinessChecks = getCategoryReadinessChecks(data, safePointCategory);
+  const duplicateChecks = getDuplicateChecks(data);
+  const duplicateStatus = getOverallDataQuality(duplicateChecks);
   const dataTotals = getDataTotals(data);
   const categorySummary = getCategoryReadinessSummary(data, safePointCategory);
   const selectedCategoryLabel = categoryLabel(safePointCategory);
@@ -225,6 +227,25 @@ export default function ConfiguracionPage() {
         </div>
         <div className="quality-check-grid">
           {readinessChecks.map((check) => (
+            <div key={check.id} className={`quality-check ${qualityToneClass(check.severity)}`}>
+              <div>
+                <strong>{check.label}</strong>
+                <span>{check.detail}</span>
+              </div>
+              <em>{qualityLabel(check.severity)}</em>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card data-quality-card">
+        <SectionHeader eyebrow="Control" title="Duplicados y consistencia" subtitle="Revisión operativa para evitar sesiones, partidos, wellness o cargas repetidas." />
+        <div className={`quality-overview ${qualityToneClass(duplicateStatus)}`}>
+          <strong>{qualityLabel(duplicateStatus)}</strong>
+          <span>{duplicateStatus === 'ok' ? 'No se detectan duplicados críticos en los datos actuales.' : 'Revisa estos puntos antes de aplicar restricciones SQL o cargar datos masivos.'}</span>
+        </div>
+        <div className="quality-check-grid">
+          {duplicateChecks.map((check) => (
             <div key={check.id} className={`quality-check ${qualityToneClass(check.severity)}`}>
               <div>
                 <strong>{check.label}</strong>

@@ -193,6 +193,15 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
       return;
     }
 
+    const alreadyAnsweredLocal = data.wellness.some((record) =>
+      record.playerId === playerId && record.date === recordDate && (!record.category || record.category === payload.category)
+    );
+    if (alreadyAnsweredLocal) {
+      setSubmitState('error');
+      setMessage('Ya registraste wellness para esta fecha. Si fue un error, avisa al cuerpo técnico.');
+      return;
+    }
+
     try {
       if (player.source === 'remote' && player.remoteId && supabase && tableSchemaSyncEnabled) {
         const { error: rpcError } = await supabase.rpc('submit_public_wellness', {

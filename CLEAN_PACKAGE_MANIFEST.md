@@ -1,35 +1,32 @@
-# Paquete limpio Orsomarso v108.6.6
+# Paquete limpio Orsomarso v108.7
 
-Incluye el proyecto completo limpio para reemplazar la carpeta de trabajo.
+Incluye solo archivos necesarios del proyecto:
 
-## Incluye
+- app/
+- components/
+- context/
+- lib/
+- public/
+- scripts/
+- supabase/
+- package.json
+- tsconfig.json
+- next.config.ts
+- next-env.d.ts
+- .env.example
+- .env.vercel.example
+- .gitignore
+- README.md
+- DEPLOYMENT.md
+- PRODUCTION_CHECKLIST.md
+- SECURITY.md
+- SQL vigentes incluidos en el proyecto
 
-- `app/`
-- `components/`
-- `context/`
-- `lib/`
-- `public/`
-- `scripts/`
-- `supabase/`
-- configuración Next/TypeScript
-- SQL existentes del proyecto
-- documentación vigente
+No incluye:
 
-## No incluye
-
-- `node_modules/`
-- `.next/`
-- cachés
-- zips anteriores
+- node_modules
+- .next
+- archivos Python
 - notebooks
-- archivos Python temporales
-- builds generados
-
-## Corrección principal
-
-v108.6.6 corrige únicamente el menú de PC:
-
-- Sidebar vertical estable en desktop.
-- El contenido principal respeta el ancho del menú.
-- No cambia la navegación móvil/tablet.
-- No toca lógica de datos ni Supabase.
+- zips históricos
+- cachés temporales

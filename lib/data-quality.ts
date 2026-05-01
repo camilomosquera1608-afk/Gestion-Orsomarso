@@ -199,3 +199,72 @@ export const qualityLabel = (severity: QualitySeverity) => {
 };
 
 export const qualityToneClass = (severity: QualitySeverity) => `quality-${severity}`;
+
+export interface DuplicateCheck {
+  id: string;
+  label: string;
+  severity: QualitySeverity;
+  detail: string;
+  count: number;
+}
+
+const normalizeKeyPart = (value: unknown) => String(value ?? '').trim().toLowerCase();
+
+const countDuplicateGroups = <T,>(items: T[], getKey: (item: T) => string) => {
+  const groups = new Map<string, number>();
+  items.forEach((item) => {
+    const key = getKey(item);
+    if (!key || key.includes('undefined')) return;
+    groups.set(key, (groups.get(key) ?? 0) + 1);
+  });
+  return Array.from(groups.values()).filter((count) => count > 1).length;
+};
+
+const countOverlappingMicrocycles = (data: AppData) => {
+  let overlaps = 0;
+  const byCategory = new Map<string, typeof data.microcycles>();
+  data.microcycles.forEach((microcycle) => {
+    const key = microcycle.category ?? 'sin-categoria';
+    byCategory.set(key, [...(byCategory.get(key) ?? []), microcycle]);
+  });
+  byCategory.forEach((items) => {
+    items.forEach((current, index) => {
+      items.slice(index + 1).forEach((other) => {
+        if (!current.startDate || !current.endDate || !other.startDate || !other.endDate) return;
+        const overlapsDates = current.startDate <= other.endDate && other.startDate <= current.endDate;
+        if (overlapsDates) overlaps += 1;
+      });
+    });
+  });
+  return overlaps;
+};
+
+export const getDuplicateChecks = (data: AppData): DuplicateCheck[] => {
+  const duplicatePlayers = countDuplicateGroups(data.players, (player) => normalizeKeyPart(player.name));
+  const duplicateSessions = countDuplicateGroups(data.trainingSessionSummaries, (session) => `${normalizeKeyPart(session.category)}|${session.date}`);
+  const duplicateMatches = countDuplicateGroups(data.competitionMatchSummaries, (match) => `${normalizeKeyPart(match.category)}|${match.date}|${normalizeKeyPart(match.opponent)}`);
+  const duplicateWellness = countDuplicateGroups(data.wellness, (record) => `${record.playerId}|${record.date}|${normalizeKeyPart(record.category)}`);
+  const duplicateNutrition = countDuplicateGroups(data.nutritionRecords, (record) => `${record.playerId}|${record.date}`);
+  const duplicateExternalLoads = countDuplicateGroups(data.externalLoads, (record) => `${record.sessionId ?? record.date + '-' + record.sessionNumber}|${record.playerId}`);
+  const duplicateInternalLoads = countDuplicateGroups(data.internalLoads, (record) => `${record.sessionId ?? record.date + '-' + record.sessionNumber}|${record.playerId}`);
+  const overlappingMicrocycles = countOverlappingMicrocycles(data);
+
+  const build = (id: string, label: string, count: number, okDetail: string, badDetail: string): DuplicateCheck => ({
+    id,
+    label,
+    count,
+    severity: count === 0 ? 'ok' : 'warning',
+    detail: count === 0 ? okDetail : badDetail.replace('{count}', String(count)),
+  });
+
+  return [
+    build('duplicate-players', 'Jugadores repetidos', duplicatePlayers, 'Sin nombres de jugador repetidos.', '{count} posibles nombres repetidos.'),
+    build('duplicate-sessions', 'Sesiones duplicadas', duplicateSessions, 'Una sesión por fecha y categoría.', '{count} fechas/categorías con más de una sesión.'),
+    build('overlap-microcycles', 'Microciclos solapados', overlappingMicrocycles, 'Sin solapamientos de microciclo por categoría.', '{count} solapamientos de microciclo detectados.'),
+    build('duplicate-matches', 'Partidos duplicados', duplicateMatches, 'Sin partidos repetidos por fecha, categoría y rival.', '{count} partidos posiblemente duplicados.'),
+    build('duplicate-wellness', 'Wellness duplicado', duplicateWellness, 'Una respuesta wellness por jugador y fecha.', '{count} jugadores con más de un wellness el mismo día.'),
+    build('duplicate-nutrition', 'Nutrición duplicada', duplicateNutrition, 'Una valoración nutricional por jugador y fecha.', '{count} valoraciones nutricionales posiblemente duplicadas.'),
+    build('duplicate-external-loads', 'Carga externa duplicada', duplicateExternalLoads, 'Una carga externa por jugador y sesión.', '{count} jugadores con carga externa duplicada en sesión.'),
+    build('duplicate-internal-loads', 'Carga interna duplicada', duplicateInternalLoads, 'Una carga interna por jugador y sesión.', '{count} jugadores con carga interna duplicada en sesión.'),
+  ];
+};

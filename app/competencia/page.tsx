@@ -297,6 +297,7 @@ export default function CompetenciaPage() {
       resultType,
       result: `${goalsFor}-${goalsAgainst}`,
       observation: matchDraft.observation.trim(),
+      status: selectedMatch?.id === id ? selectedMatch.status ?? 'Borrador' : 'Borrador',
     });
     setSelectedMatchId(id);
     setIsSavingMatch(false);
@@ -403,6 +404,12 @@ export default function CompetenciaPage() {
     deleteCompetitionMatchSummary(matchId);
     if (selectedMatchId === matchId) setSelectedMatchId('');
     setMessage('Partido eliminado con sus jugadores asociados.');
+  };
+
+  const updateMatchStatus = (status: 'Borrador' | 'En revisión' | 'Cerrada' | 'Reabierta') => {
+    if (!selectedMatch) return;
+    upsertCompetitionMatchSummary({ ...selectedMatch, status });
+    setMessage(status === 'Cerrada' ? 'Partido cerrado. Reabre solo si necesitas corregir datos.' : 'Partido reabierto para correcciones.');
   };
 
   return (
@@ -571,9 +578,10 @@ export default function CompetenciaPage() {
           <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <span className="section-eyebrow">Informe</span><h3 style={{ margin: 0 }}>Informe profesional de competencia</h3>
-              <div className="summary-chip" style={{ marginTop: 8 }}>{selectedMatch.date} · {selectedMatch.venue ?? 'Local'} vs {selectedMatch.opponent} · {selectedMatch.resultType ?? ''}</div>
+              <div className="summary-chip" style={{ marginTop: 8 }}>{selectedMatch.date} · {selectedMatch.venue ?? 'Local'} vs {selectedMatch.opponent} · {selectedMatch.resultType ?? ''} · {selectedMatch.status ?? 'Borrador'}</div>
             </div>
             <div className="btn-row">
+              <button type="button" className="btn secondary" onClick={() => updateMatchStatus(selectedMatch.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>{selectedMatch.status === 'Cerrada' ? 'Reabrir partido' : 'Cerrar partido'}</button>
               <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver vista previa profesional'}</button>
               <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
             </div>

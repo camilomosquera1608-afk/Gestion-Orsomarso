@@ -311,6 +311,7 @@ export default function SesionEntrenamientoPage() {
       sessionType,
       objective: sessionObjective,
       observation: sessionObservation,
+      status: summaryRecord?.status ?? 'Borrador',
     });
 
     selectedRows.forEach((row) => {
@@ -394,6 +395,12 @@ export default function SesionEntrenamientoPage() {
     setEditingSessionId(null);
     setMessage('Edición cancelada. Selecciona una fecha o una sesión del historial.');
   };
+  const updateSessionStatus = (status: 'Borrador' | 'En revisión' | 'Cerrada' | 'Reabierta') => {
+    if (!summaryRecord) return;
+    upsertTrainingSessionSummary({ ...summaryRecord, status });
+    setMessage(status === 'Cerrada' ? 'Sesión cerrada. Solo un administrador debe reabrirla para ajustes.' : 'Sesión reabierta para correcciones.');
+  };
+
 
   return (
     <>
@@ -411,10 +418,11 @@ export default function SesionEntrenamientoPage() {
             <span className="section-eyebrow">Sesión</span><h3 style={{ margin: 0 }}>Sesión de entrenamiento</h3>
             
             <div className="muted-line" style={{ marginTop: 8 }}>{microcycleNotice}</div>
-            {summaryRecord ? <div className="muted-line" style={{ marginTop: 4, color: '#1d4ed8', fontWeight: 800 }}>Sesión existente detectada: estás editando la sesión {summaryRecord.sessionNumber} del {summaryRecord.date}.</div> : null}
+            {summaryRecord ? <div className="muted-line" style={{ marginTop: 4, color: '#1d4ed8', fontWeight: 800 }}>Sesión existente detectada: estás editando la sesión {summaryRecord.sessionNumber} del {summaryRecord.date}. Estado: {summaryRecord.status ?? 'Borrador'}.</div> : null}
           </div>
           <div className="btn-row">
             <button type="button" className="btn secondary" onClick={summaryRecord ? cancelSessionEditing : () => setMessage('')}>{summaryRecord ? 'Cancelar edición' : 'Limpiar formulario'}</button>
+            {summaryRecord ? <button type="button" className="btn secondary" onClick={() => updateSessionStatus(summaryRecord.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>{summaryRecord.status === 'Cerrada' ? 'Reabrir sesión' : 'Cerrar sesión'}</button> : null}
             {summaryRecord ? <button type="button" className="btn danger" onClick={() => deleteSession(summaryRecord.id)}>Eliminar sesión</button> : null}
           </div>
         </div>

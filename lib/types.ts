@@ -15,6 +15,7 @@ export type CompetitionVenue = 'Local' | 'Visitante';
 export type MatchResultType = 'Victoria' | 'Empate' | 'Derrota';
 export type CompetitionPlayerRole = 'Titular' | 'Suplente';
 export type CompetitionMedicalStatus = 'Sin lesión' | 'Lesionado';
+export type OperationalRecordStatus = 'Borrador' | 'En revisión' | 'Cerrada' | 'Reabierta';
 
 
 export interface InjuryHistoryItem {
@@ -206,6 +207,7 @@ export interface TrainingSessionSummary {
   sessionRpe?: number;
   objective?: string;
   observation?: string;
+  status?: OperationalRecordStatus;
 }
 
 export interface CompetitionMatchSummary {
@@ -220,6 +222,7 @@ export interface CompetitionMatchSummary {
   resultType?: MatchResultType;
   result?: string;
   observation?: string;
+  status?: OperationalRecordStatus;
 }
 
 export interface Microcycle {
