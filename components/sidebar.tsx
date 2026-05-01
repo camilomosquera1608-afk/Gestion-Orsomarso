@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -15,6 +16,7 @@ import {
   Home,
   LogOut,
   Medal,
+  Menu,
   Settings,
   ShieldCheck as AdminShield,
   ShieldCheck,
@@ -161,21 +163,82 @@ export const Sidebar = () => {
 
 export const MobileNavigation = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const session = getStaffSession();
-  const items = getMobileItems(session);
+  const groups = getNavigationGroups(session);
+  const [open, setOpen] = useState(false);
+  const primaryItems = [
+    { href: '/', label: 'Inicio', icon: Home },
+    { href: '/jugadores', label: 'Jugadores', icon: Users },
+    { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
+    { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
+  ];
 
   return (
-    <nav className="mobile-bottom-nav no-print" aria-label="Navegación móvil principal">
-      {items.map((item) => {
-        const Icon = item.icon;
-        const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-        return (
-          <Link key={item.href} href={item.href} className={`mobile-bottom-link ${active ? 'active' : ''}`}>
-            <Icon size={18} strokeWidth={2.35} />
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      {open && <div className="mobile-menu-backdrop no-print" onClick={() => setOpen(false)} />}
+      <div className={`mobile-menu-panel no-print ${open ? 'open' : ''}`} aria-hidden={!open}>
+        <div className="mobile-menu-header">
+          <div>
+            <span>Menú Orsomarso</span>
+            <strong>{session.category === 'all' ? 'Todas las categorías' : categoryLabel(session.category)}</strong>
+          </div>
+          <button type="button" className="mobile-menu-close" onClick={() => setOpen(false)}>Cerrar</button>
+        </div>
+        <div className="mobile-menu-groups">
+          {groups.map((group) => (
+            <section key={group.title} className="mobile-menu-group">
+              <h3>{group.title}</h3>
+              <div className="mobile-menu-grid">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`mobile-menu-link ${active ? 'active' : ''}`}
+                      onClick={() => setOpen(false)}
+                    >
+                      <Icon size={17} strokeWidth={2.25} />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="mobile-menu-logout"
+          onClick={async () => {
+            await signOutSupabase();
+            logoutStaff();
+            setOpen(false);
+            router.push('/login');
+          }}
+        >
+          <LogOut size={17} />
+          Cerrar sesión
+        </button>
+      </div>
+      <nav className="mobile-bottom-nav no-print" aria-label="Navegación móvil principal">
+        {primaryItems.map((item) => {
+          const Icon = item.icon;
+          const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} className={`mobile-bottom-link ${active ? 'active' : ''}`}>
+              <Icon size={18} strokeWidth={2.35} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+        <button type="button" className={`mobile-bottom-link mobile-more-trigger ${open ? 'active' : ''}`} onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+          <Menu size={18} strokeWidth={2.35} />
+          <span>Más</span>
+        </button>
+      </nav>
+    </>
   );
 };

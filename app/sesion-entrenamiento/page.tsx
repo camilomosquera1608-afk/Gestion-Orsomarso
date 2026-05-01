@@ -52,7 +52,7 @@ type RowState = {
 const renderNumberInput = (value: number) => (value === 0 ? '' : String(value));
 
 export default function SesionEntrenamientoPage() {
-  const { data, filters, setFilters, addExternalLoad, updateExternalLoad, deleteExternalLoad, upsertInternalLoad, upsertTrainingSessionSummary, deleteTrainingSessionSummary } = useApp();
+  const { data, filters, setFilters, addExternalLoad, updateExternalLoad, deleteExternalLoad, upsertInternalLoad, deleteInternalLoad, upsertTrainingSessionSummary, deleteTrainingSessionSummary } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
@@ -125,6 +125,15 @@ export default function SesionEntrenamientoPage() {
         && (record.sessionNumber ?? filters.sessionNumber) === (summaryRecord?.sessionNumber ?? filters.sessionNumber);
     }),
     [data.externalLoads, summaryRecord?.id, summaryRecord?.sessionNumber, filters.date, filters.sessionNumber, activeCategory],
+  );
+  const existingInternalRecords = useMemo(
+    () => data.internalLoads.filter((record) => {
+      if (summaryRecord?.id && record.sessionId === summaryRecord.id) return true;
+      return record.date === filters.date
+        && (record.category ?? record.actingCategory) === activeCategory
+        && (record.sessionNumber ?? filters.sessionNumber) === (summaryRecord?.sessionNumber ?? filters.sessionNumber);
+    }),
+    [data.internalLoads, summaryRecord?.id, summaryRecord?.sessionNumber, filters.date, filters.sessionNumber, activeCategory],
   );
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
 
@@ -246,6 +255,25 @@ export default function SesionEntrenamientoPage() {
       return;
     }
 
+    const invalidRow = selectedRows.find((row) => {
+      const gpsValues = [row.acc, row.dcc, row.sprints, row.rhie, row.ima, row.totalDistance, row.maxVelocity, row.playerLoad, row.highSpeedDistance, row.sprintDistance];
+      return row.min < 0
+        || row.min > 240
+        || row.rpe < 0
+        || row.rpe > 10
+        || (!youthSimple && gpsValues.some((value) => value < 0));
+    });
+    if (invalidRow) {
+      setMessage(`Revisa la planilla de ${invalidRow.player.name}: MIN debe ser 0-240, RPE 0-10 y GPS no puede ser negativo.`);
+      return;
+    }
+
+    const inconsistentRow = selectedRows.find((row) => row.participation === 'No participa' && (row.min > 0 || row.rpe > 0));
+    if (inconsistentRow) {
+      setMessage(`${inconsistentRow.player.name} está como No participa. Deja MIN y RPE en 0 o cambia la participación.`);
+      return;
+    }
+
     const duplicateSummary = findDuplicateTrainingSession(data.trainingSessionSummaries, { id: summaryRecord?.id ?? editingSessionId ?? undefined, date: filters.date, category: activeCategory });
     if (duplicateSummary) {
       setMessage('Ya existe una sesión de esta categoría para esta fecha. Edita la sesión existente o cambia la fecha.');
@@ -301,8 +329,9 @@ export default function SesionEntrenamientoPage() {
         loggedBy: session.displayName,
       };
       if (existing) updateExternalLoad(externalRecord); else addExternalLoad(externalRecord);
+      const existingInternal = existingInternalRecords.find((item) => item.playerId === row.player.id);
       upsertInternalLoad({
-        id: crypto.randomUUID(),
+        id: existingInternal?.id ?? crypto.randomUUID(),
         sessionId,
         playerId: row.player.id,
         date: filters.date,
@@ -320,7 +349,12 @@ export default function SesionEntrenamientoPage() {
       });
     });
 
-    existingRecords.filter((record) => !selectedRows.find((row) => row.player.id === record.playerId)).forEach((record) => deleteExternalLoad(record.id));
+    existingRecords
+      .filter((record) => !selectedRows.find((row) => row.player.id === record.playerId))
+      .forEach((record) => deleteExternalLoad(record.id));
+    existingInternalRecords
+      .filter((record) => !selectedRows.find((row) => row.player.id === record.playerId))
+      .forEach((record) => deleteInternalLoad(record.id));
     setIsSavingSession(false);
     setEditingSessionId(sessionId);
     setMessage(summaryRecord ? 'Sesión actualizada correctamente.' : 'Sesión guardada correctamente.');

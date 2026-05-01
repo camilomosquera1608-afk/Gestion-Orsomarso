@@ -123,14 +123,21 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
   const ids = playerIds(players);
   const { microcycle, dates } = getActiveRange(data, filters, activeCategory);
   const gpsEnabled = supportsGps(activeCategory);
-  const internal = data.internalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
+
+  // Sesión es la fuente operativa principal de carga: MIN, RPE y GPS viven en externalLoads.
+  // internalLoads queda como respaldo para datos antiguos, pero las vistas calculan primero desde sesión.
   const external = data.externalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
+  const internalFallback = data.internalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
+
   const rows: LoadPlayerRow[] = players.map((player) => {
-    const playerInternal = internal.filter((item) => item.playerId === player.id);
     const playerExternal = external.filter((item) => item.playerId === player.id);
-    const internalLoad = playerInternal.reduce((acc, item) => acc + calculateInternalLoad(item), 0);
+    const playerInternalFallback = internalFallback.filter((item) => item.playerId === player.id);
+    const sessionInternalLoad = playerExternal.reduce((acc, item) => acc + ((item.min ?? 0) * (item.rpe ?? 0)), 0);
+    const fallbackInternalLoad = playerInternalFallback.reduce((acc, item) => acc + calculateInternalLoad(item), 0);
+    const internalLoad = playerExternal.length ? sessionInternalLoad : fallbackInternalLoad;
     const minutes = playerExternal.reduce((acc, item) => acc + (item.min ?? 0), 0);
     const status = exposure(minutes, internalLoad);
+    const totalDistance = playerExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0);
     return {
       player,
       internalLoad,
@@ -139,12 +146,12 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
       acc: playerExternal.reduce((acc, item) => acc + (item.acc ?? 0), 0),
       dcc: playerExternal.reduce((acc, item) => acc + (item.dcc ?? 0), 0),
       sprints: playerExternal.reduce((acc, item) => acc + (item.sprints ?? 0), 0),
-      totalDistance: playerExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0),
+      totalDistance,
       highSpeedDistance: playerExternal.reduce((acc, item) => acc + (item.highSpeedDistance ?? item.hsr ?? 0), 0),
       sprintDistance: playerExternal.reduce((acc, item) => acc + (item.sprintDistance ?? 0), 0),
       maxVelocity: playerExternal.reduce((max, item) => Math.max(max, item.maxVelocity ?? 0), 0),
       playerLoad: playerExternal.reduce((acc, item) => acc + (item.playerLoad ?? 0), 0),
-      distancePerMin: minutes ? Number((playerExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0) / minutes).toFixed(1)) : 0,
+      distancePerMin: minutes ? Number((totalDistance / minutes).toFixed(1)) : 0,
       exposure: status,
       tone: exposureTone(status),
     };
@@ -154,7 +161,9 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
   const lowExposure = rows.filter((row) => row.exposure === 'Baja' || row.exposure === 'Sin datos');
   const dailyTrend = dates.map((date) => {
     const dayExternal = external.filter((item) => item.date === date);
-    const dayInternal = internal.filter((item) => item.date === date);
+    const dayInternalFallback = internalFallback.filter((item) => item.date === date);
+    const derivedInternalLoad = dayExternal.reduce((acc, item) => acc + ((item.min ?? 0) * (item.rpe ?? 0)), 0);
+    const fallbackInternalLoad = dayInternalFallback.reduce((acc, item) => acc + calculateInternalLoad(item), 0);
     return {
       date: formatDateShort(date),
       min: dayExternal.reduce((acc, item) => acc + (item.min ?? 0), 0),
@@ -163,7 +172,7 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
       hsr: dayExternal.reduce((acc, item) => acc + (item.highSpeedDistance ?? item.hsr ?? 0), 0),
       sprints: dayExternal.reduce((acc, item) => acc + (item.sprints ?? 0), 0),
       rpe: groupAverage(dayExternal.map((item) => item.rpe ?? 0).filter((value) => value > 0)),
-      carga: dayInternal.reduce((acc, item) => acc + calculateInternalLoad(item), 0),
+      carga: dayExternal.length ? derivedInternalLoad : fallbackInternalLoad,
     };
   });
 
@@ -175,8 +184,8 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
     lowExposure,
     dailyTrend,
     totals: {
-      internalLoad: internal.reduce((acc, item) => acc + calculateInternalLoad(item), 0),
-      minutes: external.reduce((acc, item) => acc + (item.min ?? 0), 0),
+      internalLoad: rows.reduce((acc, row) => acc + row.internalLoad, 0),
+      minutes: rows.reduce((acc, row) => acc + row.minutes, 0),
       avgRpe: groupAverage(external.map((item) => item.rpe ?? 0).filter((value) => value > 0)),
       playersWithLoad: rows.filter((row) => row.minutes > 0 || row.internalLoad > 0).length,
       totalDistance: rows.reduce((acc, row) => acc + row.totalDistance, 0),

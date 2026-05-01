@@ -1,23 +1,20 @@
-# Paquete limpio Orsomarso v107.8
+# Paquete limpio Orsomarso v108.2
 
-Incluye el proyecto completo necesario para ejecutar la aplicación.
+Incluye el proyecto completo necesario para ejecutar la app. No incluye dependencias instaladas ni builds temporales.
 
-No incluye:
+## Excluido
 - node_modules
 - .next
 - archivos Python
 - notebooks
 - zips anteriores
-- cachés temporales
+- cachés
+- builds temporales
 
-Cambios principales:
-- Informe de sesión estilo reporte Catapult para U20.
-- Informe U17/U15 con combinaciones de RPE, minutos y wellness.
-- Estilos PDF nuevos para gauges, barras, participación y tablas limpias.
 
-## v108
-- app/ejecutivo/page.tsx
-- app/jugadores/page.tsx
-- app/globals.css
-- lib/access-control.ts
-- README_V108_DASHBOARD_VIVO_PERMISOS.md
+## v108.3
+
+- Sesión como fuente de carga.
+- Edición completa de planilla de jugadores en sesión.
+- Carga recalculada desde MIN x RPE.
+- Validaciones operativas de planilla.

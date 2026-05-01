@@ -64,9 +64,17 @@ interface AppContextValue {
   permissionMessage: string;
 }
 
-const defaultFilters: GlobalFilters = {
-  date: '2026-04-23',
-  microcycleId: 'mc-14',
+const getTodayInputDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDefaultFilters = (): GlobalFilters => ({
+  date: getTodayInputDate(),
+  microcycleId: '',
   playerId: 'all',
   position: 'all',
   status: 'all',
@@ -74,7 +82,9 @@ const defaultFilters: GlobalFilters = {
   actingCategory: 'all',
   movementType: 'all',
   sessionNumber: 1,
-};
+});
+
+const defaultFilters: GlobalFilters = getDefaultFilters();
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
@@ -215,7 +225,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const session = getStaffSession();
-      setFiltersState((prev) => ({ ...prev, category: getAllowedCategory(session) }));
+      const today = getTodayInputDate();
+      const category = getAllowedCategory(session);
+      const activeCategory = isMasterRole(session) ? 'all' : category;
+      const currentMicrocycles = dataRef.current.microcycles;
+      const todayMicrocycle = findMicrocycleByDate(currentMicrocycles, today, undefined, activeCategory);
+      const fallbackMicrocycle = todayMicrocycle ?? getMicrocyclesForCategory(currentMicrocycles, activeCategory)[0] ?? currentMicrocycles[0];
+      setFiltersState((prev) => ({
+        ...prev,
+        date: today,
+        category: activeCategory,
+        microcycleId: fallbackMicrocycle?.id ?? '',
+      }));
       setLocalBackups(listLocalBackups());
       setIsHydrated(true);
     };
@@ -407,12 +428,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const resetFilters = () => {
     const session = getStaffSession();
     const category = getAllowedCategory(session);
-    const detected = findMicrocycleByDate(dataRef.current.microcycles, defaultFilters.date, defaultFilters.microcycleId, category);
-    const fallbackMicrocycle = detected ?? getMicrocyclesForCategory(dataRef.current.microcycles, category)[0] ?? dataRef.current.microcycles[0];
+    const activeCategory = isMasterRole(session) ? 'all' : category;
+    const nextDefaults = getDefaultFilters();
+    const detected = findMicrocycleByDate(dataRef.current.microcycles, nextDefaults.date, undefined, activeCategory);
+    const fallbackMicrocycle = detected ?? getMicrocyclesForCategory(dataRef.current.microcycles, activeCategory)[0] ?? dataRef.current.microcycles[0];
     setFiltersState({
-      ...defaultFilters,
-      category,
-      microcycleId: fallbackMicrocycle?.id ?? defaultFilters.microcycleId,
+      ...nextDefaults,
+      category: activeCategory,
+      microcycleId: fallbackMicrocycle?.id ?? '',
     });
   };
 
@@ -473,10 +496,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       wellness: [record, ...prev.wellness.filter((item) => !(item.playerId === record.playerId && item.date === record.date))],
     })),
     addInternalLoad: (record) => applyMutation((prev) => ({ ...prev, internalLoads: [record, ...prev.internalLoads] })),
-    upsertInternalLoad: (record) => applyMutation((prev) => ({
-      ...prev,
-      internalLoads: [{ ...record, microcycleId: record.microcycleId ?? filters.microcycleId, sessionNumber: record.sessionNumber ?? filters.sessionNumber }, ...prev.internalLoads.filter((item) => !(item.playerId === record.playerId && item.date === record.date && (item.sessionNumber ?? filters.sessionNumber) === (record.sessionNumber ?? filters.sessionNumber)))],
-    })),
+    upsertInternalLoad: (record) => applyMutation((prev) => {
+      const normalizedRecord = { ...record, microcycleId: record.microcycleId ?? filters.microcycleId, sessionNumber: record.sessionNumber ?? filters.sessionNumber };
+      return {
+        ...prev,
+        internalLoads: [
+          normalizedRecord,
+          ...prev.internalLoads.filter((item) => {
+            const sameId = item.id === normalizedRecord.id;
+            const sameSessionPlayer = !!normalizedRecord.sessionId && item.sessionId === normalizedRecord.sessionId && item.playerId === normalizedRecord.playerId;
+            const sameDatePlayerSession = item.playerId === normalizedRecord.playerId
+              && item.date === normalizedRecord.date
+              && (item.category ?? item.actingCategory) === (normalizedRecord.category ?? normalizedRecord.actingCategory)
+              && (item.sessionNumber ?? filters.sessionNumber) === (normalizedRecord.sessionNumber ?? filters.sessionNumber);
+            return !(sameId || sameSessionPlayer || sameDatePlayerSession);
+          }),
+        ],
+      };
+    }),
     updateInternalLoad: (record) => applyMutation((prev) => ({ ...prev, internalLoads: prev.internalLoads.map((item) => item.id === record.id ? record : item) })),
     deleteInternalLoad: (recordId) => {
       applyMutation((prev) => ({ ...prev, internalLoads: prev.internalLoads.filter((item) => item.id !== recordId) }));
