@@ -3328,3 +3328,92 @@ textarea.input, .textarea { resize: vertical; }
     border-radius: 20px !important;
   }
 }
+
+/* v108.6.2 - Desktop sidebar layout fix
+   Keeps the desktop sidebar as a vertical navigation rail and prevents it from
+   rendering as horizontal flex columns over the page content. */
+@media screen and (min-width: 1281px) {
+  .app-shell {
+    display: grid !important;
+    grid-template-columns: 302px minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+  }
+
+  .sidebar,
+  .premium-sidebar {
+    display: grid !important;
+    grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+    align-content: start !important;
+    width: 302px !important;
+    min-width: 302px !important;
+    max-width: 302px !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    position: sticky !important;
+    top: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 20px 16px !important;
+    flex-direction: initial !important;
+  }
+
+  .brand,
+  .premium-brand,
+  .sidebar-status,
+  .nav,
+  .nav-logout {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .brand,
+  .premium-brand,
+  .sidebar-status {
+    flex: none !important;
+  }
+
+  .nav {
+    display: grid !important;
+    align-content: start !important;
+    overflow: visible !important;
+  }
+
+  .nav-link {
+    width: 100% !important;
+  }
+
+  .mobile-bottom-nav,
+  .mobile-menu-backdrop,
+  .mobile-menu-panel {
+    display: none !important;
+  }
+
+  .main,
+  .mobile-safe-page {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 26px 30px 44px !important;
+    overflow-x: hidden !important;
+  }
+}
+
+@media screen and (min-width: 1025px) and (max-width: 1280px) {
+  .app-shell {
+    display: block !important;
+  }
+
+  .sidebar,
+  .premium-sidebar {
+    display: none !important;
+  }
+
+  .mobile-bottom-nav {
+    display: grid !important;
+  }
+}

@@ -1,28 +1,30 @@
-# Paquete limpio v108.4
+# Paquete limpio Orsomarso v108.6.2
 
-Incluye el proyecto completo sin node_modules, .next, archivos Python, notebooks ni zips antiguos.
+Incluye el proyecto completo limpio para reemplazar la carpeta de trabajo.
 
-Archivos clave modificados:
-- lib/session-derived.ts
-- lib/operational-helpers.ts
-- app/sesion-entrenamiento/page.tsx
-- components/pro-ui.tsx
-- package.json
-- README_V108_4_LOGICA_SESION_MICROCICLO_CARGA.md
+## Incluye
 
+- `app/`
+- `components/`
+- `context/`
+- `lib/`
+- `public/`
+- `scripts/`
+- `supabase/`
+- configuración Next/TypeScript
+- SQL existentes del proyecto
+- documentación vigente
 
-## v108.6 incluido
+## No incluye
 
-- `context/app-context.tsx`
-- `components/sidebar.tsx`
-- `app/globals.css`
-- `next.config.ts`
-- `README_V108_5_MOBILE_TABLET_SYNC.md`
+- `node_modules/`
+- `.next/`
+- cachés
+- zips anteriores
+- notebooks
+- archivos Python temporales
+- builds generados
 
-## v108.6.1
+## Corrección principal
 
-Corrección de roles administrativos:
-- administradores generales con alcance completo,
-- acceso full forzado para admin,
-- acciones operativas visibles para admin,
-- edición de ficha, competencia y eliminación de jugadores habilitada según permisos.
+v108.6.2 corrige el layout de escritorio para que el sidebar no se renderice como columnas flex sobre el contenido.
