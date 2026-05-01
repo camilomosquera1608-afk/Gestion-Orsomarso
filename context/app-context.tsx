@@ -107,6 +107,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const canEdit = !currentSession.isAuthenticated || canWrite(currentSession);
   const permissionMessage = currentSession.isAuthenticated && !canWrite(currentSession) ? 'Solo lectura.' : 'Guardado.';
 
+  const keepLocalDataAfterReadIssue = (reason?: string) => {
+    console.warn('[Orsomarso] Lectura remota no disponible, usando cache local:', reason ?? 'sin detalle');
+    setSyncStatus('ready');
+  };
+
   const refreshFromSupabase = async (source: 'manual' | 'realtime' | 'poll' = 'manual') => {
     if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase) return;
     if (source !== 'manual' && Date.now() < skipRemoteRefreshUntilRef.current) return;
@@ -114,7 +119,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setSyncStatus(source === 'manual' ? 'syncing' : 'ready');
     const remote = await fetchSupabaseTablesAppData(supabase);
     if (!remote.ok) {
-      setSyncStatus('error');
+      keepLocalDataAfterReadIssue(remote.reason);
       return;
     }
 
@@ -199,8 +204,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           const hydrated = hydrateData(local ?? initialData);
           setData(hydrated);
           dataRef.current = hydrated;
-          const remoteReason = remote.ok ? undefined : remote.reason;
-          setSyncStatus(remoteReason === 'not_authenticated' ? 'error' : 'ready');
+          keepLocalDataAfterReadIssue(remote.reason);
         }
       } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
         setSyncStatus('syncing');

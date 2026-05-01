@@ -5,10 +5,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { MobileNavigation, Sidebar } from '@/components/sidebar';
 import { ContextTopBar } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
-import { getAllowedCategory, getStaffSession, isStaffAuthenticated, isMasterRole } from '@/lib/auth';
+import { getAllowedCategory, getStaffSession, isStaffAuthenticated, isMasterRole, logoutStaff } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { findMicrocycleByDate } from '@/lib/utils';
 import { formatDateShort } from '@/lib/operational-helpers';
+import { hasSupabaseConfig, supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
@@ -23,29 +24,53 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const isResetPassword = pathname.startsWith('/reset-password');
 
   useEffect(() => {
-    if (isPlayerWellness || isResetPassword) {
-      setAllowed(true);
-      return;
-    }
+    let cancelled = false;
 
-    const authed = isStaffAuthenticated();
-    const session = getStaffSession();
-
-    if (isLogin) {
-      if (authed) {
-        router.replace(session.role === 'master' ? '/informes' : '/');
+    const validateAccess = async () => {
+      if (isPlayerWellness || isResetPassword) {
+        if (!cancelled) setAllowed(true);
         return;
       }
-      setAllowed(true);
-      return;
-    }
 
-    if (!authed) {
-      router.replace('/login');
-      return;
-    }
+      const authed = isStaffAuthenticated();
+      const session = getStaffSession();
 
-    setAllowed(true);
+      if (isLogin) {
+        if (authed) {
+          router.replace(session.role === 'master' ? '/informes' : '/');
+          return;
+        }
+        if (!cancelled) setAllowed(true);
+        return;
+      }
+
+      if (!authed) {
+        router.replace('/login');
+        return;
+      }
+
+      if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase && session.authProvider === 'supabase') {
+        let supabaseSession = (await supabase.auth.getSession()).data.session;
+        if (!supabaseSession) {
+          await new Promise((resolve) => setTimeout(resolve, 350));
+          supabaseSession = (await supabase.auth.getSession()).data.session;
+        }
+        if (!supabaseSession) {
+          logoutStaff();
+          router.replace('/login');
+          return;
+        }
+      }
+
+      if (!cancelled) setAllowed(true);
+    };
+
+    setAllowed(false);
+    void validateAccess();
+
+    return () => {
+      cancelled = true;
+    };
   }, [pathname, router, isPlayerWellness, isLogin, isResetPassword]);
 
   const topContext = useMemo(() => {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AppHero } from '@/components/app-hero';
 import { KpiCard } from '@/components/kpi-card';
 import { DataQualityPanel, EmptyState, OperationalAlertPanel } from '@/components/pro-ui';
@@ -25,6 +26,14 @@ const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
 ];
 const participationOptions: SessionParticipation[] = ['Completa', 'Parcial', 'No participa', 'Gimnasio', 'Readaptación'];
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
+
+const normalizeCategoryParam = (value: string | null): ClubCategory | undefined => {
+  const normalized = (value ?? '').toLowerCase().replace(/\s+/g, '');
+  if (normalized === 'u20' || normalized === 'sub20') return 'Sub20';
+  if (normalized === 'u17' || normalized === 'sub17') return 'Sub17';
+  if (normalized === 'u15' || normalized === 'sub15') return 'Sub15';
+  return undefined;
+};
 const movementOptions: Array<{ value: MovementType; label: string }> = [
   { value: 'base', label: 'Categoría base' },
   { value: 'subio_a_entrenar', label: 'Subió a entrenar' },
@@ -53,6 +62,7 @@ type RowState = {
 const renderNumberInput = (value: number) => (value === 0 ? '' : String(value));
 
 export default function SesionEntrenamientoPage() {
+  const searchParams = useSearchParams();
   const { data, filters, setFilters, addExternalLoad, updateExternalLoad, deleteExternalLoad, upsertInternalLoad, deleteInternalLoad, upsertTrainingSessionSummary, deleteTrainingSessionSummary } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
@@ -76,6 +86,17 @@ export default function SesionEntrenamientoPage() {
   const [sessionNumberInput, setSessionNumberInput] = useState(filters.sessionNumber ? String(filters.sessionNumber) : '');
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const queryDate = searchParams.get('date');
+    const queryCategory = normalizeCategoryParam(searchParams.get('category'));
+    const querySessionId = searchParams.get('sessionId');
+    const nextFilters: Partial<typeof filters> = {};
+    if (queryDate && queryDate !== filters.date) nextFilters.date = queryDate;
+    if (master && queryCategory && queryCategory !== filters.category) nextFilters.category = queryCategory;
+    if (Object.keys(nextFilters).length) setFilters(nextFilters);
+    if (querySessionId && querySessionId !== editingSessionId) setEditingSessionId(querySessionId);
+  }, [searchParams, filters.date, filters.category, master, setFilters, editingSessionId]);
 
   useEffect(() => {
     setSourceCategory(activeCategory);

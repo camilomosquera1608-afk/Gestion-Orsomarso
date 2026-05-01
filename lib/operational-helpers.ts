@@ -318,6 +318,10 @@ export const buildMicrocycleWeek = (data: AppData, microcycle: Microcycle, activ
       statusLabel: dayStatus.label,
       actionLabel: dayStatus.actionLabel,
       sessionNumber: dayStatus.session?.sessionNumber,
+      sessionId: dayStatus.session?.id,
+      actionHref: dayStatus.session
+        ? `/sesion-entrenamiento?date=${date}&category=${activeCategory}&sessionId=${dayStatus.session.id}`
+        : `/sesion-entrenamiento?date=${date}&category=${activeCategory}`,
       completeness: dayStatus.completeness,
     };
   });

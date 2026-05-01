@@ -3417,3 +3417,130 @@ textarea.input, .textarea { resize: vertical; }
     display: grid !important;
   }
 }
+
+/* v108.6.3 - Definitive navigation shell repair */
+@media screen and (min-width: 1025px) {
+  .app-shell {
+    display: grid !important;
+    grid-template-columns: 302px minmax(0, 1fr) !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .sidebar,
+  .premium-sidebar {
+    display: grid !important;
+    grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+    width: 302px !important;
+    min-width: 302px !important;
+    max-width: 302px !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    position: sticky !important;
+    top: 0 !important;
+    padding: 20px 16px !important;
+    overflow: hidden !important;
+    color: #dbeafe !important;
+    background: linear-gradient(180deg, var(--navy) 0%, #081d42 58%, #06152f 100%) !important;
+  }
+
+  .sidebar .brand,
+  .sidebar .premium-brand,
+  .sidebar .sidebar-status,
+  .sidebar .nav,
+  .sidebar .nav-logout {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .sidebar .nav {
+    display: grid !important;
+    align-content: start !important;
+    gap: 9px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    min-height: 0 !important;
+    padding-right: 3px !important;
+  }
+
+  .sidebar .nav-group-items {
+    display: grid !important;
+    gap: 3px !important;
+  }
+
+  .sidebar .nav-link {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .sidebar .nav-logout {
+    margin-top: 12px !important;
+    flex: none !important;
+  }
+
+  .mobile-bottom-nav,
+  .mobile-menu-backdrop,
+  .mobile-menu-panel {
+    display: none !important;
+  }
+
+  .main,
+  .mobile-safe-page {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 26px 30px 44px !important;
+    overflow-x: hidden !important;
+  }
+}
+
+@media screen and (max-width: 1024px) {
+  .app-shell {
+    display: block !important;
+    width: 100% !important;
+    min-height: 100svh !important;
+  }
+
+  .sidebar,
+  .premium-sidebar {
+    display: none !important;
+  }
+
+  .main,
+  .mobile-safe-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 14px 14px calc(118px + env(safe-area-inset-bottom)) !important;
+    overflow-x: hidden !important;
+  }
+
+  .mobile-bottom-nav {
+    display: grid !important;
+    position: fixed !important;
+    left: max(10px, env(safe-area-inset-left)) !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    z-index: 120 !important;
+  }
+
+  .mobile-menu-panel:not(.open),
+  .mobile-menu-backdrop:not(.open) {
+    pointer-events: none;
+  }
+}
+
+.week-day-action-link,
+.week-day-delete-button {
+  text-decoration: none !important;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.week-day-delete-button {
+  appearance: none;
+}

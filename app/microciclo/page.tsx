@@ -17,7 +17,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Too
 const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación' };
 
 export default function MicrocicloPage() {
-  const { data, filters, setFilters, updateMicrocycle, deleteMicrocycle } = useApp();
+  const { data, filters, setFilters, updateMicrocycle, deleteMicrocycle, deleteTrainingSessionSummary } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
@@ -84,6 +84,15 @@ export default function MicrocicloPage() {
     rpe: groupAverage(data.externalLoads.filter((x) => x.playerId === player.id && (!hasRange || recordsInRange(x.date))).map((item) => item.rpe ?? 0)),
     acc: data.externalLoads.filter((x) => x.playerId === player.id && (!hasRange || recordsInRange(x.date))).reduce((acc, item) => acc + (item.acc ?? 0), 0),
   })).sort((a, b) => youthSimple ? b.minutos - a.minutos : b.acc - a.acc);
+
+  const deleteSessionFromMicrocycle = (sessionId: string) => {
+    const target = data.trainingSessionSummaries.find((item) => item.id === sessionId);
+    if (!target) return;
+    const confirmed = window.confirm(`¿Eliminar la sesión ${target.sessionNumber || '-'} del ${target.date}? También se quitará la participación y carga asociada.`);
+    if (!confirmed) return;
+    deleteTrainingSessionSummary(sessionId);
+    setMicrocycleMessage(`Sesión ${target.sessionNumber || '-'} eliminada correctamente.`);
+  };
 
   const deleteCurrentMicrocycle = () => {
     if (!microcycle?.id) return;
@@ -177,7 +186,7 @@ export default function MicrocicloPage() {
 
       <div className="card">
         <SectionHeader eyebrow="Calendario" title="Semana operativa del microciclo" subtitle="Días, sesiones, competencia y completitud de registros por fecha." />
-        {weekDays.length ? <WeekCalendar days={weekDays} /> : <EmptyState title="Microciclo sin rango de fechas" text="Asigna fecha de inicio y fin para construir el calendario semanal." />}
+        {weekDays.length ? <WeekCalendar days={weekDays} onDeleteSession={deleteSessionFromMicrocycle} /> : <EmptyState title="Microciclo sin rango de fechas" text="Asigna fecha de inicio y fin para construir el calendario semanal." />}
       </div>
 
       <div className="card">

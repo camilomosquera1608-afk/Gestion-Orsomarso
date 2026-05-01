@@ -271,8 +271,26 @@ export const MatchCard = ({
 
 export const WeekCalendar = ({
   days,
+  onDeleteSession,
 }: {
-  days: Array<{ date: string; label: string; sessions: unknown[]; matches: unknown[]; registeredPlayers: number; playersCount: number; avgRpe: number; avgMin: number; status?: string; statusLabel?: string; actionLabel?: string; sessionNumber?: number; completeness?: number }>;
+  days: Array<{
+    date: string;
+    label: string;
+    sessions: unknown[];
+    matches: unknown[];
+    registeredPlayers: number;
+    playersCount: number;
+    avgRpe: number;
+    avgMin: number;
+    status?: string;
+    statusLabel?: string;
+    actionLabel?: string;
+    sessionNumber?: number;
+    sessionId?: string;
+    actionHref?: string;
+    completeness?: number;
+  }>;
+  onDeleteSession?: (sessionId: string) => void;
 }) => (
   <div className="week-planning-grid">
     {days.map((day) => {
@@ -284,6 +302,7 @@ export const WeekCalendar = ({
           ? `${day.matches.length} partido(s)`
           : (day.statusLabel ?? 'Sin actividad');
       const tone = day.status === 'completa' ? 'green' : day.status === 'parcial' ? 'amber' : hasSession ? 'blue' : hasMatch ? 'dark' : 'neutral';
+      const actionText = day.actionLabel ?? (hasSession ? 'Editar sesión' : 'Planificar');
       return (
         <div key={day.date} className={`week-planning-day ${hasSession ? 'has-session' : ''}`}>
           <div className="week-day-date">{day.label}</div>
@@ -291,7 +310,14 @@ export const WeekCalendar = ({
           <div className="week-day-meta">{day.registeredPlayers}/{day.playersCount} jugadores con datos</div>
           <div className="week-day-tags">
             <span className={`status-badge ui-tone-${tone}`}>{day.statusLabel ?? (hasSession ? 'Sesión' : hasMatch ? 'Partido' : 'Sin actividad')}</span>
-            <span className="status-badge ui-tone-neutral">{day.actionLabel ?? (hasSession ? 'Editar sesión' : 'Planificar')}</span>
+            {day.actionHref ? (
+              <Link className="status-badge ui-tone-neutral week-day-action-link" href={day.actionHref}>{actionText}</Link>
+            ) : (
+              <span className="status-badge ui-tone-neutral">{actionText}</span>
+            )}
+            {hasSession && day.sessionId && onDeleteSession ? (
+              <button type="button" className="status-badge ui-tone-red week-day-delete-button" onClick={() => onDeleteSession(day.sessionId!)}>Eliminar sesión</button>
+            ) : null}
           </div>
           <div className="week-day-metrics">
             <span>MIN {day.avgMin.toFixed(0)}</span>
