@@ -179,7 +179,15 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
       setMessage('Selecciona un jugador.');
       return;
     }
-    if (!isComplete(payload)) {
+    const wellnessAnswers: WellnessFormState = {
+      sleep: payload.sleep,
+      fatigue: payload.fatigue,
+      stress: payload.stress,
+      musclePain: payload.musclePain,
+      mood: payload.mood,
+    };
+
+    if (!isComplete(wellnessAnswers)) {
       setSubmitState('error');
       setMessage('Completa las 5 respuestas antes de enviar.');
       return;
