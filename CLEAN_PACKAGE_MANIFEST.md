@@ -1,4 +1,4 @@
-# Paquete limpio Orsomarso v108.6.2
+# Paquete limpio Orsomarso v108.6.6
 
 Incluye el proyecto completo limpio para reemplazar la carpeta de trabajo.
 
@@ -27,4 +27,9 @@ Incluye el proyecto completo limpio para reemplazar la carpeta de trabajo.
 
 ## Corrección principal
 
-v108.6.2 corrige el layout de escritorio para que el sidebar no se renderice como columnas flex sobre el contenido.
+v108.6.6 corrige únicamente el menú de PC:
+
+- Sidebar vertical estable en desktop.
+- El contenido principal respeta el ancho del menú.
+- No cambia la navegación móvil/tablet.
+- No toca lógica de datos ni Supabase.
