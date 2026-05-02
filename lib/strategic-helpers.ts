@@ -1,7 +1,7 @@
 import type { AppData, ClubCategory, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, GlobalFilters, Player, PlayerStatus } from './types';
 import { averageWellness, calculateInternalLoad, groupAverage } from './utils';
 import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performance-helpers';
-import { buildDailyOperations, eachDateInRange, formatDateShort, getVisiblePlayers, isSameCategory, type OperationalAlert } from './operational-helpers';
+import { addDays, buildDailyOperations, eachDateInRange, formatDateShort, getVisiblePlayers, isSameCategory, type OperationalAlert } from './operational-helpers';
 import { supportsGps } from './report-utils';
 
 export type UiHealthTone = 'green' | 'amber' | 'red' | 'blue' | 'neutral' | 'dark';
