@@ -9,6 +9,7 @@ import type {
   DailyInternalLoadRecord,
   DailyWellnessRecord,
   FMSRecord,
+  InjuryHistoryItem,
   Microcycle,
   NeuromuscularRecord,
   NutritionRecord,
@@ -66,6 +67,19 @@ const upsertRows = async (supabase: SupabaseClient, table: string, rows: DbRow[]
   if (error) throw error;
 };
 
+// FIX #2 (helper): Parsear de forma segura un campo JSONB que viene de Supabase.
+// Si el valor es null, undefined, o no es parseable como array, retorna [].
+const parseJsonArray = <T,>(value: unknown): T[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as T[];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed as T[] : [];
+  } catch {
+    return [];
+  }
+};
+
 export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Promise<{ ok: true; data: Partial<AppData> } | { ok: false; reason?: string; error?: unknown }> => {
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) return { ok: false, reason: 'not_authenticated' };
@@ -110,7 +124,15 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
       birthDate: row.birth_date ?? undefined,
       position: row.position,
       category: category(row.category),
-      categoryHistory: [category(row.category)],
+      // FIX #2: categoryHistory recuperado desde la columna JSONB de Supabase.
+      // Antes se reemplazaba siempre con [categoria_actual], borrando el historial
+      // de movimientos entre categorías cada vez que se hacía sync.
+      // Ahora se preserva el array guardado, con la categoría actual como fallback mínimo.
+      categoryHistory: (() => {
+        const stored = parseJsonArray<ClubCategory>(row.category_history);
+        const current = category(row.category);
+        return stored.length > 0 ? stored : [current];
+      })(),
       height: num(row.height, 0),
       weight: num(row.weight, 0),
       status: row.status,
@@ -119,7 +141,10 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
       injuryType: row.injury_type ?? undefined,
       injurySeverity: row.injury_severity ?? undefined,
       returnDate: row.return_date ?? undefined,
-      injuryHistory: [],
+      // FIX #2: injuryHistory recuperado desde la columna JSONB de Supabase.
+      // Antes se reemplazaba siempre con [], borrando el historial médico del jugador
+      // en cada sync. Ahora se preserva el array guardado.
+      injuryHistory: parseJsonArray<InjuryHistoryItem>(row.injury_history),
     }));
 
     const microcycles: Microcycle[] = ((microcyclesRes.data ?? []) as DbRow[]).map((row) => ({
@@ -358,6 +383,21 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
       injury_type: player.injuryType ?? null,
       injury_severity: player.injurySeverity ?? null,
       return_date: isoDate(player.returnDate),
+      // FIX #2: Guardar categoryHistory e injuryHistory como JSONB en Supabase.
+      // Estos campos no se guardaban antes, por eso al hacer fetch
+      // siempre aparecían vacíos. Con esto se preservan entre sesiones.
+      // IMPORTANTE: Para que esto funcione, debes agregar estas columnas a tu tabla
+      // 'players' en Supabase si aún no existen. Ejecuta en el SQL Editor de Supabase:
+      //   ALTER TABLE players ADD COLUMN IF NOT EXISTS category_history jsonb DEFAULT '[]';
+      //   ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_history jsonb DEFAULT '[]';
+      category_history: JSON.stringify(
+        Array.isArray(player.categoryHistory) && player.categoryHistory.length > 0
+          ? player.categoryHistory
+          : [category(player.category)],
+      ),
+      injury_history: JSON.stringify(
+        Array.isArray(player.injuryHistory) ? player.injuryHistory : [],
+      ),
     })));
 
     await upsertRows(supabase, 'microcycles', data.microcycles

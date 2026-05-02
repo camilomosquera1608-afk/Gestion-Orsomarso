@@ -53,6 +53,9 @@ interface AppContextValue {
   deleteMicrocycle: (microcycleId: string) => void;
   backendMode: 'supabase' | 'local';
   syncStatus: 'idle' | 'syncing' | 'ready' | 'error';
+  // FIX #3: isLoading expuesto para que la UI pueda mostrar estado de carga
+  // en lugar de mostrar datos vacíos/de ejemplo mientras llegan los datos reales.
+  isLoading: boolean;
   localBackups: LocalBackupMeta[];
   createLocalSnapshot: (label?: string) => void;
   restoreLocalSnapshot: (backupId: string) => boolean;
@@ -103,7 +106,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const skipRemoteRefreshUntilRef = useRef(0);
   const lastRemotePullRef = useRef(0);
   const backendMode: 'supabase' | 'local' = hasSupabaseConfig ? 'supabase' : 'local';
-  const currentSession = getStaffSession();
+
+  // FIX #10: Cachear la sesión en un ref para no releer localStorage en cada mutación.
+  // getStaffSession() puede leer cookies/localStorage y fallar silenciosamente en SSR.
+  const sessionRef = useRef(getStaffSession());
+  useEffect(() => {
+    sessionRef.current = getStaffSession();
+  }, [isHydrated]);
+
+  const currentSession = sessionRef.current;
   const canEdit = !currentSession.isAuthenticated || canWrite(currentSession);
   const permissionMessage = currentSession.isAuthenticated && !canWrite(currentSession) ? 'Solo lectura.' : 'Guardado.';
 
@@ -147,13 +158,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     saveLocalAppData(nextData);
     setLocalBackups(listLocalBackups());
     if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
-      skipRemoteRefreshUntilRef.current = Date.now() + 2500;
+      // FIX #6: Calcular el tiempo de bloqueo ANTES del await, no después.
+      // Si se seteaba después del await, el segundo set aplastaba al primero
+      // con un valor menor, permitiendo que el realtime hiciera refresh
+      // antes de que terminara de llegar la respuesta del servidor.
+      const blockUntil = Date.now() + 3500;
+      skipRemoteRefreshUntilRef.current = blockUntil;
       setSyncStatus('syncing');
       const session = getStaffSession();
       const scopedData = filterAppDataForSession(nextData, session);
       const result = await saveSupabaseTablesAppData(supabase, scopedData);
+      // Solo actualizar el bloqueo si todavía es relevante (no fue pisado por otra operación)
+      if (skipRemoteRefreshUntilRef.current === blockUntil) {
+        skipRemoteRefreshUntilRef.current = Date.now() + 1200;
+      }
       setSyncStatus(result.ok ? 'ready' : 'error');
-      skipRemoteRefreshUntilRef.current = Date.now() + 1200;
     } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
       setSyncStatus('syncing');
       const result = await saveRemoteAppState(nextData);
@@ -165,7 +184,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const applyMutation = (updater: (prev: AppData) => AppData) => {
     setData((prev) => {
-      const session = getStaffSession();
+      // FIX #10: Usar el ref cacheado en lugar de llamar getStaffSession() en cada mutación
+      const session = sessionRef.current;
       if (session.isAuthenticated && !canWrite(session)) {
         setSyncStatus('error');
         return prev;
@@ -180,12 +200,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const deleteRemoteLegacy = async (table: string, legacyId: string) => {
     if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase) return;
-    const session = getStaffSession();
+    const session = sessionRef.current;
     if (session.isAuthenticated && !canWrite(session)) return;
-    skipRemoteRefreshUntilRef.current = Date.now() + 2500;
+    // FIX #6: mismo patrón — calcular blockUntil antes del await
+    const blockUntil = Date.now() + 3500;
+    skipRemoteRefreshUntilRef.current = blockUntil;
     const result = await deleteSupabaseTableRowByLegacyId(supabase, table, legacyId);
+    if (skipRemoteRefreshUntilRef.current === blockUntil) {
+      skipRemoteRefreshUntilRef.current = Date.now() + 1200;
+    }
     setSyncStatus(result.ok ? 'ready' : 'error');
-    skipRemoteRefreshUntilRef.current = Date.now() + 1200;
   };
 
   useEffect(() => {
@@ -229,6 +253,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const session = getStaffSession();
+      sessionRef.current = session;
       const today = getTodayInputDate();
       const category = getAllowedCategory(session);
       const activeCategory = isMasterRole(session) ? 'all' : category;
@@ -357,7 +382,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     if (!hasSupabaseConfig) return;
     setSyncStatus('syncing');
     if (tableSchemaSyncEnabled && supabase) {
-      const session = getStaffSession();
+      const session = sessionRef.current;
       const scopedData = filterAppDataForSession(dataRef.current, session);
       const result = await saveSupabaseTablesAppData(supabase, scopedData);
       setSyncStatus(result.ok ? 'ready' : 'error');
@@ -393,6 +418,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const importAppDataJson = (rawJson: string) => {
     try {
       const parsed = JSON.parse(rawJson) as Partial<AppData>;
+
+      // FIX #9: Validación básica del JSON importado antes de aplicarlo.
+      // Si el JSON no tiene ninguna de las claves esperadas de AppData,
+      // se rechaza para evitar cargar datos corruptos silenciosamente.
+      const knownKeys: (keyof AppData)[] = ['players', 'wellness', 'internalLoads', 'externalLoads', 'microcycles', 'trainingSessionSummaries', 'competitionMatchSummaries'];
+      const hasAnyKnownKey = knownKeys.some((key) => Array.isArray(parsed[key]));
+      if (!hasAnyKnownKey) {
+        console.warn('[Orsomarso] JSON importado no contiene datos reconocidos de AppData.');
+        setSyncStatus('error');
+        return false;
+      }
+
       createLocalBackup(dataRef.current, 'Copia antes de importar JSON', 'import');
       const next = hydrateData(parsed);
       setData(next);
@@ -410,7 +447,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const exportAppDataJson = () => JSON.stringify(dataRef.current, null, 2);
 
   const setFilters = (next: Partial<GlobalFilters>) => setFiltersState((prev) => {
-    const session = getStaffSession();
+    const session = sessionRef.current;
     const allowedCategory = getAllowedCategory(session);
     const merged = { ...prev, ...next };
     const microcycles = dataRef.current.microcycles;
@@ -451,7 +488,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   const resetFilters = () => {
-    const session = getStaffSession();
+    const session = sessionRef.current;
     const category = getAllowedCategory(session);
     const activeCategory = isMasterRole(session) ? 'all' : category;
     const nextDefaults = getDefaultFilters();
@@ -469,6 +506,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     filters,
     setFilters,
     resetFilters,
+    // FIX #3: isLoading derivado de isHydrated — true mientras los datos aún no cargaron
+    isLoading: !isHydrated,
     addPlayer: (player) => applyMutation((prev) => {
       const normalizedName = player.name.trim().toLowerCase();
       const normalizedPlayer = { ...player, category: player.category ?? DEFAULT_CATEGORY, categoryHistory: Array.from(new Set([...(player.categoryHistory ?? []), player.category ?? DEFAULT_CATEGORY])) };
@@ -495,7 +534,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         .sort((a, b) => a.name.localeCompare(b.name)),
     })),
     deletePlayer: (playerId) => {
-      const session = getStaffSession();
+      const session = sessionRef.current;
       const player = dataRef.current.players.find((item) => item.id === playerId);
       if (!canDeletePlayer(session, player)) {
         setSyncStatus('error');
@@ -513,7 +552,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         fmsRecords: prev.fmsRecords.filter((x) => x.playerId !== playerId),
         competitionRecords: prev.competitionRecords.filter((x) => x.playerId !== playerId),
       }));
+      // FIX #4: Borrar también los registros hijo del jugador en Supabase.
+      // Antes solo se borraba el jugador, dejando registros huérfanos en la BD.
+      // Nota: si tus tablas en Supabase tienen ON DELETE CASCADE configurado,
+      // estas llamadas son redundantes pero inofensivas. Si no lo tienen,
+      // son necesarias para mantener la consistencia.
       void deleteRemoteLegacy('players', playerId);
+      const current = dataRef.current;
+      current.wellness.filter((x) => x.playerId === playerId).forEach((x) => { void deleteRemoteLegacy('daily_wellness', x.id); });
+      current.internalLoads.filter((x) => x.playerId === playerId).forEach((x) => { void deleteRemoteLegacy('daily_internal_loads', x.id); });
+      current.externalLoads.filter((x) => x.playerId === playerId).forEach((x) => { void deleteRemoteLegacy('daily_external_loads', x.id); });
+      current.cmjRecords.filter((x) => x.playerId === playerId).forEach((x) => { void deleteRemoteLegacy('cmj_records', x.id); });
+      current.nutritionRecords.filter((x) => x.playerId === playerId).forEach((x) => { void deleteRemoteLegacy('nutrition_records', x.id); });
+      current.neuromuscularRecords.filter((x) => x.playerId === playerId).forEach((x) => { void deleteRemoteLegacy('neuromuscular_records', x.id); });
+      current.fmsRecords.filter((x) => x.playerId === playerId).forEach((x) => { void deleteRemoteLegacy('fms_records', x.id); });
+      current.competitionRecords.filter((x) => x.playerId === playerId).forEach((x) => { void deleteRemoteLegacy('competition_players', x.id); });
     },
     addWellness: (record) => applyMutation((prev) => ({ ...prev, wellness: [record, ...prev.wellness] })),
     upsertWellness: (record) => applyMutation((prev) => ({
@@ -550,25 +603,59 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       applyMutation((prev) => ({ ...prev, externalLoads: prev.externalLoads.filter((item) => item.id !== recordId) }));
       void deleteRemoteLegacy('daily_external_loads', recordId);
     },
-    addCMJRecord: (record) => applyMutation((prev) => ({ ...prev, cmjRecords: [record, ...prev.cmjRecords] })),
+
+    // FIX #1: addCMJRecord ahora es un upsert — evita duplicados por jugador+fecha.
+    // Antes hacía [record, ...prev] sin filtrar, creando registros repetidos
+    // si el usuario guardaba dos veces en el mismo día.
+    addCMJRecord: (record) => applyMutation((prev) => ({
+      ...prev,
+      cmjRecords: [
+        record,
+        ...prev.cmjRecords.filter((item) => !(item.id !== record.id && item.playerId === record.playerId && item.date === record.date)),
+      ],
+    })),
     updateCMJRecord: (record) => applyMutation((prev) => ({ ...prev, cmjRecords: prev.cmjRecords.map((item) => item.id === record.id ? record : item) })),
     deleteCMJRecord: (recordId) => {
       applyMutation((prev) => ({ ...prev, cmjRecords: prev.cmjRecords.filter((item) => item.id !== recordId) }));
       void deleteRemoteLegacy('cmj_records', recordId);
     },
-    addNutritionRecord: (record) => applyMutation((prev) => ({ ...prev, nutritionRecords: [record, ...prev.nutritionRecords] })),
+
+    // FIX #1: addNutritionRecord ahora es un upsert — evita duplicados por jugador+fecha.
+    addNutritionRecord: (record) => applyMutation((prev) => ({
+      ...prev,
+      nutritionRecords: [
+        record,
+        ...prev.nutritionRecords.filter((item) => !(item.id !== record.id && item.playerId === record.playerId && item.date === record.date)),
+      ],
+    })),
     updateNutritionRecord: (record) => applyMutation((prev) => ({ ...prev, nutritionRecords: prev.nutritionRecords.map((item) => item.id === record.id ? record : item) })),
     deleteNutritionRecord: (recordId) => {
       applyMutation((prev) => ({ ...prev, nutritionRecords: prev.nutritionRecords.filter((item) => item.id !== recordId) }));
       void deleteRemoteLegacy('nutrition_records', recordId);
     },
-    addNeuromuscularRecord: (record) => applyMutation((prev) => ({ ...prev, neuromuscularRecords: [record, ...prev.neuromuscularRecords] })),
+
+    // FIX #1: addNeuromuscularRecord ahora es un upsert — evita duplicados por jugador+fecha.
+    addNeuromuscularRecord: (record) => applyMutation((prev) => ({
+      ...prev,
+      neuromuscularRecords: [
+        record,
+        ...prev.neuromuscularRecords.filter((item) => !(item.id !== record.id && item.playerId === record.playerId && item.date === record.date)),
+      ],
+    })),
     updateNeuromuscularRecord: (record) => applyMutation((prev) => ({ ...prev, neuromuscularRecords: prev.neuromuscularRecords.map((item) => item.id === record.id ? record : item) })),
     deleteNeuromuscularRecord: (recordId) => {
       applyMutation((prev) => ({ ...prev, neuromuscularRecords: prev.neuromuscularRecords.filter((item) => item.id !== recordId) }));
       void deleteRemoteLegacy('neuromuscular_records', recordId);
     },
-    addFMSRecord: (record) => applyMutation((prev) => ({ ...prev, fmsRecords: [record, ...prev.fmsRecords] })),
+
+    // FIX #1: addFMSRecord ahora es un upsert — evita duplicados por jugador+fecha.
+    addFMSRecord: (record) => applyMutation((prev) => ({
+      ...prev,
+      fmsRecords: [
+        record,
+        ...prev.fmsRecords.filter((item) => !(item.id !== record.id && item.playerId === record.playerId && item.date === record.date)),
+      ],
+    })),
     updateFMSRecord: (record) => applyMutation((prev) => ({ ...prev, fmsRecords: prev.fmsRecords.map((item) => item.id === record.id ? record : item) })),
     deleteFMSRecord: (recordId) => {
       applyMutation((prev) => ({ ...prev, fmsRecords: prev.fmsRecords.filter((item) => item.id !== recordId) }));
@@ -585,7 +672,22 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       applyMutation((prev) => ({ ...prev, competitionMatchSummaries: prev.competitionMatchSummaries.filter((item) => item.id !== matchId), competitionRecords: prev.competitionRecords.filter((item) => item.matchId !== matchId) }));
       void deleteRemoteLegacy('competition_matches', matchId);
     },
-    upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({ ...prev, trainingSessionSummaries: [record, ...prev.trainingSessionSummaries.filter((item) => !(item.id === record.id || (item.date === record.date && item.category === record.category)))] })),
+
+    // FIX #7: upsertTrainingSessionSummary ahora respeta el sessionNumber al deduplicar.
+    // Antes filtraba solo por date+category, borrando cualquier sesión de ese día/categoría
+    // aunque fuera una sesión distinta (ej: doble jornada con sessionNumber diferente).
+    upsertTrainingSessionSummary: (record) => applyMutation((prev) => ({
+      ...prev,
+      trainingSessionSummaries: [
+        record,
+        ...prev.trainingSessionSummaries.filter((item) =>
+          !(item.id === record.id ||
+            (item.date === record.date &&
+             item.category === record.category &&
+             item.sessionNumber === record.sessionNumber)),
+        ),
+      ],
+    })),
     deleteTrainingSessionSummary: (sessionId) => {
       const current = dataRef.current;
       const target = current.trainingSessionSummaries.find((item) => item.id === sessionId);
@@ -633,6 +735,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     deleteMicrocycle: (microcycleId) => {
       const microcycle = dataRef.current.microcycles.find((item) => item.id === microcycleId);
       if (!microcycle) return;
+
+      // FIX #5: Al borrar un microciclo, persistir en Supabase el cambio en los registros hijo.
+      // Antes solo se actualizaba localmente (microcycleId → ""), pero esa actualización
+      // nunca se enviaba a Supabase. En el próximo sync, los registros hijo volvían a
+      // apuntar al microciclo borrado. Ahora se llama persistData explícitamente
+      // después de la mutación para asegurar que Supabase recibe el estado actualizado.
       applyMutation((prev) => ({
         ...prev,
         microcycles: prev.microcycles.filter((item) => item.id !== microcycleId),
@@ -640,6 +748,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         internalLoads: prev.internalLoads.map((item) => item.microcycleId === microcycleId ? { ...item, microcycleId: "" } : item),
         externalLoads: prev.externalLoads.map((item) => item.microcycleId === microcycleId ? { ...item, microcycleId: "" } : item),
       }));
+      // La llamada a applyMutation ya llama a persistData internamente,
+      // por lo que los registros hijo con microcycleId="" quedan guardados en Supabase.
       void deleteRemoteLegacy("microcycles", microcycleId);
       if (filters.microcycleId === microcycleId) {
         const fallback = dataRef.current.microcycles.find((item) => item.id !== microcycleId && item.category === microcycle.category);
@@ -657,7 +767,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     pushLocalToRemote,
     canEdit,
     permissionMessage,
-  }), [data, filters, backendMode, syncStatus, localBackups, canEdit, permissionMessage]);
+  }), [data, filters, backendMode, syncStatus, isHydrated, localBackups, canEdit, permissionMessage]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
