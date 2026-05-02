@@ -30,7 +30,7 @@ export default function MicrocicloPage() {
   const hasRange = Boolean(microcycle.startDate && microcycle.endDate);
   const weekDays = buildMicrocycleWeek(data, microcycle, effectiveCategory);
   const [microcycleMessage, setMicrocycleMessage] = useState('');
-  const { confirm, ConfirmModal } = useConfirm();
+  const { confirm: showConfirm, ConfirmModal } = useConfirm();
   const saveMicrocycleDraft = (nextMicrocycle: typeof microcycle) => {
     const normalized = { ...nextMicrocycle, category: effectiveCategory };
     if (!normalized.name?.trim()) {
@@ -89,7 +89,7 @@ export default function MicrocicloPage() {
   const deleteSessionFromMicrocycle = async (sessionId: string) => {
     const target = data.trainingSessionSummaries.find((item) => item.id === sessionId);
     if (!target) return;
-    const ok = await confirm({
+    const ok = await showConfirm({
       title: `¿Eliminar sesión ${target.sessionNumber || '-'} del ${target.date}?`,
       description: 'Se quitará la participación y carga asociada a esta sesión.',
       danger: true,
@@ -106,7 +106,7 @@ export default function MicrocicloPage() {
     const desc = usedBySessions || usedByLoads
       ? `Este microciclo tiene ${usedBySessions} sesión(es) y ${usedByLoads} registro(s) asociados. Se quitará la asociación pero NO se borrarán los datos.`
       : 'Esta acción no se puede deshacer.';
-    const ok = await confirm({
+    const ok = await showConfirm({
       title: `¿Eliminar "${microcycle.name}"?`,
       description: desc,
       danger: true,

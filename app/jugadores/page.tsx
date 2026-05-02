@@ -18,6 +18,7 @@ const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Le
 
 export default function JugadoresPage() {
   const { data, filters, deletePlayer, updatePlayer } = useApp();
+  const { confirm: showConfirm, ConfirmModal } = useConfirm();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const canEditPlayers = canWrite(session);
@@ -108,7 +109,7 @@ export default function JugadoresPage() {
                       className="btn danger"
                       onClick={async () => {
                         if (!canDeletePlayer(session, player)) {
-                          await confirm({
+                          await showConfirm({
                             title: 'Sin permiso para eliminar',
                             description: getDeleteDeniedMessage(session),
                             confirmLabel: 'Entendido',
@@ -116,7 +117,7 @@ export default function JugadoresPage() {
                           });
                           return;
                         }
-                        const ok = await confirm({
+                        const ok = await showConfirm({
                           title: `¿Eliminar a ${player.name}?`,
                           description: 'Se borrarán todos sus registros de wellness, cargas, valoraciones y competencia. Esta acción no se puede deshacer.',
                           danger: true,

@@ -86,7 +86,7 @@ export default function SesionEntrenamientoPage() {
   const [showGroupReport, setShowGroupReport] = useState(false);
   const [sessionNumberInput, setSessionNumberInput] = useState(filters.sessionNumber ? String(filters.sessionNumber) : '');
   const [isSavingSession, setIsSavingSession] = useState(false);
-  const { confirm, ConfirmModal } = useConfirm();
+  const { confirm: showConfirm, ConfirmModal } = useConfirm();
   const [showCsvImporter, setShowCsvImporter] = useState(false);
   const csvSessionId = summaryRecord?.id ?? 'csv-pending';
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -388,7 +388,7 @@ export default function SesionEntrenamientoPage() {
   const deleteSession = async (sessionId: string) => {
     const target = data.trainingSessionSummaries.find((item) => item.id === sessionId);
     if (!target) return;
-    const ok = await confirm({
+    const ok = await showConfirm({
       title: `¿Eliminar sesión ${target.sessionNumber || '-'} del ${target.date}?`,
       description: 'También se quitará la participación y carga de todos los jugadores asociados a esta sesión.',
       danger: true,
