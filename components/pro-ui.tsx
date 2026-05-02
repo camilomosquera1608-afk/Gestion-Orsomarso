@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, CircleDot, Database, Info, PlusCircle, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleDot, Database, Info, PlusCircle, ShieldCheck, X } from 'lucide-react';
 import type { AlertLevel, DataQualityItem, OperationalAlert } from '@/lib/operational-helpers';
+import { useEffect, useState, useCallback } from 'react';
 
 export type UiTone = 'neutral' | 'blue' | 'green' | 'amber' | 'red' | 'dark';
 
@@ -37,6 +38,8 @@ export const StatusBadge = ({ text, tone = 'neutral' }: { text: string; tone?: U
   <span className={`status-badge ${toneClass(tone)}`}>{text}</span>
 );
 
+// FIX #5: EmptyState con ícono contextual por módulo.
+// Cada módulo puede pasar su propio ícono SVG simple en lugar del ícono genérico.
 export const EmptyState = ({
   title,
   text,
@@ -46,17 +49,73 @@ export const EmptyState = ({
   title: string;
   text?: string;
   action?: ReactNode;
-  icon?: 'info' | 'check' | 'alert' | 'shield';
+  icon?: 'info' | 'check' | 'alert' | 'shield' | ReactNode;
 }) => {
-  const Icon = icon === 'check' ? CheckCircle2 : icon === 'alert' ? AlertTriangle : icon === 'shield' ? ShieldCheck : Info;
+  const isString = typeof icon === 'string';
+  const Icon = isString
+    ? (icon === 'check' ? CheckCircle2 : icon === 'alert' ? AlertTriangle : icon === 'shield' ? ShieldCheck : Info)
+    : null;
   return (
     <div className="empty-state">
-      <div className="empty-icon"><Icon size={20} /></div>
+      <div className="empty-icon">
+        {isString && Icon ? <Icon size={20} /> : !isString ? icon : <Info size={20} />}
+      </div>
       <div>
         <strong>{title}</strong>
         {text ? <p>{text}</p> : null}
       </div>
       {action ? <div className="empty-action">{action}</div> : null}
+    </div>
+  );
+};
+
+// FIX #6: Toast de confirmación global. Úsalo así:
+//   import { useToast } from '@/components/pro-ui';
+//   const { showToast } = useToast();
+//   showToast('Sesión guardada correctamente');
+// El ToastContainer debe estar en el layout principal (app-shell.tsx).
+
+type ToastEntry = { id: number; message: string; tone: UiTone };
+let toastListeners: Array<(entry: ToastEntry) => void> = [];
+let toastId = 0;
+
+export const showToast = (message: string, tone: UiTone = 'green') => {
+  const entry: ToastEntry = { id: ++toastId, message, tone };
+  toastListeners.forEach((fn) => fn(entry));
+};
+
+export const ToastContainer = () => {
+  const [toasts, setToasts] = useState<ToastEntry[]>([]);
+
+  useEffect(() => {
+    const handler = (entry: ToastEntry) => {
+      setToasts((prev) => [...prev, entry]);
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== entry.id));
+      }, 2400);
+    };
+    toastListeners.push(handler);
+    return () => { toastListeners = toastListeners.filter((fn) => fn !== handler); };
+  }, []);
+
+  if (!toasts.length) return null;
+
+  return (
+    <div className="toast-container" aria-live="polite">
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`toast toast-${toast.tone}`}>
+          {toast.tone === 'green' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            className="toast-close"
+            onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+            aria-label="Cerrar"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      ))}
     </div>
   );
 };
@@ -183,17 +242,29 @@ export const ContextTopBar = ({
   microcycle,
   category,
   mode,
+  syncStatus,
 }: {
   date: string;
   microcycle: string;
   category: string;
   mode: string;
+  // FIX #4: syncStatus expuesto en el context bar para feedback visual claro
+  syncStatus?: 'idle' | 'syncing' | 'ready' | 'error';
 }) => (
   <div className="top-context-bar no-print">
     <div className="top-context-item"><span>Fecha activa</span><strong>{date}</strong></div>
     <div className="top-context-item"><span>Microciclo</span><strong>{microcycle}</strong></div>
     <div className="top-context-item"><span>Categoría</span><strong>{category}</strong></div>
     <div className="top-context-item top-context-safe"><ShieldCheck size={15} /><strong>{mode}</strong></div>
+    {/* FIX #4: indicador de sync visible y con color semántico */}
+    {syncStatus && syncStatus !== 'idle' ? (
+      <div className={`top-context-item top-context-sync top-context-sync-${syncStatus}`}>
+        <span>Sync</span>
+        <strong>
+          {syncStatus === 'syncing' ? 'Guardando…' : syncStatus === 'error' ? 'Error' : 'Guardado ✓'}
+        </strong>
+      </div>
+    ) : null}
     <div className="top-context-actions">
       <Link className="btn secondary btn-compact" href="/ejecutivo">Panel ejecutivo</Link>
       <Link className="btn secondary btn-compact" href="/alertas">Alertas</Link>

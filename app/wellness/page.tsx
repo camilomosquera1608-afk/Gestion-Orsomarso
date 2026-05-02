@@ -33,7 +33,7 @@ export default function WellnessCenterPage() {
 
   return (
     <div className="grid wellness-center-page">
-      <AppHero title="Centro de wellness" subtitle={`Bienestar, fatiga y registros subjetivos · ${activePeriod}`} />
+      <AppHero heroClass="hero-wellness" title="Centro de wellness" subtitle={`Bienestar, fatiga y registros subjetivos · ${activePeriod}`} />
       <GlobalFiltersBar />
 
       <div className="grid grid-5">

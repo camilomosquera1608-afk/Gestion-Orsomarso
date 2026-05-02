@@ -87,7 +87,7 @@ export default function RankingPage() {
   if (isLoading) {
     return (
       <div className="grid">
-        <AppHero title="Ranking de rendimiento" subtitle="Cargando datos…" />
+        <AppHero heroClass="hero-jugadores" title="Ranking de rendimiento" subtitle="Cargando datos…" />
         <div className="card" style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>
           Sincronizando con Supabase…
         </div>
@@ -97,7 +97,7 @@ export default function RankingPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Ranking de rendimiento" subtitle={`Lectura comparativa · ${master ? 'Global' : categoryLabel(activeCategory)}`} />
+      <AppHero heroClass="hero-jugadores" title="Ranking de rendimiento" subtitle={`Lectura comparativa · ${master ? 'Global' : categoryLabel(activeCategory)}`} />
       <GlobalFiltersBar />
       <div className="toolbar card">
         <div>

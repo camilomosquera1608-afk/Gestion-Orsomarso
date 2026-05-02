@@ -133,7 +133,7 @@ export default function MicrocicloPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Planificación semanal" subtitle={`${categoryLabel(effectiveCategory)} · microciclo independiente por categoría${gpsEnabled ? ' · GPS Catapult' : ''}`} />
+      <AppHero heroClass="hero-microciclo" title="Planificación semanal" subtitle={`${categoryLabel(effectiveCategory)} · microciclo independiente por categoría${gpsEnabled ? ' · GPS Catapult' : ''}`} />
       <GlobalFiltersBar />
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

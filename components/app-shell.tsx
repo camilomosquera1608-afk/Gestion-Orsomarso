@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { MobileNavigation, Sidebar } from '@/components/sidebar';
-import { ContextTopBar } from '@/components/pro-ui';
+import { ContextTopBar, ToastContainer } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getAllowedCategory, getStaffSession, isStaffAuthenticated, isMasterRole, logoutStaff } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
@@ -14,7 +14,7 @@ import { hasSupabaseConfig, supabase, tableSchemaSyncEnabled } from '@/lib/supab
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { data, filters, backendMode } = useApp();
+  const { data, filters, backendMode, syncStatus } = useApp();
   const [allowed, setAllowed] = useState(false);
 
   const normalizedPathname = pathname.toLowerCase().replace(/\/$/, '');
@@ -105,8 +105,9 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
       <Sidebar />
       <MobileNavigation />
       <main className="main mobile-safe-page">
-        <ContextTopBar {...topContext} />
+        <ContextTopBar {...topContext} syncStatus={syncStatus} />
         {children}
+        <ToastContainer />
       </main>
     </div>
   );

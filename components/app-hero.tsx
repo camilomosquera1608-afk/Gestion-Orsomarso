@@ -15,12 +15,16 @@ const formatDate = (value: string) => {
   return `${day}/${month}/${year}`;
 };
 
+// FIX #3: heroClass permite que cada módulo tenga su propio color de acento.
+// Cada página pasa su clase: hero-wellness, hero-carga, hero-competencia, etc.
 export const AppHero = ({
   title,
   subtitle,
+  heroClass = '',
 }: {
   title: string;
   subtitle?: string;
+  heroClass?: string;
   badgeTitle?: string;
   badgeText?: string;
 }) => {
@@ -46,7 +50,7 @@ export const AppHero = ({
     : 'Sin microciclo asignado';
 
   return (
-    <section className="hero premium-hero">
+    <section className={`hero premium-hero ${heroClass}`}>
       <div className="hero-main">
         <div className="hero-eyebrow"><Trophy size={15} />{contextLabel}</div>
         <h2>{title}</h2>

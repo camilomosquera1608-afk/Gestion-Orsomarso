@@ -47,7 +47,7 @@ export default function AlertCenterPage() {
 
   return (
     <div className="grid alert-center-page">
-      <AppHero title="Centro de alertas" subtitle={`Prioridades operativas del staff · ${activeCategory === 'all' ? 'Todas' : categoryLabel(activeCategory)} · ${formatDateShort(filters.date)}`} />
+      <AppHero heroClass="hero-alertas" title="Centro de alertas" subtitle={`Prioridades operativas del staff · ${activeCategory === 'all' ? 'Todas' : categoryLabel(activeCategory)} · ${formatDateShort(filters.date)}`} />
       <GlobalFiltersBar />
 
       <div className="grid grid-4">

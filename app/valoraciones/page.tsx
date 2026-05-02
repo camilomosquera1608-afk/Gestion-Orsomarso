@@ -283,7 +283,7 @@ export default function ValoracionesPage() {
   return (
     <div className="grid evaluations-page-root">
       <div className="evaluations-operational no-print">
-      <AppHero title="Valoraciones físicas" subtitle="Control antropométrico, neuromuscular y funcional." />
+      <AppHero heroClass="hero-valoraciones" title="Valoraciones físicas" subtitle="Control antropométrico, neuromuscular y funcional." />
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
           <div className="field" style={{ maxWidth: 360 }}>

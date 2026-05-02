@@ -415,7 +415,7 @@ export default function CompetenciaPage() {
   return (
     <div className="grid competition-page-root">
       <div className="competition-operational no-print">
-      <AppHero title="Ficha profesional de partido" subtitle={`Competencia · ${categoryLabel(activeCategory)}`} />
+      <AppHero heroClass="hero-competencia" title="Ficha profesional de partido" subtitle={`Competencia · ${categoryLabel(activeCategory)}`} />
 
       <div className="grid grid-4">
         <KpiCard label="Partidos registrados" value={String(matchSummaries.length)} tone="blue" trend="Historial activo" />

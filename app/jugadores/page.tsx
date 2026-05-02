@@ -38,7 +38,7 @@ export default function JugadoresPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Plantilla deportiva" subtitle="Gestión del plantel, disponibilidad, últimos registros y acceso a ficha individual." />
+      <AppHero heroClass="hero-jugadores" title="Plantilla deportiva" subtitle="Gestión del plantel, disponibilidad, últimos registros y acceso a ficha individual." />
       <GlobalFiltersBar />
 
       <div className="toolbar card">
@@ -72,7 +72,7 @@ export default function JugadoresPage() {
             const internalLoad = latestInternal ? calculateInternalLoad(latestInternal) : 0;
             return (
               <div className="card player-card" key={player.id}>
-                <img src={player.photo || '/orsomarso-crest.jpg'} alt={player.name} />
+                <img src={player.photo || "/orsomarso-crest.jpg"} alt={player.name} loading="lazy" className="player-photo" />
                 <div>
                   <h3 style={{ margin: 0 }}>{player.name}</h3>
                   <div className="muted-line">{player.position} · {categoryLabel(player.category)} · {calcAge(player.birthDate) ?? player.age} años</div>

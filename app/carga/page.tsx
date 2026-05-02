@@ -45,7 +45,7 @@ export default function LoadCenterPage() {
   if (isLoading) {
     return (
       <div className="grid">
-        <AppHero title="Centro de carga" subtitle="Cargando datos…" />
+        <AppHero heroClass="hero-carga" title="Centro de carga" subtitle="Cargando datos…" />
         <div className="card" style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>
           Sincronizando con Supabase…
         </div>
@@ -55,7 +55,7 @@ export default function LoadCenterPage() {
 
   return (
     <div className="grid load-center-page">
-      <AppHero title="Centro de carga" subtitle={`Carga, RPE y volumen · ${activePeriod}${gpsEnabled ? ' · GPS' : ''}`} />
+      <AppHero heroClass="hero-carga" title="Centro de carga" subtitle={`Carga, RPE y volumen · ${activePeriod}${gpsEnabled ? ' · GPS' : ''}`} />
       <GlobalFiltersBar />
 
       {gpsEnabled && hasAnyLoad ? (

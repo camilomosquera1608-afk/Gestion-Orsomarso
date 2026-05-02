@@ -72,7 +72,7 @@ export default function DiarioPage() {
 
   return (
     <div className="grid">
-      <AppHero title="Parte diario del equipo" subtitle={youthSimple ? 'Control diario simplificado por categoría.' : 'Monitoreo operativo de wellness, carga y estado médico.'} />
+      <AppHero heroClass="hero-diario" title="Parte diario del equipo" subtitle={youthSimple ? 'Control diario simplificado por categoría.' : 'Monitoreo operativo de wellness, carga y estado médico.'} />
       <GlobalFiltersBar />
 
       <div className="grid grid-2">
