@@ -1,8 +1,7 @@
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, CircleDot, Database, Info, PlusCircle, ShieldCheck, X } from 'lucide-react';
 import type { AlertLevel, DataQualityItem, OperationalAlert } from '@/lib/operational-helpers';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 
 export type UiTone = 'neutral' | 'blue' | 'green' | 'amber' | 'red' | 'dark';
 
@@ -13,7 +12,6 @@ const alertTone = (level: AlertLevel): UiTone => level === 'critical' ? 'red' : 
 // Uso: const { confirm, ConfirmModal } = useConfirm();
 // await confirm({ title: '¿Eliminar sesión?', description: '...', danger: true });
 
-import { useCallback, useRef } from 'react';
 
 type ConfirmOptions = {
   title: string;

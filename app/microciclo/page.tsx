@@ -275,6 +275,7 @@ export default function MicrocicloPage() {
           <tbody>{accumulated.map((item) => <tr key={item.jugador}><td>{item.jugador}</td><td>{item.minutos}</td><td>{item.rpe}</td>{!youthSimple ? <td>{item.acc}</td> : null}<td>{item.carga}</td></tr>)}</tbody>
         </table>
       </div>
+      {ConfirmModal}
     </div>
   );
 }

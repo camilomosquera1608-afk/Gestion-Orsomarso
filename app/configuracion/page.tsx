@@ -11,6 +11,7 @@ import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory } from '@/lib/types';
 import { getCategoryReadinessChecks, getCategoryReadinessSummary, getDataTotals, getDuplicateChecks, getOverallDataQuality, qualityLabel, qualityToneClass } from '@/lib/data-quality';
 import { fetchAuditLogs, getSupabaseUserEmail, hasSupabaseConfig, signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
+import { getLocalStorageUsageKb, getLocalStorageWarning } from '@/lib/app-storage';
 
 const formatDate = (value: string) => new Date(value).toLocaleString('es-CO', {
   dateStyle: 'medium',

@@ -18,11 +18,6 @@ import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayer
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 const starterOptions: CompetitionPlayerRole[] = ['Titular', 'Suplente'];
 const medicalOptions: CompetitionMedicalStatus[] = ['Sin lesión', 'Lesionado'];
-const knownRivals: Record<ClubCategory, string[]> = {
-  Sub20: ['Deportivo Pasto', 'Independiente Yumbo', 'Boca Juniors de Cali', 'Once Caldas', 'Deportivo Pereira', 'Internacional Palmira', 'Deportivo Cali', 'América de Cali', 'Deporvalencia'],
-  Sub17: [],
-  Sub15: [],
-};
 
 type MatchDraft = {
   id: string;
@@ -140,7 +135,7 @@ export default function CompetenciaPage() {
   );
 
   const availableOpponents = useMemo(() => Array.from(new Set([
-    ...(knownRivals[activeCategory] ?? []),
+    ...knownRivalsFromHistory,
     ...matchSummaries.map((match) => match.opponent).filter(Boolean),
     ...allCategoryRecords.map((record) => record.opponent).filter(Boolean),
   ])).sort((a, b) => a.localeCompare(b)), [activeCategory, matchSummaries, allCategoryRecords]);
@@ -470,18 +465,15 @@ export default function CompetenciaPage() {
           </div>
           <div className="field">
             <label>Nombre del torneo / liga</label>
-              </div>
-              <div className="field">
-                <label>Nombre del torneo / liga</label>
-                <input
-                  className="input"
-                  value={matchDraft.competitionName}
-                  onChange={(e) => setMatchDraft((prev) => ({ ...prev, competitionName: e.target.value }))}
-                  placeholder="Ej. Liga BetPlay, Copa Colombia..."
-                />
-              </div>
-              <div className="field">
-                <label>Condición</label>
+            <input
+              className="input"
+              value={matchDraft.competitionName}
+              onChange={(e) => setMatchDraft((prev) => ({ ...prev, competitionName: e.target.value }))}
+              placeholder="Ej. Liga BetPlay, Copa Colombia..."
+            />
+          </div>
+          <div className="field">
+            <label>Condición</label>
             <select className="select" value={matchDraft.venue} onChange={(event) => setMatchDraft((prev) => ({ ...prev, venue: event.target.value as CompetitionVenue }))}>
               <option value="Local">Local</option>
               <option value="Visitante">Visitante</option>

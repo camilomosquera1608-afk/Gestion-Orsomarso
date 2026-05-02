@@ -11,7 +11,7 @@ import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import { ClubCategory, MovementType, SessionParticipation, TrainingSessionType } from '@/lib/types';
+import { ClubCategory, DailyExternalLoadRecord, MovementType, SessionParticipation, TrainingSessionType } from '@/lib/types';
 import { findMicrocycleByDate, groupAverage } from '@/lib/utils';
 import { buildDailyOperations } from '@/lib/operational-helpers';
 import { supportsGps } from '@/lib/report-utils';
@@ -88,6 +88,7 @@ export default function SesionEntrenamientoPage() {
   const [isSavingSession, setIsSavingSession] = useState(false);
   const { confirm, ConfirmModal } = useConfirm();
   const [showCsvImporter, setShowCsvImporter] = useState(false);
+  const csvSessionId = summaryRecord?.id ?? 'csv-pending';
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -398,7 +399,7 @@ export default function SesionEntrenamientoPage() {
     setMessage('Sesión eliminada correctamente.');
   };
 
-  const handleCsvImport = (records: Omit<import('@/lib/types').DailyExternalLoadRecord, 'id'>[]) => {
+  const handleCsvImport = (records: Omit<DailyExternalLoadRecord, 'id'>[]) => {
     records.forEach((record) => {
       addExternalLoad({ ...record, id: crypto.randomUUID() });
     });
@@ -638,7 +639,7 @@ export default function SesionEntrenamientoPage() {
     {showCsvImporter && (
       <CsvImporter
         players={ops.players}
-        sessionId={summaryRecord?.id ?? crypto.randomUUID()}
+        sessionId={csvSessionId}
         date={filters.date}
         microcycleId={activeMicrocycleId}
         sessionNumber={Number(sessionNumberInput) || filters.sessionNumber}
