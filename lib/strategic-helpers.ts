@@ -360,3 +360,160 @@ export const buildGlobalAlertCenter = (data: AppData, filters: GlobalFilters, ac
     tasks: ops.tasks,
   };
 };
+
+// ─── ACWR: Ratio carga aguda / crónica ────────────────────────────────────
+// Estándar de prevención de lesiones en fútbol profesional.
+// Aguda = carga últimos 7 días. Crónica = promedio de 4 semanas (28 días).
+// Zona segura: 0.8 – 1.3. Fuera de ese rango = riesgo de lesión.
+
+export type AcwrZone = 'safe' | 'warning' | 'danger' | 'no_data';
+
+export interface AcwrRow {
+  player: Player;
+  acute: number;       // Carga últimos 7 días
+  chronic: number;     // Promedio semanal últimas 4 semanas
+  ratio: number;       // acute / chronic
+  zone: AcwrZone;
+  zoneLabel: string;
+  weeklyLoads: number[]; // Carga por semana [w4_antiguo, w3, w2, w1_reciente]
+}
+
+const getWeekLoad = (loads: AppData['internalLoads'], playerId: string, endDate: string, days: number): number => {
+  const end = new Date(endDate);
+  const start = new Date(end);
+  start.setDate(start.getDate() - days + 1);
+  const startStr = start.toISOString().slice(0, 10);
+  return loads
+    .filter((item) => item.playerId === playerId && item.date >= startStr && item.date <= endDate)
+    .reduce((acc, item) => acc + item.rpe * item.duration, 0);
+};
+
+export const buildAcwrData = (data: AppData, activeCategory: string, referenceDate?: string): AcwrRow[] => {
+  const today = referenceDate ?? new Date().toISOString().slice(0, 10);
+  const players = data.players.filter((player) =>
+    activeCategory === 'all' || player.category === activeCategory,
+  );
+
+  return players.map((player) => {
+    const acute = getWeekLoad(data.internalLoads, player.id, today, 7);
+    const w1 = getWeekLoad(data.internalLoads, player.id, today, 7);
+    const w2 = getWeekLoad(data.internalLoads, player.id, addDays(today, -7), 7);
+    const w3 = getWeekLoad(data.internalLoads, player.id, addDays(today, -14), 7);
+    const w4 = getWeekLoad(data.internalLoads, player.id, addDays(today, -21), 7);
+    const weeksWithData = [w4, w3, w2, w1].filter((w) => w > 0);
+    const chronic = weeksWithData.length >= 2 ? weeksWithData.reduce((a, b) => a + b, 0) / 4 : 0;
+    const ratio = chronic > 0 ? Number((acute / chronic).toFixed(2)) : 0;
+    const zone: AcwrZone = chronic === 0 || acute === 0
+      ? 'no_data'
+      : ratio < 0.8 ? 'warning'
+      : ratio <= 1.3 ? 'safe'
+      : 'danger';
+    const zoneLabel = zone === 'safe' ? 'Zona segura' : zone === 'warning' ? 'Sub-carga' : zone === 'danger' ? 'Riesgo' : 'Sin datos';
+    return { player, acute, chronic, ratio, zone, zoneLabel, weeklyLoads: [w4, w3, w2, w1] };
+  }).sort((a, b) => {
+    const order: AcwrZone[] = ['danger', 'warning', 'safe', 'no_data'];
+    return order.indexOf(a.zone) - order.indexOf(b.zone) || b.ratio - a.ratio;
+  });
+};
+
+// ─── Tendencia de wellness individual (últimos N días) ────────────────────
+export interface WellnessTrend {
+  playerId: string;
+  values: number[];        // Últimos 7 valores de promedio wellness (del más antiguo al más reciente)
+  trend: 'up' | 'down' | 'stable' | 'no_data';
+  lastValue: number;
+  avgValue: number;
+  alert: boolean;          // true si los últimos 3 días están todos bajo 3.2
+}
+
+export const buildWellnessTrends = (data: AppData, activeCategory: string, days = 7): Map<string, WellnessTrend> => {
+  const result = new Map<string, WellnessTrend>();
+  const players = data.players.filter((player) =>
+    activeCategory === 'all' || player.category === activeCategory,
+  );
+
+  players.forEach((player) => {
+    const records = data.wellness
+      .filter((record) => record.playerId === player.id)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-days);
+
+    if (records.length === 0) {
+      result.set(player.id, { playerId: player.id, values: [], trend: 'no_data', lastValue: 0, avgValue: 0, alert: false });
+      return;
+    }
+
+    const values = records.map((record) => {
+      const sum = record.sleep + record.fatigue + record.stress + record.musclePain + record.mood;
+      return Number((sum / 5).toFixed(1));
+    });
+
+    const lastValue = values.at(-1) ?? 0;
+    const avgValue = Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1));
+    const last3 = values.slice(-3);
+    const alert = last3.length >= 3 && last3.every((v) => v < 3.2);
+
+    let trend: WellnessTrend['trend'] = 'stable';
+    if (values.length >= 3) {
+      const first = values.slice(0, Math.ceil(values.length / 2));
+      const last = values.slice(Math.floor(values.length / 2));
+      const firstAvg = first.reduce((a, b) => a + b, 0) / first.length;
+      const lastAvg = last.reduce((a, b) => a + b, 0) / last.length;
+      if (lastAvg - firstAvg > 0.3) trend = 'up';
+      else if (firstAvg - lastAvg > 0.3) trend = 'down';
+    }
+
+    result.set(player.id, { playerId: player.id, values, trend, lastValue, avgValue, alert });
+  });
+
+  return result;
+};
+
+// ─── Monotonía y Strain del microciclo ────────────────────────────────────
+// Monotonía = desviación estándar / media de cargas diarias.
+// Strain = carga total × monotonía.
+// Monotonía óptima: < 2. Strain alto indica distribución peligrosa.
+
+export interface MonotonyStrain {
+  dailyLoads: number[];
+  mean: number;
+  stdDev: number;
+  monotony: number;
+  strain: number;
+  totalLoad: number;
+  verdict: 'optimal' | 'acceptable' | 'high';
+  verdictLabel: string;
+}
+
+export const buildMonotonyStrain = (data: AppData, microcycleId: string, activeCategory: string): MonotonyStrain => {
+  const sessions = data.trainingSessionSummaries.filter((session) =>
+    session.microcycleId === microcycleId &&
+    (activeCategory === 'all' || session.category === activeCategory),
+  );
+
+  const uniqueDates = [...new Set(sessions.map((session) => session.date))].sort();
+
+  const dailyLoads = uniqueDates.map((date) => {
+    const dayLoads = data.internalLoads.filter((load) =>
+      load.date === date &&
+      (activeCategory === 'all' || load.category === activeCategory || load.actingCategory === activeCategory),
+    );
+    return dayLoads.reduce((acc, load) => acc + load.rpe * load.duration, 0);
+  }).filter((load) => load > 0);
+
+  if (dailyLoads.length === 0) {
+    return { dailyLoads: [], mean: 0, stdDev: 0, monotony: 0, strain: 0, totalLoad: 0, verdict: 'optimal', verdictLabel: 'Sin datos' };
+  }
+
+  const mean = dailyLoads.reduce((a, b) => a + b, 0) / dailyLoads.length;
+  const variance = dailyLoads.reduce((acc, load) => acc + Math.pow(load - mean, 2), 0) / dailyLoads.length;
+  const stdDev = Math.sqrt(variance);
+  const monotony = mean > 0 ? Number((stdDev / mean).toFixed(2)) : 0;
+  const totalLoad = dailyLoads.reduce((a, b) => a + b, 0);
+  const strain = Number((totalLoad * monotony).toFixed(0));
+
+  const verdict = monotony < 2 ? 'optimal' : monotony < 2.5 ? 'acceptable' : 'high';
+  const verdictLabel = verdict === 'optimal' ? 'Óptimo' : verdict === 'acceptable' ? 'Revisar' : 'Alto riesgo';
+
+  return { dailyLoads, mean: Number(mean.toFixed(0)), stdDev: Number(stdDev.toFixed(0)), monotony, strain, totalLoad: Number(totalLoad.toFixed(0)), verdict, verdictLabel };
+};

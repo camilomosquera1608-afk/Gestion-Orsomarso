@@ -4317,3 +4317,712 @@ img[loading="lazy"] { background: var(--line-soft); }
   /* Cover page break */
   .pdf-report-cover { page-break-after: always; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR PC REDISEÑADO — v2
+   Solo afecta escritorio (>980px). Móvil y tablet sin cambios.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sidebar-v2 {
+  background: #0b1628;
+  border-right: 1px solid rgba(255,255,255,.06);
+  width: 260px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+}
+
+/* Marca */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.sidebar-brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.sidebar-brand-logo img { width: 34px; height: 34px; object-fit: contain; border-radius: 8px; }
+.sidebar-brand-text { display: grid; gap: 1px; min-width: 0; }
+.sidebar-brand-club {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: #60a5fa;
+}
+.sidebar-brand-product {
+  font-size: 14px; font-weight: 700;
+  color: #fff; letter-spacing: -.02em;
+  line-height: 1.1;
+}
+
+/* Usuario */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.sidebar-user-avatar {
+  width: 32px; height: 32px; border-radius: 10px;
+  background: rgba(99,102,241,.3);
+  border: 1px solid rgba(99,102,241,.4);
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; color: #c7d2fe;
+  flex-shrink: 0;
+}
+.sidebar-user-info { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.sidebar-user-name {
+  font-size: 12px; font-weight: 600; color: #e2e8f0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sidebar-user-role { font-size: 10px; font-weight: 500; color: #64748b; }
+.sidebar-sync-dot {
+  width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
+}
+.sidebar-dot-ready { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,.5); }
+.sidebar-dot-syncing { background: #f59e0b; animation: dot-pulse 1s ease-in-out infinite; }
+.sidebar-dot-error { background: #ef4444; }
+@keyframes dot-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* Navegación */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.08) transparent;
+}
+.sidebar-nav::-webkit-scrollbar { width: 4px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 4px; }
+
+.sidebar-group { display: flex; flex-direction: column; }
+.sidebar-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #475569;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  transition: color .14s ease;
+  width: 100%;
+  margin-top: 6px;
+}
+.sidebar-group-toggle:hover { color: #94a3b8; }
+.sidebar-group-toggle.has-active { color: #60a5fa; }
+
+.sidebar-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 4px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background .13s ease, color .13s ease;
+  position: relative;
+  border: 1px solid transparent;
+}
+.sidebar-item:hover {
+  background: rgba(255,255,255,.05);
+  color: #e2e8f0;
+}
+.sidebar-item.active {
+  background: rgba(99,102,241,.14);
+  color: #fff;
+  border-color: rgba(99,102,241,.22);
+}
+.sidebar-item-icon {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: rgba(255,255,255,.04);
+  transition: background .13s ease;
+}
+.sidebar-item.active .sidebar-item-icon {
+  background: rgba(99,102,241,.25);
+  color: #a5b4fc;
+}
+.sidebar-item-label { flex: 1; }
+.sidebar-item-pip {
+  width: 5px; height: 5px;
+  border-radius: 999px;
+  background: #818cf8;
+  flex-shrink: 0;
+}
+
+/* Pie */
+.sidebar-footer {
+  padding: 12px 12px 16px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sidebar-conn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.sidebar-conn-live {
+  background: rgba(34,197,94,.1);
+  color: #86efac;
+  border: 1px solid rgba(34,197,94,.18);
+}
+.sidebar-conn-local {
+  background: rgba(100,116,139,.12);
+  color: #94a3b8;
+  border: 1px solid rgba(100,116,139,.18);
+}
+.sidebar-conn-dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.sidebar-logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(239,68,68,.08);
+  border: 1px solid rgba(239,68,68,.14);
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .13s ease;
+}
+.sidebar-logout:hover {
+  background: rgba(239,68,68,.15);
+  color: #fecaca;
+}
+
+/* Ajuste del grid principal para el nuevo ancho */
+.app-shell { grid-template-columns: 260px 1fr; }
+
+@media (max-width: 980px) {
+  .sidebar-v2 { display: none; }
+  .app-shell { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACWR — Ratio carga aguda/crónica (badge de riesgo)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.acwr-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.acwr-green  { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.acwr-amber  { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.acwr-red    { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.acwr-gray   { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+.acwr-table-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 12px; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
+.acwr-table-row:last-child { border-bottom: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CSV IMPORT — Importación de datos GPS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.csv-import-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 20px;
+  padding: 28px;
+  text-align: center;
+  background: #f8fbff;
+  transition: border-color .18s ease, background .18s ease;
+  cursor: pointer;
+}
+.csv-import-zone:hover, .csv-import-zone.drag-over {
+  border-color: var(--blue);
+  background: #eef5ff;
+}
+.csv-import-zone strong { display: block; color: var(--navy); margin-bottom: 6px; font-size: 15px; }
+.csv-import-zone span { color: var(--muted); font-size: 13px; font-weight: 600; }
+.csv-preview-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.csv-preview-table th { background: #f1f5f9; color: var(--muted); padding: 8px 10px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; }
+.csv-preview-table td { padding: 8px 10px; border-top: 1px solid var(--line-soft); color: var(--text); }
+.csv-preview-table tr:hover td { background: #f8fbff; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WELLNESS SPARKLINE — Tendencia 7 días
+   ═══════════════════════════════════════════════════════════════════════════ */
+.wellness-sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 20px;
+}
+.wellness-spark-bar {
+  width: 5px;
+  border-radius: 2px 2px 0 0;
+  min-height: 3px;
+  transition: height .2s ease;
+}
+.spark-green  { background: #22c55e; }
+.spark-amber  { background: #f59e0b; }
+.spark-red    { background: #ef4444; }
+.spark-empty  { background: #e2e8f0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INFORME SEMANAL — Resumen ejecutivo
+   ═══════════════════════════════════════════════════════════════════════════ */
+.weekly-report-cover {
+  background: linear-gradient(135deg, var(--navy) 0%, #0e3274 55%, var(--blue) 100%);
+  color: #fff;
+  border-radius: 26px;
+  padding: 28px 32px;
+  display: grid;
+  gap: 20px;
+}
+.weekly-report-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 12px;
+}
+.weekly-kpi {
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.1);
+  border-radius: 16px;
+  padding: 14px;
+  display: grid;
+  gap: 4px;
+}
+.weekly-kpi span { color: rgba(255,255,255,.6); font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
+.weekly-kpi strong { color: #fff; font-size: 26px; font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+.weekly-kpi small { color: rgba(255,255,255,.5); font-size: 10px; font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PDF — SISTEMA TIPOGRÁFICO PROFESIONAL
+   Reescritura completa de los estilos print para máxima calidad A4.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Overrides de impresión que hacen que los PDFs se vean profesionales */
+@media print {
+  /* Página */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm 16mm;
+  }
+  @page:first {
+    margin-top: 0;
+  }
+
+  html, body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Ocultar UI de la app */
+  .no-print,
+  .sidebar,
+  .sidebar-v2,
+  .competition-operational,
+  .evaluations-operational,
+  .filters-panel,
+  .hero,
+  .top-context-bar,
+  .btn,
+  .nav,
+  .nav-logout,
+  .report-command-center,
+  .report-toolbar-premium,
+  .report-next-actions,
+  .toast-container,
+  .mobile-bottom-nav,
+  .mobile-menu-panel,
+  .mobile-menu-backdrop { display: none !important; }
+
+  .print-only { display: block !important; }
+
+  /* Contenedor principal del informe */
+  .pdf-report-document {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    gap: 8mm !important;
+    font-size: 9pt !important;
+    line-height: 1.4 !important;
+    color: #0f172a !important;
+  }
+  .premium-report-document::before {
+    height: 2.5mm !important;
+    border-radius: 0 !important;
+  }
+
+  /* Encabezado */
+  .pdf-report-header {
+    padding-bottom: 5mm !important;
+    margin-bottom: 0 !important;
+    border-bottom: 0.5pt solid #d8e1ee !important;
+  }
+  .pdf-report-brand img {
+    width: 14mm !important;
+    height: 14mm !important;
+    border-radius: 3mm !important;
+  }
+  .pdf-report-brand span { font-size: 6.5pt !important; }
+  .pdf-report-brand h1 { font-size: 16pt !important; margin: 1mm 0 !important; }
+  .pdf-report-brand p { font-size: 7.5pt !important; }
+  .pdf-report-header-meta { font-size: 7pt !important; }
+  .pdf-report-header-meta strong { font-size: 8.5pt !important; }
+
+  /* Portada */
+  .pdf-report-cover {
+    min-height: 0 !important;
+    padding: 8mm !important;
+    border-radius: 4mm !important;
+    gap: 5mm !important;
+    page-break-after: always !important;
+  }
+  .pdf-report-cover-mark img {
+    width: 18mm !important;
+    height: 18mm !important;
+    border-radius: 4mm !important;
+  }
+  .pdf-report-cover-mark span { font-size: 7pt !important; }
+  .pdf-report-cover-main h2 { font-size: 26pt !important; line-height: .92 !important; }
+  .pdf-report-cover-main p { font-size: 8pt !important; line-height: 1.35 !important; }
+  .pdf-report-cover-meta span { font-size: 7pt !important; padding: 1.5mm 3mm !important; }
+  .pdf-report-cover-kpis {
+    grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+    gap: 2.5mm !important;
+  }
+  .pdf-report-cover-kpi {
+    min-height: 0 !important;
+    padding: 3mm !important;
+    border-radius: 3mm !important;
+    gap: 1.5mm !important;
+  }
+  .pdf-report-cover-kpi span { font-size: 6pt !important; }
+  .pdf-report-cover-kpi strong { font-size: 14pt !important; }
+  .pdf-report-cover-kpi small { font-size: 6pt !important; }
+  .pdf-report-cover-footer { font-size: 6.5pt !important; padding-top: 2.5mm !important; }
+
+  /* Secciones */
+  .pdf-report-section {
+    gap: 3mm !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .pdf-report-section-heading { gap: 2.5mm !important; }
+  .pdf-report-icon {
+    width: 6mm !important;
+    height: 6mm !important;
+    border-radius: 2mm !important;
+  }
+  .pdf-report-section-heading span { font-size: 6.5pt !important; }
+  .pdf-report-section-heading h3 { font-size: 11pt !important; }
+  .pdf-report-section-heading p { font-size: 7pt !important; }
+
+  /* Textos */
+  .pdf-report-summary {
+    padding: 2.5mm 3mm !important;
+    border-radius: 3mm !important;
+    border-left-width: 3pt !important;
+    font-size: 8pt !important;
+    line-height: 1.38 !important;
+  }
+  .pdf-report-insight {
+    padding: 2mm 3mm !important;
+    border-radius: 3mm !important;
+    font-size: 7.5pt !important;
+  }
+
+  /* KPIs */
+  .pdf-report-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+    gap: 2mm !important;
+  }
+  .pdf-report-kpi {
+    min-height: 0 !important;
+    padding: 3mm !important;
+    gap: 2mm !important;
+    border-radius: 3mm !important;
+    border-left-width: 2pt !important;
+  }
+  .pdf-report-kpi span { font-size: 6pt !important; }
+  .pdf-report-kpi strong { font-size: 13pt !important; letter-spacing: -.03em !important; }
+  .pdf-report-kpi small { font-size: 6pt !important; }
+
+  /* Badges */
+  .pdf-report-badge { padding: 1.5mm 3mm !important; font-size: 6.5pt !important; }
+  .pdf-report-small-badge { font-size: 5.5pt !important; padding: 1mm 2mm !important; }
+
+  /* Tabla */
+  .pdf-report-table {
+    font-size: 7pt !important;
+    border-radius: 3mm !important;
+  }
+  .pdf-report-table th {
+    font-size: 5.5pt !important;
+    padding: 2mm 2.5mm !important;
+    letter-spacing: .04em !important;
+  }
+  .pdf-report-table td { padding: 2mm 2.5mm !important; font-size: 7pt !important; }
+  .pdf-report-table td:first-child,
+  .pdf-report-table th:first-child { padding-left: 3mm !important; }
+
+  /* Dos columnas */
+  .pdf-report-two-columns {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    gap: 3mm !important;
+  }
+
+  /* Cards de jugador */
+  .pdf-report-player-grid { gap: 2mm !important; }
+  .pdf-report-player-card {
+    padding: 2.5mm !important;
+    border-radius: 3mm !important;
+    gap: 2mm !important;
+  }
+  .pdf-report-player-main span,
+  .pdf-report-player-stats span,
+  .pdf-report-player-card p { font-size: 6.5pt !important; }
+
+  /* Grilla de métricas */
+  .pdf-report-feature-grid { gap: 2mm !important; }
+  .pdf-report-feature-grid div {
+    padding: 2.5mm !important;
+    border-radius: 3mm !important;
+  }
+  .pdf-report-feature-grid span { font-size: 5.5pt !important; }
+  .pdf-report-feature-grid strong { font-size: 11pt !important; }
+
+  /* Notas */
+  .pdf-report-note-list div {
+    padding: 2.5mm !important;
+    border-radius: 3mm !important;
+    font-size: 7pt !important;
+  }
+
+  /* Estado vacío */
+  .pdf-report-empty {
+    min-height: 0 !important;
+    padding: 2.5mm !important;
+    border-radius: 3mm !important;
+    font-size: 7pt !important;
+  }
+
+  /* Chips */
+  .pdf-report-chip-list span:not(.pdf-report-badge) {
+    font-size: 7pt !important;
+    padding: 1.5mm 3mm !important;
+  }
+
+  /* Footer fijo al pie de cada página */
+  .pdf-report-footer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 14mm !important;
+    right: 14mm !important;
+    padding: 2mm 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    font-size: 6.5pt !important;
+    border-top: 0.5pt solid #d8e1ee !important;
+  }
+
+  /* Hero de sesión */
+  .session-report-hero,
+  .player-report-hero {
+    border-radius: 4mm !important;
+    padding: 5mm !important;
+    gap: 4mm !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .session-hero-main h2,
+  .player-report-core h2 { font-size: 18pt !important; }
+  .session-hero-main p,
+  .player-report-core p { font-size: 7pt !important; }
+  .session-hero-grid,
+  .player-report-meta {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    gap: 2mm !important;
+    min-width: 0 !important;
+  }
+  .session-hero-grid div,
+  .player-report-meta div {
+    padding: 2.5mm !important;
+    border-radius: 3mm !important;
+  }
+  .session-hero-grid span,
+  .player-report-meta span { font-size: 6pt !important; }
+  .session-hero-grid strong,
+  .player-report-meta strong { font-size: 8pt !important; }
+
+  /* KPIs de sesión */
+  .session-kpi-grid,
+  .player-report-kpis {
+    grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+  }
+
+  /* Tabla de sesión */
+  .session-report-table th,
+  .session-report-table td { white-space: nowrap; font-size: 6.5pt !important; }
+
+  /* Gauges Catapult */
+  .catapult-summary-grid {
+    grid-template-columns: 1.8fr .75fr !important;
+    gap: 3mm !important;
+  }
+  .catapult-gauge-row { gap: 2mm !important; margin-bottom: 2mm !important; }
+  .catapult-gauge {
+    min-height: 0 !important;
+    padding: 3mm !important;
+    border-radius: 3mm !important;
+    gap: 1.5mm !important;
+  }
+  .catapult-gauge-ring {
+    width: 12mm !important;
+    height: 12mm !important;
+  }
+  .catapult-gauge-ring::before {
+    width: 8mm !important;
+    height: 8mm !important;
+  }
+  .catapult-gauge-ring strong { font-size: 7pt !important; }
+  .catapult-gauge span { font-size: 5.5pt !important; }
+  .catapult-metric-list { gap: 1.5mm 3mm !important; }
+  .catapult-metric-bar {
+    grid-template-columns: 42px 1fr 20px !important;
+    gap: 2mm !important;
+  }
+  .catapult-metric-bar span,
+  .catapult-metric-bar small { font-size: 5.5pt !important; }
+  .catapult-metric-bar strong { font-size: 6pt !important; }
+  .catapult-metric-bar i { height: 3pt !important; }
+  .catapult-donut-wrap { min-height: 0 !important; padding: 3mm 0 !important; gap: 2mm !important; }
+  .catapult-donut {
+    width: 22mm !important;
+    height: 22mm !important;
+  }
+  .catapult-donut::before {
+    width: 15mm !important;
+    height: 15mm !important;
+  }
+  .catapult-donut strong { font-size: 10pt !important; }
+  .catapult-donut span { font-size: 5pt !important; }
+  .catapult-donut-legend { gap: 2.5mm !important; font-size: 5.5pt !important; }
+  .catapult-chart { padding: 3mm !important; border-radius: 3mm !important; }
+  .catapult-chart-legend {
+    margin-bottom: 2mm !important;
+    font-size: 5.5pt !important;
+    gap: 4mm !important;
+  }
+  .catapult-bars {
+    height: 28mm !important;
+    gap: 1.5mm !important;
+    padding: 2mm 1mm 6mm !important;
+    overflow: hidden !important;
+  }
+  .catapult-bar-pair span { width: 5pt !important; border-radius: 2pt 2pt 0 0 !important; }
+  .catapult-bar-pair b { font-size: 4pt !important; top: -5pt !important; }
+  .catapult-bar-item small {
+    font-size: 4pt !important;
+    width: 10mm !important;
+    bottom: -5mm !important;
+  }
+  .catapult-report-table th,
+  .catapult-report-table td { font-size: 6pt !important; padding: 1.5mm !important; }
+
+  /* Hero evaluaciones */
+  .evaluations-report-hero {
+    grid-template-columns: auto 1fr auto !important;
+    gap: 4mm !important;
+    padding: 5mm !important;
+    border-radius: 4mm !important;
+    break-inside: avoid !important;
+  }
+  .evaluation-avatar {
+    width: 14mm !important;
+    height: 14mm !important;
+    border-radius: 4mm !important;
+  }
+  .evaluation-avatar span { font-size: 14pt !important; }
+  .evaluation-hero-main h2 { font-size: 16pt !important; }
+  .evaluation-hero-main p,
+  .evaluation-hero-meta div { font-size: 7pt !important; }
+  .evaluation-hero-meta {
+    min-width: 40mm !important;
+    gap: 1.5mm !important;
+  }
+  .evaluation-hero-meta div {
+    padding: 2mm 2.5mm !important;
+    border-radius: 3mm !important;
+  }
+
+  /* Hero competencia */
+  .competition-report-hero-premium {
+    grid-template-columns: 1fr 32mm 1fr !important;
+    border-radius: 4mm !important;
+    padding: 5mm !important;
+    break-inside: avoid !important;
+  }
+  .pdf-report-team-block strong { font-size: 11pt !important; }
+  .pdf-report-score-block {
+    min-width: 0 !important;
+    padding: 3mm !important;
+    border-radius: 3mm !important;
+  }
+  .pdf-report-score-block strong { font-size: 22pt !important; }
+  .pdf-report-hero-meta { margin-top: 3mm !important; padding-top: 3mm !important; }
+  .pdf-report-hero-meta span { font-size: 6pt !important; padding: 1.5mm 3mm !important; }
+
+  /* Asegurar que imágenes se impriman */
+  img { max-width: 100% !important; }
+
+  /* Separadores de página limpios */
+  .pdf-report-section + .pdf-report-section { margin-top: 1mm; }
+}
