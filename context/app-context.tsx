@@ -197,6 +197,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
+  // Fix #20: loggedBy helper — rellena automáticamente quién hizo el cambio
+  const currentUserLabel = () => sessionRef.current.email ?? sessionRef.current.displayName ?? 'Sistema';
+
 
   const deleteRemoteLegacy = async (table: string, legacyId: string) => {
     if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase) return;
@@ -377,6 +380,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       void supabaseClient.removeChannel(channel);
     };
   }, [isHydrated]);
+
+
+  // Fix #14: Detectar expiración de sesión Supabase mientras la pestaña está abierta.
+  // Si el token expira o se cierra sesión desde otro lado, mostrar aviso y redirigir.
+  useEffect(() => {
+    if (!supabase || !hasSupabaseConfig) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_OUT') {
+          setSyncStatus('error');
+          if (typeof window !== 'undefined') {
+            setTimeout(() => window.location.assign('/login'), 1200);
+          }
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const forceSync = async () => {
     if (!hasSupabaseConfig) return;

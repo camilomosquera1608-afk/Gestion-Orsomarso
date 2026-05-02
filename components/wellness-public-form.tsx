@@ -238,7 +238,7 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
       setDate(recordDate);
       setValues(defaultState);
       setSubmitState('success');
-      setMessage(`Wellness enviado correctamente por ${player.name}.`);
+      setMessage(`Wellness enviado correctamente por ${player.name} · ${recordDate}. Puedes cerrar esta pantalla.`);
     } catch (error) {
       console.error('public wellness submit error', error);
       setSubmitState('error');

@@ -27,7 +27,7 @@ export default function PlayerProfilePage() {
 
   if (!player) return <div className="empty">Jugador no encontrado o eliminado.</div>;
 
-  const latestDate = [...new Set(data.wellness.filter((x) => x.playerId === player.id).map((x) => x.date))].sort().at(-1) ?? '2026-04-23';
+  const latestDate = [...new Set(data.wellness.filter((x) => x.playerId === player.id).map((x) => x.date))].sort().at(-1) ?? new Date().toISOString().slice(0, 10);
   const latestWellness = data.wellness.find((x) => x.playerId === player.id && x.date === latestDate);
   const latestInternal = data.internalLoads.find((x) => x.playerId === player.id && x.date === latestDate);
   const latestExternal = data.externalLoads.find((x) => x.playerId === player.id && x.date === latestDate);
@@ -39,6 +39,10 @@ export default function PlayerProfilePage() {
   const recentSessions = data.externalLoads.filter((x) => x.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   const recentCompetition = data.competitionRecords.filter((x) => x.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   const youthSimple = player.category !== 'Sub20';
+  const nutritionHistory = data.nutritionRecords
+    .filter((x) => x.playerId === player.id)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((x) => ({ fecha: x.date.slice(5), peso: x.weight, grasa: x.bodyFat, pliegues: x.skinfoldSum }));
 
   const injuryHistory = [
     ...(player.injuryHistory ?? []),

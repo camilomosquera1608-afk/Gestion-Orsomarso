@@ -138,6 +138,20 @@ export default function ConfiguracionPage() {
           <div className="grid" style={{ gap: 10 }}>
             <div className="mini-stat-card"><strong>Modo</strong><div className="muted-line">{backendMode === 'supabase' ? 'Supabase' : 'Local'}</div></div>
             <div className="mini-stat-card"><strong>Sincronización</strong><div className="muted-line">{syncStatus}</div></div>
+            {(() => {
+              const usage = getLocalStorageUsageKb();
+              const warn = getLocalStorageWarning();
+              return (
+                <div className="mini-stat-card">
+                  <strong>Almacenamiento local</strong>
+                  <div className={`storage-bar-wrap storage-bar-${warn}`}>
+                    <div className="storage-bar-track"><div className="storage-bar-fill" style={{ width: `${usage.pct}%` }} /></div>
+                    <div className="muted-line">{usage.usedKb} KB / {usage.totalKb} KB ({usage.pct}%)</div>
+                  </div>
+                  {warn !== 'ok' && <div style={{ color: warn === 'danger' ? 'var(--red)' : 'var(--amber)', fontSize: 12, fontWeight: 800, marginTop: 4 }}>{warn === 'danger' ? '⚠ Almacenamiento casi lleno — haz backup y borra respaldos antiguos' : 'Almacenamiento al 60% — considera exportar un backup'}</div>}
+                </div>
+              );
+            })()}
             <div className="mini-stat-card"><strong>Datos</strong><div className="muted-line">{data.players.length} jugadores · {totalRecords} registros</div></div>
           </div>
         </div>

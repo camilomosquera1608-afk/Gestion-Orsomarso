@@ -106,13 +106,17 @@ export default function JugadoresPage() {
                     <button
                       type="button"
                       className="btn danger"
-                      onClick={() => {
+                      onClick={async () => {
                         if (!canDeletePlayer(session, player)) {
-                          window.alert(getDeleteDeniedMessage(session));
+                          setMessage(getDeleteDeniedMessage(session));
                           return;
                         }
-                        const confirmed = window.confirm(`¿Deseas eliminar a ${player.name}? Esta acción borrará sus registros relacionados.`);
-                        if (confirmed) deletePlayer(player.id);
+                        const ok = await confirm({
+                          title: `¿Eliminar a ${player.name}?`,
+                          description: 'Se borrarán todos sus registros de wellness, cargas, valoraciones y competencia. Esta acción no se puede deshacer.',
+                          danger: true,
+                        });
+                        if (ok) deletePlayer(player.id);
                       }}
                     >
                       Eliminar
@@ -125,6 +129,7 @@ export default function JugadoresPage() {
         </div>
         {!players.length ? <EmptyState title="No hay jugadores con los filtros actuales" text="Ajusta los filtros o agrega un jugador para iniciar seguimiento de plantilla." action={canEditPlayers ? <Link className="btn" href="/registro">Agregar jugador</Link> : undefined} /> : null}
       </div>
+    {ConfirmModal}
     </div>
   );
 }

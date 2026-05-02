@@ -28,6 +28,7 @@ type MatchDraft = {
   id: string;
   opponent: string;
   customOpponent: string;
+  competitionName: string;
   date: string;
   venue: CompetitionVenue;
   goalsFor: string;
@@ -83,7 +84,7 @@ export default function CompetenciaPage() {
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [editingRecordId, setEditingRecordId] = useState('');
   const [sourceCategory, setSourceCategory] = useState<ClubCategory>(activeCategory);
-  const [matchDraft, setMatchDraft] = useState<MatchDraft>({ id: '', opponent: '', customOpponent: '', date: filters.date, venue: 'Local', goalsFor: '', goalsAgainst: '', observation: '' });
+  const [matchDraft, setMatchDraft] = useState<MatchDraft>({ id: '', opponent: '', customOpponent: '', competitionName: 'Partido oficial', date: filters.date, venue: 'Local', goalsFor: '', goalsAgainst: '', observation: '' });
   const [playerDraft, setPlayerDraft] = useState<PlayerDraft>(emptyPlayerDraft());
   const [showGroupReport, setShowGroupReport] = useState(false);
   const [isSavingMatch, setIsSavingMatch] = useState(false);
@@ -93,6 +94,15 @@ export default function CompetenciaPage() {
   const [isSavingMatchPlayers, setIsSavingMatchPlayers] = useState(false);
 
   const playersBySource = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
+  // Fix #5: rivals known from existing match history — no more hardcoded list
+  const knownRivalsFromHistory = useMemo(() => {
+    const all = data.competitionMatchSummaries
+      .filter((m) => m.category === activeCategory)
+      .map((m) => m.opponent.trim())
+      .filter(Boolean);
+    return [...new Set(all)].sort();
+  }, [data.competitionMatchSummaries, activeCategory]);
+
   const matchSummaries = useMemo(
     () => data.competitionMatchSummaries.filter((match) => match.category === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
     [data.competitionMatchSummaries, activeCategory],
@@ -161,7 +171,7 @@ export default function CompetenciaPage() {
   }, [playersBySource, playerDraft.playerId]);
 
   const resetMatchDraft = () => {
-    setMatchDraft({ id: '', opponent: '', customOpponent: '', date: filters.date, venue: 'Local', goalsFor: '', goalsAgainst: '', observation: '' });
+    setMatchDraft({ id: '', opponent: '', customOpponent: '', competitionName: 'Partido oficial', date: filters.date, venue: 'Local', goalsFor: '', goalsAgainst: '', observation: '' });
     setMessage('Listo para crear un partido nuevo.');
   };
 
@@ -175,6 +185,7 @@ export default function CompetenciaPage() {
       customOpponent: availableOpponents.includes(match.opponent) ? '' : match.opponent,
       date: match.date,
       venue: match.venue ?? 'Local',
+      competitionName: match.competitionName ?? 'Partido oficial',
       goalsFor: displayOptionalNumber(match.goalsFor),
       goalsAgainst: displayOptionalNumber(match.goalsAgainst),
       observation: match.observation ?? '',
@@ -289,7 +300,7 @@ export default function CompetenciaPage() {
       id,
       date: matchDraft.date,
       category: activeCategory,
-      competitionName: 'Partido oficial',
+      competitionName: matchDraft.competitionName.trim() || 'Partido oficial',
       opponent,
       venue: matchDraft.venue,
       goalsFor,
@@ -458,7 +469,19 @@ export default function CompetenciaPage() {
             <input className="input" type="date" value={matchDraft.date} onChange={(event) => setMatchDraft((prev) => ({ ...prev, date: event.target.value }))} />
           </div>
           <div className="field">
-            <label>Condición</label>
+            <label>Nombre del torneo / liga</label>
+              </div>
+              <div className="field">
+                <label>Nombre del torneo / liga</label>
+                <input
+                  className="input"
+                  value={matchDraft.competitionName}
+                  onChange={(e) => setMatchDraft((prev) => ({ ...prev, competitionName: e.target.value }))}
+                  placeholder="Ej. Liga BetPlay, Copa Colombia..."
+                />
+              </div>
+              <div className="field">
+                <label>Condición</label>
             <select className="select" value={matchDraft.venue} onChange={(event) => setMatchDraft((prev) => ({ ...prev, venue: event.target.value as CompetitionVenue }))}>
               <option value="Local">Local</option>
               <option value="Visitante">Visitante</option>

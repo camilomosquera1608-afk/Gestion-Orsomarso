@@ -37,6 +37,7 @@ export interface Player {
   position: Position;
   category?: ClubCategory;
   categoryHistory?: ClubCategory[];
+  jerseyNumber?: number;
   height: number;
   weight: number;
   status: PlayerStatus;

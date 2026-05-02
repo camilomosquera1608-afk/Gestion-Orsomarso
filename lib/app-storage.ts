@@ -107,6 +107,27 @@ const lastAutoBackupAt = (backups: LocalBackup[]) => {
   return auto ? new Date(auto.createdAt).getTime() : 0;
 };
 
+
+// Fix #15: Calcular uso aproximado del localStorage para advertir antes de que explote.
+export const getLocalStorageUsageKb = (): { usedKb: number; totalKb: number; pct: number } => {
+  if (typeof window === 'undefined') return { usedKb: 0, totalKb: 5120, pct: 0 };
+  let usedKb = 0;
+  try {
+    const mainRaw = localStorage.getItem(STORAGE_KEY) ?? '';
+    const backupsRaw = localStorage.getItem(STORAGE_BACKUPS_KEY) ?? '';
+    usedKb = Math.round((mainRaw.length + backupsRaw.length) / 1024);
+  } catch { usedKb = 0; }
+  const totalKb = 5120; // 5MB — límite conservador cross-browser
+  return { usedKb, totalKb, pct: Math.round((usedKb / totalKb) * 100) };
+};
+
+export const getLocalStorageWarning = (): 'ok' | 'warn' | 'danger' => {
+  const { pct } = getLocalStorageUsageKb();
+  if (pct >= 80) return 'danger';
+  if (pct >= 60) return 'warn';
+  return 'ok';
+};
+
 export const readLocalAppData = (): Partial<AppData> | null => {
   if (!isBrowser()) return null;
   return safeJsonParse<Partial<AppData>>(localStorage.getItem(STORAGE_KEY));

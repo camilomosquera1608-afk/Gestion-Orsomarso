@@ -2,12 +2,55 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, CircleDot, Database, Info, PlusCircle, ShieldCheck, X } from 'lucide-react';
 import type { AlertLevel, DataQualityItem, OperationalAlert } from '@/lib/operational-helpers';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 export type UiTone = 'neutral' | 'blue' | 'green' | 'amber' | 'red' | 'dark';
 
 const toneClass = (tone: UiTone = 'neutral') => `ui-tone-${tone}`;
 const alertTone = (level: AlertLevel): UiTone => level === 'critical' ? 'red' : level === 'warning' ? 'amber' : 'blue';
+
+// ─── ConfirmModal — reemplaza todos los window.confirm ───────────────────────
+// Uso: const { confirm, ConfirmModal } = useConfirm();
+// await confirm({ title: '¿Eliminar sesión?', description: '...', danger: true });
+
+import { useCallback, useRef } from 'react';
+
+type ConfirmOptions = {
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  danger?: boolean;
+};
+
+export const useConfirm = () => {
+  const resolveRef = useRef<((value: boolean) => void) | null>(null);
+  const [options, setOptions] = useState<ConfirmOptions | null>(null);
+
+  const confirm = useCallback((opts: ConfirmOptions): Promise<boolean> => {
+    setOptions(opts);
+    return new Promise((resolve) => { resolveRef.current = resolve; });
+  }, []);
+
+  const handleConfirm = () => { resolveRef.current?.(true); setOptions(null); };
+  const handleCancel = () => { resolveRef.current?.(false); setOptions(null); };
+
+  const ConfirmModal = options ? (
+    <div className="confirm-overlay" onClick={handleCancel}>
+      <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+        <strong className="confirm-title">{options.title}</strong>
+        {options.description ? <p className="confirm-desc">{options.description}</p> : null}
+        <div className="confirm-actions">
+          <button type="button" className="btn secondary" onClick={handleCancel}>Cancelar</button>
+          <button type="button" className={`btn ${options.danger ? 'danger' : ''}`} onClick={handleConfirm}>
+            {options.confirmLabel ?? (options.danger ? 'Eliminar' : 'Confirmar')}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return { confirm, ConfirmModal };
+};
 
 export const PageShell = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
   <div className={`page-shell ${className}`}>{children}</div>

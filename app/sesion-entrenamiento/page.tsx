@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppHero } from '@/components/app-hero';
 import { KpiCard } from '@/components/kpi-card';
-import { DataQualityPanel, EmptyState, OperationalAlertPanel } from '@/components/pro-ui';
+import { DataQualityPanel, EmptyState, OperationalAlertPanel, useConfirm } from '@/components/pro-ui';
 import { SessionReportTemplate } from '@/components/session-report';
 import { ToneBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
@@ -17,6 +17,7 @@ import { buildDailyOperations } from '@/lib/operational-helpers';
 import { supportsGps } from '@/lib/report-utils';
 import { findDuplicateTrainingSession } from '@/lib/operational-validation';
 import { getSessionForDateAndCategory, getSessionNumberForDate, getSessionPlayersForSession, getInternalLoadsForSession } from '@/lib/session-derived';
+import { CsvImporter } from '@/components/csv-importer';
 
 const sessionTypeOptions: { value: TrainingSessionType; label: string }[] = [
   { value: 'cdef', label: 'cdef · Recuperación' },
@@ -67,7 +68,7 @@ export default function SesionEntrenamientoPage() {
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
-  const ops = buildDailyOperations(data, filters, activeCategory);
+  const ops = useMemo(() => buildDailyOperations(data, filters, activeCategory), [data, filters, activeCategory]);
   const gpsEnabled = supportsGps(activeCategory);
   const youthSimple = !gpsEnabled;
   const selectedMicrocycle = data.microcycles.find((microcycle) => microcycle.id === filters.microcycleId);
@@ -85,6 +86,8 @@ export default function SesionEntrenamientoPage() {
   const [showGroupReport, setShowGroupReport] = useState(false);
   const [sessionNumberInput, setSessionNumberInput] = useState(filters.sessionNumber ? String(filters.sessionNumber) : '');
   const [isSavingSession, setIsSavingSession] = useState(false);
+  const { confirm, ConfirmModal } = useConfirm();
+  const [showCsvImporter, setShowCsvImporter] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -381,14 +384,26 @@ export default function SesionEntrenamientoPage() {
     setMessage(summaryRecord ? 'Sesión actualizada correctamente.' : 'Sesión guardada correctamente.');
   };
 
-  const deleteSession = (sessionId: string) => {
+  const deleteSession = async (sessionId: string) => {
     const target = data.trainingSessionSummaries.find((item) => item.id === sessionId);
     if (!target) return;
-    const confirmed = window.confirm(`¿Eliminar la sesión ${target.sessionNumber || '-'} del ${target.date}? También se quitará la participación de jugadores asociada.`);
-    if (!confirmed) return;
+    const ok = await confirm({
+      title: `¿Eliminar sesión ${target.sessionNumber || '-'} del ${target.date}?`,
+      description: 'También se quitará la participación y carga de todos los jugadores asociados a esta sesión.',
+      danger: true,
+    });
+    if (!ok) return;
     deleteTrainingSessionSummary(sessionId);
     if (editingSessionId === sessionId) setEditingSessionId(null);
     setMessage('Sesión eliminada correctamente.');
+  };
+
+  const handleCsvImport = (records: Omit<import('@/lib/types').DailyExternalLoadRecord, 'id'>[]) => {
+    records.forEach((record) => {
+      addExternalLoad({ ...record, id: crypto.randomUUID() });
+    });
+    setShowCsvImporter(false);
+    setMessage(`${records.length} registros GPS importados correctamente desde CSV.`);
   };
 
   const cancelSessionEditing = () => {
@@ -423,6 +438,7 @@ export default function SesionEntrenamientoPage() {
           <div className="btn-row">
             <button type="button" className="btn secondary" onClick={summaryRecord ? cancelSessionEditing : () => setMessage('')}>{summaryRecord ? 'Cancelar edición' : 'Limpiar formulario'}</button>
             {summaryRecord ? <button type="button" className="btn secondary" onClick={() => updateSessionStatus(summaryRecord.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>{summaryRecord.status === 'Cerrada' ? 'Reabrir sesión' : 'Cerrar sesión'}</button> : null}
+              {gpsEnabled && <button type="button" className="btn secondary" onClick={() => setShowCsvImporter(true)}>Importar CSV GPS</button>}
             {summaryRecord ? <button type="button" className="btn danger" onClick={() => deleteSession(summaryRecord.id)}>Eliminar sesión</button> : null}
           </div>
         </div>
@@ -618,6 +634,19 @@ export default function SesionEntrenamientoPage() {
         wellnessRecords={sessionWellnessRecords}
         className="print-only"
       />
+    {ConfirmModal}
+    {showCsvImporter && (
+      <CsvImporter
+        players={ops.players}
+        sessionId={summaryRecord?.id ?? crypto.randomUUID()}
+        date={filters.date}
+        microcycleId={activeMicrocycleId}
+        sessionNumber={Number(sessionNumberInput) || filters.sessionNumber}
+        category={activeCategory}
+        onImport={handleCsvImport}
+        onClose={() => setShowCsvImporter(false)}
+      />
+    )}
     </>
   );
 }

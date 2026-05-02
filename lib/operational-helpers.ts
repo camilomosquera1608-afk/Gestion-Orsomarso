@@ -78,7 +78,7 @@ export const eachDateInRange = (startDate: string, endDate: string) => {
   if (!start || !end || start > end) return [];
   const result: string[] = [];
   const cursor = new Date(start);
-  while (cursor <= end && result.length < 14) {
+  while (cursor <= end && result.length < 42) {
     result.push(cursor.toISOString().slice(0, 10));
     cursor.setDate(cursor.getDate() + 1);
   }

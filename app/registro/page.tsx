@@ -32,6 +32,7 @@ export default function RegistroPage() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const birthDate = formatBirthDateForDisplay(String(form.get('birthDate')));
+    const jerseyRaw = Number.parseInt(String(form.get('jerseyNumber')));
     addPlayer({
       id: crypto.randomUUID(),
       name: String(form.get('name')).trim(),
@@ -39,6 +40,7 @@ export default function RegistroPage() {
       birthDate,
       position: String(form.get('position')) as Position,
       category: (master ? String(form.get('category')) : session.category) as ClubCategory,
+      jerseyNumber: Number.isFinite(jerseyRaw) && jerseyRaw > 0 ? jerseyRaw : undefined,
       height: Number.parseFloat(String(form.get('height'))) || 0,
       weight: Number.parseFloat(String(form.get('weight'))) || 0,
       status: String(form.get('status')) as PlayerStatus,
@@ -82,6 +84,11 @@ export default function RegistroPage() {
           <div className="field">
             <label>Nombre completo</label>
             <input className="input" name="name" placeholder="Nombre y apellido" required />
+          </div>
+          <div className="field">
+            <label>Número de dorsal</label>
+            <input className="input" type="number" min="1" max="99" name="jerseyNumber" placeholder="Ej. 10" />
+            <span className="field-help">Opcional. Facilita la identificación en planillas y reportes.</span>
           </div>
           <div className="grid grid-2">
             <div className="field"><label>Fecha de nacimiento</label><input className="input" type="date" name="birthDate" required /></div>
