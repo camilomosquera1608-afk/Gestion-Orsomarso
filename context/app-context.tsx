@@ -215,6 +215,25 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const init = async () => {
       if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
+        // LIMPIEZA DE DATOS MOCK: Si el localStorage tiene datos con IDs de
+        // ejemplo (p1, p2, e1, i1...) que venían del mock-data anterior,
+        // los eliminamos para que Supabase sea siempre la fuente de verdad.
+        try {
+          const raw = localStorage.getItem('orsomarso-performance-hub');
+          if (raw) {
+            const parsed = JSON.parse(raw) as Partial<AppData>;
+            const hasMockPlayers = parsed.players?.some((p) => /^p\d+$/.test(p.id));
+            const hasMockLoads = parsed.internalLoads?.some((x) => /^i\d+$/.test(x.id));
+            const hasMockExternal = parsed.externalLoads?.some((x) => /^e\d+$/.test(x.id));
+            if (hasMockPlayers || hasMockLoads || hasMockExternal) {
+              localStorage.removeItem('orsomarso-performance-hub');
+              console.info('[Orsomarso] Datos de ejemplo eliminados del cache local. Cargando desde Supabase.');
+            }
+          }
+        } catch {
+          // Si falla la lectura del localStorage, ignorar y continuar
+        }
+
         setSyncStatus('syncing');
         const remote = await fetchSupabaseTablesAppData(supabase);
         if (remote.ok) {
