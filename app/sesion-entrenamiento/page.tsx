@@ -88,7 +88,6 @@ export default function SesionEntrenamientoPage() {
   const [isSavingSession, setIsSavingSession] = useState(false);
   const { confirm: showConfirm, ConfirmModal } = useConfirm();
   const [showCsvImporter, setShowCsvImporter] = useState(false);
-  const csvSessionId = summaryRecord?.id ?? 'csv-pending';
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -111,6 +110,7 @@ export default function SesionEntrenamientoPage() {
   }, [filters.sessionNumber]);
 
   const summaryRecord = getSessionForDateAndCategory(data, filters.date, activeCategory, editingSessionId);
+  const csvSessionId = summaryRecord?.id ?? 'csv-pending';
   const dateSummaryRecord = getSessionForDateAndCategory(data, filters.date, activeCategory);
   const sessionHistory = useMemo(
     () => data.trainingSessionSummaries
