@@ -108,7 +108,12 @@ export default function JugadoresPage() {
                       className="btn danger"
                       onClick={async () => {
                         if (!canDeletePlayer(session, player)) {
-                          setMessage(getDeleteDeniedMessage(session));
+                          await confirm({
+                            title: 'Sin permiso para eliminar',
+                            description: getDeleteDeniedMessage(session),
+                            confirmLabel: 'Entendido',
+                            danger: false,
+                          });
                           return;
                         }
                         const ok = await confirm({
