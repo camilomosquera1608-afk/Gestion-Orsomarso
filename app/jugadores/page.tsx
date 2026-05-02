@@ -6,7 +6,7 @@ import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
-import { CompactInfoList, EmptyState, SectionHeader } from '@/components/pro-ui';
+import { CompactInfoList, EmptyState, SectionHeader, useConfirm } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { canDeletePlayer, canDeletePlayers, canWrite, getDeleteDeniedMessage } from '@/lib/access-control';
