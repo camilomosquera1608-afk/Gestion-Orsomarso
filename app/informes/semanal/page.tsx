@@ -183,7 +183,7 @@ export default function InformeSemanalPage() {
 
         {/* Carga y sesiones */}
         <div className="card">
-          <SectionHeader eyebrow="Entrenamiento" title="Carga del período" />} />
+          <SectionHeader eyebrow="Entrenamiento" title="Carga del período" />
           <div className="compact-info-list">
             {[
               { label: 'Sesiones registradas', value: report.sesiones.length },
@@ -203,7 +203,7 @@ export default function InformeSemanalPage() {
 
         {/* Competencia */}
         <div className="card">
-          <SectionHeader eyebrow="Competencia" title="Resultados del período" />} />
+          <SectionHeader eyebrow="Competencia" title="Resultados del período" />
           {report.partidos.length === 0 ? (
             <div className="empty-state"><div className="empty-icon"><Trophy size={18} /></div><div><strong>Sin partidos en el período</strong></div></div>
           ) : (
@@ -231,7 +231,7 @@ export default function InformeSemanalPage() {
 
         {/* ACWR */}
         <div className="card">
-          <SectionHeader eyebrow="Prevención" title="Riesgo de carga (ACWR)" />} />
+          <SectionHeader eyebrow="Prevención" title="Riesgo de carga (ACWR)" />
           {report.acwrData.filter((r) => r.zone !== 'no_data').length === 0 ? (
             <div className="empty-state"><div className="empty-icon"><Activity size={18} /></div><div><strong>Sin datos suficientes para calcular ACWR</strong><p>Se necesitan al menos 2 semanas de carga registrada.</p></div></div>
           ) : (
@@ -258,7 +258,7 @@ export default function InformeSemanalPage() {
 
       {/* Valoraciones */}
       <div className="card">
-        <SectionHeader eyebrow="Valoraciones" title="Evaluaciones del período" />} />
+        <SectionHeader eyebrow="Valoraciones" title="Evaluaciones del período" />
         <div className="compact-info-list">
           <div className="compact-info-row"><span>Total valoraciones</span><strong>{report.valoraciones}</strong></div>
           <div className="compact-info-row"><span>Jugadores evaluados</span><strong>{new Set([...data.cmjRecords, ...data.fmsRecords, ...data.neuromuscularRecords, ...data.nutritionRecords].filter((r) => r.date >= report.startDate && r.date <= report.endDate).map((r) => r.playerId)).size}</strong></div>
