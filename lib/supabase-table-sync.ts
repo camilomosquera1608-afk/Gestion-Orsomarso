@@ -487,12 +487,13 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         logged_by: record.loggedBy ?? null,
       })));
 
-    // FIX: training_sessions upsert must handle BOTH the legacy_id unique constraint
-    // AND the (category, date) unique constraint. We use a two-step approach:
-    // 1. Try upsert by legacy_id (updates existing rows with same legacy_id)
-    // 2. For rows that fail due to category+date conflict, update those rows in place.
+    // FIX DEFINITIVO: training_sessions upsert.
+    // El único índice UNIQUE garantizado en la tabla es (category, date).
+    // Usamos ese índice para el onConflict y actualizamos legacy_id en cada upsert.
+    // Esto garantiza que la sesión siempre llega a Supabase independientemente
+    // de si legacy_id tiene o no restricción UNIQUE.
     const sessionRows = data.trainingSessionSummaries
-      .filter((record) => isoDate(record.date))
+      .filter((record) => isoDate(record.date) && category(record.category))
       .map((record) => ({
         legacy_id: record.id,
         date: isoDate(record.date),
@@ -507,36 +508,38 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
       }));
 
     if (sessionRows.length > 0) {
-      // Try standard upsert by legacy_id first
+      // Upsert usando (category, date) como clave de conflicto — siempre existe como índice único.
+      // Actualiza legacy_id para que futuros fetches puedan correlacionar el id local con Supabase.
       const { error: sessionError } = await supabase
         .from('training_sessions')
-        .upsert(sessionRows, { onConflict: 'legacy_id', ignoreDuplicates: false });
+        .upsert(sessionRows, { onConflict: 'category,date', ignoreDuplicates: false });
 
       if (sessionError) {
-        // If it fails (e.g. category+date unique constraint), try one by one with merge strategy
+        // Si falla (legacy_id podría no estar en la tabla o haber otro conflicto),
+        // intentar fila por fila con UPDATE directo.
         for (const row of sessionRows) {
-          await supabase
+          // Primero INSERT, si falla por duplicate key, hacer UPDATE
+          const { error: upsertErr } = await supabase
             .from('training_sessions')
-            .upsert(row, { onConflict: 'legacy_id', ignoreDuplicates: false })
-            .then(async ({ error }) => {
-              if (error) {
-                // Fall back: find and update the existing row by category+date
-                await supabase
-                  .from('training_sessions')
-                  .update({
-                    legacy_id: row.legacy_id,
-                    microcycle_id: row.microcycle_id,
-                    session_number: row.session_number,
-                    session_type: row.session_type,
-                    session_rpe: row.session_rpe,
-                    objective: row.objective,
-                    observation: row.observation,
-                    status: row.status,
-                  })
-                  .eq('category', row.category)
-                  .eq('date', row.date);
-              }
-            });
+            .upsert(row, { onConflict: 'category,date', ignoreDuplicates: false });
+          
+          if (upsertErr) {
+            // Último recurso: UPDATE puro por category+date
+            await supabase
+              .from('training_sessions')
+              .update({
+                legacy_id: row.legacy_id,
+                microcycle_id: row.microcycle_id,
+                session_number: row.session_number,
+                session_type: row.session_type,
+                session_rpe: row.session_rpe,
+                objective: row.objective,
+                observation: row.observation,
+                status: row.status,
+              })
+              .eq('category', row.category)
+              .eq('date', row.date as string);
+          }
         }
       }
     }

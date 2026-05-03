@@ -134,7 +134,31 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    const next = hydrateData(remote.data);
+    const remoteHydrated = hydrateData(remote.data);
+    
+    // MERGE FIX: Keep locally-saved sessions that haven't synced to Supabase yet.
+    // Match by both id AND by (category+date) to handle the case where Supabase
+    // stored the session with a different legacy_id (category+date conflict path).
+    const current = dataRef.current;
+    const remoteIds = new Set(remoteHydrated.trainingSessionSummaries.map((r: { id: string }) => r.id));
+    const remoteDateCatKeys = new Set(
+      remoteHydrated.trainingSessionSummaries.map((r: { date: string; category?: string }) => `${r.date}::${r.category ?? ''}`)
+    );
+    const localOnlySessions = current.trainingSessionSummaries.filter(
+      (r) => !remoteIds.has(r.id) && !remoteDateCatKeys.has(`${r.date}::${r.category ?? ''}`)
+    );
+    const remoteInternalIds = new Set(remoteHydrated.internalLoads.map((r: { id: string }) => r.id));
+    const localOnlyInternal = current.internalLoads.filter((r) => !remoteInternalIds.has(r.id));
+    const remoteExternalIds = new Set(remoteHydrated.externalLoads.map((r: { id: string }) => r.id));
+    const localOnlyExternal = current.externalLoads.filter((r) => !remoteExternalIds.has(r.id));
+    
+    const next: AppData = {
+      ...remoteHydrated,
+      trainingSessionSummaries: [...remoteHydrated.trainingSessionSummaries, ...localOnlySessions],
+      internalLoads: [...remoteHydrated.internalLoads, ...localOnlyInternal],
+      externalLoads: [...remoteHydrated.externalLoads, ...localOnlyExternal],
+    };
+    
     const currentSnapshot = JSON.stringify(dataRef.current);
     const nextSnapshot = JSON.stringify(next);
     if (currentSnapshot !== nextSnapshot) {
@@ -252,10 +276,57 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setSyncStatus('syncing');
         const remote = await fetchSupabaseTablesAppData(supabase);
         if (remote.ok) {
-          const next = hydrateData(remote.data);
-          setData(next);
-          dataRef.current = next;
-          saveLocalAppData(next);
+          const remoteData = hydrateData(remote.data);
+          
+          // MERGE FIX: Supabase may not have all records if upserts failed.
+          // Read local data and keep any records that exist locally but not remotely.
+          // This prevents page refresh from wiping locally-saved sessions.
+          const local = readLocalAppData();
+          const localData = local ? hydrateData(local) : null;
+          
+          const mergeArrays = <T extends { id: string }>(
+            remote: T[],
+            local: T[] | undefined,
+          ): T[] => {
+            if (!local?.length) return remote;
+            const remoteIds = new Set(remote.map((r) => r.id));
+            const localOnly = local.filter((r) => !remoteIds.has(r.id));
+            return [...remote, ...localOnly];
+          };
+
+          // Special merge for sessions: also match by date+category key
+          // because Supabase may have stored with a different legacy_id
+          const mergeSessionsWithDateKey = (
+            remote: typeof remoteData.trainingSessionSummaries,
+            local: typeof localData.trainingSessionSummaries | undefined,
+          ) => {
+            if (!local?.length) return remote;
+            const remoteIds = new Set(remote.map((r) => r.id));
+            const remoteDateCat = new Set(remote.map((r) => `${r.date}::${r.category ?? ''}`));
+            const localOnly = local.filter(
+              (r) => !remoteIds.has(r.id) && !remoteDateCat.has(`${r.date}::${r.category ?? ''}`)
+            );
+            return [...remote, ...localOnly];
+          };
+          
+          const merged: AppData = {
+            ...remoteData,
+            // Critical: merge sessions and loads that may not be in Supabase yet
+            trainingSessionSummaries: mergeSessionsWithDateKey(
+              remoteData.trainingSessionSummaries,
+              localData?.trainingSessionSummaries,
+            ),
+            internalLoads: mergeArrays(remoteData.internalLoads, localData?.internalLoads),
+            externalLoads: mergeArrays(remoteData.externalLoads, localData?.externalLoads),
+            // Players, wellness, microcycles: always use Supabase as source of truth
+            players: remoteData.players.length > 0 ? remoteData.players : (localData?.players ?? remoteData.players),
+            wellness: remoteData.wellness,
+            microcycles: remoteData.microcycles,
+          };
+          
+          setData(merged);
+          dataRef.current = merged;
+          saveLocalAppData(merged);
           setSyncStatus('ready');
         } else {
           const local = readLocalAppData();

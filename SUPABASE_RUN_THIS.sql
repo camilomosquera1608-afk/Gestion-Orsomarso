@@ -610,3 +610,22 @@ commit;
 
 -- v108.6 - Sesion unica por categoria y fecha
 -- Ejecuta SUPABASE_V108_6_SESSION_ONE_PER_DAY.sql por separado si quieres aplicar la guarda unica en base de datos.
+
+-- ─────────────────────────────────────────────────────────────
+-- v108.5 - Fix training_sessions: agregar unique index en legacy_id
+-- Ejecutar en SQL Editor de Supabase para que onConflict='legacy_id' funcione.
+-- Seguro: no borra datos.
+-- ─────────────────────────────────────────────────────────────
+
+-- Agrega legacy_id a training_sessions si no existe
+alter table public.training_sessions
+  add column if not exists legacy_id text;
+
+-- Hace legacy_id unique para que upsert onConflict funcione
+create unique index if not exists ux_training_sessions_legacy_id
+  on public.training_sessions(legacy_id)
+  where legacy_id is not null;
+
+-- Agrega status si no existe
+alter table public.training_sessions
+  add column if not exists status text;
