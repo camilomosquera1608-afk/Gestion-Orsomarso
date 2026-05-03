@@ -111,7 +111,6 @@ export default function SesionEntrenamientoPage() {
 
   const summaryRecord = getSessionForDateAndCategory(data, filters.date, activeCategory, editingSessionId);
   const csvSessionId = summaryRecord?.id ?? 'csv-pending';
-  const csvSessionId = summaryRecord?.id ?? 'csv-pending';
   const dateSummaryRecord = getSessionForDateAndCategory(data, filters.date, activeCategory);
   const sessionHistory = useMemo(
     () => data.trainingSessionSummaries
