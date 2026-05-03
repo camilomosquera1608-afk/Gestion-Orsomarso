@@ -53,9 +53,13 @@ const C = {
 };
 
 // ─── Heatmap cell ──────────────────────────────────────────────────────────────
-function HC({ v, lo, hi, f = (x: number) => String(Math.round(x)), inv = false }: {
-  v: number; lo: number; hi: number; f?: (x: number) => string; inv?: boolean;
+function HC({ v, lo, hi, f = (x: number) => String(Math.round(x)), inv = false, allowZero = false }: {
+  v: number; lo: number; hi: number; f?: (x: number) => string; inv?: boolean; allowZero?: boolean;
 }) {
+  // If value is 0 and not explicitly allowed, show as neutral grey (not red)
+  if (v === 0 && !allowZero) {
+    return <td style={{ background: '#f1f5f9', color: '#94a3b8', fontWeight: 700, textAlign: 'center', fontSize: 10, padding: '5px 3px' }}>—</td>;
+  }
   const pos = clamp(Math.round((v - lo) / Math.max(1, hi - lo) * 100));
   const score = inv ? 100 - pos : pos;
   const [bg, fg] = score >= 65 ? ['#d1fae5','#065f46'] : score >= 35 ? ['#fef9c3','#713f12'] : ['#fee2e2','#7f1d1d'];
@@ -323,16 +327,16 @@ export function SessionReportTemplate({
                     <td className="sr-td-name">{r.player.name}</td>
                     <td className="sr-td-pos">{r.player.position}</td>
                     <HC v={r.min}  lo={rMin(reg.map(x => x.min))} hi={rMax(reg.map(x => x.min))} />
-                    <HC v={r.rpe}  lo={0} hi={10} />
-                    <HC v={load}   lo={rMin(loadArr)} hi={rMax(loadArr)} />
+                    <HC v={r.rpe}  lo={0} hi={10} allowZero={false} />
+                    <HC v={load}   lo={rMin(loadArr)} hi={rMax(loadArr)} allowZero={false} />
                     {gps ? <>
                       <HC v={safeN(r.totalDistance)}    lo={rMin(distArr)} hi={rMax(distArr)} f={v => formatPdfNumber(v)} />
                       <HC v={mmin}                      lo={rMin(mminArr)} hi={rMax(mminArr)} f={v => formatPdfNumber(v, 1)} />
                       <HC v={safeN(r.playerLoad)}       lo={rMin(plArr)}   hi={rMax(plArr)}   f={v => formatPdfNumber(v)} />
                       <HC v={safeN(r.highSpeedDistance)} lo={rMin(hsrArr)} hi={rMax(hsrArr)}  f={v => formatPdfNumber(v)} />
                       {hasSprint && <HC v={safeN(r.sprintDistance)} lo={rMin(sprArr)} hi={rMax(sprArr)} f={v => formatPdfNumber(v)} />}
-                      <HC v={r.acc} lo={rMin(accArr)} hi={rMax(accArr)} />
-                      <HC v={r.dcc} lo={rMin(dccArr)} hi={rMax(dccArr)} />
+                      <HC v={r.acc} lo={rMin(accArr)} hi={rMax(accArr)} allowZero />
+                      <HC v={r.dcc} lo={rMin(dccArr)} hi={rMax(dccArr)} allowZero />
                       <HC v={safeN(r.maxVelocity)} lo={rMin(velArr)} hi={rMax(velArr)} f={v => v.toFixed(1)} />
                     </> : <>
                       <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 10, background: well >= 3.7 ? '#d1fae5' : well >= 3.2 ? '#fef9c3' : well > 0 ? '#fee2e2' : C.soft, color: well >= 3.7 ? '#065f46' : well >= 3.2 ? '#713f12' : '#7f1d1d' }}>{well ? well.toFixed(1) : '—'}</td>

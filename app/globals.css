@@ -6501,17 +6501,18 @@ img[loading="lazy"] { background: var(--line-soft); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PORTADA ESTILO PALMEIRAS — Orsomarso SC
-   Fondo oscuro, escudo centrado grande, título abajo, KPIs en franja final
    ═══════════════════════════════════════════════════════════════════════════ */
 .sr-cover-palmeiras {
   background: linear-gradient(180deg, #050d1f 0%, #0b1e42 40%, #0d2259 70%, #152d6e 100%);
-  min-height: 100vh;
+  /* Use fixed height so KPI strip stays within one page */
+  height: 100vh; min-height: 0;
   display: flex; flex-direction: column; align-items: center;
   padding: 0;
   color: #fff;
   position: relative; overflow: hidden;
   page-break-after: always;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  break-after: page;
 }
 
 /* Diagonal stripe pattern like Palmeiras */
@@ -6563,16 +6564,16 @@ img[loading="lazy"] { background: var(--line-soft); }
 .srp-crest {
   width: 220px; height: 220px;
   border-radius: 999px;
-  background: rgba(255,255,255,.06);
-  border: 2px solid rgba(255,255,255,.12);
+  /* White background so crest images with dark bg still look good */
+  background: #fff;
+  border: 3px solid rgba(255,255,255,.3);
   display: grid; place-items: center;
-  box-shadow: 0 0 60px rgba(37,99,235,.25), 0 0 120px rgba(37,99,235,.12);
-  padding: 20px;
+  box-shadow: 0 0 60px rgba(37,99,235,.35), 0 0 120px rgba(37,99,235,.15), 0 0 0 8px rgba(255,255,255,.06);
+  padding: 16px;
 }
 .srp-crest img {
-  width: 160px; height: 160px;
+  width: 168px; height: 168px;
   object-fit: contain;
-  filter: drop-shadow(0 4px 20px rgba(255,255,255,.12));
 }
 
 /* Title block */
@@ -6639,24 +6640,41 @@ img[loading="lazy"] { background: var(--line-soft); }
 /* ─── Print overrides for Palmeiras cover ─── */
 @media print {
   .sr-cover-palmeiras {
-    min-height: 100vh !important;
+    /* Exactly one A4 page — no overflow */
     height: 100vh !important;
+    min-height: 0 !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
     page-break-after: always !important;
+    break-after: page !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    /* A4 = 297mm but viewport in print = 100vh, so scale content */
+    display: flex !important;
+    flex-direction: column !important;
   }
-  .srp-top { padding: 18px 16px 8px !important; }
-  .srp-club-name { font-size: 16pt !important; }
-  .srp-dept { font-size: 7pt !important; }
-  .srp-crest { width: 42mm !important; height: 42mm !important; border-radius: 999px !important; padding: 4mm !important; }
-  .srp-crest img { width: 34mm !important; height: 34mm !important; }
-  .srp-crest-wrap { padding: 8mm 0 !important; }
-  .srp-report-label { font-size: 6pt !important; }
-  .srp-title { font-size: 26pt !important; }
-  .srp-subtitle { font-size: 9pt !important; }
-  .srp-chip { font-size: 6pt !important; padding: 1.5mm 4mm !important; }
-  .srp-kpi { padding: 4mm 3mm !important; }
-  .srp-kpi-label { font-size: 5.5pt !important; }
-  .srp-kpi-value { font-size: 14pt !important; }
-  .srp-kpi-note { font-size: 5.5pt !important; }
+  .srp-top { padding: 14px 14px 6px !important; flex-shrink: 0; }
+  .srp-club-name { font-size: 14pt !important; }
+  .srp-dept { font-size: 6pt !important; }
+  .srp-crest-wrap { flex: 1 !important; padding: 6mm 0 !important; min-height: 0 !important; }
+  .srp-crest {
+    width: 38mm !important; height: 38mm !important;
+    border-radius: 999px !important; padding: 3mm !important;
+  }
+  .srp-crest img { width: 32mm !important; height: 32mm !important; }
+  .srp-title-block { padding: 0 14px 12px !important; flex-shrink: 0; }
+  .srp-report-label { font-size: 5.5pt !important; margin-bottom: 4pt !important; }
+  .srp-title { font-size: 22pt !important; }
+  .srp-subtitle { font-size: 8pt !important; margin-top: 4pt !important; }
+  .srp-chips { padding: 0 14px 10px !important; flex-shrink: 0; }
+  .srp-chip { font-size: 5.5pt !important; padding: 1.5mm 3mm !important; }
+  .srp-kpi-strip {
+    flex-shrink: 0 !important;
+    /* Ensure it stays at bottom of the cover page */
+    margin-top: auto !important;
+  }
+  .srp-kpi { padding: 3.5mm 2.5mm !important; }
+  .srp-kpi-label { font-size: 5pt !important; }
+  .srp-kpi-value { font-size: 13pt !important; }
+  .srp-kpi-note { font-size: 5pt !important; }
 }
