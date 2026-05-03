@@ -223,23 +223,17 @@ export function SessionReportTemplate({
 
           {/* KPI cards */}
           <div className="sr-cover-kpis">
-            {gps ? [
-              { l: 'Distancia total', v: `${formatPdfNumber(totalDist)} m`, n: `${formatPdfNumber(totalDist / Math.max(1, reg.length))} m / jugador` },
-              { l: 'Player Load', v: formatPdfNumber(totalPL), n: 'carga externa total' },
-              { l: 'Vel. máxima', v: `${formatPdfNumber(maxVel, 1)} km/h`, n: 'mejor registro' },
-              { l: 'Participación', v: `${partScore}%`, n: `${reg.length} de ${reg.length + absentPlayers.length}` },
-            ] : [
-              { l: 'Jugadores', v: String(reg.length), n: 'registrados' },
-              { l: 'Carga interna', v: `${Math.round(totalLoad)} UA`, n: 'total' },
-              { l: 'RPE promedio', v: avgRpe.toFixed(1), n: 'escala 1–10' },
-              { l: 'Wellness', v: avgWell ? avgWell.toFixed(1) : '—', n: '/5 promedio' },
-            ].map(({ l, v, n }) => (
-              <div key={l} className="sr-cover-kpi">
-                <div className="sr-ck-label">{l}</div>
-                <div className="sr-ck-value">{v}</div>
-                <div className="sr-ck-note">{n}</div>
-              </div>
-            ))}
+            {gps ? <>
+              <div className="sr-cover-kpi"><div className="sr-ck-label">Distancia total</div><div className="sr-ck-value">{formatPdfNumber(totalDist)} m</div><div className="sr-ck-note">{formatPdfNumber(totalDist / Math.max(1, reg.length))} m / jugador</div></div>
+              <div className="sr-cover-kpi"><div className="sr-ck-label">Player Load</div><div className="sr-ck-value">{formatPdfNumber(totalPL)}</div><div className="sr-ck-note">carga externa total</div></div>
+              <div className="sr-cover-kpi"><div className="sr-ck-label">Vel. máxima</div><div className="sr-ck-value">{formatPdfNumber(maxVel, 1)} km/h</div><div className="sr-ck-note">mejor registro</div></div>
+              <div className="sr-cover-kpi"><div className="sr-ck-label">Participación</div><div className="sr-ck-value">{partScore}%</div><div className="sr-ck-note">{reg.length} de {reg.length + absentPlayers.length}</div></div>
+            </> : <>
+              <div className="sr-cover-kpi"><div className="sr-ck-label">Jugadores</div><div className="sr-ck-value">{reg.length}</div><div className="sr-ck-note">registrados</div></div>
+              <div className="sr-cover-kpi"><div className="sr-ck-label">Carga interna</div><div className="sr-ck-value">{Math.round(totalLoad)} UA</div><div className="sr-ck-note">total</div></div>
+              <div className="sr-cover-kpi"><div className="sr-ck-label">RPE promedio</div><div className="sr-ck-value">{avgRpe.toFixed(1)}</div><div className="sr-ck-note">escala 1–10</div></div>
+              <div className="sr-cover-kpi"><div className="sr-ck-label">Wellness</div><div className="sr-ck-value">{avgWell ? avgWell.toFixed(1) : '—'}</div><div className="sr-ck-note">/5 promedio</div></div>
+            </>}
           </div>
 
           <div className="sr-cover-footer">
