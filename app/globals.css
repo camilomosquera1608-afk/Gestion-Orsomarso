@@ -5747,12 +5747,14 @@ img[loading="lazy"] { background: var(--line-soft); }
   border: 1px solid #e2e8f0; border-radius: 18px; overflow: hidden;
   font-size: 11px; background: #fff;
 }
-.sr-heat-table thead tr { background: #06152f; }
+.sr-heat-table thead tr { background: #06152f; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .sr-heat-table thead tr th {
   padding: 10px 8px; color: #fff;
   font-size: 8px; font-weight: 800;
   text-transform: uppercase; letter-spacing: .09em;
   text-align: center;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  background: #06152f;
 }
 .sr-th-name { text-align: left !important; padding-left: 14px !important; }
 .sr-heat-table tbody tr td { border-top: 1px solid #f0f4fb; vertical-align: middle; }
@@ -6495,4 +6497,166 @@ img[loading="lazy"] { background: var(--line-soft); }
 
   /* Collapse empty */
   .sr-section:empty { display: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PORTADA ESTILO PALMEIRAS — Orsomarso SC
+   Fondo oscuro, escudo centrado grande, título abajo, KPIs en franja final
+   ═══════════════════════════════════════════════════════════════════════════ */
+.sr-cover-palmeiras {
+  background: linear-gradient(180deg, #050d1f 0%, #0b1e42 40%, #0d2259 70%, #152d6e 100%);
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0;
+  color: #fff;
+  position: relative; overflow: hidden;
+  page-break-after: always;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+
+/* Diagonal stripe pattern like Palmeiras */
+.sr-cover-palmeiras::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255,255,255,.018) 0px, rgba(255,255,255,.018) 1px,
+    transparent 1px, transparent 28px
+  );
+  pointer-events: none;
+}
+
+/* Top glow */
+.sr-cover-palmeiras::after {
+  content: '';
+  position: absolute;
+  top: -100px; left: 50%; transform: translateX(-50%);
+  width: 600px; height: 400px;
+  background: radial-gradient(ellipse at center, rgba(37,99,235,.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.sr-cover-palmeiras > * { position: relative; z-index: 1; width: 100%; }
+
+/* Top header */
+.srp-top {
+  text-align: center;
+  padding: 28px 24px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+}
+.srp-club-name {
+  font-size: 22px; font-weight: 900;
+  letter-spacing: .18em; color: #fff;
+  line-height: 1;
+}
+.srp-dept {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .22em; color: rgba(255,255,255,.5);
+  margin-top: 6px; text-transform: uppercase;
+}
+
+/* Crest — big and centered */
+.srp-crest-wrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 32px 0;
+}
+.srp-crest {
+  width: 220px; height: 220px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  border: 2px solid rgba(255,255,255,.12);
+  display: grid; place-items: center;
+  box-shadow: 0 0 60px rgba(37,99,235,.25), 0 0 120px rgba(37,99,235,.12);
+  padding: 20px;
+}
+.srp-crest img {
+  width: 160px; height: 160px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 20px rgba(255,255,255,.12));
+}
+
+/* Title block */
+.srp-title-block {
+  text-align: center;
+  padding: 0 24px 20px;
+}
+.srp-report-label {
+  font-size: 10px; font-weight: 800;
+  letter-spacing: .22em; color: rgba(255,255,255,.45);
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.srp-title {
+  font-size: 38px; font-weight: 900;
+  letter-spacing: -.02em; line-height: 1;
+  color: #fff;
+}
+.srp-subtitle {
+  font-size: 14px; font-weight: 700;
+  color: rgba(255,255,255,.55);
+  margin-top: 8px;
+}
+
+/* Meta chips */
+.srp-chips {
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+  padding: 0 24px 24px;
+}
+.srp-chip {
+  padding: 6px 14px; border-radius: 999px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.15);
+  font-size: 11px; font-weight: 700; color: rgba(255,255,255,.8);
+}
+
+/* KPI strip — horizontal at bottom */
+.srp-kpi-strip {
+  display: flex; align-items: stretch;
+  background: rgba(255,255,255,.07);
+  border-top: 1px solid rgba(255,255,255,.1);
+  padding: 0;
+}
+.srp-kpi {
+  flex: 1; padding: 18px 16px; text-align: center;
+}
+.srp-kpi-div {
+  width: 1px; background: rgba(255,255,255,.1); flex-shrink: 0;
+  margin: 10px 0;
+}
+.srp-kpi-label {
+  font-size: 8px; font-weight: 900;
+  letter-spacing: .18em; color: rgba(255,255,255,.45);
+  text-transform: uppercase; margin-bottom: 6px;
+}
+.srp-kpi-value {
+  font-size: 24px; font-weight: 900;
+  letter-spacing: -.04em; color: #fff; line-height: 1;
+}
+.srp-kpi-note {
+  font-size: 9px; font-weight: 700;
+  color: rgba(255,255,255,.4); margin-top: 4px;
+}
+
+/* ─── Print overrides for Palmeiras cover ─── */
+@media print {
+  .sr-cover-palmeiras {
+    min-height: 100vh !important;
+    height: 100vh !important;
+    page-break-after: always !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .srp-top { padding: 18px 16px 8px !important; }
+  .srp-club-name { font-size: 16pt !important; }
+  .srp-dept { font-size: 7pt !important; }
+  .srp-crest { width: 42mm !important; height: 42mm !important; border-radius: 999px !important; padding: 4mm !important; }
+  .srp-crest img { width: 34mm !important; height: 34mm !important; }
+  .srp-crest-wrap { padding: 8mm 0 !important; }
+  .srp-report-label { font-size: 6pt !important; }
+  .srp-title { font-size: 26pt !important; }
+  .srp-subtitle { font-size: 9pt !important; }
+  .srp-chip { font-size: 6pt !important; padding: 1.5mm 4mm !important; }
+  .srp-kpi { padding: 4mm 3mm !important; }
+  .srp-kpi-label { font-size: 5.5pt !important; }
+  .srp-kpi-value { font-size: 14pt !important; }
+  .srp-kpi-note { font-size: 5.5pt !important; }
 }

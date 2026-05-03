@@ -199,45 +199,57 @@ export function SessionReportTemplate({
         generatedAt={generatedAt}
       />
 
-      {/* ══ PORTADA ══════════════════════════════════════════════════════════ */}
+      {/* ══ PORTADA — estilo Palmeiras ════════════════════════════════════ */}
       {!compact && (
-        <div className="sr-cover" style={{ pageBreakAfter: 'always' }}>
-          <div className="sr-cover-topbar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="sr-cover-logo">
-                <img src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={52} height={52} />
-              </div>
-              <div>
-                <div className="sr-cover-brand-sup">Orsomarso Performance Hub</div>
-                <div className="sr-cover-brand-name">Departamento de Rendimiento</div>
-              </div>
+        <div className="sr-cover-palmeiras">
+          {/* Top header — club name */}
+          <div className="srp-top">
+            <div className="srp-club-name">ORSOMARSO SC</div>
+            <div className="srp-dept">DEPARTAMENTO DE RENDIMIENTO</div>
+          </div>
+
+          {/* Big crest — centered */}
+          <div className="srp-crest-wrap">
+            <div className="srp-crest">
+              <img src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={160} height={160} />
             </div>
-            <div className="sr-cover-date-chip">{formatPdfDate(date)}</div>
           </div>
-          <div className="sr-cover-headline">
-            <div className="sr-cover-tag">{gps ? '● CATAPULT GPS · U20' : '● CARGA INTERNA'}</div>
-            <h1 className="sr-cover-h1">Informe<br />de Sesión</h1>
-            <p className="sr-cover-sub">{sessionLabel(sessionType)} · {mcText}</p>
+
+          {/* Report title */}
+          <div className="srp-title-block">
+            <div className="srp-report-label">
+              {gps ? 'CATAPULT GPS · U20' : 'CARGA INTERNA'} &nbsp;·&nbsp; {sessionLabel(sessionType).toUpperCase()}
+            </div>
+            <div className="srp-title">INFORME DE SESIÓN</div>
+            <div className="srp-subtitle">{mcText}</div>
           </div>
-          <div className="sr-cover-chips">
+
+          {/* Meta chips */}
+          <div className="srp-chips">
             {[categoryLabel(category), `Sesión ${sessionNumber || '—'}`, `${reg.length} jugadores`, formatPdfDate(date)]
-              .map(t => <span key={t} className="sr-cover-chip">{t}</span>)}
+              .map(t => <span key={t} className="srp-chip">{t}</span>)}
           </div>
-          <hr className="sr-cover-hr" />
-          <div className="sr-cover-kpis">
+
+          {/* KPI strip at bottom */}
+          <div className="srp-kpi-strip">
             {gps ? <>
-              <div className="sr-cover-kpi"><div className="sr-ck-label">Distancia total</div><div className="sr-ck-value">{formatPdfNumber(totalDist)} m</div><div className="sr-ck-note">{formatPdfNumber(totalDist / Math.max(1, reg.length))} m / jugador</div></div>
-              <div className="sr-cover-kpi"><div className="sr-ck-label">Player Load</div><div className="sr-ck-value">{formatPdfNumber(totalPL)}</div><div className="sr-ck-note">carga externa total</div></div>
-              <div className="sr-cover-kpi"><div className="sr-ck-label">Vel. máxima</div><div className="sr-ck-value">{formatPdfNumber(maxVel, 1)} km/h</div><div className="sr-ck-note">mejor registro</div></div>
-              <div className="sr-cover-kpi"><div className="sr-ck-label">Participación</div><div className="sr-ck-value">{partScore}%</div><div className="sr-ck-note">{reg.length} de {reg.length + absentPlayers.length}</div></div>
+              <div className="srp-kpi"><div className="srp-kpi-label">DISTANCIA TOTAL</div><div className="srp-kpi-value">{formatPdfNumber(totalDist)} m</div><div className="srp-kpi-note">{formatPdfNumber(totalDist / Math.max(1, reg.length))} m / jugador</div></div>
+              <div className="srp-kpi-div" />
+              <div className="srp-kpi"><div className="srp-kpi-label">PLAYER LOAD</div><div className="srp-kpi-value">{formatPdfNumber(totalPL)}</div><div className="srp-kpi-note">carga externa total</div></div>
+              <div className="srp-kpi-div" />
+              <div className="srp-kpi"><div className="srp-kpi-label">VEL. MÁXIMA</div><div className="srp-kpi-value">{formatPdfNumber(maxVel, 1)} km/h</div><div className="srp-kpi-note">mejor registro</div></div>
+              <div className="srp-kpi-div" />
+              <div className="srp-kpi"><div className="srp-kpi-label">PARTICIPACIÓN</div><div className="srp-kpi-value">{partScore}%</div><div className="srp-kpi-note">{reg.length} de {reg.length + absentPlayers.length}</div></div>
             </> : <>
-              <div className="sr-cover-kpi"><div className="sr-ck-label">Jugadores</div><div className="sr-ck-value">{reg.length}</div><div className="sr-ck-note">registrados</div></div>
-              <div className="sr-cover-kpi"><div className="sr-ck-label">Carga interna</div><div className="sr-ck-value">{Math.round(totalLoad)} UA</div><div className="sr-ck-note">total</div></div>
-              <div className="sr-cover-kpi"><div className="sr-ck-label">RPE promedio</div><div className="sr-ck-value">{avgRpe.toFixed(1)}</div><div className="sr-ck-note">escala 1–10</div></div>
-              <div className="sr-cover-kpi"><div className="sr-ck-label">Wellness</div><div className="sr-ck-value">{avgWell ? avgWell.toFixed(1) : '—'}</div><div className="sr-ck-note">/5 promedio</div></div>
+              <div className="srp-kpi"><div className="srp-kpi-label">JUGADORES</div><div className="srp-kpi-value">{reg.length}</div><div className="srp-kpi-note">registrados</div></div>
+              <div className="srp-kpi-div" />
+              <div className="srp-kpi"><div className="srp-kpi-label">CARGA INTERNA</div><div className="srp-kpi-value">{Math.round(totalLoad)} UA</div><div className="srp-kpi-note">total</div></div>
+              <div className="srp-kpi-div" />
+              <div className="srp-kpi"><div className="srp-kpi-label">RPE PROMEDIO</div><div className="srp-kpi-value">{avgRpe.toFixed(1)}</div><div className="srp-kpi-note">escala 1–10</div></div>
+              <div className="srp-kpi-div" />
+              <div className="srp-kpi"><div className="srp-kpi-label">WELLNESS</div><div className="srp-kpi-value">{avgWell ? avgWell.toFixed(1) : '—'}</div><div className="srp-kpi-note">/5 promedio</div></div>
             </>}
           </div>
-          <div className="sr-cover-footer"><span>Documento institucional · Confidencial</span><span>Orsomarso SC · Rendimiento Deportivo</span></div>
         </div>
       )}
 
