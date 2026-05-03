@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppHero } from '@/components/app-hero';
 import { KpiCard } from '@/components/kpi-card';
@@ -159,8 +159,14 @@ export default function SesionEntrenamientoPage() {
     [data.internalLoads, data.players, summaryRecord?.id, summaryRecord?.date, summaryRecord?.category, summaryRecord?.sessionNumber, filters.date, activeCategory],
   );
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
+  const justImportedRef = useRef(false); // evitar que useEffect pise datos del CSV
 
   useEffect(() => {
+    // Si acabamos de importar un CSV, no resetear los rowStates que ya se rellenaron
+    if (justImportedRef.current) {
+      justImportedRef.current = false;
+      return;
+    }
     const next: Record<string, RowState> = {};
     sessionPlayers.forEach((player) => {
       const existing = existingRecords.find((item) => item.playerId === player.id);
@@ -400,11 +406,43 @@ export default function SesionEntrenamientoPage() {
   };
 
   const handleCsvImport = (records: Omit<DailyExternalLoadRecord, 'id'>[]) => {
+    // 1. Guardar en externalLoads (persiste en Supabase/localStorage)
     records.forEach((record) => {
       addExternalLoad({ ...record, id: crypto.randomUUID() });
     });
+
+    // 2. Marcar que acabamos de importar para que useEffect no pise los datos
+    justImportedRef.current = true;
+
+    // 3. Pre-rellenar rowStates inmediatamente para que los campos aparezcan
+    //    rellenos sin esperar el ciclo del useEffect
+    setRowStates((prev) => {
+      const next = { ...prev };
+      records.forEach((record) => {
+        next[record.playerId] = {
+          selected: true,
+          participation: (record.participation as SessionParticipation) ?? 'Completa',
+          min: record.min ?? 0,
+          rpe: prev[record.playerId]?.rpe ?? 0,  // RPE lo ingresa el preparador manualmente
+          acc: record.acc ?? 0,
+          dcc: record.dcc ?? 0,
+          sprints: record.sprints ?? 0,
+          rhie: record.rhie ?? 0,
+          ima: record.ima ?? 0,
+          totalDistance: record.totalDistance ?? 0,
+          maxVelocity: record.maxVelocity ?? 0,
+          playerLoad: record.playerLoad ?? 0,
+          highSpeedDistance: record.highSpeedDistance ?? record.hsr ?? 0,
+          sprintDistance: record.sprintDistance ?? 0,
+          movementType: prev[record.playerId]?.movementType ?? 'base',
+          movementNote: prev[record.playerId]?.movementNote ?? '',
+        };
+      });
+      return next;
+    });
+
     setShowCsvImporter(false);
-    setMessage(`${records.length} registros GPS importados correctamente desde CSV.`);
+    setMessage(`${records.length} jugadores importados desde CSV. Agrega el RPE de cada uno y guarda la sesión.`);
   };
 
   const cancelSessionEditing = () => {
@@ -557,8 +595,10 @@ export default function SesionEntrenamientoPage() {
                   <div className="session-player-header">
                     <div>
                       <strong>{row.player.name}</strong>
+                      {row.player.jerseyNumber ? <span className="jersey-badge-sm" style={{ marginLeft: 6 }}>#{row.player.jerseyNumber}</span> : null}
                       <div className="muted-line">{row.player.position} · Base {categoryLabel(row.player.category)}</div>
                       {invited ? <div className="muted-line" style={{ color: '#1d4ed8', fontWeight: 800 }}>Jugador invitado en {categoryLabel(activeCategory)}</div> : null}
+                      {row.playerLoad > 0 || row.totalDistance > 0 ? <div className="muted-line" style={{ color: '#059669', fontWeight: 800, fontSize: 11 }}>📡 Datos GPS cargados · ingresa RPE y guarda</div> : null}
                     </div>
                     <div className="btn-row">
                       <label className="session-checkbox"><input type="checkbox" checked={row.selected} onChange={(e) => updateRow(row.player.id, { selected: e.target.checked })} /><span>Incluir</span></label>
@@ -568,7 +608,7 @@ export default function SesionEntrenamientoPage() {
                   <div className={`grid session-fields-grid ${youthSimple ? 'session-simple-grid' : 'session-metrics-grid'}`}>
                     <div className="field"><label>Participación</label><select className="select session-input-large" value={row.participation} onChange={(e) => updateRow(row.player.id, { participation: e.target.value as SessionParticipation })}>{participationOptions.map((option) => <option key={option}>{option}</option>)}</select></div>
                     <div className="field"><label>Minutos</label><input className="input session-input-large" type="number" value={renderNumberInput(row.min)} onChange={(e) => updateRow(row.player.id, { min: Number(e.target.value) || 0 })} /></div>
-                    <div className="field"><label>RPE</label><input className="input session-input-large" type="number" value={renderNumberInput(row.rpe)} onChange={(e) => updateRow(row.player.id, { rpe: Number(e.target.value) || 0 })} /></div>
+                    <div className="field"><label>RPE {row.rpe === 0 && row.min > 0 ? <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 800 }}>← requerido</span> : null}</label><input className="input session-input-large" type="number" value={renderNumberInput(row.rpe)} onChange={(e) => updateRow(row.player.id, { rpe: Number(e.target.value) || 0 })} style={row.rpe === 0 && row.min > 0 ? { borderColor: '#fca5a5', background: '#fff5f5' } : {}} /></div>
                     {invited ? <div className="field"><label>Movimiento</label><select className="select session-input-large" value={row.movementType} onChange={(e) => updateRow(row.player.id, { movementType: e.target.value as MovementType })}>{movementOptions.filter((m) => m.value !== 'base').map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div> : null}
                     {invited ? <div className="field"><label>Observación</label><input className="input session-input-large" value={row.movementNote} onChange={(e) => updateRow(row.player.id, { movementNote: e.target.value })} /></div> : null}
                     {!youthSimple && row.player.position !== 'Portero' ? <>
