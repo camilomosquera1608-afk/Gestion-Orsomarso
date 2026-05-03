@@ -333,7 +333,7 @@ export default function SesionEntrenamientoPage() {
         playerId: row.player.id,
         date: filters.date,
         min: row.min,
-        rpe: row.rpe,
+        rpe: Math.min(10, Math.max(0, row.rpe ?? 0)),
         acc: youthSimple ? 0 : row.acc,
         dcc: youthSimple ? 0 : row.dcc,
         sprints: youthSimple ? 0 : row.sprints,
@@ -366,7 +366,7 @@ export default function SesionEntrenamientoPage() {
         sessionId,
         playerId: row.player.id,
         date: filters.date,
-        rpe: row.rpe,
+        rpe: Math.min(10, Math.max(0, row.rpe ?? 0)),
         duration: row.min,
         microcycleId: activeMicrocycleId,
         sessionNumber: parsedSessionNumber,
@@ -608,7 +608,7 @@ export default function SesionEntrenamientoPage() {
                   <div className={`grid session-fields-grid ${youthSimple ? 'session-simple-grid' : 'session-metrics-grid'}`}>
                     <div className="field"><label>Participación</label><select className="select session-input-large" value={row.participation} onChange={(e) => updateRow(row.player.id, { participation: e.target.value as SessionParticipation })}>{participationOptions.map((option) => <option key={option}>{option}</option>)}</select></div>
                     <div className="field"><label>Minutos</label><input className="input session-input-large" type="number" value={renderNumberInput(row.min)} onChange={(e) => updateRow(row.player.id, { min: Number(e.target.value) || 0 })} /></div>
-                    <div className="field"><label>RPE {row.rpe === 0 && row.min > 0 ? <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 800 }}>← requerido</span> : null}</label><input className="input session-input-large" type="number" value={renderNumberInput(row.rpe)} onChange={(e) => updateRow(row.player.id, { rpe: Number(e.target.value) || 0 })} style={row.rpe === 0 && row.min > 0 ? { borderColor: '#fca5a5', background: '#fff5f5' } : {}} /></div>
+                    <div className="field"><label>RPE {row.rpe === 0 && row.min > 0 ? <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 800 }}>← requerido</span> : null}</label><input className="input session-input-large" type="number" min={0} max={10} value={renderNumberInput(row.rpe)} onChange={(e) => updateRow(row.player.id, { rpe: Math.min(10, Math.max(0, Number(e.target.value) || 0)) })} style={row.rpe === 0 && row.min > 0 ? { borderColor: '#fca5a5', background: '#fff5f5' } : {}} /></div>
                     {invited ? <div className="field"><label>Movimiento</label><select className="select session-input-large" value={row.movementType} onChange={(e) => updateRow(row.player.id, { movementType: e.target.value as MovementType })}>{movementOptions.filter((m) => m.value !== 'base').map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div> : null}
                     {invited ? <div className="field"><label>Observación</label><input className="input session-input-large" value={row.movementNote} onChange={(e) => updateRow(row.player.id, { movementNote: e.target.value })} /></div> : null}
                     {!youthSimple && row.player.position !== 'Portero' ? <>

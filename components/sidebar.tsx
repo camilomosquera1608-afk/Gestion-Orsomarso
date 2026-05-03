@@ -50,6 +50,7 @@ const staffGroups = [
       { href: '/microciclo', label: 'Microciclo', icon: Activity },
       { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
       { href: '/competencia', label: 'Competencia', icon: Trophy },
+      { href: '/competencia/analisis-tactico', label: 'Análisis táctico', icon: BarChart3 },
     ],
   },
   {
