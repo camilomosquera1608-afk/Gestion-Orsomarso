@@ -162,15 +162,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       // Si se seteaba después del await, el segundo set aplastaba al primero
       // con un valor menor, permitiendo que el realtime hiciera refresh
       // antes de que terminara de llegar la respuesta del servidor.
-      const blockUntil = Date.now() + 3500;
-      skipRemoteRefreshUntilRef.current = blockUntil;
+      // FIX DATA LOSS: Block remote refresh for 8s before AND after save.
+      // The realtime event fires when Supabase receives our write (~500ms-2s).
+      // Without a long enough block the realtime refresh overwrites local state
+      // with stale data that hasn't propagated yet.
+      const blockUntil = Date.now() + 8000;
+      // Only extend the block — never shorten it (another save may be in flight).
+      if (blockUntil > skipRemoteRefreshUntilRef.current) {
+        skipRemoteRefreshUntilRef.current = blockUntil;
+      }
       setSyncStatus('syncing');
       const session = getStaffSession();
       const scopedData = filterAppDataForSession(nextData, session);
       const result = await saveSupabaseTablesAppData(supabase, scopedData);
-      // Solo actualizar el bloqueo si todavía es relevante (no fue pisado por otra operación)
-      if (skipRemoteRefreshUntilRef.current === blockUntil) {
-        skipRemoteRefreshUntilRef.current = Date.now() + 1200;
+      // After save completes, keep blocking for 3 more seconds so the
+      // realtime echo from Supabase doesn't overwrite our local state.
+      const postSaveBlock = Date.now() + 3000;
+      if (postSaveBlock > skipRemoteRefreshUntilRef.current) {
+        skipRemoteRefreshUntilRef.current = postSaveBlock;
       }
       setSyncStatus(result.ok ? 'ready' : 'error');
     } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
@@ -206,11 +215,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const session = sessionRef.current;
     if (session.isAuthenticated && !canWrite(session)) return;
     // FIX #6: mismo patrón — calcular blockUntil antes del await
-    const blockUntil = Date.now() + 3500;
-    skipRemoteRefreshUntilRef.current = blockUntil;
+    const blockUntil = Date.now() + 8000;
+    if (blockUntil > skipRemoteRefreshUntilRef.current) {
+      skipRemoteRefreshUntilRef.current = blockUntil;
+    }
     const result = await deleteSupabaseTableRowByLegacyId(supabase, table, legacyId);
-    if (skipRemoteRefreshUntilRef.current === blockUntil) {
-      skipRemoteRefreshUntilRef.current = Date.now() + 1200;
+    const postBlock = Date.now() + 3000;
+    if (postBlock > skipRemoteRefreshUntilRef.current) {
+      skipRemoteRefreshUntilRef.current = postBlock;
     }
     setSyncStatus(result.ok ? 'ready' : 'error');
   };
@@ -321,16 +333,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     const syncOnResume = () => {
       if (document.visibilityState === 'visible') {
-        void refreshFromSupabase('manual');
+        // Use 'poll' so the skipRemoteRefresh timer is respected after saves.
+        scheduleRemoteRefresh('poll');
       }
     };
 
     const syncOnFocus = () => {
-      void refreshFromSupabase('manual');
+      scheduleRemoteRefresh('poll');
     };
 
     const syncOnOnline = () => {
-      void refreshFromSupabase('manual');
+      scheduleRemoteRefresh('poll');
     };
 
     document.addEventListener('visibilitychange', syncOnResume);
