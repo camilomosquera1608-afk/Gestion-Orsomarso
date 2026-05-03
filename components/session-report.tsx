@@ -257,12 +257,12 @@ export function SessionReportTemplate({
       )}
 
       {/* ══ PÁGINA 2: RESUMEN + TABLA ════════════════════════════════════════ */}
-      <section className="sr-section">
+      <section style={{ display: 'grid', gap: 10, marginBottom: 6 }}>
         <Sec eyebrow="Resumen ejecutivo" title="Promedios generales de la sesión"
           sub={`${formatPdfDate(date)} · ${sessionLabel(sessionType)} · ${mcText}`} />
 
-        {/* Gauges + KPIs en una fila compacta */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto auto auto 1fr', gap: 20, alignItems: 'start', marginBottom: 14 }}>
+        {/* Gauges — fila compacta */}
+        <div className="sr-gauges-row">
           <Gauge val={volScore} label="Volumen"
             sub={gps ? `${formatPdfNumber(totalDist / Math.max(1, reg.length))} m` : `${Math.round(totalLoad / Math.max(1, reg.length))} UA`}
             color={volScore >= 65 ? C.green : volScore >= 40 ? C.amber : C.red} />
@@ -272,32 +272,36 @@ export function SessionReportTemplate({
           <Gauge val={partScore} label="Participación"
             sub={`${reg.length} / ${reg.length + absentPlayers.length}`}
             color={partScore >= 70 ? C.green : partScore >= 45 ? C.amber : C.red} />
-          {/* KPI grid alongside */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8, alignContent: 'start' }}>
-            <KTile label="Tiempo prom." value={`${Math.round(avgMin)} min`} note="Por jugador" accent={C.blue} />
-            <KTile label="RPE promedio" value={avgRpe.toFixed(1)} note="Escala 1–10"
-              accent={avgRpe <= 6 ? C.green : avgRpe <= 8 ? C.amber : C.red} />
-            {gps ? <>
-              <KTile label="Distancia" value={`${formatPdfNumber(totalDist / Math.max(1, reg.length))} m`} note="Prom. jugador" accent={C.blue} />
-              <KTile label="m/min" value={formatPdfNumber(avgMMin, 1)} note="Intensidad"
-                accent={avgMMin >= 75 ? C.green : avgMMin >= 55 ? C.amber : C.red} />
-              <KTile label="HSR prom." value={`${formatPdfNumber(totalHSR / Math.max(1, reg.length))} m`} note="Alta velocidad" accent={C.blue2} />
-              <KTile label="Player Load" value={formatPdfNumber(totalPL / Math.max(1, reg.length))} note="Prom. jugador" accent={C.navy} />
-              <KTile label="ACC prom." value={String(Math.round(avgAcc))} note=">3 m/s²" accent={C.navy} />
-              <KTile label="DEC prom." value={String(Math.round(avgDcc))} note=">-3 m/s²" accent={C.navy} />
-            </> : <>
-              <KTile label="Carga total" value={`${Math.round(totalLoad)} UA`} note="Equipo" accent={C.blue} />
-              <KTile label="Wellness" value={avgWell ? avgWell.toFixed(1) : '—'} note="/5 prom."
-                accent={avgWell >= 3.7 ? C.green : C.amber} />
-              <KTile label="Completitud" value={`${dataQualityPercent}%`} note="Planilla" accent={C.green} />
-              <KTile label="Participación" value={`${partScore}%`} note={`${reg.length}/${reg.length + absentPlayers.length}`}
-                accent={partScore >= 70 ? C.green : C.amber} />
-            </>}
-          </div>
+          {!gps && <Gauge val={pct(avgWell, 5)} label="Wellness"
+            sub={avgWell ? `${avgWell.toFixed(1)} / 5` : 'sin datos'}
+            color={avgWell >= 3.7 ? C.green : avgWell >= 3.2 ? C.amber : C.red} />}
+        </div>
+
+        {/* KPI tiles */}
+        <div className="sr-kpi-grid">
+          <KTile label="Tiempo prom." value={`${Math.round(avgMin)} min`} note="Por jugador" accent={C.blue} />
+          <KTile label="RPE promedio" value={avgRpe.toFixed(1)} note="Escala 1–10"
+            accent={avgRpe <= 6 ? C.green : avgRpe <= 8 ? C.amber : C.red} />
+          {gps ? <>
+            <KTile label="Distancia" value={`${formatPdfNumber(totalDist / Math.max(1, reg.length))} m`} note="Prom. jugador" accent={C.blue} />
+            <KTile label="m/min" value={formatPdfNumber(avgMMin, 1)} note="Intensidad"
+              accent={avgMMin >= 75 ? C.green : avgMMin >= 55 ? C.amber : C.red} />
+            <KTile label="HSR prom." value={`${formatPdfNumber(totalHSR / Math.max(1, reg.length))} m`} note="Alta velocidad" accent={C.blue2} />
+            <KTile label="Player Load" value={formatPdfNumber(totalPL / Math.max(1, reg.length))} note="Prom. jugador" accent={C.navy} />
+            <KTile label="ACC prom." value={String(Math.round(avgAcc))} note=">3 m/s²" accent={C.navy} />
+            <KTile label="DEC prom." value={String(Math.round(avgDcc))} note=">-3 m/s²" accent={C.navy} />
+          </> : <>
+            <KTile label="Carga total" value={`${Math.round(totalLoad)} UA`} note="Equipo" accent={C.blue} />
+            <KTile label="Wellness" value={avgWell ? avgWell.toFixed(1) : '—'} note="/5"
+              accent={avgWell >= 3.7 ? C.green : C.amber} />
+            <KTile label="Completitud" value={`${dataQualityPercent}%`} note="Planilla" accent={C.green} />
+            <KTile label="Participación" value={`${partScore}%`} note={`${reg.length}/${reg.length + absentPlayers.length}`}
+              accent={partScore >= 70 ? C.green : C.amber} />
+          </>}
         </div>
       </section>
 
-      {/* Tabla descriptiva — misma página que los KPIs */}
+      {/* Tabla descriptiva */}
       {reg.length > 0 && (
         <section className="sr-section">
           <Sec eyebrow="Individual" title="Tabla descriptiva"
