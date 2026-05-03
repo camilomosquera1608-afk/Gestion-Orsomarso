@@ -6413,29 +6413,86 @@ img[loading="lazy"] { background: var(--line-soft); }
   .app-shell-top .main { padding: 16px 16px 92px; }
 }
 
-/* ─── PDF anti-blank-space rules ─── */
+/* ─── PDF A4 print system — tight, professional, no blank pages ─── */
 @media print {
-  /* Eliminate all blank sections */
+  @page { size: A4 portrait; margin: 10mm 12mm 12mm; }
+  @page:first { margin-top: 0; }
+
+  html, body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all UI chrome */
+  .no-print, header, nav, .tnav, .mobile-bottom-nav,
+  .mobile-menu-panel, .toast-container, .report-toolbar-premium,
+  .report-command-center, .btn, footer { display: none !important; }
+
+  .print-only { display: block !important; }
+
+  /* Document */
+  .pdf-report-document {
+    width: 100% !important; max-width: none !important;
+    margin: 0 !important; padding: 0 !important;
+    border: none !important; box-shadow: none !important;
+    font-size: 9pt !important; line-height: 1.35 !important;
+  }
+
+  /* Cover */
+  .sr-cover {
+    border-radius: 4mm !important; padding: 8mm 10mm !important;
+    gap: 5mm !important; page-break-after: always !important;
+    min-height: 0 !important;
+  }
+  .sr-cover-logo { width: 12mm !important; height: 12mm !important; border-radius: 3mm !important; }
+  .sr-cover-logo img { width: 10mm !important; height: 10mm !important; }
+  .sr-cover-brand-sup { font-size: 5.5pt !important; }
+  .sr-cover-brand-name { font-size: 8pt !important; }
+  .sr-cover-date-chip { font-size: 6pt !important; padding: 1mm 3mm !important; }
+  .sr-cover-tag { font-size: 6pt !important; }
+  .sr-cover-h1 { font-size: 30pt !important; }
+  .sr-cover-sub { font-size: 8pt !important; }
+  .sr-cover-chip { font-size: 5.5pt !important; padding: 1mm 3mm !important; }
+  .sr-cover-kpis { grid-template-columns: repeat(4, minmax(0,1fr)) !important; gap: 2mm !important; }
+  .sr-cover-kpi { border-radius: 3mm !important; padding: 3mm !important; gap: 1.5mm !important; }
+  .sr-ck-label { font-size: 5.5pt !important; }
+  .sr-ck-value { font-size: 14pt !important; }
+  .sr-ck-note  { font-size: 6pt !important; }
+  .sr-cover-footer { font-size: 6pt !important; }
+
+  /* Sections */
+  .sr-section { gap: 3mm !important; margin-bottom: 4mm !important; break-inside: avoid !important; }
+
+  /* Gauges */
+  .sr-gauges-row { padding: 4mm 0 3mm !important; gap: 3mm !important; }
+
+  /* KPI tiles */
+  .sr-kpi-grid { gap: 2mm !important; }
+
+  /* Heatmap table — key for no blank pages */
+  .sr-heat-table { font-size: 6.5pt !important; width: 100% !important; border-radius: 2.5mm !important; }
+  .sr-heat-table thead tr th { font-size: 5pt !important; padding: 1.5mm 2mm !important; }
+  .sr-heat-table tbody tr td { font-size: 6.5pt !important; padding: 1.5mm 2mm !important; }
+  .sr-td-name { padding: 1.5mm 2mm 1.5mm 3mm !important; font-size: 6.5pt !important; white-space: nowrap !important; }
+  .sr-td-pos  { font-size: 5.5pt !important; padding: 1.5mm !important; white-space: nowrap !important; }
+
+  /* Bar charts — compact */
+  .sr-bars-section { gap: 3mm !important; }
+  .sr-bars-label { font-size: 6pt !important; margin-bottom: 2mm !important; }
+  .sr-bars-list > div { grid-template-columns: 80px 1fr 36px !important; gap: 3mm !important; margin-bottom: 1mm !important; }
+  .sr-bars-list > div > span:first-child { font-size: 6pt !important; }
+  .sr-bars-list > div > div { height: 5px !important; }
+  .sr-bars-list > div > span:last-child { font-size: 6pt !important; }
+
+  /* Insights + alerts */
+  .sr-insight { font-size: 7pt !important; padding: 2mm 3mm !important; border-radius: 2.5mm !important; border-left-width: 2pt !important; }
+  .sr-alert { font-size: 6.5pt !important; padding: 1.5mm 2.5mm !important; border-radius: 2mm !important; }
+
+  /* Section heading */
+  div[style*="fontSize: 15"] { font-size: 11pt !important; }
+  div[style*="fontSize: 8.5"] { font-size: 5.5pt !important; }
+
+  /* Collapse empty */
   .sr-section:empty { display: none !important; }
-  section:empty { display: none !important; }
-  
-  /* No margin/padding waste */
-  .sr-section { margin-bottom: 5mm !important; gap: 3mm !important; }
-  
-  /* Collapse empty divs */
-  div:empty { display: none !important; }
-  
-  /* Ensure content fills pages */
-  .sr-heat-table { width: 100% !important; }
-  .sr-bars-list { gap: 2mm !important; }
-  .sr-bars-list > div { min-height: 6mm; }
-  
-  /* Force print colors */
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  
-  /* No page break inside sections */
-  .sr-section, section { break-inside: avoid !important; page-break-inside: avoid !important; }
-  
-  /* Tighter cover */
-  .sr-cover { min-height: 0 !important; }
 }
