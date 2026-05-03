@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import './globals.css';
 import { AppProvider } from '@/context/app-context';
 import { AppShell } from '@/components/app-shell';

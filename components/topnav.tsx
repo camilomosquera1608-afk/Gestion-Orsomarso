@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect , type ComponentType } from 'react';
+import { useState, useRef, useEffect , type ComponentType , type MouseEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
