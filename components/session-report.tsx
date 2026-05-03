@@ -105,11 +105,10 @@ function Gauge({ val, label, sub, color }: { val: number; label: string; sub: st
 // ─── KPI tile ──────────────────────────────────────────────────────────────────
 function KTile({ label, value, note, accent }: { label: string; value: string | number; note?: string; accent: string }) {
   return (
-    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px', display: 'grid', gap: 4, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: accent }} />
-      <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.12em', color: C.muted }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-.05em', color: C.navy, lineHeight: 1 }}>{value}</div>
-      {note && <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted }}>{note}</div>}
+    <div className="sr-ktile" style={{ borderTop: `3px solid ${accent}` }}>
+      <div className="sr-ktile-label">{label}</div>
+      <div className="sr-ktile-value">{value}</div>
+      {note && <div className="sr-ktile-note">{note}</div>}
     </div>
   );
 }
