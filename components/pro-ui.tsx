@@ -1,3 +1,4 @@
+'use client';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, CircleDot, Database, Info, PlusCircle, ShieldCheck, X } from 'lucide-react';
 import type { AlertLevel, DataQualityItem, OperationalAlert } from '@/lib/operational-helpers';
