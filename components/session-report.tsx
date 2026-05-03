@@ -114,13 +114,13 @@ function KTile({ label, value, note, accent }: { label: string; value: string | 
   );
 }
 
-// ─── Section header ────────────────────────────────────────────────────────────
+// ─── Section header — DIM style colored bar ───────────────────────────────────
 function Sec({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
   return (
-    <div style={{ paddingBottom: 8, marginBottom: 10, borderBottom: `2px solid ${C.line}` }}>
-      <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.16em', color: C.blue, marginBottom: 2 }}>{eyebrow}</div>
-      <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '-.03em', color: C.navy }}>{title}</div>
-      {sub && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>{sub}</div>}
+    <div className="sr-sec-header">
+      <div className="sr-sec-eyebrow">{eyebrow}</div>
+      <div className="sr-sec-title">{title}</div>
+      {sub && <div className="sr-sec-sub">{sub}</div>}
     </div>
   );
 }
