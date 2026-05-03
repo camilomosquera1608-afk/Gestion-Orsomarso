@@ -7,7 +7,7 @@ export const metadata = {
   description: 'Monitoreo de rendimiento de fútbol profesional',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
       <body>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState , type FormEvent } from 'react';
 import { LogIn, Mail, ShieldCheck } from 'lucide-react';
 import { createSupabaseStaffSessionFromProfile, loginStaff, STAFF_CREDENTIALS } from '@/lib/auth';
 import { fetchCurrentUserProfile, hasSupabaseConfig, sendSupabasePasswordReset, signInSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
@@ -20,7 +20,7 @@ export default function LoginPage() {
   const localDemoAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_LOCAL_DEMO_AUTH === 'true';
   const remoteAuthReady = hasSupabaseConfig && tableSchemaSyncEnabled;
 
-  const onSupabaseSubmit = async (event: React.FormEvent) => {
+  const onSupabaseSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
     setMessage('');
@@ -58,7 +58,7 @@ export default function LoginPage() {
     setMessage('Correo de recuperación enviado.');
   };
 
-  const onDemoSubmit = (event: React.FormEvent) => {
+  const onDemoSubmit = (event: FormEvent) => {
     event.preventDefault();
     setError('');
     setMessage('');

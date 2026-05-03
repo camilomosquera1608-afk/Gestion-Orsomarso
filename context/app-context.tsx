@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState , type ReactNode } from 'react';
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, legacyAppStateSyncEnabled, saveRemoteAppState, supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { deleteSupabaseTableRowByLegacyId, fetchSupabaseTablesAppData, saveSupabaseTablesAppData } from '@/lib/supabase-table-sync';
@@ -95,7 +95,7 @@ const DEFAULT_CATEGORY = 'Sub20' as const;
 
 const hydrateData = (stored: Partial<AppData> | null): AppData => normalizeAppData(stored, initialData);
 
-export const AppProvider = ({ children }: { children: React.ReactNode }) => {
+export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [data, setData] = useState<AppData>(initialData);
   const [filters, setFiltersState] = useState<GlobalFilters>(defaultFilters);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -298,7 +298,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           // because Supabase may have stored with a different legacy_id
           const mergeSessionsWithDateKey = (
             remote: typeof remoteData.trainingSessionSummaries,
-            local: typeof localData.trainingSessionSummaries | undefined,
+            local: typeof remoteData.trainingSessionSummaries | undefined,
           ) => {
             if (!local?.length) return remote;
             const remoteIds = new Set(remote.map((r) => r.id));

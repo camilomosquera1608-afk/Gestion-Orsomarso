@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState , type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { MobileNavigation } from '@/components/top-nav';
 import { TopNav } from '@/components/top-nav';
@@ -12,7 +12,7 @@ import { findMicrocycleByDate } from '@/lib/utils';
 import { formatDateShort } from '@/lib/operational-helpers';
 import { hasSupabaseConfig, supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
-export const AppShell = ({ children }: { children: React.ReactNode }) => {
+export const AppShell = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { data, filters, backendMode, syncStatus } = useApp();

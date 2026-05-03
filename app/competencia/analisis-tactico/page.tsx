@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState , type ChangeEvent, type DragEvent } from 'react';
 import { Upload, FileText, CheckCircle2, X, Download } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
 import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
@@ -118,12 +118,12 @@ export default function AnalisisTacticoPage() {
     reader.readAsText(file, 'UTF-8');
   };
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: DragEvent) => {
     e.preventDefault(); setDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (file) processFile(file);

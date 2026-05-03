@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ComponentType } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -16,8 +16,8 @@ import { getStaffSession, logoutStaff } from '@/lib/auth';
 import { signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { useApp } from '@/context/app-context';
 
-type NavItem = { href: string; label: string; icon: React.ElementType };
-type NavGroup = { label: string; icon: React.ElementType; items: NavItem[] };
+type NavItem = { href: string; label: string; icon: ComponentType };
+type NavGroup = { label: string; icon: ComponentType; items: NavItem[] };
 
 const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
   const isAdmin = hasAdministrationAccess(session);
