@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, type ComponentType , type MouseEvent } from 'react';
+import { useState, useRef, useEffect, type MouseEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -8,16 +8,15 @@ import {
   Activity, BarChart3, Bell, Briefcase, ChevronDown,
   Dumbbell, FileText, Gauge, HeartPulse, Medal,
   Settings, ShieldCheck, TimerReset, Trophy, TrendingUp,
-  UserRoundPlus, Users, LogOut, Menu, Home,
-} from 'lucide-react';
+  UserRoundPlus, Users, LogOut, Menu, Home, type LucideIcon } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import { hasAdministrationAccess } from '@/lib/access-control';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
 import { signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { useApp } from '@/context/app-context';
 
-type NavItem = { href: string; label: string; icon: ComponentType };
-type NavGroup = { label: string; icon: ComponentType; items: NavItem[] };
+type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavGroup = { label: string; icon: LucideIcon; items: NavItem[] };
 
 const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
   const isAdmin = hasAdministrationAccess(session);
@@ -29,8 +28,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/', label: 'Inicio', icon: Home },
         { href: '/ejecutivo', label: 'Panel ejecutivo', icon: Briefcase },
         { href: '/diario', label: 'Diario operativo', icon: Gauge },
-      ],
-    },
+      ] },
     {
       label: 'Planificación',
       icon: TimerReset,
@@ -39,8 +37,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
         { href: '/competencia', label: 'Competencia', icon: Trophy },
         { href: '/competencia/analisis-tactico', label: 'Análisis táctico', icon: BarChart3 },
-      ],
-    },
+      ] },
     {
       label: 'Rendimiento',
       icon: Dumbbell,
@@ -49,8 +46,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
         { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
         { href: '/alertas', label: 'Alertas', icon: Bell },
-      ],
-    },
+      ] },
     {
       label: 'Plantilla',
       icon: Users,
@@ -58,8 +54,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/jugadores', label: 'Jugadores', icon: Users },
         { href: '/registro', label: 'Nuevo registro', icon: UserRoundPlus },
         { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
-      ],
-    },
+      ] },
     {
       label: 'Análisis',
       icon: FileText,
@@ -67,20 +62,17 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/informes', label: 'Informes', icon: FileText },
         { href: '/informes/semanal', label: 'Informe semanal', icon: TrendingUp },
         { href: '/ranking', label: 'Ranking', icon: Medal },
-      ],
-    },
+      ] },
     ...(isAdmin ? [{
       label: 'Sistema',
       icon: Settings,
       items: [
         { href: '/administracion', label: 'Administración', icon: ShieldCheck },
         { href: '/configuracion', label: 'Configuración', icon: Settings },
-      ],
-    }] : [{
+      ] }] : [{
       label: 'Config',
       icon: Settings,
-      items: [{ href: '/configuracion', label: 'Configuración', icon: Settings }],
-    }]),
+      items: [{ href: '/configuracion', label: 'Configuración', icon: Settings }] }]),
   ];
 };
 

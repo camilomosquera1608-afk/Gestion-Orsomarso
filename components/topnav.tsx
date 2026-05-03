@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect , type ComponentType , type MouseEvent } from 'react';
+import { useState, useRef, useEffect, type MouseEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -8,15 +8,14 @@ import {
   Activity, BarChart3, Bell, Briefcase, ChevronDown, Dumbbell,
   FileText, Gauge, HeartPulse, LogOut, Medal, Menu, Settings,
   ShieldCheck, TimerReset, TrendingUp, Trophy, UserRoundPlus,
-  Users, X, Home,
-} from 'lucide-react';
+  Users, X, Home, type LucideIcon } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import { hasAdministrationAccess } from '@/lib/access-control';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
 import { signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { useApp } from '@/context/app-context';
 
-type NavItem = { href: string; label: string; icon: ComponentType };
+type NavItem = { href: string; label: string; icon: LucideIcon };
 type NavGroup = { label: string; items: NavItem[] };
 
 const groups: NavGroup[] = [
@@ -26,8 +25,7 @@ const groups: NavGroup[] = [
       { href: '/', label: 'Inicio', icon: Home },
       { href: '/ejecutivo', label: 'Panel ejecutivo', icon: Briefcase },
       { href: '/diario', label: 'Diario operativo', icon: Gauge },
-    ],
-  },
+    ] },
   {
     label: 'Planificación',
     items: [
@@ -35,8 +33,7 @@ const groups: NavGroup[] = [
       { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
       { href: '/competencia', label: 'Competencia', icon: Trophy },
       { href: '/competencia/analisis-tactico', label: 'Análisis táctico', icon: TrendingUp },
-    ],
-  },
+    ] },
   {
     label: 'Rendimiento',
     items: [
@@ -44,24 +41,21 @@ const groups: NavGroup[] = [
       { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
       { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
       { href: '/alertas', label: 'Alertas', icon: Bell },
-    ],
-  },
+    ] },
   {
     label: 'Plantilla',
     items: [
       { href: '/jugadores', label: 'Jugadores', icon: Users },
       { href: '/registro', label: 'Nuevo jugador', icon: UserRoundPlus },
       { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
-    ],
-  },
+    ] },
   {
     label: 'Análisis',
     items: [
       { href: '/informes', label: 'Informes', icon: FileText },
       { href: '/informes/semanal', label: 'Informe semanal', icon: TrendingUp },
       { href: '/ranking', label: 'Ranking', icon: Medal },
-    ],
-  },
+    ] },
 ];
 
 function DropdownMenu({ group, onClose }: { group: NavGroup; onClose: () => void }) {

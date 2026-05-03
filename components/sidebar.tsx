@@ -27,6 +27,7 @@ import {
   TrendingUp,
   UserRoundPlus,
   Users,
+  type LucideIcon,
 } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import { hasAdministrationAccess } from '@/lib/access-control';
