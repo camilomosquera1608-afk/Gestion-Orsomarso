@@ -127,12 +127,12 @@ export default function HomePage() {
         <div className="card">
           <SectionHeader eyebrow="Acciones" title="Accesos rápidos" />
           <div className="quick-action-grid">
-            <Link className="quick-action-card" href="/ejecutivo"><Target size={20} /><strong>Panel ejecutivo</strong><span>Dirección deportiva.</span></Link>
-            <Link className="quick-action-card" href="/disponibilidad"><Activity size={20} /><strong>Centro médico</strong><span>Disponibilidad.</span></Link>
-            <Link className="quick-action-card" href="/carga"><ClipboardList size={20} /><strong>Centro de carga</strong><span>Carga.</span></Link>
-            <Link className="quick-action-card" href="/wellness"><CalendarCheck2 size={20} /><strong>Centro wellness</strong><span>Bienestar.</span></Link>
-            <Link className="quick-action-card" href="/alertas"><Activity size={20} /><strong>Alertas</strong><span>Prioridades.</span></Link>
-            <Link className="quick-action-card" href="/competencia"><Activity size={20} /><strong>Match Center</strong><span>Competencia.</span></Link>
+            <Link className="quick-action-card" href="/ejecutivo"><div className="qa-icon"><Target size={18} /></div><strong>Panel ejecutivo</strong><span>Dirección deportiva</span></Link>
+            <Link className="quick-action-card" href="/disponibilidad"><div className="qa-icon"><HeartPulse size={18} /></div><strong>Centro médico</strong><span>Disponibilidad</span></Link>
+            <Link className="quick-action-card" href="/carga"><div className="qa-icon"><Activity size={18} /></div><strong>Centro de carga</strong><span>Carga GPS</span></Link>
+            <Link className="quick-action-card" href="/wellness"><div className="qa-icon"><CalendarCheck2 size={18} /></div><strong>Wellness</strong><span>Bienestar diario</span></Link>
+            <Link className="quick-action-card" href="/alertas"><div className="qa-icon"><AlertTriangle size={18} /></div><strong>Alertas</strong><span>Prioridades</span></Link>
+            <Link className="quick-action-card" href="/competencia"><div className="qa-icon"><ClipboardList size={18} /></div><strong>Match Center</strong><span>Competencia</span></Link>
           </div>
         </div>
       </div>

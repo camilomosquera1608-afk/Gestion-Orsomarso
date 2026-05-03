@@ -591,10 +591,10 @@ export default function SesionEntrenamientoPage() {
             {rows.map((row) => {
               const invited = sourceCategory !== activeCategory;
               return (
-                <div key={row.player.id} className="session-player-card clean-mobile-card">
+                <div key={row.player.id} className={`session-player-card clean-mobile-card ${!row.selected ? 'state-empty' : (row.min > 0 && row.rpe > 0) ? 'state-complete' : 'state-partial'}`}>
                   <div className="session-player-header">
                     <div>
-                      <strong>{row.player.name}</strong>
+                      <strong>{row.player.name}</strong>{row.player.jerseyNumber ? <span className="jersey-badge" style={{ marginLeft: 6, fontSize: 10 }}>#{row.player.jerseyNumber}</span> : null}
                       {row.player.jerseyNumber ? <span className="jersey-badge-sm" style={{ marginLeft: 6 }}>#{row.player.jerseyNumber}</span> : null}
                       <div className="muted-line">{row.player.position} · Base {categoryLabel(row.player.category)}</div>
                       {invited ? <div className="muted-line" style={{ color: '#1d4ed8', fontWeight: 800 }}>Jugador invitado en {categoryLabel(activeCategory)}</div> : null}

@@ -78,10 +78,24 @@ export default function LoginPage() {
 
   return (
     <main className="login-page">
-      <div className="login-card login-card-wide">
-        <div className="login-brand">Orsomarso SC Performance</div>
-        <h1>Iniciar sesión</h1>
-        <p className="login-subtitle">Acceso del staff autorizado.</p>
+      {/* Left side — brand */}
+      <div className="login-left">
+        <div className="login-crest">
+          <img src="/orsomarso-crest.jpg" alt="Orsomarso SC" />
+        </div>
+        <div className="login-club-name">Orsomarso SC</div>
+        <div className="login-club-sub">Performance Hub</div>
+        <div className="login-season">Temporada 2026 · Departamento de Fisiología</div>
+      </div>
+
+      {/* Right side — form */}
+      <div className="login-right">
+        <div className="login-right-inner">
+          <div className="login-right-header">
+            <div className="login-brand">Orsomarso Performance</div>
+            <h1 className="login-right-title">Iniciar sesión</h1>
+            <p className="login-right-sub">Acceso exclusivo del staff autorizado.</p>
+          </div>
 
         <form onSubmit={onSupabaseSubmit} className="grid">
           <div className="field">
@@ -137,7 +151,8 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        <div className="login-footnote">{remoteAuthReady ? 'Acceso remoto' : 'Sin acceso remoto'}</div>
+          <div className="login-footnote">{remoteAuthReady ? 'Acceso remoto' : 'Sin acceso remoto'}</div>
+        </div>
       </div>
     </main>
   );

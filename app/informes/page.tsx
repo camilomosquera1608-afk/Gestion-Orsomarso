@@ -67,6 +67,8 @@ export default function InformesPage() {
       <AppHero
         title="Centro de informes"
         subtitle="Reportes institucionales."
+      
+        heroClass="hero-informes"
       />
 
       <section className="card report-command-center no-print">

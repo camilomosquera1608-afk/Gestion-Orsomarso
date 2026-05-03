@@ -487,7 +487,11 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         logged_by: record.loggedBy ?? null,
       })));
 
-    await upsertRows(supabase, 'training_sessions', data.trainingSessionSummaries
+    // FIX: training_sessions upsert must handle BOTH the legacy_id unique constraint
+    // AND the (category, date) unique constraint. We use a two-step approach:
+    // 1. Try upsert by legacy_id (updates existing rows with same legacy_id)
+    // 2. For rows that fail due to category+date conflict, update those rows in place.
+    const sessionRows = data.trainingSessionSummaries
       .filter((record) => isoDate(record.date))
       .map((record) => ({
         legacy_id: record.id,
@@ -499,7 +503,43 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         session_rpe: record.sessionRpe ?? null,
         objective: record.objective ?? null,
         observation: record.observation ?? null,
-      })));
+        status: record.status ?? null,
+      }));
+
+    if (sessionRows.length > 0) {
+      // Try standard upsert by legacy_id first
+      const { error: sessionError } = await supabase
+        .from('training_sessions')
+        .upsert(sessionRows, { onConflict: 'legacy_id', ignoreDuplicates: false });
+
+      if (sessionError) {
+        // If it fails (e.g. category+date unique constraint), try one by one with merge strategy
+        for (const row of sessionRows) {
+          await supabase
+            .from('training_sessions')
+            .upsert(row, { onConflict: 'legacy_id', ignoreDuplicates: false })
+            .then(async ({ error }) => {
+              if (error) {
+                // Fall back: find and update the existing row by category+date
+                await supabase
+                  .from('training_sessions')
+                  .update({
+                    legacy_id: row.legacy_id,
+                    microcycle_id: row.microcycle_id,
+                    session_number: row.session_number,
+                    session_type: row.session_type,
+                    session_rpe: row.session_rpe,
+                    objective: row.objective,
+                    observation: row.observation,
+                    status: row.status,
+                  })
+                  .eq('category', row.category)
+                  .eq('date', row.date);
+              }
+            });
+        }
+      }
+    }
 
     await upsertRows(supabase, 'competition_matches', data.competitionMatchSummaries
       .filter((record) => isoDate(record.date))
