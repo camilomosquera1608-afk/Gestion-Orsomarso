@@ -85,7 +85,7 @@ export default function LoginPage() {
         </div>
         <div className="login-club-name">Orsomarso SC</div>
         <div className="login-club-sub">Performance Hub</div>
-        <div className="login-season">Temporada 2026 · Departamento de Fisiología</div>
+        <div className="login-season">Temporada 2026 · Departamento de Rendimiento</div>
       </div>
 
       {/* Right side — form */}

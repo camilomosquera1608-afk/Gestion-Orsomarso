@@ -200,7 +200,7 @@ export function SessionReportTemplate({
               </div>
               <div>
                 <div className="sr-cover-brand-sup">Orsomarso Performance Hub</div>
-                <div className="sr-cover-brand-name">Departamento de Fisiología</div>
+                <div className="sr-cover-brand-name">Departamento de Rendimiento</div>
               </div>
             </div>
             <div className="sr-cover-date-chip">{formatPdfDate(date)}</div>
@@ -280,9 +280,11 @@ export function SessionReportTemplate({
             <KTile label="ACC prom." value={String(Math.round(avgAcc))} note=">3 m/s²" accent={C.navy} />
             <KTile label="DEC prom." value={String(Math.round(avgDcc))} note=">-3 m/s²" accent={C.navy} />
           </> : <>
-            <KTile label="Carga interna" value={`${Math.round(totalLoad)} UA`} note="Total" accent={C.blue} />
-            <KTile label="Wellness" value={avgWell ? avgWell.toFixed(1) : '—'} note="/5"
-              accent={avgWell >= 3.7 ? C.green : C.amber} />
+            <KTile label="Carga interna" value={`${Math.round(totalLoad)} UA`} note="UA totales" accent={C.blue} />
+            <KTile label="Min promedio" value={`${Math.round(avgMin)} min`} note="Por jugador" accent={C.blue} />
+            <KTile label="RPE × MIN" value={Math.round(avgRpe * avgMin).toFixed(0)} note="Intensidad estimada" accent={avgRpe <= 6 ? C.green : avgRpe <= 8 ? C.amber : C.red} />
+            <KTile label="Wellness" value={avgWell ? avgWell.toFixed(1) : '—'} note="/5 promedio"
+              accent={avgWell >= 3.7 ? C.green : avgWell >= 3.2 ? C.amber : C.red} />
             <KTile label="Completitud" value={`${dataQualityPercent}%`} note="Planilla" accent={C.green} />
             <KTile label="Participación" value={`${partScore}%`} note={`${reg.length}/${reg.length + absentPlayers.length}`}
               accent={partScore >= 70 ? C.green : C.amber} />
@@ -349,6 +351,77 @@ export function SessionReportTemplate({
                 })}
               </tbody>
             </table>
+          </div>
+        </section>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          ANÁLISIS INDIVIDUAL — CARGA Y WELLNESS (Sub17/Sub15)
+         ══════════════════════════════════════════════════════ */}
+      {!gps && reg.length > 0 && (
+        <section className="sr-section">
+          <Sec eyebrow="Individual" title="Carga individual y bienestar" />
+          <div style={{ display: 'grid', gap: 14 }}>
+            {/* Bar chart of internal load by player */}
+            <div>
+              <div className="sr-bars-label" style={{ color: C.blue }}>
+                <span className="sr-bars-dot" style={{ background: C.blue }} />
+                Carga interna (MIN × RPE) · Prom: {Math.round(reg.reduce((a,r) => a + r.min * r.rpe, 0) / Math.max(1, reg.length))} UA
+              </div>
+              <div className="sr-bars-list">
+                {[...reg].sort((a, b) => b.min * b.rpe - a.min * a.rpe).map(r => {
+                  const load = r.min * r.rpe;
+                  const maxLoad = Math.max(1, ...reg.map(x => x.min * x.rpe));
+                  const w = Math.max(2, Math.round(load / maxLoad * 100));
+                  const isTop = load >= maxLoad * 0.98;
+                  return (
+                    <div key={r.player.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 52px', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, fontWeight: isTop ? 900 : 700, color: isTop ? C.navy : C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.player.name.split(' ')[0]} {r.player.name.split(' ')[1]?.[0] ?? ''}.</span>
+                      <div style={{ position: 'relative', height: 10, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${w}%`, borderRadius: 99, background: isTop ? C.blue : `${C.blue}88` }} />
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 900, color: isTop ? C.blue : C.text, textAlign: 'right' }}>{load} UA</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Wellness table */}
+            {wellnessRecords.length > 0 && (
+              <div>
+                <div className="sr-bars-label" style={{ color: C.green }}>
+                  <span className="sr-bars-dot" style={{ background: C.green }} />
+                  Wellness del día · Promedio grupal: {avgWell ? avgWell.toFixed(1) : '—'}/5
+                </div>
+                <table className="sr-heat-table" style={{ fontSize: 10 }}>
+                  <thead>
+                    <tr>
+                      <th className="sr-th-name">Jugador</th>
+                      <th>Sueño</th><th>Fatiga</th><th>Estrés</th><th>Muscular</th><th>Ánimo</th><th>Promedio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reg.map(r => {
+                      const w = wellMap.get(r.player.id);
+                      const avg_w = w ? (w.sleep + w.fatigue + w.stress + w.musclePain + w.mood) / 5 : 0;
+                      return (
+                        <tr key={r.player.id}>
+                          <td className="sr-td-name">{r.player.name}</td>
+                          {w ? <>
+                            <HC v={w.sleep}      lo={1} hi={5} fmt={v => v.toFixed(0)} />
+                            <HC v={w.fatigue}    lo={1} hi={5} fmt={v => v.toFixed(0)} />
+                            <HC v={w.stress}     lo={1} hi={5} fmt={v => v.toFixed(0)} inv />
+                            <HC v={w.musclePain} lo={1} hi={5} fmt={v => v.toFixed(0)} inv />
+                            <HC v={w.mood}       lo={1} hi={5} fmt={v => v.toFixed(0)} />
+                            <HC v={avg_w}        lo={1} hi={5} fmt={v => v.toFixed(1)} />
+                          </> : <td colSpan={6} style={{ textAlign: 'center', color: C.muted, fontSize: 10, padding: '8px' }}>Sin registro</td>}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </section>
       )}

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { MobileNavigation, Sidebar } from '@/components/sidebar';
+import { MobileNavigation } from '@/components/top-nav';
+import { TopNav } from '@/components/top-nav';
 import { ContextTopBar, ToastContainer } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getAllowedCategory, getStaffSession, isStaffAuthenticated, isMasterRole, logoutStaff } from '@/lib/auth';
@@ -101,8 +102,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <div className="app-shell">
-      <Sidebar />
+    <div className="app-shell-top">
+      <TopNav />
       <MobileNavigation />
       <main className="main mobile-safe-page">
         <ContextTopBar {...topContext} syncStatus={syncStatus} />

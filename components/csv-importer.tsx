@@ -315,10 +315,9 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
   };
 
   return (
-    <div className="confirm-overlay" onClick={onClose}>
+    <div className="csv-overlay" onClick={onClose}>
       <div
-        className="confirm-modal"
-        style={{ maxWidth: 680, maxHeight: '90vh', overflowY: 'auto' }}
+        className="csv-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -340,7 +339,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
             <div
               className={`csv-import-zone ${dragOver ? 'drag-over' : ''}`}
               style={{ marginTop: 16 }}
-              onClick={() => fileRef.current?.click()}
+              onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
@@ -348,7 +347,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
               <Upload size={28} style={{ color: 'var(--blue)', margin: '0 auto 10px', display: 'block' }} />
               <strong>Arrastra el CTR Report aquí o haz clic para seleccionarlo</strong>
               <span>Catapult (.csv) · Otros GPS: Polar, GPSports, STATSports</span>
-              <input ref={fileRef} type="file" accept=".csv,.txt,.tsv" style={{ display: 'none' }} onChange={handleFile} />
+              <input ref={fileRef} type="file" accept=".csv,.txt,.tsv" style={{ display: 'none' }} onChange={handleFile} onClick={(e) => e.stopPropagation()} />
             </div>
             <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 14, background: '#f8fbff', border: '1px solid var(--line)', fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>
               <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 4 }}>Cómo exportar desde Catapult Cloud:</strong>
