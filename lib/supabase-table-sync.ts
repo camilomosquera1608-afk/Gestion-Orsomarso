@@ -585,6 +585,9 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         sprints: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.sprints ?? null : null,
         rhie: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.rhie ?? null : null,
         ima: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.ima ?? null : null,
+        total_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.totalDistance ?? null : null,
+        max_velocity: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.maxVelocity ?? null : null,
+        player_load: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.playerLoad ?? null : null,
         logged_by: record.loggedBy ?? null,
       })));
 
