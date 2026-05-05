@@ -5,7 +5,7 @@ export const STORAGE_BACKUPS_KEY = 'orsomarso-performance-hub-backups-v1';
 
 const MAX_BACKUPS = 8;
 const FALLBACK_MAX_BACKUPS = 2;
-const AUTO_BACKUP_MIN_INTERVAL_MS = 10 * 60 * 1000;
+const AUTO_BACKUP_MIN_INTERVAL_MS = 60 * 60 * 1000; // 1 hora — suficiente para datos en Supabase
 
 export type LocalBackupKind = 'manual' | 'auto' | 'import' | 'restore';
 
@@ -48,7 +48,7 @@ const writeBackups = (backups: LocalBackup[]) => {
   if (!isBrowser()) return;
 
   const limited = backups.slice(0, MAX_BACKUPS);
-  const budgetKb = 1600;
+  const budgetKb = 800; // Con registros compactados son ~40% más pequeños
   const withinBudget: LocalBackup[] = [];
   for (const backup of limited) {
     const test = [...withinBudget, backup];
@@ -91,7 +91,18 @@ const recordsCount = (payload: Partial<AppData> | null | undefined) =>
   asArray(payload?.trainingSessionSummaries).length;
 
 const makeBackup = (payload: Partial<AppData>, label: string, kind: LocalBackupKind): LocalBackup => {
-  const safePayload = payload ?? {};
+  // Strip derived fields from backup too — saves significant space
+  const stripped: Partial<AppData> = {};
+  for (const [k, v] of Object.entries(payload)) {
+    if (Array.isArray(v)) {
+      (stripped as Record<string, unknown>)[k] = v.map((r: unknown) =>
+        r && typeof r === 'object' ? stripRecord(r as Record<string, unknown>) : r
+      );
+    } else {
+      (stripped as Record<string, unknown>)[k] = v;
+    }
+  }
+  const safePayload = stripped;
   const raw = JSON.stringify(safePayload);
   const createdAt = new Date().toISOString();
 
@@ -137,6 +148,71 @@ export const getLocalStorageWarning = (): 'ok' | 'warn' | 'danger' => {
   return 'ok';
 };
 
+
+// ─── Compact serialization — keeps localStorage under ~1.5MB ─────────────────
+// Remove derived, redundant, zero and empty fields before storing locally.
+// Data is fully recoverable from Supabase; localStorage is just a fast cache.
+
+const DERIVED_FIELDS = new Set([
+  'distancePerMin',    // derived: totalDistance / min
+  'playerLoadPerMin',  // derived: playerLoad / min
+  'hsr',               // duplicate of highSpeedDistance
+  'actingCategory',    // almost always === category
+]);
+
+// Fields where zero IS meaningful and must be kept
+const KEEP_ZERO = new Set([
+  'rpe', 'goals', 'assists', 'yellowCards', 'redCards',
+  'minutesPlayed', 'min', 'acc', 'dcc', 'sprints', 'rhie',
+  'goalsConceded', 'goalsPrevented',
+]);
+
+const stripRecord = (obj: Record<string, unknown>): Record<string, unknown> => {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (DERIVED_FIELDS.has(k)) continue;
+    if (v === null || v === undefined) continue;
+    if (v === '') continue;
+    if (typeof v === 'number' && v === 0 && !KEEP_ZERO.has(k)) continue;
+    if (typeof v === 'object' && !Array.isArray(v)) {
+      out[k] = stripRecord(v as Record<string, unknown>);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+};
+
+const DAYS_90 = 90 * 24 * 60 * 60 * 1000;
+const cutoffDate = () => new Date(Date.now() - DAYS_90).toISOString().slice(0, 10);
+
+const compactForLocal = (data: AppData): Partial<AppData> => {
+  const cutoff = cutoffDate();
+  const isRecent = (r: { date?: string }) => !r.date || r.date >= cutoff;
+
+  return {
+    ...data,
+    // High-volume arrays: keep only last 90 days, strip derived fields
+    externalLoads: data.externalLoads
+      .filter(isRecent)
+      .map(r => stripRecord(r as unknown as Record<string, unknown>) as unknown as typeof r),
+    internalLoads: data.internalLoads
+      .filter(isRecent)
+      .map(r => stripRecord(r as unknown as Record<string, unknown>) as unknown as typeof r),
+    wellness: data.wellness
+      .filter(isRecent),
+    nutritionRecords: data.nutritionRecords
+      .filter(isRecent),
+    // These must be kept complete — small arrays
+    players: data.players,
+    microcycles: data.microcycles,
+    trainingSessionSummaries: data.trainingSessionSummaries,
+    competitionMatchSummaries: data.competitionMatchSummaries,
+    competitionRecords: data.competitionRecords
+      .map(r => stripRecord(r as unknown as Record<string, unknown>) as unknown as typeof r),
+  };
+};
+
 export const readLocalAppData = (): Partial<AppData> | null => {
   if (!isBrowser()) return null;
   return safeJsonParse<Partial<AppData>>(localStorage.getItem(STORAGE_KEY));
@@ -146,7 +222,9 @@ export const saveLocalAppData = (nextData: AppData) => {
   if (!isBrowser()) return;
 
   const previousRaw = localStorage.getItem(STORAGE_KEY);
-  const nextRaw = JSON.stringify(nextData);
+  // Use compact representation — strips derived fields and 90-day window
+  const compacted = compactForLocal(nextData);
+  const nextRaw = JSON.stringify(compacted);
 
   if (previousRaw && previousRaw !== nextRaw) {
     const previousPayload = safeJsonParse<Partial<AppData>>(previousRaw);
