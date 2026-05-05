@@ -155,11 +155,34 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const remoteExternalIds = new Set(remoteHydrated.externalLoads.map((r: { id: string }) => r.id));
     const localOnlyExternal = current.externalLoads.filter((r) => !remoteExternalIds.has(r.id));
     
+    // Merge microcycles: keep local ones not yet in Supabase
+    const remoteMcIds = new Set(remoteHydrated.microcycles.map((r: { id: string }) => r.id));
+    const localOnlyMicrocycles = current.microcycles.filter((r) => !remoteMcIds.has(r.id));
+
+    // Merge competition records: keep local ones not yet in Supabase
+    const remoteCompIds = new Set(remoteHydrated.competitionRecords.map((r: { id: string }) => r.id));
+    const localOnlyComp = current.competitionRecords.filter((r) => !remoteCompIds.has(r.id));
+
+    // Merge competition match summaries
+    const remoteMatchIds = new Set(remoteHydrated.competitionMatchSummaries.map((r: { id: string }) => r.id));
+    const localOnlyMatches = current.competitionMatchSummaries.filter((r) => !remoteMatchIds.has(r.id));
+
+    // Merge wellness
+    const remoteWellIds = new Set(remoteHydrated.wellness.map((r: { id: string }) => r.id));
+    const localOnlyWell = current.wellness.filter((r) => !remoteWellIds.has(r.id));
+
     const next: AppData = {
       ...remoteHydrated,
+      // Merge ALL arrays — prefer remote (has committed data) + local-only (not yet propagated)
       trainingSessionSummaries: [...remoteHydrated.trainingSessionSummaries, ...localOnlySessions],
       internalLoads: [...remoteHydrated.internalLoads, ...localOnlyInternal],
       externalLoads: [...remoteHydrated.externalLoads, ...localOnlyExternal],
+      microcycles: [...remoteHydrated.microcycles, ...localOnlyMicrocycles],
+      competitionRecords: [...remoteHydrated.competitionRecords, ...localOnlyComp],
+      competitionMatchSummaries: [...remoteHydrated.competitionMatchSummaries, ...localOnlyMatches],
+      wellness: [...remoteHydrated.wellness, ...localOnlyWell],
+      // Players: use remote if it has data, otherwise keep local
+      players: remoteHydrated.players.length > 0 ? remoteHydrated.players : current.players,
     };
     
     const currentSnapshot = JSON.stringify(dataRef.current);
@@ -193,7 +216,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // The realtime event fires when Supabase receives our write (~500ms-2s).
       // Without a long enough block the realtime refresh overwrites local state
       // with stale data that hasn't propagated yet.
-      const blockUntil = Date.now() + 8000;
+      // Block remote refresh for 30s before save starts —
+      // Supabase can take 10-20s to propagate writes with heavy load.
+      const blockUntil = Date.now() + 30000;
       // Only extend the block — never shorten it (another save may be in flight).
       if (blockUntil > skipRemoteRefreshUntilRef.current) {
         skipRemoteRefreshUntilRef.current = blockUntil;
@@ -209,9 +234,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         ),
       ]);
       const result = await saveWithTimeout;
-      // After save completes, keep blocking for 3 more seconds so the
+      // After save completes, keep blocking for 20 more seconds so the
       // realtime echo from Supabase doesn't overwrite our local state.
-      const postSaveBlock = Date.now() + 3000;
+      const postSaveBlock = Date.now() + 20000;
       if (postSaveBlock > skipRemoteRefreshUntilRef.current) {
         skipRemoteRefreshUntilRef.current = postSaveBlock;
       }
@@ -249,12 +274,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const session = sessionRef.current;
     if (session.isAuthenticated && !canWrite(session)) return;
     // FIX #6: mismo patrón — calcular blockUntil antes del await
-    const blockUntil = Date.now() + 8000;
+    const blockUntil = Date.now() + 30000;
     if (blockUntil > skipRemoteRefreshUntilRef.current) {
       skipRemoteRefreshUntilRef.current = blockUntil;
     }
     const result = await deleteSupabaseTableRowByLegacyId(supabase, table, legacyId);
-    const postBlock = Date.now() + 3000;
+    const postBlock = Date.now() + 20000;
     if (postBlock > skipRemoteRefreshUntilRef.current) {
       skipRemoteRefreshUntilRef.current = postBlock;
     }
@@ -327,17 +352,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           
           const merged: AppData = {
             ...remoteData,
-            // Critical: merge sessions and loads that may not be in Supabase yet
+            // Merge ALL arrays — remote (committed) + local-only (not yet propagated)
             trainingSessionSummaries: mergeSessionsWithDateKey(
               remoteData.trainingSessionSummaries,
               localData?.trainingSessionSummaries,
             ),
             internalLoads: mergeArrays(remoteData.internalLoads, localData?.internalLoads),
             externalLoads: mergeArrays(remoteData.externalLoads, localData?.externalLoads),
-            // Players, wellness, microcycles: always use Supabase as source of truth
+            microcycles: mergeArrays(remoteData.microcycles, localData?.microcycles),
+            competitionRecords: mergeArrays(remoteData.competitionRecords, localData?.competitionRecords),
+            competitionMatchSummaries: mergeArrays(remoteData.competitionMatchSummaries, localData?.competitionMatchSummaries),
+            wellness: mergeArrays(remoteData.wellness, localData?.wellness),
+            // Players: remote is source of truth if it has data
             players: remoteData.players.length > 0 ? remoteData.players : (localData?.players ?? remoteData.players),
-            wellness: remoteData.wellness,
-            microcycles: remoteData.microcycles,
           };
           
           setData(merged);
@@ -863,7 +890,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         internalLoads: prev.internalLoads.filter((item) => !matchesSession(item)),
       }));
       if (target && hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
-        const blockUntil = Date.now() + 10000;
+        const blockUntil = Date.now() + 30000;
         if (blockUntil > skipRemoteRefreshUntilRef.current) skipRemoteRefreshUntilRef.current = blockUntil;
         void deleteSupabaseTrainingSessionCascade(supabase, {
           legacyId: sessionId,
@@ -872,7 +899,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           sessionNumber: target.sessionNumber,
         }).then((result) => {
           setSyncStatus(result.ok ? 'ready' : 'error');
-          const postBlock = Date.now() + 3000;
+          const postBlock = Date.now() + 20000;
           if (postBlock > skipRemoteRefreshUntilRef.current) skipRemoteRefreshUntilRef.current = postBlock;
         });
       } else {
