@@ -230,6 +230,7 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
       sessionRpe: row.session_rpe ?? undefined,
       objective: row.objective ?? undefined,
       observation: row.observation ?? undefined,
+      status: row.status ?? undefined,
     }));
 
     const competitionMatchSummaries: CompetitionMatchSummary[] = ((matchesRes.data ?? []) as DbRow[]).map((row) => ({
@@ -244,6 +245,7 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
       resultType: row.result_type ?? undefined,
       result: row.goals_for !== null && row.goals_against !== null ? `${row.goals_for}-${row.goals_against}` : undefined,
       observation: row.observation ?? undefined,
+      status: row.status ?? undefined,
     }));
 
     const competitionRecords: CompetitionRecord[] = ((competitionPlayersRes.data ?? []) as DbRow[]).map((row) => {
@@ -272,6 +274,12 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
         sprints: row.sprints ?? undefined,
         rhie: row.rhie ?? undefined,
         ima: row.ima ?? undefined,
+        totalDistance: row.total_distance ?? undefined,
+        highSpeedDistance: row.high_speed_distance ?? row.hsr ?? undefined,
+        hsr: row.hsr ?? row.high_speed_distance ?? undefined,
+        sprintDistance: row.sprint_distance ?? undefined,
+        maxVelocity: row.max_velocity ?? undefined,
+        playerLoad: row.player_load ?? undefined,
         loggedBy: row.logged_by ?? undefined,
       };
     });
@@ -357,6 +365,75 @@ export const deleteSupabaseTableRowByLegacyId = async (supabase: SupabaseClient,
   try {
     const { error } = await supabase.from(table).delete().eq('legacy_id', legacyId);
     if (error) throw error;
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: isAuthError(error) ? 'not_authorized' : 'delete_failed', error };
+  }
+};
+
+export const deleteSupabaseTrainingSessionCascade = async (
+  supabase: SupabaseClient,
+  input: { legacyId: string; date?: string; category?: ClubCategory; sessionNumber?: number },
+): Promise<SyncResult> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return { ok: false, reason: 'not_authenticated' };
+
+  try {
+    const sessionIds = new Set<string>();
+
+    const legacyQuery = await supabase.from('training_sessions').select('id').eq('legacy_id', input.legacyId);
+    if (legacyQuery.error) throw legacyQuery.error;
+    (legacyQuery.data ?? []).forEach((row: DbRow) => sessionIds.add(String(row.id)));
+
+    if (input.date && input.category) {
+      let byNaturalKey = supabase
+        .from('training_sessions')
+        .select('id')
+        .eq('date', input.date)
+        .eq('category', input.category);
+      if (input.sessionNumber !== undefined) byNaturalKey = byNaturalKey.eq('session_number', input.sessionNumber);
+      const naturalResult = await byNaturalKey;
+      if (naturalResult.error) throw naturalResult.error;
+      (naturalResult.data ?? []).forEach((row: DbRow) => sessionIds.add(String(row.id)));
+    }
+
+    const ids = [...sessionIds];
+    if (ids.length) {
+      await supabase.from('session_players').delete().in('session_id', ids);
+      await supabase.from('daily_internal_loads').delete().in('session_id', ids);
+      await supabase.from('daily_external_loads').delete().in('session_id', ids);
+      await supabase.from('training_sessions').delete().in('id', ids);
+    }
+
+    await supabase.from('training_sessions').delete().eq('legacy_id', input.legacyId);
+
+    if (input.date && input.category) {
+      let internalDelete = supabase
+        .from('daily_internal_loads')
+        .delete()
+        .eq('date', input.date)
+        .eq('category', input.category);
+      let externalDelete = supabase
+        .from('daily_external_loads')
+        .delete()
+        .eq('date', input.date)
+        .eq('category', input.category);
+      let sessionDelete = supabase
+        .from('training_sessions')
+        .delete()
+        .eq('date', input.date)
+        .eq('category', input.category);
+      if (input.sessionNumber !== undefined) {
+        internalDelete = internalDelete.eq('session_number', input.sessionNumber);
+        externalDelete = externalDelete.eq('session_number', input.sessionNumber);
+        sessionDelete = sessionDelete.eq('session_number', input.sessionNumber);
+      }
+      const [internalResult, externalResult, sessionResult] = await Promise.all([internalDelete, externalDelete, sessionDelete]);
+      if (internalResult.error) throw internalResult.error;
+      if (externalResult.error) throw externalResult.error;
+      if (sessionResult.error) throw sessionResult.error;
+    }
+
     return { ok: true };
   } catch (error) {
     return { ok: false, reason: isAuthError(error) ? 'not_authorized' : 'delete_failed', error };
@@ -557,6 +634,7 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         goals_against: record.goalsAgainst ?? null,
         result_type: record.resultType ?? null,
         observation: record.observation ?? null,
+        status: record.status ?? null,
       })));
 
     const matchMap = await fetchLegacyIdMap(supabase, 'competition_matches');
@@ -586,6 +664,9 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         rhie: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.rhie ?? null : null,
         ima: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.ima ?? null : null,
         total_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.totalDistance ?? null : null,
+        high_speed_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.highSpeedDistance ?? record.hsr ?? null : null,
+        hsr: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.hsr ?? record.highSpeedDistance ?? null : null,
+        sprint_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.sprintDistance ?? null : null,
         max_velocity: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.maxVelocity ?? null : null,
         player_load: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.playerLoad ?? null : null,
         logged_by: record.loggedBy ?? null,

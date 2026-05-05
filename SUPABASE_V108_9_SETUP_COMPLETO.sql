@@ -958,3 +958,113 @@ grant execute on function public.submit_public_wellness(uuid, date, text, numeri
 grant execute on function public.submit_public_wellness(uuid, date, text, numeric, numeric, numeric, numeric, numeric) to authenticated;
 
 commit;
+
+-- ─────────────────────────────────────────────────────────────
+-- v108.9 compatibility patch
+-- Ejecutar después del esquema base. Seguro: no borra datos.
+-- Corrige columnas usadas por la app actual y evita el error
+-- "relation public.training_sessions does not exist" porque este archivo
+-- primero crea el esquema base si faltaba.
+-- ─────────────────────────────────────────────────────────────
+
+begin;
+
+alter table if exists public.players
+  add column if not exists category_history jsonb not null default '[]'::jsonb,
+  add column if not exists injury_history jsonb not null default '[]'::jsonb;
+
+alter table if exists public.training_sessions
+  add column if not exists legacy_id text,
+  add column if not exists session_number integer not null default 1,
+  add column if not exists session_type text,
+  add column if not exists session_rpe numeric,
+  add column if not exists objective text,
+  add column if not exists observation text,
+  add column if not exists status text,
+  add column if not exists updated_at timestamptz not null default now();
+
+alter table if exists public.daily_internal_loads
+  add column if not exists base_category text,
+  add column if not exists acting_category text,
+  add column if not exists session_number integer,
+  add column if not exists session_id uuid,
+  add column if not exists movement_type text,
+  add column if not exists movement_note text,
+  add column if not exists logged_by text;
+
+alter table if exists public.daily_external_loads
+  add column if not exists base_category text,
+  add column if not exists acting_category text,
+  add column if not exists session_number integer,
+  add column if not exists session_id uuid,
+  add column if not exists rpe numeric,
+  add column if not exists total_distance numeric,
+  add column if not exists distance_per_min numeric,
+  add column if not exists max_velocity numeric,
+  add column if not exists player_load numeric,
+  add column if not exists player_load_per_min numeric,
+  add column if not exists high_speed_distance numeric,
+  add column if not exists sprint_distance numeric,
+  add column if not exists hsr numeric,
+  add column if not exists participation text,
+  add column if not exists session_type text,
+  add column if not exists movement_type text,
+  add column if not exists movement_note text,
+  add column if not exists logged_by text;
+
+alter table if exists public.competition_matches
+  add column if not exists legacy_id text,
+  add column if not exists competition_name text,
+  add column if not exists goals_for integer default 0,
+  add column if not exists goals_against integer default 0,
+  add column if not exists result_type text,
+  add column if not exists observation text,
+  add column if not exists status text,
+  add column if not exists updated_at timestamptz not null default now();
+
+alter table if exists public.competition_players
+  add column if not exists legacy_id text,
+  add column if not exists acc numeric,
+  add column if not exists dcc numeric,
+  add column if not exists sprints numeric,
+  add column if not exists rhie numeric,
+  add column if not exists ima numeric,
+  add column if not exists total_distance numeric,
+  add column if not exists high_speed_distance numeric,
+  add column if not exists sprint_distance numeric,
+  add column if not exists hsr numeric,
+  add column if not exists max_velocity numeric,
+  add column if not exists player_load numeric,
+  add column if not exists logged_by text,
+  add column if not exists updated_at timestamptz not null default now();
+
+create unique index if not exists ux_training_sessions_legacy_id
+  on public.training_sessions(legacy_id)
+  where legacy_id is not null;
+
+create unique index if not exists ux_competition_matches_legacy_id
+  on public.competition_matches(legacy_id)
+  where legacy_id is not null;
+
+create unique index if not exists ux_competition_players_legacy_id
+  on public.competition_players(legacy_id)
+  where legacy_id is not null;
+
+create index if not exists idx_training_sessions_date_category_number
+  on public.training_sessions(date, category, session_number);
+
+create index if not exists idx_internal_loads_session_lookup
+  on public.daily_internal_loads(date, category, session_number);
+
+create index if not exists idx_external_loads_session_lookup
+  on public.daily_external_loads(date, category, session_number);
+
+commit;
+
+-- Diagnóstico rápido: debe mostrar las tablas principales como existentes.
+select
+  to_regclass('public.players') as players,
+  to_regclass('public.training_sessions') as training_sessions,
+  to_regclass('public.daily_external_loads') as daily_external_loads,
+  to_regclass('public.competition_matches') as competition_matches,
+  to_regclass('public.competition_players') as competition_players;

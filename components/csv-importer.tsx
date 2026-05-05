@@ -2,7 +2,7 @@
 
 import { useRef, useState , type ChangeEvent, type DragEvent } from 'react';
 import { CheckCircle2, Upload, X, AlertTriangle, ArrowRight, FileText } from 'lucide-react';
-import type { Player, DailyExternalLoadRecord, SessionParticipation } from '@/lib/types';
+import type { Player, DailyExternalLoadRecord, SessionParticipation, ClubCategory, TrainingSessionType, MovementModule, MovementType } from '@/lib/types';
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 export interface CsvRow {
@@ -33,7 +33,14 @@ interface Props {
   date: string;
   microcycleId: string;
   sessionNumber: number;
-  category: string;
+  category: ClubCategory | string;
+  actingCategory?: ClubCategory;
+  sessionType?: TrainingSessionType;
+  movementModule?: MovementModule;
+  title?: string;
+  description?: string;
+  dropzoneTitle?: string;
+  importLabel?: string;
   onImport: (records: Omit<DailyExternalLoadRecord, 'id'>[]) => void;
   onClose: () => void;
 }
@@ -53,6 +60,18 @@ const parseDuration = (s: string): number => {
 const safeFloat = (s: string): number => {
   const n = parseFloat(s?.replace(',', '.') ?? '');
   return Number.isFinite(n) ? n : 0;
+};
+
+const toClubCategory = (value: unknown, fallback: ClubCategory = 'Sub20'): ClubCategory => {
+  return value === 'Sub15' || value === 'Sub17' || value === 'Sub20' ? value : fallback;
+};
+
+const CATEGORY_RANK: Record<ClubCategory, number> = { Sub15: 15, Sub17: 17, Sub20: 20 };
+
+const getMovementType = (baseCategory: ClubCategory, actingCategory: ClubCategory, module: MovementModule): MovementType => {
+  if (baseCategory === actingCategory) return 'base';
+  if (module === 'competencia') return CATEGORY_RANK[baseCategory] < CATEGORY_RANK[actingCategory] ? 'subio_a_competir' : 'bajo_a_competir';
+  return CATEGORY_RANK[baseCategory] < CATEGORY_RANK[actingCategory] ? 'subio_a_entrenar' : 'bajo_a_entrenar';
 };
 
 // ─── Normalización de nombres ─────────────────────────────────────────────────
@@ -219,7 +238,7 @@ const parseGeneric = (lines: string[]): CsvRow[] => {
   }).filter(Boolean) as CsvRow[];
 };
 
-const parseCsv = (raw: string): { rows: CsvRow[]; format: string } => {
+export const parseGpsCsv = (raw: string): { rows: CsvRow[]; format: string } => {
   const lines = raw.split(/\r?\n/).filter((l) => l.trim());
   if (isCatapultFormat(lines)) {
     return { rows: parseCatapult(lines), format: 'Catapult' };
@@ -228,13 +247,18 @@ const parseCsv = (raw: string): { rows: CsvRow[]; format: string } => {
 };
 
 // ─── Componente ───────────────────────────────────────────────────────────────
-export function CsvImporter({ players, sessionId, date, microcycleId, sessionNumber, category, onImport, onClose }: Props) {
+export function CsvImporter({ players, sessionId, date, microcycleId, sessionNumber, category, actingCategory, sessionType = 'cdEf', movementModule = 'sesion', title, description, dropzoneTitle, importLabel, onImport, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<'upload' | 'map' | 'preview'>('upload');
   const [dragOver, setDragOver] = useState(false);
   const [rows, setRows] = useState<MappedRow[]>([]);
   const [fileName, setFileName] = useState('');
   const [detectedFormat, setDetectedFormat] = useState('');
+  const normalizedActingCategory = toClubCategory(actingCategory ?? category);
+  const defaultTitle = title ?? 'Importar CSV GPS';
+  const defaultDescription = description ?? 'Exporta el informe desde Catapult Cloud o carga un CSV compatible. La app detecta automáticamente jugadores y métricas.';
+  const defaultDropzoneTitle = dropzoneTitle ?? 'Arrastra el CTR Report aquí o haz clic para seleccionarlo';
+  const defaultImportLabel = importLabel ?? 'registros GPS';
 
   const processFile = (file: File) => {
     if (!file.name.match(/\.(csv|txt|tsv)$/i)) {
@@ -245,7 +269,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
     const reader = new FileReader();
     reader.onload = (e) => {
       const raw = String(e.target?.result ?? '');
-      const { rows: csvRows, format } = parseCsv(raw);
+      const { rows: csvRows, format } = parseGpsCsv(raw);
       if (!csvRows.length) {
         alert('No se encontraron jugadores en el archivo. Verifica que sea un CSV de Catapult o compatible.');
         return;
@@ -284,33 +308,37 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
   const unmatchedRows = rows.filter((r) => r.player === null);
 
   const handleImport = () => {
-    const records: Omit<DailyExternalLoadRecord, 'id'>[] = readyRows.map(({ csvRow, player }) => ({
-      sessionId,
-      playerId: player!.id,
-      date,
-      min: csvRow.min,
-      rpe: csvRow.rpe ?? 0,
-      acc: csvRow.acc ?? 0,
-      dcc: csvRow.dcc ?? 0,
-      sprints: csvRow.sprints ?? 0,
-      rhie: 0,
-      ima: 0,
-      totalDistance: csvRow.totalDistance,
-      playerLoad: csvRow.playerLoad,
-      highSpeedDistance: csvRow.highSpeedDistance,
-      hsr: csvRow.highSpeedDistance,
-      sprintDistance: csvRow.sprintDistance,
-      maxVelocity: csvRow.maxVelocity,
-      participation: 'Completa' as SessionParticipation,
-      microcycleId,
-      sessionNumber,
-      sessionType: 'cdEf' as const,
-      category: player!.category,
-      baseCategory: player!.category,
-      actingCategory: player!.category,
-      movementType: 'base' as const,
-      movementModule: 'sesion' as const,
-    }));
+    const records: Omit<DailyExternalLoadRecord, 'id'>[] = readyRows.map(({ csvRow, player }) => {
+      const baseCategory = toClubCategory(player!.category, normalizedActingCategory);
+      const movementType = getMovementType(baseCategory, normalizedActingCategory, movementModule);
+      return {
+        sessionId,
+        playerId: player!.id,
+        date,
+        min: csvRow.min,
+        rpe: csvRow.rpe ?? 0,
+        acc: csvRow.acc ?? 0,
+        dcc: csvRow.dcc ?? 0,
+        sprints: csvRow.sprints ?? 0,
+        rhie: 0,
+        ima: 0,
+        totalDistance: csvRow.totalDistance,
+        playerLoad: csvRow.playerLoad,
+        highSpeedDistance: csvRow.highSpeedDistance,
+        hsr: csvRow.highSpeedDistance,
+        sprintDistance: csvRow.sprintDistance,
+        maxVelocity: csvRow.maxVelocity,
+        participation: 'Completa' as SessionParticipation,
+        microcycleId,
+        sessionNumber,
+        sessionType,
+        category: normalizedActingCategory,
+        baseCategory,
+        actingCategory: normalizedActingCategory,
+        movementType,
+        movementModule,
+      };
+    });
     onImport(records);
   };
 
@@ -323,7 +351,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <strong className="confirm-title">
-            {step === 'upload' ? 'Importar CSV de Catapult' : step === 'map' ? 'Asignar jugadores' : 'Confirmar importación'}
+            {step === 'upload' ? defaultTitle : step === 'map' ? 'Asignar jugadores' : 'Confirmar importación'}
           </strong>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
             <X size={18} />
@@ -334,7 +362,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
         {step === 'upload' && (
           <div>
             <p className="confirm-desc">
-              Exporta el informe de sesión desde Catapult Cloud (CTR Report) y súbelo aquí. La app detecta automáticamente los jugadores y métricas.
+              {defaultDescription}
             </p>
             <div
               className={`csv-import-zone ${dragOver ? 'drag-over' : ''}`}
@@ -345,7 +373,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
               onDrop={handleDrop}
             >
               <Upload size={28} style={{ color: 'var(--blue)', margin: '0 auto 10px', display: 'block' }} />
-              <strong>Arrastra el CTR Report aquí o haz clic para seleccionarlo</strong>
+              <strong>{defaultDropzoneTitle}</strong>
               <span>Catapult (.csv) · Otros GPS: Polar, GPSports, STATSports</span>
               <input ref={fileRef} type="file" accept=".csv,.txt,.tsv" style={{ display: 'none' }} onChange={handleFile} onClick={(e) => e.stopPropagation()} />
             </div>
@@ -434,7 +462,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
         {step === 'preview' && (
           <div>
             <p className="confirm-desc">
-              Se importarán {readyRows.length} registros GPS para la sesión del {date}.
+              Se importarán {readyRows.length} {defaultImportLabel} para el {date}.
               {unmatchedRows.length > 0 && ` ${unmatchedRows.length} fila(s) sin asignar serán ignoradas.`}
             </p>
 
@@ -471,7 +499,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
             <div className="confirm-actions" style={{ marginTop: 16 }}>
               <button type="button" className="btn secondary" onClick={() => setStep('map')}>← Revisar asignación</button>
               <button type="button" className="btn" onClick={handleImport}>
-                <CheckCircle2 size={15} /> Importar {readyRows.length} registros
+                <CheckCircle2 size={15} /> Importar {readyRows.length}
               </button>
             </div>
           </div>

@@ -6234,3 +6234,28 @@ img[loading="lazy"] { background: var(--line-soft); }
   .tnav { display: none; }
   .app-shell-top .main { padding: 16px 16px 92px; }
 }
+
+/* Modal del importador CSV GPS */
+.csv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, .48);
+  backdrop-filter: blur(3px);
+}
+
+.csv-modal {
+  width: min(960px, 100%);
+  max-height: min(88vh, 820px);
+  overflow: auto;
+  display: grid;
+  gap: 16px;
+  padding: 24px 28px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, .22);
+}

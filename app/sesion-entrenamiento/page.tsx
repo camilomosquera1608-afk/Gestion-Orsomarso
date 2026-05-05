@@ -334,26 +334,25 @@ export default function SesionEntrenamientoPage() {
   };
 
   const handleCsvImport = (records:Omit<DailyExternalLoadRecord,'id'>[])=>{
-    records.forEach(r=>addExternalLoad({...r,id:crypto.randomUUID()}));
     justImported.current=true;
     setRowStates(prev=>{
       const next={...prev};
       records.forEach(r=>{
         next[r.playerId]={
           selected:true, participation:(r.participation as SessionParticipation)??'Completa',
-          min:r.min??0, rpe:prev[r.playerId]?.rpe??0,
+          min:r.min??0, rpe:r.rpe && r.rpe > 0 ? Math.min(10,Math.max(0,r.rpe)) : prev[r.playerId]?.rpe??0,
           acc:r.acc??0, dcc:r.dcc??0, sprints:r.sprints??0, rhie:r.rhie??0, ima:r.ima??0,
           totalDistance:r.totalDistance??0, maxVelocity:r.maxVelocity??0,
           playerLoad:r.playerLoad??0, highSpeedDistance:r.highSpeedDistance??r.hsr??0,
           sprintDistance:r.sprintDistance??0,
-          movementType:prev[r.playerId]?.movementType??'subio_a_entrenar',
+          movementType:r.movementType as MovementType ?? prev[r.playerId]?.movementType??'subio_a_entrenar',
           movementNote:prev[r.playerId]?.movementNote??'',
         };
       });
       return next;
     });
     setShowCsv(false);
-    flash(`${records.length} jugadores importados. Ingresa el RPE y guarda.`,'success');
+    flash(`${records.length} jugadores importados en la planilla. Revisa RPE y guarda la sesión para persistirlos en Supabase.`,'success');
   };
 
   const updateStatus=(status:'Borrador'|'En revisión'|'Cerrada'|'Reabierta')=>{
@@ -706,7 +705,7 @@ export default function SesionEntrenamientoPage() {
     <SessionReportTemplate date={filters.date} category={activeCat} microcycle={detectedMc} sessionNumber={sessNumInput||filters.sessionNumber} sessionType={sessType} objective={objective} observation={observation} rows={reportRows} absentPlayers={absentPlayers} dataQualityPercent={ops.dataQualityPercent} wellnessRecords={sessWellness} className="print-only"/>
 
     {ConfirmModal}
-    {showCsv&&<CsvImporter players={ops.players} sessionId={summaryRecord?.id??crypto.randomUUID()} date={filters.date} microcycleId={activeMcId} sessionNumber={Number(sessNumInput)||filters.sessionNumber} category={activeCat} onImport={handleCsvImport} onClose={()=>setShowCsv(false)}/>}
+    {showCsv&&<CsvImporter players={sessionPlayers} sessionId={summaryRecord?.id??editingId??`draft-${filters.date}-${activeCat}`} date={filters.date} microcycleId={activeMcId} sessionNumber={Number(sessNumInput)||filters.sessionNumber} category={activeCat} actingCategory={activeCat} sessionType={sessType} movementModule="sesion" title="Importar CSV GPS de entrenamiento" description="Carga el CTR Report de Catapult o un CSV GPS compatible. Los datos se cargan primero en la planilla; solo se guardan en Supabase cuando presionas Guardar sesión." importLabel="registros GPS en la planilla" onImport={handleCsvImport} onClose={()=>setShowCsv(false)}/>}
     </>
   );
 }

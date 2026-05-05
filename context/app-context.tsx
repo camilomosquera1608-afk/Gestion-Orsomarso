@@ -3,8 +3,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState , type ReactNode } from 'react';
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, legacyAppStateSyncEnabled, saveRemoteAppState, supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
-import { deleteSupabaseTableRowByLegacyId, fetchSupabaseTablesAppData, saveSupabaseTablesAppData } from '@/lib/supabase-table-sync';
-import { createLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAppData, saveLocalAppData } from '@/lib/app-storage';
+import { deleteSupabaseTableRowByLegacyId, deleteSupabaseTrainingSessionCascade, fetchSupabaseTablesAppData, saveSupabaseTablesAppData } from '@/lib/supabase-table-sync';
+import { clearLocalBackups, createLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAppData, saveLocalAppData } from '@/lib/app-storage';
 import type { LocalBackupMeta } from '@/lib/app-storage';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
 import { canDeletePlayer, canWrite, filterAppDataForSession } from '@/lib/access-control';
@@ -58,6 +58,7 @@ interface AppContextValue {
   isLoading: boolean;
   localBackups: LocalBackupMeta[];
   createLocalSnapshot: (label?: string) => void;
+  clearLocalSnapshots: () => void;
   restoreLocalSnapshot: (backupId: string) => boolean;
   importAppDataJson: (rawJson: string) => boolean;
   exportAppDataJson: () => string;
@@ -525,6 +526,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setLocalBackups(listLocalBackups());
   };
 
+  const clearLocalSnapshots = () => {
+    clearLocalBackups();
+    setLocalBackups([]);
+    setSyncStatus('ready');
+  };
+
   const restoreLocalSnapshot = (backupId: string) => {
     const payload = getLocalBackupPayload(backupId);
     if (!payload) return false;
@@ -828,9 +835,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         externalLoads: prev.externalLoads.filter((item) => !matchesSession(item)),
         internalLoads: prev.internalLoads.filter((item) => !matchesSession(item)),
       }));
-      void deleteRemoteLegacy('training_sessions', sessionId);
-      current.externalLoads.filter((item) => matchesSession(item)).forEach((item) => { void deleteRemoteLegacy('daily_external_loads', item.id); });
-      current.internalLoads.filter((item) => matchesSession(item)).forEach((item) => { void deleteRemoteLegacy('daily_internal_loads', item.id); });
+      if (target && hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
+        const blockUntil = Date.now() + 10000;
+        if (blockUntil > skipRemoteRefreshUntilRef.current) skipRemoteRefreshUntilRef.current = blockUntil;
+        void deleteSupabaseTrainingSessionCascade(supabase, {
+          legacyId: sessionId,
+          date: target.date,
+          category: target.category,
+          sessionNumber: target.sessionNumber,
+        }).then((result) => {
+          setSyncStatus(result.ok ? 'ready' : 'error');
+          const postBlock = Date.now() + 3000;
+          if (postBlock > skipRemoteRefreshUntilRef.current) skipRemoteRefreshUntilRef.current = postBlock;
+        });
+      } else {
+        void deleteRemoteLegacy('training_sessions', sessionId);
+        current.externalLoads.filter((item) => matchesSession(item)).forEach((item) => { void deleteRemoteLegacy('daily_external_loads', item.id); });
+        current.internalLoads.filter((item) => matchesSession(item)).forEach((item) => { void deleteRemoteLegacy('daily_internal_loads', item.id); });
+      }
     },
     updateMicrocycle: (record) => {
       const normalizedRecord = { ...record, category: record.category ?? (filters.category === 'all' ? 'Sub20' : filters.category as any) };
@@ -884,6 +906,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     syncStatus,
     localBackups,
     createLocalSnapshot,
+    clearLocalSnapshots,
     restoreLocalSnapshot,
     importAppDataJson,
     exportAppDataJson,

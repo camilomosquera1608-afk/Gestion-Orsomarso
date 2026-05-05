@@ -13,14 +13,23 @@ import { calculateMatchResult, formatMatchScore, isGoalkeeper } from '@/lib/perf
 import { buildMatchCenterStats } from '@/lib/operational-helpers';
 import { buildCompetitionReportData } from '@/lib/competition-report';
 import { findDuplicateMatch } from '@/lib/operational-validation';
-import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue } from '@/lib/types';
+import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue, type DailyExternalLoadRecord } from '@/lib/types';
 import { type ChangeEvent, type DragEvent } from 'react';
 import { Upload as UploadIcon, FileText, X as XIcon } from 'lucide-react';
 import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
+import { CsvImporter } from '@/components/csv-importer';
+import { supportsGps } from '@/lib/report-utils';
 
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 const starterOptions: CompetitionPlayerRole[] = ['Titular', 'Suplente'];
 const medicalOptions: CompetitionMedicalStatus[] = ['Sin lesión', 'Lesionado'];
+
+const CATEGORY_RANK: Record<ClubCategory, number> = { Sub15: 15, Sub17: 17, Sub20: 20 };
+const inferCompetitionMovement = (baseCategory: ClubCategory | undefined, actingCategory: ClubCategory): MovementType => {
+  const base = baseCategory ?? actingCategory;
+  if (base === actingCategory) return 'base';
+  return CATEGORY_RANK[base] < CATEGORY_RANK[actingCategory] ? 'subio_a_competir' : 'bajo_a_competir';
+};
 
 type MatchDraft = {
   id: string;
@@ -54,6 +63,8 @@ type PlayerDraft = {
   sprints: string;
   rhie: string;
   totalDistance: string;
+  highSpeedDistance: string;
+  sprintDistance: string;
   maxVelocity: string;
   playerLoad: string;
 };
@@ -71,7 +82,7 @@ const emptyPlayerDraft = (playerId = ''): PlayerDraft => ({
   medicalStatus: 'Sin lesión',
   medicalObservation: '',
   acc: '', dcc: '', sprints: '', rhie: '',
-  totalDistance: '', maxVelocity: '', playerLoad: '',
+  totalDistance: '', highSpeedDistance: '', sprintDistance: '', maxVelocity: '', playerLoad: '',
 });
 
 const toNumber = (value: string) => {
@@ -194,6 +205,7 @@ export default function CompetenciaPage() {
   const [matchDraft, setMatchDraft] = useState<MatchDraft>({ id: '', opponent: '', customOpponent: '', competitionName: 'Partido oficial', date: filters.date, venue: 'Local', goalsFor: '', goalsAgainst: '', observation: '' });
   const [playerDraft, setPlayerDraft] = useState<PlayerDraft>(emptyPlayerDraft());
   const [showGroupReport, setShowGroupReport] = useState(false);
+  const [showGpsCsv, setShowGpsCsv] = useState(false);
   const [isSavingMatch, setIsSavingMatch] = useState(false);
   const [isSavingPlayer, setIsSavingPlayer] = useState(false);
   const [editingMatchPlayers, setEditingMatchPlayers] = useState(false);
@@ -219,6 +231,7 @@ export default function CompetenciaPage() {
   const [isSavingMatchPlayers, setIsSavingMatchPlayers] = useState(false);
 
   const playersBySource = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
+  const gpsPlayersForImport = useMemo(() => playersBySource.filter((player) => !isGoalkeeper(player)), [playersBySource]);
   // Fix #5: rivals known from existing match history — no more hardcoded list
   const knownRivalsFromHistory = useMemo(() => {
     const all = data.competitionMatchSummaries
@@ -239,6 +252,92 @@ export default function CompetenciaPage() {
       .sort((a, b) => (data.players.find((player) => player.id === a.playerId)?.name ?? '').localeCompare(data.players.find((player) => player.id === b.playerId)?.name ?? '')),
     [data.competitionRecords, data.players, selectedMatch],
   );
+
+  const handleCompetitionGpsImport = (records: Omit<DailyExternalLoadRecord, 'id'>[]) => {
+    if (!selectedMatch) {
+      setMessage('Primero debes crear o seleccionar un partido.');
+      setShowGpsCsv(false);
+      return;
+    }
+    if (!supportsGps(activeCategory)) {
+      setMessage('La importación GPS de competencia está habilitada para Sub20.');
+      setShowGpsCsv(false);
+      return;
+    }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    records.forEach((gps) => {
+      const player = data.players.find((item) => item.id === gps.playerId);
+      if (!player || isGoalkeeper(player)) { skipped += 1; return; }
+
+      const existing = data.competitionRecords.find((record) =>
+        record.playerId === gps.playerId &&
+        (record.matchId === selectedMatch.id || (!record.matchId && record.date === selectedMatch.date && record.opponent === selectedMatch.opponent))
+      );
+      const baseCategory = (player.category ?? sourceCategory) as ClubCategory;
+      const movementType = (gps.movementType ?? inferCompetitionMovement(baseCategory, activeCategory)) as MovementType;
+      const gpsPatch = {
+        minutesPlayed: gps.min ?? existing?.minutesPlayed ?? 0,
+        acc: gps.acc ?? existing?.acc ?? 0,
+        dcc: gps.dcc ?? existing?.dcc ?? 0,
+        sprints: gps.sprints ?? existing?.sprints ?? 0,
+        rhie: gps.rhie ?? existing?.rhie ?? 0,
+        ima: gps.ima ?? existing?.ima ?? 0,
+        totalDistance: gps.totalDistance ?? existing?.totalDistance,
+        highSpeedDistance: gps.highSpeedDistance ?? gps.hsr ?? existing?.highSpeedDistance ?? existing?.hsr,
+        hsr: gps.highSpeedDistance ?? gps.hsr ?? existing?.hsr ?? existing?.highSpeedDistance,
+        sprintDistance: gps.sprintDistance ?? existing?.sprintDistance,
+        maxVelocity: gps.maxVelocity ?? existing?.maxVelocity,
+        playerLoad: gps.playerLoad ?? existing?.playerLoad,
+      };
+
+      if (existing) {
+        updateCompetitionRecord({
+          ...existing,
+          ...gpsPatch,
+          category: activeCategory,
+          baseCategory,
+          actingCategory: activeCategory,
+          movementType,
+          movementModule: 'competencia',
+          loggedBy: session.displayName,
+        });
+        updated += 1;
+        return;
+      }
+
+      addCompetitionRecord({
+        id: crypto.randomUUID(),
+        matchId: selectedMatch.id,
+        playerId: player.id,
+        date: selectedMatch.date,
+        opponent: selectedMatch.opponent,
+        competitionName: selectedMatch.competitionName,
+        goals: 0,
+        assists: 0,
+        yellowCards: 0,
+        redCards: 0,
+        startingRole: gpsPatch.minutesPlayed >= 45 ? 'Titular' : 'Suplente',
+        category: activeCategory,
+        baseCategory,
+        actingCategory: activeCategory,
+        movementType,
+        movementModule: 'competencia',
+        loggedBy: session.displayName,
+        postCompetitionStatus: 'Sin novedad',
+        medicalStatus: 'Sin lesión',
+        medicalObservation: '',
+        ...gpsPatch,
+      });
+      created += 1;
+    });
+
+    setShowGpsCsv(false);
+    setMessage(`CSV GPS importado: ${updated} actualizados · ${created} creados${skipped ? ` · ${skipped} ignorados` : ''}.`);
+  };
   useEffect(() => {
     const nextDrafts: MatchPlayerDraftMap = {};
     matchRecords.forEach((record) => {
@@ -259,6 +358,8 @@ export default function CompetenciaPage() {
         sprints: displayNumber(record.sprints ?? 0),
         rhie: displayNumber(record.rhie ?? 0),
         totalDistance: displayOptionalNumber(record.totalDistance),
+        highSpeedDistance: displayOptionalNumber(record.highSpeedDistance ?? record.hsr),
+        sprintDistance: displayOptionalNumber(record.sprintDistance),
         maxVelocity: displayOptionalNumber(record.maxVelocity),
         playerLoad: displayOptionalNumber(record.playerLoad),
       };
@@ -398,6 +499,9 @@ export default function CompetenciaPage() {
           sprints: toNumber(draft.sprints),
           rhie: toNumber(draft.rhie),
           totalDistance: toNumber(draft.totalDistance) || undefined,
+          highSpeedDistance: toNumber(draft.highSpeedDistance) || undefined,
+          hsr: toNumber(draft.highSpeedDistance) || undefined,
+          sprintDistance: toNumber(draft.sprintDistance) || undefined,
           maxVelocity: toNumber(draft.maxVelocity) || undefined,
           playerLoad: toNumber(draft.playerLoad) || undefined,
         }),
@@ -478,6 +582,8 @@ export default function CompetenciaPage() {
       sprints: displayNumber(record.sprints ?? 0),
       rhie: displayNumber(record.rhie ?? 0),
       totalDistance: displayOptionalNumber(record.totalDistance),
+      highSpeedDistance: displayOptionalNumber(record.highSpeedDistance ?? record.hsr),
+      sprintDistance: displayOptionalNumber(record.sprintDistance),
       maxVelocity: displayOptionalNumber(record.maxVelocity),
       playerLoad: displayOptionalNumber(record.playerLoad),
     });
@@ -554,6 +660,9 @@ export default function CompetenciaPage() {
         sprints: toNumber(playerDraft.sprints),
         rhie: toNumber(playerDraft.rhie),
         totalDistance: toNumber(playerDraft.totalDistance) || undefined,
+        highSpeedDistance: toNumber(playerDraft.highSpeedDistance) || undefined,
+        hsr: toNumber(playerDraft.highSpeedDistance) || undefined,
+        sprintDistance: toNumber(playerDraft.sprintDistance) || undefined,
         maxVelocity: toNumber(playerDraft.maxVelocity) || undefined,
         playerLoad: toNumber(playerDraft.playerLoad) || undefined,
       }),
@@ -743,6 +852,8 @@ export default function CompetenciaPage() {
                 <div className="field"><label>Sprint efforts</label><input className="input" min="0" type="number" value={playerDraft.sprints} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, sprints: e.target.value }))} /></div>
                 <div className="field"><label>RHIE</label><input className="input" min="0" type="number" value={playerDraft.rhie} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, rhie: e.target.value }))} /></div>
                 <div className="field"><label>Distancia (m)</label><input className="input" min="0" type="number" value={playerDraft.totalDistance} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, totalDistance: e.target.value }))} /></div>
+                <div className="field"><label>HSR (m)</label><input className="input" min="0" type="number" value={playerDraft.highSpeedDistance} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, highSpeedDistance: e.target.value }))} /></div>
+                <div className="field"><label>Sprint dist. (m)</label><input className="input" min="0" type="number" value={playerDraft.sprintDistance} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, sprintDistance: e.target.value }))} /></div>
                 <div className="field"><label>Vel. máxima (km/h)</label><input className="input" min="0" step="0.1" type="number" value={playerDraft.maxVelocity} placeholder="0.0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, maxVelocity: e.target.value }))} /></div>
                 <div className="field"><label>Player Load</label><input className="input" min="0" type="number" value={playerDraft.playerLoad} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, playerLoad: e.target.value }))} /></div>
               </div>
@@ -776,6 +887,7 @@ export default function CompetenciaPage() {
             </div>
             <div className="btn-row">
               <button type="button" className="btn secondary" onClick={() => updateMatchStatus(selectedMatch.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>{selectedMatch.status === 'Cerrada' ? 'Reabrir partido' : 'Cerrar partido'}</button>
+              {supportsGps(activeCategory) ? <button type="button" className="btn secondary" onClick={() => setShowGpsCsv(true)}>Importar CSV GPS</button> : null}
               <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver informe GPS'}</button>
               <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
             </div>
@@ -841,7 +953,7 @@ export default function CompetenciaPage() {
         {selectedMatch && matchRecords.length ? (
           <table>
             <thead>
-              <tr><th>Jugador</th><th>Posición</th><th>Rol</th><th>MIN</th><th>G/A o Portero</th><th>Tarjetas</th><th>Estado médico</th><th>Observación</th><th>Acciones</th></tr>
+              <tr><th>Jugador</th><th>Posición</th><th>Rol</th><th>MIN</th><th>G/A o Portero</th><th>Tarjetas</th><th>GPS</th><th>Estado médico</th><th>Observación</th><th>Acciones</th></tr>
             </thead>
             <tbody>
               {matchRecords.map((record) => {
@@ -857,6 +969,7 @@ export default function CompetenciaPage() {
                     <td>{editingMatchPlayers ? <input className="input compact-input" type="number" min="0" max="120" value={draft.minutesPlayed} onChange={(event) => updateMatchPlayerDraft(record.id, { minutesPlayed: event.target.value })} /> : record.minutesPlayed}</td>
                     <td>{editingMatchPlayers ? (recordGoalkeeper ? <div className="btn-row"><input className="input compact-input" type="number" min="0" placeholder="GE" value={draft.goalsConceded} onChange={(event) => updateMatchPlayerDraft(record.id, { goalsConceded: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="EV" value={draft.goalsPrevented} onChange={(event) => updateMatchPlayerDraft(record.id, { goalsPrevented: event.target.value })} /></div> : <div className="btn-row"><input className="input compact-input" type="number" min="0" placeholder="G" value={draft.goals} onChange={(event) => updateMatchPlayerDraft(record.id, { goals: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="A" value={draft.assists} onChange={(event) => updateMatchPlayerDraft(record.id, { assists: event.target.value })} /></div>) : recordGoalkeeper ? `GE ${record.goalsConceded ?? 0} · EV ${record.goalsPrevented ?? 0}` : `G ${record.goals ?? 0} · A ${record.assists ?? 0}`}</td>
                     <td>{editingMatchPlayers ? <div className="btn-row"><input className="input compact-input" type="number" min="0" value={draft.yellowCards} onChange={(event) => updateMatchPlayerDraft(record.id, { yellowCards: event.target.value })} /><input className="input compact-input" type="number" min="0" max="1" value={draft.redCards} onChange={(event) => updateMatchPlayerDraft(record.id, { redCards: event.target.value })} /></div> : <>TA {record.yellowCards ?? 0} · TR {record.redCards ?? 0}</>}</td>
+                    <td>{recordGoalkeeper ? '—' : `${Math.round(record.totalDistance ?? 0)} m · PL ${Math.round(record.playerLoad ?? 0)}`}</td>
                     <td>{editingMatchPlayers ? <select className="select compact-input" value={draft.medicalStatus} onChange={(event) => updateMatchPlayerDraft(record.id, { medicalStatus: event.target.value as CompetitionMedicalStatus })}>{medicalOptions.map((option) => <option key={option}>{option}</option>)}</select> : medicalStatus}</td>
                     <td>{editingMatchPlayers ? <input className="input compact-input" value={draft.medicalObservation} onChange={(event) => updateMatchPlayerDraft(record.id, { medicalObservation: event.target.value })} placeholder="Observación" /> : medicalStatus === 'Lesionado' ? record.medicalObservation || '-' : '-'}</td>
                     <td><div className="btn-row"><button type="button" className="btn secondary" onClick={() => editPlayerRecord(record)}>Editar</button><button type="button" className="btn danger" onClick={() => deleteCompetitionRecord(record.id)}>Eliminar</button></div></td>
@@ -894,6 +1007,24 @@ export default function CompetenciaPage() {
         ) : <EmptyState title="Sin partidos guardados" text="Los partidos creados aparecerán en este historial." />}
       </div>
       </div>
+
+      {showGpsCsv && selectedMatch ? (
+        <CsvImporter
+          players={gpsPlayersForImport}
+          sessionId={selectedMatch.id}
+          date={selectedMatch.date}
+          microcycleId=""
+          sessionNumber={1}
+          category={activeCategory}
+          actingCategory={activeCategory}
+          movementModule="competencia"
+          title="Importar CSV GPS de competencia"
+          description="Carga el CTR Report de Catapult o un CSV GPS compatible del partido. El importador crea o actualiza jugadores de campo dentro de la planilla del partido seleccionado."
+          importLabel="registros GPS de competencia"
+          onImport={handleCompetitionGpsImport}
+          onClose={() => setShowGpsCsv(false)}
+        />
+      ) : null}
 
       {competitionReport ? <CompetitionReportTemplate report={competitionReport} category={activeCategory} className="print-only" /> : null}
     </div>

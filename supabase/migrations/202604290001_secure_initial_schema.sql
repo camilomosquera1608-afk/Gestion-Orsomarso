@@ -148,6 +148,7 @@ create table if not exists public.training_sessions (
   session_rpe numeric,
   objective text,
   observation text,
+  status text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (date, category, session_number)
@@ -187,6 +188,7 @@ create table if not exists public.competition_matches (
   goals_against integer default 0,
   result_type text check (result_type in ('Victoria', 'Empate', 'Derrota')),
   observation text,
+  status text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -214,6 +216,12 @@ create table if not exists public.competition_players (
   sprints numeric,
   rhie numeric,
   ima numeric,
+  total_distance numeric,
+  high_speed_distance numeric,
+  sprint_distance numeric,
+  hsr numeric,
+  max_velocity numeric,
+  player_load numeric,
   logged_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

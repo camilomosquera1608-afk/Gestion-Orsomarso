@@ -36,6 +36,7 @@ export default function ConfiguracionPage() {
     filters,
     localBackups,
     createLocalSnapshot,
+    clearLocalSnapshots,
     restoreLocalSnapshot,
     importAppDataJson,
     exportAppDataJson,
@@ -225,6 +226,17 @@ export default function ConfiguracionPage() {
             }}
           >
             Copia rápida
+          </button>
+          <button
+            type="button"
+            className="btn danger"
+            onClick={() => {
+              if (!confirm('Esto borra solo las copias locales del navegador. No borra Supabase ni los datos actuales. ¿Continuar?')) return;
+              clearLocalSnapshots();
+              setMessage('Respaldos locales eliminados. El almacenamiento del navegador quedó liberado.');
+            }}
+          >
+            Borrar respaldos locales
           </button>
           <label className="btn secondary" style={{ cursor: 'pointer' }}>
             Importar JSON

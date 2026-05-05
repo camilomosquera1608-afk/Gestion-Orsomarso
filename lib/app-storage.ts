@@ -3,8 +3,8 @@ import type { AppData } from './types';
 export const STORAGE_KEY = 'orsomarso-performance-hub';
 export const STORAGE_BACKUPS_KEY = 'orsomarso-performance-hub-backups-v1';
 
-const MAX_BACKUPS = 25;
-const FALLBACK_MAX_BACKUPS = 5;
+const MAX_BACKUPS = 8;
+const FALLBACK_MAX_BACKUPS = 2;
 const AUTO_BACKUP_MIN_INTERVAL_MS = 10 * 60 * 1000;
 
 export type LocalBackupKind = 'manual' | 'auto' | 'import' | 'restore';
@@ -47,11 +47,20 @@ const readBackups = (): LocalBackup[] => {
 const writeBackups = (backups: LocalBackup[]) => {
   if (!isBrowser()) return;
 
+  const limited = backups.slice(0, MAX_BACKUPS);
+  const budgetKb = 1600;
+  const withinBudget: LocalBackup[] = [];
+  for (const backup of limited) {
+    const test = [...withinBudget, backup];
+    const sizeKb = Math.round(JSON.stringify(test).length / 1024);
+    if (sizeKb <= budgetKb || withinBudget.length === 0) withinBudget.push(backup);
+  }
+
   try {
-    localStorage.setItem(STORAGE_BACKUPS_KEY, JSON.stringify(backups.slice(0, MAX_BACKUPS)));
+    localStorage.setItem(STORAGE_BACKUPS_KEY, JSON.stringify(withinBudget));
   } catch {
     try {
-      localStorage.setItem(STORAGE_BACKUPS_KEY, JSON.stringify(backups.slice(0, FALLBACK_MAX_BACKUPS)));
+      localStorage.setItem(STORAGE_BACKUPS_KEY, JSON.stringify(withinBudget.slice(0, FALLBACK_MAX_BACKUPS)));
     } catch {
       localStorage.removeItem(STORAGE_BACKUPS_KEY);
     }
