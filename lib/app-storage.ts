@@ -239,11 +239,39 @@ export const saveLocalAppData = (nextData: AppData) => {
     }
   }
 
-  try {
-    localStorage.setItem(STORAGE_KEY, nextRaw);
-  } catch {
+  // Robust save — never throws QuotaExceededError to caller
+  const trySave = (raw: string): boolean => {
+    try {
+      localStorage.setItem(STORAGE_KEY, raw);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Attempt 1: compact data
+  if (!trySave(nextRaw)) {
+    // Attempt 2: clear backups and retry
     localStorage.removeItem(STORAGE_BACKUPS_KEY);
-    localStorage.setItem(STORAGE_KEY, nextRaw);
+    if (!trySave(nextRaw)) {
+      // Attempt 3: save only players, sessions and microcycles (no loads)
+      // This is a last resort — data is recoverable from Supabase
+      const minimal = JSON.stringify({
+        players: compacted.players ?? [],
+        microcycles: compacted.microcycles ?? [],
+        trainingSessionSummaries: compacted.trainingSessionSummaries ?? [],
+        competitionMatchSummaries: compacted.competitionMatchSummaries ?? [],
+        externalLoads: [],
+        internalLoads: [],
+        wellness: [],
+        nutritionRecords: [],
+        competitionRecords: [],
+        fmsRecords: [],
+      });
+      trySave(minimal);
+      // Don't throw — Supabase is the source of truth
+      console.warn('[Orsomarso] localStorage lleno — guardando solo estructura mínima. Los datos de carga están en Supabase.');
+    }
   }
 };
 

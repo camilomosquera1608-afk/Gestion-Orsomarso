@@ -201,7 +201,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setSyncStatus('syncing');
       const session = getStaffSession();
       const scopedData = filterAppDataForSession(nextData, session);
-      const result = await saveSupabaseTablesAppData(supabase, scopedData);
+      // Add 30s timeout so syncStatus never gets stuck on 'syncing'
+      const saveWithTimeout = Promise.race([
+        saveSupabaseTablesAppData(supabase, scopedData),
+        new Promise<{ ok: false; reason: string }>((resolve) =>
+          setTimeout(() => resolve({ ok: false, reason: 'timeout' }), 30000)
+        ),
+      ]);
+      const result = await saveWithTimeout;
       // After save completes, keep blocking for 3 more seconds so the
       // realtime echo from Supabase doesn't overwrite our local state.
       const postSaveBlock = Date.now() + 3000;
@@ -277,7 +284,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
 
         setSyncStatus('syncing');
-        const remote = await fetchSupabaseTablesAppData(supabase);
+        // 20s timeout so init never hangs on 'syncing'
+        const remote = await Promise.race([
+          fetchSupabaseTablesAppData(supabase),
+          new Promise<{ ok: false; reason: string }>((resolve) =>
+            setTimeout(() => resolve({ ok: false, reason: 'timeout-init' }), 20000)
+          ),
+        ]);
         if (remote.ok) {
           const remoteData = hydrateData(remote.data);
           
