@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState , type 
 import { initialData } from '@/lib/mock-data';
 import { fetchRemoteAppState, hasSupabaseConfig, legacyAppStateSyncEnabled, saveRemoteAppState, supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { deleteSupabaseTableRowByLegacyId, deleteSupabaseTrainingSessionCascade, fetchSupabaseTablesAppData, saveSupabaseTablesAppData } from '@/lib/supabase-table-sync';
-import { clearLocalBackups, createLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAppData, saveLocalAppData } from '@/lib/app-storage';
+import { clearAutoBackups, clearLocalBackups, createLocalBackup, deleteLocalBackup, getLocalBackupPayload, listLocalBackups, readLocalAppData, saveLocalAppData } from '@/lib/app-storage';
 import type { LocalBackupMeta } from '@/lib/app-storage';
 import { getAllowedCategory, getStaffSession, isMasterRole } from '@/lib/auth';
 import { canDeletePlayer, canWrite, filterAppDataForSession } from '@/lib/access-control';
@@ -59,6 +59,8 @@ interface AppContextValue {
   localBackups: LocalBackupMeta[];
   createLocalSnapshot: (label?: string) => void;
   clearLocalSnapshots: () => void;
+  deleteLocalBackupById: (backupId: string) => boolean;
+  clearAllAutoBackups: () => number;
   restoreLocalSnapshot: (backupId: string) => boolean;
   importAppDataJson: (rawJson: string) => boolean;
   exportAppDataJson: () => string;
@@ -532,6 +534,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setSyncStatus('ready');
   };
 
+  const deleteLocalBackupById = (backupId: string): boolean => {
+    const ok = deleteLocalBackup(backupId);
+    if (ok) setLocalBackups(listLocalBackups());
+    return ok;
+  };
+
+  const clearAllAutoBackups = (): number => {
+    const removed = clearAutoBackups();
+    setLocalBackups(listLocalBackups());
+    return removed;
+  };
+
   const restoreLocalSnapshot = (backupId: string) => {
     const payload = getLocalBackupPayload(backupId);
     if (!payload) return false;
@@ -907,6 +921,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localBackups,
     createLocalSnapshot,
     clearLocalSnapshots,
+    deleteLocalBackupById,
+    clearAllAutoBackups,
     restoreLocalSnapshot,
     importAppDataJson,
     exportAppDataJson,

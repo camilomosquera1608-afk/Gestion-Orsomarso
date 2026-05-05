@@ -11,7 +11,7 @@ import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory } from '@/lib/types';
 import { getCategoryReadinessChecks, getCategoryReadinessSummary, getDataTotals, getDuplicateChecks, getOverallDataQuality, qualityLabel, qualityToneClass } from '@/lib/data-quality';
 import { fetchAuditLogs, getSupabaseUserEmail, hasSupabaseConfig, signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
-import { getLocalStorageUsageKb, getLocalStorageWarning } from '@/lib/app-storage';
+import { clearLocalBackups, getLocalStorageUsageKb, getLocalStorageWarning } from '@/lib/app-storage';
 
 const formatDate = (value: string) => new Date(value).toLocaleString('es-CO', {
   dateStyle: 'medium',
@@ -37,6 +37,8 @@ export default function ConfiguracionPage() {
     localBackups,
     createLocalSnapshot,
     clearLocalSnapshots,
+    deleteLocalBackupById,
+    clearAllAutoBackups,
     restoreLocalSnapshot,
     importAppDataJson,
     exportAppDataJson,
@@ -333,7 +335,37 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className="card">
-        <SectionHeader eyebrow="Historial" title="Copias locales" />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+          <SectionHeader eyebrow="Historial" title="Copias locales" />
+          {localBackups.length > 0 && (
+            <div className="btn-row">
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => {
+                  const autoCount = localBackups.filter(b => b.kind === 'auto').length;
+                  if (autoCount === 0) { setMessage('No hay copias automáticas para borrar.'); return; }
+                  if (!confirm(`¿Eliminar ${autoCount} copia(s) automática(s)? Las copias manuales se conservan.`)) return;
+                  const n = clearAllAutoBackups();
+                  setMessage(`${n} copia(s) automática(s) eliminada(s). Espacio liberado.`);
+                }}
+              >
+                Borrar automáticas
+              </button>
+              <button
+                type="button"
+                className="btn danger"
+                onClick={() => {
+                  if (!confirm(`¿Eliminar TODAS las ${localBackups.length} copias locales? Esta acción no se puede deshacer.`)) return;
+                  clearLocalBackups();
+                  window.location.reload();
+                }}
+              >
+                Borrar todas
+              </button>
+            </div>
+          )}
+        </div>
         {localBackups.length === 0 ? (
           <EmptyState title="Sin copias locales" text="Sin copias disponibles." />
         ) : (
@@ -343,28 +375,55 @@ export default function ConfiguracionPage() {
                 <tr>
                   <th>Fecha</th>
                   <th>Tipo</th>
+                  <th>Tamaño</th>
                   <th>Contenido</th>
-                  <th>Acción</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {localBackups.slice(0, 12).map((backup) => (
+                {localBackups.map((backup) => (
                   <tr key={backup.id}>
-                    <td>{formatDate(backup.createdAt)}</td>
-                    <td>{backup.label}</td>
-                    <td>{backup.playersCount} jugadores · {backup.recordsCount} registros · {backup.microcyclesCount} microciclos · {backup.gpsRecordsCount} GPS · {backup.sizeKb} KB</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{formatDate(backup.createdAt)}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn secondary"
-                        onClick={() => {
-                          if (!confirm('Antes de restaurar, la app creará una copia del estado actual. ¿Continuar?')) return;
-                          const ok = restoreLocalSnapshot(backup.id);
-                          setMessage(ok ? 'Respaldo restaurado. Se creó una copia previa del estado actual.' : 'No se pudo restaurar.');
-                        }}
-                      >
-                        Restaurar
-                      </button>
+                      <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: backup.kind === 'manual' ? '#eff6ff' : backup.kind === 'auto' ? '#f8fafc' : '#f0fdf4',
+                        color: backup.kind === 'manual' ? '#1d4ed8' : backup.kind === 'auto' ? '#64748b' : '#065f46' }}>
+                        {backup.kind === 'manual' ? 'Manual' : backup.kind === 'auto' ? 'Auto' : backup.kind}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 700, color: backup.sizeKb > 400 ? '#dc2626' : backup.sizeKb > 200 ? '#d97706' : '#059669' }}>
+                      {backup.sizeKb} KB
+                    </td>
+                    <td style={{ fontSize: 12, color: '#64748b' }}>
+                      {backup.playersCount} jug · {backup.recordsCount} reg · {backup.sessionsCount} ses
+                    </td>
+                    <td>
+                      <div className="btn-row" style={{ gap: 6 }}>
+                        <button
+                          type="button"
+                          className="btn secondary"
+                          style={{ padding: '4px 10px', fontSize: 12 }}
+                          onClick={() => {
+                            if (!confirm('Antes de restaurar, la app creará una copia del estado actual. ¿Continuar?')) return;
+                            const ok = restoreLocalSnapshot(backup.id);
+                            setMessage(ok ? 'Respaldo restaurado. Se creó una copia previa.' : 'No se pudo restaurar.');
+                          }}
+                        >
+                          Restaurar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn danger"
+                          style={{ padding: '4px 10px', fontSize: 12 }}
+                          onClick={() => {
+                            if (!confirm(`¿Eliminar esta copia (${backup.sizeKb} KB)?`)) return;
+                            const ok = deleteLocalBackupById(backup.id);
+                            setMessage(ok ? `Copia eliminada. Espacio recuperado: ~${backup.sizeKb} KB.` : 'No se pudo eliminar.');
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

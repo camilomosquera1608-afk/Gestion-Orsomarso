@@ -197,3 +197,21 @@ export const clearLocalBackups = () => {
   if (!isBrowser()) return;
   localStorage.removeItem(STORAGE_BACKUPS_KEY);
 };
+
+export const deleteLocalBackup = (backupId: string): boolean => {
+  if (!isBrowser()) return false;
+  const backups = readBackups();
+  const next = backups.filter((b) => b.id !== backupId);
+  if (next.length === backups.length) return false;
+  writeBackups(next);
+  return true;
+};
+
+export const clearAutoBackups = (): number => {
+  if (!isBrowser()) return 0;
+  const backups = readBackups();
+  const manual = backups.filter((b) => b.kind !== 'auto');
+  const removed = backups.length - manual.length;
+  writeBackups(manual);
+  return removed;
+};
