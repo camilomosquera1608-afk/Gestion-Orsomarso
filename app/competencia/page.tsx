@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { CompetitionReportTemplate } from '@/components/competition-report';
 import { EmptyState, MatchCard, SectionHeader, StatusBadge } from '@/components/pro-ui';
@@ -14,6 +14,9 @@ import { buildMatchCenterStats } from '@/lib/operational-helpers';
 import { buildCompetitionReportData } from '@/lib/competition-report';
 import { findDuplicateMatch } from '@/lib/operational-validation';
 import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue } from '@/lib/types';
+import { type ChangeEvent, type DragEvent } from 'react';
+import { Upload as UploadIcon, FileText, X as XIcon } from 'lucide-react';
+import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
 
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 const starterOptions: CompetitionPlayerRole[] = ['Titular', 'Suplente'];
@@ -45,6 +48,14 @@ type PlayerDraft = {
   startingRole: CompetitionPlayerRole;
   medicalStatus: CompetitionMedicalStatus;
   medicalObservation: string;
+  // GPS — solo jugadores de campo
+  acc: string;
+  dcc: string;
+  sprints: string;
+  rhie: string;
+  totalDistance: string;
+  maxVelocity: string;
+  playerLoad: string;
 };
 
 const emptyPlayerDraft = (playerId = ''): PlayerDraft => ({
@@ -59,6 +70,8 @@ const emptyPlayerDraft = (playerId = ''): PlayerDraft => ({
   startingRole: 'Titular',
   medicalStatus: 'Sin lesión',
   medicalObservation: '',
+  acc: '', dcc: '', sprints: '', rhie: '',
+  totalDistance: '', maxVelocity: '', playerLoad: '',
 });
 
 const toNumber = (value: string) => {
@@ -69,6 +82,105 @@ const toNumber = (value: string) => {
 const isNegative = (value: string) => value.trim() !== '' && toNumber(value) < 0;
 const displayNumber = (value?: number) => (value && value > 0 ? String(value) : '');
 const displayOptionalNumber = (value?: number) => (typeof value === 'number' ? String(value) : '');
+
+
+// ── Helpers para EyeballReport ────────────────────────────────────────────────
+const numVal = (v: string | number): number => {
+  if (typeof v === 'number') return v;
+  const n = parseFloat(String(v).replace('%', '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+};
+const displayVal = (v: string | number): string => {
+  if (typeof v === 'string') return v;
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+};
+type WinSide = 'orso' | 'rival' | 'draw';
+const winSide = (orso: number, rival: number, higherBetter = true): WinSide => {
+  if (orso === rival) return 'draw';
+  return (orso > rival) === higherBetter ? 'orso' : 'rival';
+};
+const LOWER_BETTER = new Set(['Faltas', 'Fuera de juego', 'Errores', 'Tiros fuera de puerta', 'Tiros fuera del área']);
+
+function EyeballStatRow({ stat, orso, rival }: { stat: string; orso: string | number; rival: string | number }) {
+  const on = numVal(orso); const rn = numVal(rival);
+  const hb = !LOWER_BETTER.has(stat);
+  const win = winSide(on, rn, hb);
+  const total = on + rn || 1;
+  const orsoW = Math.round((on / total) * 100);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px 1fr', gap: 8, alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #f0f4fb' }}>
+      <div style={{ textAlign: 'right', fontWeight: win === 'rival' ? 900 : 700, color: win === 'rival' ? '#065f46' : '#334155', fontSize: 12 }}>{displayVal(rival)}</div>
+      <div>
+        <div style={{ fontSize: 9, fontWeight: 600, color: '#94a3b8', textAlign: 'center', marginBottom: 3 }}>{stat}</div>
+        <div style={{ display: 'flex', height: 5, borderRadius: 999, overflow: 'hidden', gap: 1 }}>
+          <div style={{ width: `${100 - orsoW}%`, background: '#94a3b8', borderRadius: '999px 0 0 999px' }} />
+          <div style={{ width: `${orsoW}%`, background: win === 'orso' ? '#059669' : win === 'rival' ? '#dc2626' : '#94a3b8', borderRadius: '0 999px 999px 0' }} />
+        </div>
+      </div>
+      <div style={{ fontWeight: win === 'orso' ? 900 : 700, color: win === 'orso' ? '#065f46' : '#334155', fontSize: 12 }}>{displayVal(orso)}</div>
+    </div>
+  );
+}
+
+function EyeballReport({ stats }: { stats: EyeballMatchStats }) {
+  const result = stats.goalsFor > stats.goalsAgainst ? 'Victoria' : stats.goalsFor < stats.goalsAgainst ? 'Derrota' : 'Empate';
+  const resultColor = result === 'Victoria' ? '#059669' : result === 'Derrota' ? '#dc2626' : '#d97706';
+  return (
+    <div>
+      {/* Score hero */}
+      <div style={{ background: 'linear-gradient(135deg,#06152f 0%,#1a3a8a 100%)', borderRadius: 16, padding: '20px 24px', color: '#fff', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.4)', marginBottom: 3 }}>Rival</div>
+          <div style={{ fontSize: 14, fontWeight: 900 }}>{stats.rivalName}</div>
+        </div>
+        <div style={{ textAlign: 'center', padding: '0 24px' }}>
+          <div style={{ fontSize: 44, fontWeight: 900, letterSpacing: '-.06em', lineHeight: 1 }}>
+            <span style={{ color: 'rgba(255,255,255,.5)' }}>{stats.goalsAgainst}</span>
+            <span style={{ color: 'rgba(255,255,255,.25)', margin: '0 8px', fontWeight: 300 }}>:</span>
+            <span style={{ color: '#fff' }}>{stats.goalsFor}</span>
+          </div>
+          <div style={{ marginTop: 8, display: 'inline-block', padding: '4px 12px', borderRadius: 999, background: resultColor, fontSize: 11, fontWeight: 800 }}>{result}</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.4)', marginBottom: 3 }}>Orsomarso SC</div>
+          <div style={{ fontSize: 14, fontWeight: 900 }}>Orsomarso SC</div>
+        </div>
+      </div>
+
+      {/* KPI row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
+        {[
+          { label: 'Posesión', orso: `${stats.possession}%`, rival: `${100 - stats.possession}%`, good: stats.possession >= 50 },
+          { label: 'Precisión pase', orso: `${stats.passPrecision}%`, rival: '—', good: stats.passPrecision >= 75 },
+          { label: 'Conversión', orso: `${stats.conversionRate}%`, rival: '—', good: stats.conversionRate >= 15 },
+        ].map(({ label, orso, rival: rv, good }) => (
+          <div key={label} style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color: '#64748b', marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: good ? '#059669' : '#dc2626' }}>{orso}</div>
+            {rv !== '—' && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>Rival: {rv}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Section stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {Object.entries(stats.sections).map(([section, rows]) => (
+          <div key={section} style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ background: '#06152f', padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: 11, fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: '.08em' }}>{section}</strong>
+              <div style={{ display: 'flex', gap: 20, fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,.45)' }}>
+                <span>{stats.rivalName}</span><span>Orsomarso</span>
+              </div>
+            </div>
+            <div style={{ padding: '4px 14px 8px' }}>
+              {rows.map((row) => <EyeballStatRow key={row.stat} stat={row.stat} orso={row.orso} rival={row.rival} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function CompetenciaPage() {
   const { data, filters, addCompetitionRecord, updateCompetitionRecord, deleteCompetitionRecord, upsertCompetitionMatchSummary, deleteCompetitionMatchSummary } = useApp();
@@ -85,6 +197,24 @@ export default function CompetenciaPage() {
   const [isSavingMatch, setIsSavingMatch] = useState(false);
   const [isSavingPlayer, setIsSavingPlayer] = useState(false);
   const [editingMatchPlayers, setEditingMatchPlayers] = useState(false);
+  const [eyeballStats, setEyeballStats] = useState<EyeballMatchStats | null>(null);
+  const [eyeballFile, setEyeballFile] = useState('');
+  const [eyeballError, setEyeballError] = useState('');
+  const [eyeballDrag, setEyeballDrag] = useState(false);
+  const eyeballRef = useRef<HTMLInputElement>(null);
+
+  const processEyeballFile = (file: File) => {
+    setEyeballError('');
+    setEyeballFile(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const raw = String(e.target?.result ?? '');
+      const parsed = parseEyeballCsv(raw);
+      if (!parsed) { setEyeballError('No se pudo leer el CSV. Verifica el formato Eyeball.'); return; }
+      setEyeballStats(parsed);
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
   const [matchPlayerDrafts, setMatchPlayerDrafts] = useState<MatchPlayerDraftMap>({});
   const [isSavingMatchPlayers, setIsSavingMatchPlayers] = useState(false);
 
@@ -124,6 +254,13 @@ export default function CompetenciaPage() {
         startingRole: record.startingRole ?? 'Titular',
         medicalStatus: record.medicalStatus ?? (record.postCompetitionStatus === 'Lesionado' ? 'Lesionado' : 'Sin lesión'),
         medicalObservation: record.medicalObservation ?? '',
+        acc: displayNumber(record.acc ?? 0),
+        dcc: displayNumber(record.dcc ?? 0),
+        sprints: displayNumber(record.sprints ?? 0),
+        rhie: displayNumber(record.rhie ?? 0),
+        totalDistance: displayOptionalNumber(record.totalDistance),
+        maxVelocity: displayOptionalNumber(record.maxVelocity),
+        playerLoad: displayOptionalNumber(record.playerLoad),
       };
     });
     setMatchPlayerDrafts(nextDrafts);
@@ -255,6 +392,15 @@ export default function CompetenciaPage() {
         medicalStatus: draft.medicalStatus,
         medicalObservation: draft.medicalStatus === 'Lesionado' ? draft.medicalObservation.trim() : '',
         postCompetitionStatus: draft.medicalStatus === 'Lesionado' ? 'Lesionado' : 'Disponible',
+        ...(recordGoalkeeper ? {} : {
+          acc: toNumber(draft.acc),
+          dcc: toNumber(draft.dcc),
+          sprints: toNumber(draft.sprints),
+          rhie: toNumber(draft.rhie),
+          totalDistance: toNumber(draft.totalDistance) || undefined,
+          maxVelocity: toNumber(draft.maxVelocity) || undefined,
+          playerLoad: toNumber(draft.playerLoad) || undefined,
+        }),
       });
     });
     setIsSavingMatchPlayers(false);
@@ -327,6 +473,13 @@ export default function CompetenciaPage() {
       startingRole: record.startingRole ?? 'Titular',
       medicalStatus: record.medicalStatus ?? (record.postCompetitionStatus === 'Lesionado' ? 'Lesionado' : 'Sin lesión'),
       medicalObservation: record.medicalObservation ?? '',
+      acc: displayNumber(record.acc ?? 0),
+      dcc: displayNumber(record.dcc ?? 0),
+      sprints: displayNumber(record.sprints ?? 0),
+      rhie: displayNumber(record.rhie ?? 0),
+      totalDistance: displayOptionalNumber(record.totalDistance),
+      maxVelocity: displayOptionalNumber(record.maxVelocity),
+      playerLoad: displayOptionalNumber(record.playerLoad),
     });
     setMessage('Editando jugador del partido.');
   };
@@ -394,6 +547,16 @@ export default function CompetenciaPage() {
       postCompetitionStatus: playerDraft.medicalStatus === 'Lesionado' ? 'Lesionado' : 'Sin novedad',
       medicalStatus: playerDraft.medicalStatus,
       medicalObservation: playerDraft.medicalStatus === 'Lesionado' ? playerDraft.medicalObservation.trim() : '',
+      // GPS — solo jugadores de campo
+      ...(goalkeeperRecord ? {} : {
+        acc: toNumber(playerDraft.acc),
+        dcc: toNumber(playerDraft.dcc),
+        sprints: toNumber(playerDraft.sprints),
+        rhie: toNumber(playerDraft.rhie),
+        totalDistance: toNumber(playerDraft.totalDistance) || undefined,
+        maxVelocity: toNumber(playerDraft.maxVelocity) || undefined,
+        playerLoad: toNumber(playerDraft.playerLoad) || undefined,
+      }),
     };
     const record: CompetitionRecord = goalkeeperRecord
       ? { ...baseRecord, goals: 0, assists: 0, goalsConceded: toNumber(playerDraft.goalsConceded), goalsPrevented: toNumber(playerDraft.goalsPrevented) }
@@ -570,6 +733,22 @@ export default function CompetenciaPage() {
             </div>
           )}
 
+          {/* GPS — solo jugadores de campo */}
+          {!goalkeeper && (
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, marginTop: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#1557d6', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 10 }}>📡 Parámetros GPS (Catapult)</div>
+              <div className="grid grid-4">
+                <div className="field"><label>Aceleraciones</label><input className="input" min="0" type="number" value={playerDraft.acc} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, acc: e.target.value }))} /></div>
+                <div className="field"><label>Desaceleraciones</label><input className="input" min="0" type="number" value={playerDraft.dcc} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, dcc: e.target.value }))} /></div>
+                <div className="field"><label>Sprint efforts</label><input className="input" min="0" type="number" value={playerDraft.sprints} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, sprints: e.target.value }))} /></div>
+                <div className="field"><label>RHIE</label><input className="input" min="0" type="number" value={playerDraft.rhie} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, rhie: e.target.value }))} /></div>
+                <div className="field"><label>Distancia (m)</label><input className="input" min="0" type="number" value={playerDraft.totalDistance} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, totalDistance: e.target.value }))} /></div>
+                <div className="field"><label>Vel. máxima (km/h)</label><input className="input" min="0" step="0.1" type="number" value={playerDraft.maxVelocity} placeholder="0.0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, maxVelocity: e.target.value }))} /></div>
+                <div className="field"><label>Player Load</label><input className="input" min="0" type="number" value={playerDraft.playerLoad} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, playerLoad: e.target.value }))} /></div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-4">
             <div className="field"><label>Tarjetas amarillas</label><input className="input" min="0" type="number" value={playerDraft.yellowCards} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, yellowCards: event.target.value }))} /></div>
             <div className="field"><label>Tarjeta roja</label><input className="input" min="0" max="1" type="number" value={playerDraft.redCards} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, redCards: event.target.value }))} /></div>
@@ -597,7 +776,7 @@ export default function CompetenciaPage() {
             </div>
             <div className="btn-row">
               <button type="button" className="btn secondary" onClick={() => updateMatchStatus(selectedMatch.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>{selectedMatch.status === 'Cerrada' ? 'Reabrir partido' : 'Cerrar partido'}</button>
-              <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver vista previa profesional'}</button>
+              <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver informe GPS'}</button>
               <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
             </div>
           </div>
@@ -606,6 +785,48 @@ export default function CompetenciaPage() {
               <CompetitionReportTemplate report={competitionReport} category={activeCategory} compact />
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {/* ── ANÁLISIS TÁCTICO EYEBALL — integrado al partido ─────────── */}
+      {selectedMatch ? (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+            <div>
+              <span className="section-eyebrow">Análisis táctico</span>
+              <h3 style={{ margin: '4px 0 0' }}>Estadísticas Eyeball del partido</h3>
+              <div className="muted-line" style={{ marginTop: 4 }}>Importa el CSV de Eyeball para ver el análisis comparativo junto al informe GPS.</div>
+            </div>
+            {eyeballStats && (
+              <div className="btn-row">
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}><FileText size={13} style={{ display: 'inline', marginRight: 4 }} />{eyeballFile}</span>
+                <button type="button" className="btn secondary" onClick={() => { setEyeballStats(null); setEyeballFile(''); setEyeballError(''); }}>
+                  <XIcon size={13} /> Cambiar
+                </button>
+              </div>
+            )}
+          </div>
+
+          {!eyeballStats ? (
+            <div>
+              <div
+                style={{ border: `2px dashed ${eyeballDrag ? '#1557d6' : '#cbd5e1'}`, borderRadius: 16, padding: '32px 24px', textAlign: 'center', cursor: 'pointer', background: eyeballDrag ? '#eff6ff' : '#f8fafc', transition: 'all .15s' }}
+                onClick={() => eyeballRef.current?.click()}
+                onDragOver={(e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setEyeballDrag(true); }}
+                onDragLeave={() => setEyeballDrag(false)}
+                onDrop={(e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setEyeballDrag(false); const f = e.dataTransfer.files?.[0]; if (f) processEyeballFile(f); }}
+              >
+                <UploadIcon size={28} style={{ color: '#1557d6', marginBottom: 10 }} />
+                <div style={{ fontWeight: 800, fontSize: 14, color: '#06152f', marginBottom: 4 }}>Arrastra el CSV de Eyeball aquí</div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>Formato: Categoría · Estadística · Rival · Orsomarso SC</div>
+                <input ref={eyeballRef} type="file" accept=".csv,.txt" style={{ display: 'none' }}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) processEyeballFile(f); }} />
+              </div>
+              {eyeballError && <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13, fontWeight: 700 }}>⚠ {eyeballError}</div>}
+            </div>
+          ) : (
+            <EyeballReport stats={eyeballStats} />
+          )}
         </div>
       ) : null}
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Upload, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Search, Upload, Users, X, Zap } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
 import { KpiCard } from '@/components/kpi-card';
 import { DataQualityPanel, EmptyState, OperationalAlertPanel, useConfirm } from '@/components/pro-ui';
@@ -20,30 +20,29 @@ import { findDuplicateTrainingSession } from '@/lib/operational-validation';
 import { getSessionForDateAndCategory, getSessionNumberForDate, getSessionPlayersForSession, getInternalLoadsForSession } from '@/lib/session-derived';
 import { CsvImporter } from '@/components/csv-importer';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const SESSION_TYPE_OPTIONS: { value: TrainingSessionType; label: string }[] = [
-  { value: 'cdef', label: 'Recuperación (cdef)' },
-  { value: 'cdEf', label: 'Ejecución (cdEf)' },
-  { value: 'cdeF', label: 'Condición física (cdeF)' },
-  { value: 'Cdef', label: 'Comunicación (Cdef)' },
+// ─── Constants ──────────────────────────────────────────────────────────────
+const SESSION_TYPES: { value: TrainingSessionType; label: string; color: string }[] = [
+  { value: 'cdef', label: 'Recuperación', color: '#059669' },
+  { value: 'cdEf', label: 'Ejecución', color: '#1557d6' },
+  { value: 'cdeF', label: 'Condición física', color: '#d97706' },
+  { value: 'Cdef', label: 'Comunicación', color: '#7c3aed' },
 ];
 const PARTICIPATION_OPTIONS: SessionParticipation[] = ['Completa', 'Parcial', 'No participa', 'Gimnasio', 'Readaptación'];
 const CATEGORIES: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 const MOVEMENT_OPTIONS: Array<{ value: MovementType; label: string }> = [
-  { value: 'base', label: 'Categoría base' },
   { value: 'subio_a_entrenar', label: 'Subió a entrenar' },
   { value: 'bajo_a_entrenar', label: 'Bajó a entrenar' },
 ];
+const GPS_FIELDS = ['acc','dcc','sprints','rhie','ima','totalDistance','maxVelocity','playerLoad','highSpeedDistance','sprintDistance'] as const;
 
-const normalizeCategoryParam = (value: string | null): ClubCategory | undefined => {
-  const n = (value ?? '').toLowerCase().replace(/\s+/g, '');
-  if (n === 'u20' || n === 'sub20') return 'Sub20';
-  if (n === 'u17' || n === 'sub17') return 'Sub17';
-  if (n === 'u15' || n === 'sub15') return 'Sub15';
-  return undefined;
+const normalizeCat = (v: string | null): ClubCategory | undefined => {
+  const n = (v ?? '').toLowerCase().replace(/\s+/g,'');
+  if (n==='u20'||n==='sub20') return 'Sub20';
+  if (n==='u17'||n==='sub17') return 'Sub17';
+  if (n==='u15'||n==='sub15') return 'Sub15';
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 type RowState = {
   selected: boolean; participation: SessionParticipation;
   min: number; rpe: number; acc: number; dcc: number;
@@ -52,36 +51,33 @@ type RowState = {
   highSpeedDistance: number; sprintDistance: number;
   movementType: MovementType; movementNote: string;
 };
-
-type Msg = { text: string; kind: 'error' | 'success' | 'info' };
-
+type Msg = { text: string; kind: 'error'|'success'|'info' };
 const DEFAULT_ROW: RowState = {
-  selected: false, participation: 'Completa',
-  min: 0, rpe: 0, acc: 0, dcc: 0, sprints: 0, rhie: 0, ima: 0,
-  totalDistance: 0, maxVelocity: 0, playerLoad: 0,
-  highSpeedDistance: 0, sprintDistance: 0,
-  movementType: 'base', movementNote: '',
+  selected:false, participation:'Completa',
+  min:0, rpe:0, acc:0, dcc:0, sprints:0, rhie:0, ima:0,
+  totalDistance:0, maxVelocity:0, playerLoad:0,
+  highSpeedDistance:0, sprintDistance:0,
+  movementType:'subio_a_entrenar', movementNote:'',
 };
+const n = (v:number) => v===0?'':String(v);
 
-const num = (v: number) => v === 0 ? '' : String(v);
-
-// ─── Message banner ───────────────────────────────────────────────────────────
-function MsgBanner({ msg, onClose }: { msg: Msg; onClose: () => void }) {
-  const colors = {
-    error:   { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', icon: <AlertTriangle size={16} /> },
-    success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#065f46', icon: <CheckCircle2 size={16} /> },
-    info:    { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af', icon: null },
+// ─── Message banner ──────────────────────────────────────────────────────────
+function MsgBanner({msg,onClose}:{msg:Msg;onClose:()=>void}) {
+  const s = {
+    error:  {bg:'#fef2f2',bo:'#fecaca',tx:'#991b1b',ic:<AlertTriangle size={15}/>},
+    success:{bg:'#f0fdf4',bo:'#bbf7d0',tx:'#065f46',ic:<CheckCircle2 size={15}/>},
+    info:   {bg:'#eff6ff',bo:'#bfdbfe',tx:'#1e40af',ic:<Zap size={15}/>},
   }[msg.kind];
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', borderRadius: 14, background: colors.bg, border: `1px solid ${colors.border}`, color: colors.text, fontWeight: 700, fontSize: 13 }}>
-      {colors.icon && <span style={{ flexShrink: 0, marginTop: 1 }}>{colors.icon}</span>}
-      <span style={{ flex: 1 }}>{msg.text}</span>
-      <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'grid', placeItems: 'center' }}><X size={15} /></button>
+    <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 16px',borderRadius:14,background:s.bg,border:`1px solid ${s.bo}`,color:s.tx,fontWeight:700,fontSize:13}}>
+      <span style={{flexShrink:0,marginTop:1}}>{s.ic}</span>
+      <span style={{flex:1,lineHeight:1.45}}>{msg.text}</span>
+      <button type="button" onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'inherit',padding:0,display:'grid',placeItems:'center'}}><X size={14}/></button>
     </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Page ────────────────────────────────────────────────────────────────────
 export default function SesionEntrenamientoPage() {
   const searchParams = useSearchParams();
   const {
@@ -91,699 +87,626 @@ export default function SesionEntrenamientoPage() {
     upsertTrainingSessionSummary, deleteTrainingSessionSummary,
   } = useApp();
 
-  const session       = getStaffSession();
-  const master        = isMasterRole(session);
-  const activeCategory = (master
-    ? (filters.category === 'all' ? 'Sub20' : filters.category)
-    : session.category) as ClubCategory;
+  const session     = getStaffSession();
+  const master      = isMasterRole(session);
+  const activeCat   = (master?(filters.category==='all'?'Sub20':filters.category):session.category) as ClubCategory;
+  const ops         = useMemo(()=>buildDailyOperations(data,filters,activeCat),[data,filters,activeCat]);
+  const gps         = supportsGps(activeCat);
+  const youth       = !gps;
+  const detectedMc  = findMicrocycleByDate(data.microcycles,filters.date,filters.microcycleId,activeCat);
+  const activeMcId  = detectedMc?.id??'';
 
-  const ops              = useMemo(() => buildDailyOperations(data, filters, activeCategory), [data, filters, activeCategory]);
-  const gpsEnabled       = supportsGps(activeCategory);
-  const youthSimple      = !gpsEnabled;
-  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, activeCategory);
-  const activeMicrocycleId = detectedMicrocycle?.id ?? '';
-  const selectedMicrocycle = data.microcycles.find(m => m.id === filters.microcycleId);
+  // UI state
+  const [sourceCat,setSourceCat]       = useState<ClubCategory>(activeCat);
+  const [msg,setMsg]                   = useState<Msg|null>(null);
+  const [showReport,setShowReport]     = useState(false);
+  const [sessNumInput,setSessNumInput] = useState(filters.sessionNumber?String(filters.sessionNumber):'');
+  const [isSaving,setIsSaving]         = useState(false);
+  const [showCsv,setShowCsv]           = useState(false);
+  const [editingId,setEditingId]       = useState<string|null>(null);
+  const [sessType,setSessType]         = useState<TrainingSessionType>('cdEf');
+  const [objective,setObjective]       = useState('');
+  const [observation,setObservation]   = useState('');
+  const [search,setSearch]             = useState('');
+  const [globalRpe,setGlobalRpe]       = useState('');
+  const [globalMin,setGlobalMin]       = useState('');
+  const [viewMode,setViewMode]         = useState<'cards'|'table'>('cards');
+  const [histPage,setHistPage]         = useState(0);
+  const justImported = useRef(false);
+  const {confirm,ConfirmModal} = useConfirm();
 
-  // ── UI state ──
-  const [sourceCategory, setSourceCategory]     = useState<ClubCategory>(activeCategory);
-  const [msg, setMsg]                           = useState<Msg | null>(null);
-  const [showReport, setShowReport]             = useState(false);
-  const [sessionNumberInput, setSessionNumberInput] = useState(filters.sessionNumber ? String(filters.sessionNumber) : '');
-  const [isSaving, setIsSaving]                 = useState(false);
-  const [showCsvImporter, setShowCsvImporter]   = useState(false);
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [sessionType, setSessionType]           = useState<TrainingSessionType>('cdEf');
-  const [sessionObjective, setSessionObjective]   = useState('');
-  const [sessionObservation, setSessionObservation] = useState('');
-  const justImportedRef = useRef(false);
-  const { confirm: showConfirm, ConfirmModal } = useConfirm();
+  const flash = useCallback((text:string,kind:Msg['kind']='info')=>setMsg({text,kind}),[]);
 
-  const flash = useCallback((text: string, kind: Msg['kind'] = 'info') => setMsg({ text, kind }), []);
+  // Query params
+  useEffect(()=>{
+    const qd=searchParams.get('date'),qc=normalizeCat(searchParams.get('category')),qs=searchParams.get('sessionId');
+    const next:Partial<typeof filters>={};
+    if(qd&&qd!==filters.date) next.date=qd;
+    if(master&&qc&&qc!==filters.category) next.category=qc;
+    if(Object.keys(next).length) setFilters(next);
+    if(qs&&qs!==editingId) setEditingId(qs);
+  },[searchParams]); // eslint-disable-line
 
-  // ── Query params ──
-  useEffect(() => {
-    const qDate     = searchParams.get('date');
-    const qCat      = normalizeCategoryParam(searchParams.get('category'));
-    const qSession  = searchParams.get('sessionId');
-    const next: Partial<typeof filters> = {};
-    if (qDate && qDate !== filters.date) next.date = qDate;
-    if (master && qCat && qCat !== filters.category) next.category = qCat;
-    if (Object.keys(next).length) setFilters(next);
-    if (qSession && qSession !== editingSessionId) setEditingSessionId(qSession);
-  }, [searchParams]); // eslint-disable-line
+  useEffect(()=>{setSourceCat(activeCat);},[activeCat]);
+  useEffect(()=>{setSessNumInput(filters.sessionNumber?String(filters.sessionNumber):'');},[filters.sessionNumber]);
 
-  useEffect(() => { setSourceCategory(activeCategory); }, [activeCategory]);
-  useEffect(() => { setSessionNumberInput(filters.sessionNumber ? String(filters.sessionNumber) : ''); }, [filters.sessionNumber]);
+  // Session records
+  const summaryRecord   = getSessionForDateAndCategory(data,filters.date,activeCat,editingId);
+  const dateSummary     = getSessionForDateAndCategory(data,filters.date,activeCat);
 
-  // ── Session records ──
-  const summaryRecord    = getSessionForDateAndCategory(data, filters.date, activeCategory, editingSessionId);
-  const dateSummaryRecord = getSessionForDateAndCategory(data, filters.date, activeCategory);
-
-  // Auto-load session when date/category has an existing session
-  useEffect(() => {
-    if (dateSummaryRecord && editingSessionId !== dateSummaryRecord.id) {
-      setEditingSessionId(dateSummaryRecord.id);
-      setSessionNumberInput(String(dateSummaryRecord.sessionNumber || 1));
-      setSessionType(dateSummaryRecord.sessionType ?? 'cdEf');
-      setSessionObjective(dateSummaryRecord.objective ?? '');
-      setSessionObservation(dateSummaryRecord.observation ?? '');
+  useEffect(()=>{
+    if(dateSummary&&editingId!==dateSummary.id){
+      setEditingId(dateSummary.id);
+      setSessNumInput(String(dateSummary.sessionNumber||1));
+      setSessType(dateSummary.sessionType??'cdEf');
+      setObjective(dateSummary.objective??'');
+      setObservation(dateSummary.observation??'');
       return;
     }
-    if (!dateSummaryRecord && editingSessionId) {
-      const ed = data.trainingSessionSummaries.find(i => i.id === editingSessionId);
-      if (!ed || ed.date !== filters.date || ed.category !== activeCategory) setEditingSessionId(null);
+    if(!dateSummary&&editingId){
+      const ed=data.trainingSessionSummaries.find(i=>i.id===editingId);
+      if(!ed||ed.date!==filters.date||ed.category!==activeCat) setEditingId(null);
     }
-  }, [dateSummaryRecord?.id, editingSessionId, filters.date, activeCategory, data.trainingSessionSummaries]); // eslint-disable-line
+  },[dateSummary?.id,editingId,filters.date,activeCat,data.trainingSessionSummaries]); // eslint-disable-line
 
-  // Sync form fields when summaryRecord changes
-  useEffect(() => {
-    setSessionType(summaryRecord?.sessionType ?? 'cdEf');
-    setSessionObjective(summaryRecord?.objective ?? '');
-    setSessionObservation(summaryRecord?.observation ?? '');
-  }, [summaryRecord?.id, summaryRecord?.sessionType, summaryRecord?.objective, summaryRecord?.observation]); // eslint-disable-line
+  useEffect(()=>{
+    setSessType(summaryRecord?.sessionType??'cdEf');
+    setObjective(summaryRecord?.objective??'');
+    setObservation(summaryRecord?.observation??'');
+  },[summaryRecord?.id,summaryRecord?.sessionType,summaryRecord?.objective,summaryRecord?.observation]); // eslint-disable-line
 
-  // Auto-assign session number
-  useEffect(() => {
-    const n = getSessionNumberForDate(data, filters.date, activeCategory, activeMicrocycleId, editingSessionId);
-    setSessionNumberInput(String(n || 1));
-    if (n && n !== filters.sessionNumber) setFilters({ sessionNumber: n });
-  }, [summaryRecord?.id, filters.date, activeCategory, activeMicrocycleId, editingSessionId, data.trainingSessionSummaries]); // eslint-disable-line
+  useEffect(()=>{
+    const sn=getSessionNumberForDate(data,filters.date,activeCat,activeMcId,editingId);
+    setSessNumInput(String(sn||1));
+    if(sn&&sn!==filters.sessionNumber) setFilters({sessionNumber:sn});
+  },[summaryRecord?.id,filters.date,activeCat,activeMcId,editingId,data.trainingSessionSummaries]); // eslint-disable-line
 
-  const sessionHistory = useMemo(
-    () => data.trainingSessionSummaries.filter(i => i.category === activeCategory).sort((a, b) => b.date.localeCompare(a.date)),
-    [data.trainingSessionSummaries, activeCategory],
-  );
+  const sessionHistory = useMemo(()=>
+    data.trainingSessionSummaries.filter(i=>i.category===activeCat).sort((a,b)=>b.date.localeCompare(a.date))
+  ,[data.trainingSessionSummaries,activeCat]);
+  const HIST_PAGE_SIZE = 12;
+  const histPages = Math.ceil(sessionHistory.length/HIST_PAGE_SIZE);
+  const histSlice = sessionHistory.slice(histPage*HIST_PAGE_SIZE,(histPage+1)*HIST_PAGE_SIZE);
 
-  // ── Players & rows ──
-  const sessionPlayers = useMemo(() => data.players.filter(p => p.category === sourceCategory), [data.players, sourceCategory]);
-  const existingRecords = useMemo(
-    () => getSessionPlayersForSession(data, summaryRecord, filters.date, activeCategory),
-    [data.externalLoads, data.players, summaryRecord?.id, filters.date, activeCategory], // eslint-disable-line
-  );
-  const existingInternalRecords = useMemo(
-    () => getInternalLoadsForSession(data, summaryRecord, filters.date, activeCategory),
-    [data.internalLoads, data.players, summaryRecord?.id, filters.date, activeCategory], // eslint-disable-line
-  );
+  // Players & rows
+  const sessionPlayers = useMemo(()=>data.players.filter(p=>p.category===sourceCat),[data.players,sourceCat]);
+  const existingRecs   = useMemo(()=>getSessionPlayersForSession(data,summaryRecord,filters.date,activeCat),
+    [data.externalLoads,data.players,summaryRecord?.id,filters.date,activeCat]); // eslint-disable-line
+  const existingInt    = useMemo(()=>getInternalLoadsForSession(data,summaryRecord,filters.date,activeCat),
+    [data.internalLoads,data.players,summaryRecord?.id,filters.date,activeCat]); // eslint-disable-line
 
-  const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
+  const [rowStates,setRowStates] = useState<Record<string,RowState>>({});
 
-  useEffect(() => {
-    if (justImportedRef.current) { justImportedRef.current = false; return; }
-    const next: Record<string, RowState> = {};
-    sessionPlayers.forEach(player => {
-      const ex = existingRecords.find(r => r.playerId === player.id);
-      next[player.id] = {
-        selected: !!ex,
-        participation: ex?.participation ?? 'Completa',
-        min: ex?.min ?? 0,
-        rpe: ex?.rpe ?? 0,
-        acc: ex?.acc ?? 0,
-        dcc: ex?.dcc ?? 0,
-        sprints: ex?.sprints ?? 0,
-        rhie: ex?.rhie ?? 0,
-        ima: ex?.ima ?? 0,
-        totalDistance: ex?.totalDistance ?? 0,
-        maxVelocity: ex?.maxVelocity ?? 0,
-        playerLoad: ex?.playerLoad ?? 0,
-        highSpeedDistance: ex?.highSpeedDistance ?? ex?.hsr ?? 0,
-        sprintDistance: ex?.sprintDistance ?? 0,
-        movementType: ex?.movementType ?? 'base',
-        movementNote: ex?.movementNote ?? '',
+  useEffect(()=>{
+    if(justImported.current){justImported.current=false;return;}
+    const next:Record<string,RowState>={};
+    sessionPlayers.forEach(p=>{
+      const ex=existingRecs.find(r=>r.playerId===p.id);
+      next[p.id]={
+        selected:!!ex, participation:ex?.participation??'Completa',
+        min:ex?.min??0, rpe:ex?.rpe??0,
+        acc:ex?.acc??0, dcc:ex?.dcc??0, sprints:ex?.sprints??0,
+        rhie:ex?.rhie??0, ima:ex?.ima??0,
+        totalDistance:ex?.totalDistance??0, maxVelocity:ex?.maxVelocity??0,
+        playerLoad:ex?.playerLoad??0,
+        highSpeedDistance:ex?.highSpeedDistance??ex?.hsr??0,
+        sprintDistance:ex?.sprintDistance??0,
+        movementType:ex?.movementType??'subio_a_entrenar',
+        movementNote:ex?.movementNote??'',
       };
     });
     setRowStates(next);
-  }, [sessionPlayers, existingRecords]);
+  },[sessionPlayers,existingRecs]);
 
-  const updateRow = useCallback((playerId: string, patch: Partial<RowState>) =>
-    setRowStates(prev => ({
-      ...prev,
-      [playerId]: { ...(prev[playerId] ?? DEFAULT_ROW), ...patch },
-    })), []);
+  const updateRow = useCallback((pid:string,patch:Partial<RowState>)=>
+    setRowStates(prev=>({...prev,[pid]:{...(prev[pid]??DEFAULT_ROW),...patch}})),[]);
 
-  const rows = sessionPlayers.map(player => ({
-    player,
-    ...(rowStates[player.id] ?? DEFAULT_ROW),
-  }));
-  const selectedRows = rows.filter(r => r.selected);
-  const reportRows   = selectedRows.length ? selectedRows : rows.filter(r => existingRecords.some(rec => rec.playerId === r.player.id));
-  const absentPlayers = sessionPlayers.filter(p => !reportRows.some(r => r.player.id === p.id));
-  const sessionWellness = data.wellness.filter(rec => rec.date === filters.date && sessionPlayers.some(p => p.id === rec.playerId));
+  const rows = useMemo(()=>sessionPlayers.map(p=>({player:p,...(rowStates[p.id]??DEFAULT_ROW)})),[sessionPlayers,rowStates]);
+  const filteredRows = useMemo(()=>search.trim()?rows.filter(r=>r.player.name.toLowerCase().includes(search.toLowerCase())):rows,[rows,search]);
+  const selectedRows = useMemo(()=>rows.filter(r=>r.selected),[rows]);
+  const reportRows   = selectedRows.length?selectedRows:rows.filter(r=>existingRecs.some(rec=>rec.playerId===r.player.id));
+  const absentPlayers= sessionPlayers.filter(p=>!reportRows.some(r=>r.player.id===p.id));
+  const sessWellness = data.wellness.filter(rec=>rec.date===filters.date&&sessionPlayers.some(p=>p.id===rec.playerId));
 
-  // ── Microcycle notice ──
-  const microcycleNotice = filters.date
-    ? detectedMicrocycle
-      ? `Microciclo activo: ${detectedMicrocycle.name}`
-      : 'Sin microciclo asignado para esta fecha.'
-    : selectedMicrocycle
-      ? `${selectedMicrocycle.name} seleccionado, sin rango de fechas aún.`
-      : 'Sin microciclo seleccionado.';
+  const mcNotice = filters.date
+    ? detectedMc?`Microciclo: ${detectedMc.name}`:'Sin microciclo para esta fecha.'
+    : 'Sin fecha seleccionada.';
 
-  // ── Save ──────────────────────────────────────────────────────────────────
-  const saveSession = () => {
-    if (isSaving) return;
-    const parsedNum = Number(sessionNumberInput);
+  // Apply global RPE/MIN
+  const applyGlobal = () => {
+    const rpe = globalRpe ? Math.min(10,Math.max(0,Number(globalRpe)||0)) : null;
+    const min = globalMin ? Math.max(0,Number(globalMin)||0) : null;
+    setRowStates(prev=>{
+      const next={...prev};
+      rows.filter(r=>r.selected).forEach(r=>{
+        next[r.player.id]={...next[r.player.id]??DEFAULT_ROW,...(rpe!==null?{rpe}:{}),...(min!==null?{min}:{})};
+      });
+      return next;
+    });
+    flash(`Aplicado a ${selectedRows.length} jugadores.`,'success');
+  };
 
-    // — Validaciones —
-    if (!sessionNumberInput.trim() || !Number.isFinite(parsedNum) || parsedNum <= 0) {
-      flash('Ingresa un número de sesión válido antes de guardar.', 'error'); return;
-    }
-    if (!filters.date) {
-      flash('Selecciona una fecha antes de guardar.', 'error'); return;
-    }
-    if (!detectedMicrocycle) {
-      flash('No hay microciclo para esta fecha. Ajusta la fecha o crea el rango en Microciclo.', 'error'); return;
-    }
-    if (!selectedRows.length) {
-      flash('Incluye al menos un jugador antes de guardar.', 'error'); return;
-    }
-    const badRow = selectedRows.find(r =>
-      r.min < 0 || r.min > 240 || r.rpe < 0 || r.rpe > 10 ||
-      (!youthSimple && [r.acc, r.dcc, r.sprints, r.rhie, r.ima, r.totalDistance, r.maxVelocity, r.playerLoad, r.highSpeedDistance, r.sprintDistance].some(v => v < 0))
-    );
-    if (badRow) {
-      flash(`Revisa los datos de ${badRow.player.name}: MIN 0-240, RPE 0-10, GPS sin negativos.`, 'error'); return;
-    }
-    const noPartRow = selectedRows.find(r => r.participation === 'No participa' && (r.min > 0 || r.rpe > 0));
-    if (noPartRow) {
-      flash(`${noPartRow.player.name} está como "No participa" pero tiene MIN/RPE. Corrígelo.`, 'error'); return;
-    }
-    const dup = findDuplicateTrainingSession(data.trainingSessionSummaries, { id: summaryRecord?.id ?? editingSessionId ?? undefined, date: filters.date, category: activeCategory });
-    if (dup && dup.id !== summaryRecord?.id) {
-      setEditingSessionId(dup.id);
-      flash(`Ya existe la sesión ${dup.sessionNumber} para esta fecha. Se cargó para edición.`, 'info');
-      return;
-    }
+  // Select all / none / by position
+  const selectAll = () => setRowStates(prev=>{
+    const next={...prev};
+    rows.forEach(r=>{next[r.player.id]={...next[r.player.id]??DEFAULT_ROW,selected:true};});
+    return next;
+  });
+  const selectNone = () => setRowStates(prev=>{
+    const next={...prev};
+    rows.forEach(r=>{next[r.player.id]={...next[r.player.id]??DEFAULT_ROW,selected:false};});
+    return next;
+  });
+
+  // Save
+  const saveSession = useCallback(()=>{
+    if(isSaving) return;
+    const parsedNum=Number(sessNumInput);
+    if(!sessNumInput.trim()||!Number.isFinite(parsedNum)||parsedNum<=0){flash('Número de sesión inválido.','error');return;}
+    if(!filters.date){flash('Selecciona una fecha.','error');return;}
+    if(!detectedMc){flash('No hay microciclo para esta fecha. Crea el rango en Microciclo.','error');return;}
+    if(!selectedRows.length){flash('Selecciona al menos un jugador.','error');return;}
+    const badRow=selectedRows.find(r=>r.min<0||r.min>240||r.rpe<0||r.rpe>10||(!youth&&GPS_FIELDS.some(f=>r[f]<0)));
+    if(badRow){flash(`Revisa datos de ${badRow.player.name}: MIN 0-240, RPE 0-10, GPS sin negativos.`,'error');return;}
+    const noPartRow=selectedRows.find(r=>r.participation==='No participa'&&(r.min>0||r.rpe>0));
+    if(noPartRow){flash(`${noPartRow.player.name}: "No participa" pero tiene MIN/RPE. Corrígelo.`,'error');return;}
+    const dup=findDuplicateTrainingSession(data.trainingSessionSummaries,{id:summaryRecord?.id??editingId??undefined,date:filters.date,category:activeCat});
+    if(dup&&dup.id!==summaryRecord?.id){setEditingId(dup.id);flash(`Sesión ${dup.sessionNumber} ya existe para esta fecha. Cargada para edición.`,'info');return;}
 
     setIsSaving(true);
-    if (parsedNum !== filters.sessionNumber) setFilters({ sessionNumber: parsedNum });
+    if(parsedNum!==filters.sessionNumber) setFilters({sessionNumber:parsedNum});
+    const sessionId=summaryRecord?.id??crypto.randomUUID();
 
-    const sessionId = summaryRecord?.id ?? crypto.randomUUID();
+    upsertTrainingSessionSummary({id:sessionId,date:filters.date,category:activeCat,microcycleId:activeMcId,sessionNumber:parsedNum,sessionType:sessType,objective,observation,status:summaryRecord?.status??'Borrador'});
 
-    // 1. Guardar resumen de sesión
-    upsertTrainingSessionSummary({
-      id: sessionId,
-      date: filters.date,
-      category: activeCategory,
-      microcycleId: activeMicrocycleId,
-      sessionNumber: parsedNum,
-      sessionType,
-      objective: sessionObjective,
-      observation: sessionObservation,
-      status: summaryRecord?.status ?? 'Borrador',
-    });
-
-    // 2. Guardar cargas por jugador
-    selectedRows.forEach(row => {
-      const existing  = existingRecords.find(r => r.playerId === row.player.id);
-      const movType   = sourceCategory === activeCategory ? 'base' : row.movementType;
-      const ext = {
-        id:           existing?.id ?? crypto.randomUUID(),
-        sessionId,
-        playerId:     row.player.id,
-        date:         filters.date,
-        min:          row.min,
-        rpe:          Math.min(10, Math.max(0, row.rpe)),
-        acc:          youthSimple ? 0 : row.acc,
-        dcc:          youthSimple ? 0 : row.dcc,
-        sprints:      youthSimple ? 0 : row.sprints,
-        rhie:         youthSimple ? 0 : row.rhie,
-        ima:          youthSimple ? 0 : row.ima,
-        totalDistance:     youthSimple ? undefined : row.totalDistance,
-        distancePerMin:    youthSimple || !row.totalDistance || !row.min ? undefined : Number((row.totalDistance / row.min).toFixed(1)),
-        maxVelocity:       youthSimple ? undefined : row.maxVelocity,
-        playerLoad:        youthSimple ? undefined : row.playerLoad,
-        playerLoadPerMin:  youthSimple || !row.playerLoad || !row.min ? undefined : Number((row.playerLoad / row.min).toFixed(2)),
-        highSpeedDistance: youthSimple ? undefined : row.highSpeedDistance,
-        sprintDistance:    youthSimple ? undefined : row.sprintDistance,
-        hsr:               youthSimple ? undefined : row.highSpeedDistance,
-        participation:  row.participation,
-        microcycleId:   activeMicrocycleId,
-        sessionNumber:  parsedNum,
-        sessionType,
-        category:       activeCategory,
-        baseCategory:   row.player.category ?? sourceCategory,
-        actingCategory: activeCategory,
-        movementType:   movType,
-        movementNote:   row.movementNote,
-        movementModule: 'sesion' as const,
-        loggedBy:       session.displayName,
+    selectedRows.forEach(row=>{
+      const ex=existingRecs.find(r=>r.playerId===row.player.id);
+      const movType=sourceCat===activeCat?'base':row.movementType;
+      const ext={
+        id:ex?.id??crypto.randomUUID(),sessionId,playerId:row.player.id,date:filters.date,
+        min:row.min, rpe:Math.min(10,Math.max(0,row.rpe)),
+        acc:youth?0:row.acc, dcc:youth?0:row.dcc,
+        sprints:youth?0:row.sprints, rhie:youth?0:row.rhie, ima:youth?0:row.ima,
+        totalDistance:youth?undefined:row.totalDistance,
+        distancePerMin:youth||!row.totalDistance||!row.min?undefined:Number((row.totalDistance/row.min).toFixed(1)),
+        maxVelocity:youth?undefined:row.maxVelocity,
+        playerLoad:youth?undefined:row.playerLoad,
+        playerLoadPerMin:youth||!row.playerLoad||!row.min?undefined:Number((row.playerLoad/row.min).toFixed(2)),
+        highSpeedDistance:youth?undefined:row.highSpeedDistance,
+        sprintDistance:youth?undefined:row.sprintDistance,
+        hsr:youth?undefined:row.highSpeedDistance,
+        participation:row.participation, microcycleId:activeMcId,
+        sessionNumber:parsedNum, sessionType:sessType,
+        category:activeCat, baseCategory:row.player.category??sourceCat,
+        actingCategory:activeCat, movementType:movType,
+        movementNote:row.movementNote, movementModule:'sesion' as const,
+        loggedBy:session.displayName,
       };
-      if (existing) updateExternalLoad(ext); else addExternalLoad(ext);
-
-      const exInt = existingInternalRecords.find(r => r.playerId === row.player.id);
-      upsertInternalLoad({
-        id:           exInt?.id ?? crypto.randomUUID(),
-        sessionId,
-        playerId:     row.player.id,
-        date:         filters.date,
-        rpe:          Math.min(10, Math.max(0, row.rpe)),
-        duration:     row.min,
-        microcycleId: activeMicrocycleId,
-        sessionNumber: parsedNum,
-        category:       activeCategory,
-        baseCategory:   row.player.category ?? sourceCategory,
-        actingCategory: activeCategory,
-        movementType:   movType,
-        movementNote:   row.movementNote,
-        movementModule: 'sesion' as const,
-        loggedBy:       session.displayName,
-      });
+      if(ex) updateExternalLoad(ext); else addExternalLoad(ext);
+      const exInt=existingInt.find(r=>r.playerId===row.player.id);
+      upsertInternalLoad({id:exInt?.id??crypto.randomUUID(),sessionId,playerId:row.player.id,date:filters.date,rpe:Math.min(10,Math.max(0,row.rpe)),duration:row.min,microcycleId:activeMcId,sessionNumber:parsedNum,category:activeCat,baseCategory:row.player.category??sourceCat,actingCategory:activeCat,movementType:movType,movementNote:row.movementNote,movementModule:'sesion' as const,loggedBy:session.displayName});
     });
 
-    // 3. Eliminar cargas de jugadores desmarcados
-    existingRecords
-      .filter(r => !selectedRows.find(row => row.player.id === r.playerId))
-      .forEach(r => deleteExternalLoad(r.id));
-    existingInternalRecords
-      .filter(r => !selectedRows.find(row => row.player.id === r.playerId))
-      .forEach(r => deleteInternalLoad(r.id));
+    existingRecs.filter(r=>!selectedRows.find(row=>row.player.id===r.playerId)).forEach(r=>deleteExternalLoad(r.id));
+    existingInt.filter(r=>!selectedRows.find(row=>row.player.id===r.playerId)).forEach(r=>deleteInternalLoad(r.id));
 
-    setEditingSessionId(sessionId);
+    setEditingId(sessionId);
     setIsSaving(false);
-    flash(summaryRecord ? 'Sesión actualizada correctamente.' : 'Sesión guardada correctamente.', 'success');
-  };
+    flash(summaryRecord?'Sesión actualizada correctamente. ✓ Guardado':'Sesión guardada correctamente. ✓ Guardado','success');
+  },[isSaving,sessNumInput,filters,detectedMc,selectedRows,summaryRecord,editingId,activeCat,activeMcId,sessType,objective,observation,data.trainingSessionSummaries,existingRecs,existingInt,sourceCat,youth,session.displayName,addExternalLoad,updateExternalLoad,upsertInternalLoad,deleteExternalLoad,deleteInternalLoad,upsertTrainingSessionSummary,setFilters,flash]);
 
-  // ── Delete ────────────────────────────────────────────────────────────────
-  const deleteSession = async (sessionId: string) => {
-    const target = data.trainingSessionSummaries.find(i => i.id === sessionId);
-    if (!target) return;
-    const ok = await showConfirm({
-      title: `¿Eliminar sesión ${target.sessionNumber || '-'} del ${target.date}?`,
-      description: 'Se eliminará la participación y carga de todos los jugadores asociados.',
-      danger: true,
-    });
-    if (!ok) return;
+  const deleteSession = async (sessionId:string)=>{
+    const t=data.trainingSessionSummaries.find(i=>i.id===sessionId);
+    if(!t) return;
+    const ok=await confirm({title:`¿Eliminar sesión ${t.sessionNumber||'-'} del ${t.date}?`,description:'Se eliminará la participación y carga de todos los jugadores.',danger:true});
+    if(!ok) return;
     deleteTrainingSessionSummary(sessionId);
-    if (editingSessionId === sessionId) setEditingSessionId(null);
-    flash('Sesión eliminada.', 'info');
+    if(editingId===sessionId) setEditingId(null);
+    flash('Sesión eliminada.','info');
   };
 
-  // ── Edit existing session ─────────────────────────────────────────────────
-  const editSession = (sessionId: string) => {
-    const t = data.trainingSessionSummaries.find(i => i.id === sessionId);
-    if (!t) return;
-    setFilters({ date: t.date, microcycleId: t.microcycleId, sessionNumber: t.sessionNumber, category: t.category ?? activeCategory });
-    setSessionType(t.sessionType ?? 'cdEf');
-    setSessionObjective(t.objective ?? '');
-    setSessionObservation(t.observation ?? '');
-    setEditingSessionId(t.id);
-    setSessionNumberInput(String(t.sessionNumber || 1));
-    flash(`Editando sesión ${t.sessionNumber || '-'} · ${categoryLabel(t.category ?? activeCategory)} · ${t.date}`, 'info');
+  const editSession = (sessionId:string)=>{
+    const t=data.trainingSessionSummaries.find(i=>i.id===sessionId);
+    if(!t) return;
+    setFilters({date:t.date,microcycleId:t.microcycleId,sessionNumber:t.sessionNumber,category:t.category??activeCat});
+    setSessType(t.sessionType??'cdEf');
+    setObjective(t.objective??'');
+    setObservation(t.observation??'');
+    setEditingId(t.id);
+    setSessNumInput(String(t.sessionNumber||1));
+    flash(`Editando sesión ${t.sessionNumber||'-'} · ${categoryLabel(t.category??activeCat)} · ${t.date}`,'info');
+    window.scrollTo({top:0,behavior:'smooth'});
   };
 
-  // ── CSV import ────────────────────────────────────────────────────────────
-  const handleCsvImport = (records: Omit<DailyExternalLoadRecord, 'id'>[]) => {
-    records.forEach(record => addExternalLoad({ ...record, id: crypto.randomUUID() }));
-    justImportedRef.current = true;
-    setRowStates(prev => {
-      const next = { ...prev };
-      records.forEach(record => {
-        next[record.playerId] = {
-          selected: true,
-          participation: (record.participation as SessionParticipation) ?? 'Completa',
-          min: record.min ?? 0,
-          rpe: prev[record.playerId]?.rpe ?? 0,
-          acc: record.acc ?? 0, dcc: record.dcc ?? 0,
-          sprints: record.sprints ?? 0, rhie: record.rhie ?? 0, ima: record.ima ?? 0,
-          totalDistance: record.totalDistance ?? 0,
-          maxVelocity: record.maxVelocity ?? 0,
-          playerLoad: record.playerLoad ?? 0,
-          highSpeedDistance: record.highSpeedDistance ?? record.hsr ?? 0,
-          sprintDistance: record.sprintDistance ?? 0,
-          movementType: prev[record.playerId]?.movementType ?? 'base',
-          movementNote: prev[record.playerId]?.movementNote ?? '',
+  const duplicateSession = async (sessionId:string)=>{
+    const t=data.trainingSessionSummaries.find(i=>i.id===sessionId);
+    if(!t) return;
+    const newId=crypto.randomUUID();
+    const nextNum=(t.sessionNumber||0)+1;
+    upsertTrainingSessionSummary({...t,id:newId,date:filters.date,sessionNumber:nextNum,status:'Borrador',objective:t.objective,observation:''});
+    const loadsForSession=data.externalLoads.filter(l=>l.sessionId===t.id);
+    loadsForSession.forEach(l=>addExternalLoad({...l,id:crypto.randomUUID(),sessionId:newId,date:filters.date,sessionNumber:nextNum}));
+    const intForSession=data.internalLoads.filter(l=>l.sessionId===t.id);
+    intForSession.forEach(l=>upsertInternalLoad({...l,id:crypto.randomUUID(),sessionId:newId,date:filters.date,sessionNumber:nextNum}));
+    setEditingId(newId);
+    setSessNumInput(String(nextNum));
+    flash(`Sesión ${t.sessionNumber} duplicada como sesión ${nextNum} para ${filters.date}.`,'success');
+  };
+
+  const handleCsvImport = (records:Omit<DailyExternalLoadRecord,'id'>[])=>{
+    records.forEach(r=>addExternalLoad({...r,id:crypto.randomUUID()}));
+    justImported.current=true;
+    setRowStates(prev=>{
+      const next={...prev};
+      records.forEach(r=>{
+        next[r.playerId]={
+          selected:true, participation:(r.participation as SessionParticipation)??'Completa',
+          min:r.min??0, rpe:prev[r.playerId]?.rpe??0,
+          acc:r.acc??0, dcc:r.dcc??0, sprints:r.sprints??0, rhie:r.rhie??0, ima:r.ima??0,
+          totalDistance:r.totalDistance??0, maxVelocity:r.maxVelocity??0,
+          playerLoad:r.playerLoad??0, highSpeedDistance:r.highSpeedDistance??r.hsr??0,
+          sprintDistance:r.sprintDistance??0,
+          movementType:prev[r.playerId]?.movementType??'subio_a_entrenar',
+          movementNote:prev[r.playerId]?.movementNote??'',
         };
       });
       return next;
     });
-    setShowCsvImporter(false);
-    flash(`${records.length} jugadores importados. Ingresa el RPE de cada uno y guarda la sesión.`, 'info');
+    setShowCsv(false);
+    flash(`${records.length} jugadores importados. Ingresa el RPE y guarda.`,'success');
   };
 
-  const updateStatus = (status: 'Borrador' | 'En revisión' | 'Cerrada' | 'Reabierta') => {
-    if (!summaryRecord) return;
-    upsertTrainingSessionSummary({ ...summaryRecord, status });
-    flash(status === 'Cerrada' ? 'Sesión cerrada.' : 'Sesión reabierta.', 'info');
+  const updateStatus=(status:'Borrador'|'En revisión'|'Cerrada'|'Reabierta')=>{
+    if(!summaryRecord) return;
+    upsertTrainingSessionSummary({...summaryRecord,status});
+    flash(status==='Cerrada'?'Sesión cerrada.':'Sesión reabierta.','info');
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
+  const sessTypeInfo = SESSION_TYPES.find(s=>s.value===sessType)||SESSION_TYPES[1];
+
   return (
     <>
-      <div className="grid no-print">
-        <AppHero
-          title="Ficha técnica de entrenamiento"
-          subtitle={`${categoryLabel(activeCategory)}${gpsEnabled ? ' · GPS Catapult U20' : ' · Carga interna'}`}
-        />
+    <div className="grid no-print">
+      <AppHero title="Ficha técnica de entrenamiento" subtitle={`${categoryLabel(activeCat)}${gps?' · GPS Catapult':' · Carga interna'}`} />
 
-        {/* ── Alertas operativas ── */}
-        <div className="grid grid-2">
-          <DataQualityPanel percent={ops.dataQualityPercent} items={ops.dataQualityItems} />
-          <OperationalAlertPanel title="Alertas de sesión" alerts={ops.alerts} />
+      {/* Alerts row */}
+      <div className="grid grid-2">
+        <DataQualityPanel percent={ops.dataQualityPercent} items={ops.dataQualityItems} />
+        <OperationalAlertPanel title="Alertas de sesión" alerts={ops.alerts} />
+      </div>
+
+      {msg && <MsgBanner msg={msg} onClose={()=>setMsg(null)} />}
+
+      {/* ── CONFIG CARD ──────────────────────────────────────────────── */}
+      <div className="card">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:16,flexWrap:'wrap',marginBottom:20}}>
+          <div>
+            <div className="section-eyebrow">Sesión</div>
+            <h3 style={{margin:'4px 0 0'}}>Configuración</h3>
+            <div className="muted-line" style={{marginTop:6}}>{mcNotice}</div>
+            {summaryRecord&&(
+              <div style={{marginTop:6,display:'inline-flex',alignItems:'center',gap:8,padding:'5px 12px',borderRadius:999,background:'#eff6ff',border:'1px solid #bfdbfe',fontSize:12,fontWeight:800,color:'#1d4ed8'}}>
+                <CheckCircle2 size={13}/>
+                Editando sesión {summaryRecord.sessionNumber} · {summaryRecord.date}
+                <span style={{padding:'2px 8px',borderRadius:999,background:summaryRecord.status==='Cerrada'?'#fee2e2':'#dcfce7',color:summaryRecord.status==='Cerrada'?'#991b1b':'#065f46',fontSize:11}}>{summaryRecord.status??'Borrador'}</span>
+              </div>
+            )}
+          </div>
+          <div className="btn-row" style={{flexWrap:'wrap'}}>
+{/* CSV import moved to planilla toolbar */}
+            {summaryRecord&&<button type="button" className="btn secondary" onClick={()=>updateStatus(summaryRecord.status==='Cerrada'?'Reabierta':'Cerrada')}>{summaryRecord.status==='Cerrada'?'Reabrir':'Cerrar sesión'}</button>}
+            {summaryRecord&&<button type="button" className="btn danger" onClick={()=>deleteSession(summaryRecord.id)}>Eliminar</button>}
+            {summaryRecord&&<button type="button" className="btn secondary" onClick={()=>{setEditingId(null);setMsg(null);}}>Cancelar edición</button>}
+          </div>
         </div>
 
-        {/* ── Mensaje banner ── */}
-        {msg && <MsgBanner msg={msg} onClose={() => setMsg(null)} />}
+        {/* Type pills */}
+        <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+          {SESSION_TYPES.map(t=>(
+            <button key={t.value} type="button"
+              onClick={()=>setSessType(t.value)}
+              style={{padding:'8px 16px',borderRadius:999,border:`2px solid ${sessType===t.value?t.color:'#e2e8f0'}`,background:sessType===t.value?t.color:'transparent',color:sessType===t.value?'#fff':'#64748b',fontWeight:800,fontSize:12,cursor:'pointer',transition:'all .15s'}}>
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-        {/* ══ CARD: Configuración de sesión ══════════════════════════════════ */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
-            <div>
-              <div className="section-eyebrow">Sesión</div>
-              <h3 style={{ margin: '4px 0 0' }}>Configuración de sesión</h3>
-              <div className="muted-line" style={{ marginTop: 6 }}>{microcycleNotice}</div>
-              {summaryRecord && (
-                <div style={{ marginTop: 4, fontSize: 12, fontWeight: 800, color: '#1d4ed8' }}>
-                  Editando sesión {summaryRecord.sessionNumber} · {summaryRecord.date} · Estado: {summaryRecord.status ?? 'Borrador'}
-                </div>
-              )}
-            </div>
-            <div className="btn-row" style={{ flexWrap: 'wrap' }}>
-              {gpsEnabled && (
-                <button type="button" className="btn secondary" onClick={() => setShowCsvImporter(true)}>
-                  <Upload size={14} /> Importar CSV GPS
-                </button>
-              )}
-              {summaryRecord && (
-                <button type="button" className="btn secondary" onClick={() => updateStatus(summaryRecord.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>
-                  {summaryRecord.status === 'Cerrada' ? 'Reabrir' : 'Cerrar sesión'}
-                </button>
-              )}
-              {summaryRecord && (
-                <button type="button" className="btn danger" onClick={() => deleteSession(summaryRecord.id)}>
-                  Eliminar
-                </button>
-              )}
-              {summaryRecord && (
-                <button type="button" className="btn secondary" onClick={() => {
-                  setEditingSessionId(null);
-                  flash('Edición cancelada.', 'info');
-                }}>
-                  Cancelar edición
-                </button>
-              )}
-            </div>
+        <div className="grid grid-4">
+          <div className="field">
+            <label>Fecha</label>
+            <input className="input" type="date" value={filters.date} onChange={e=>setFilters({date:e.target.value})}/>
           </div>
+          <div className="field">
+            <label>N° de sesión</label>
+            <input className="input" type="number" min="1" value={sessNumInput} readOnly={!!summaryRecord}
+              onChange={e=>{if(summaryRecord)return;setSessNumInput(e.target.value);const nn=Number(e.target.value);if(Number.isFinite(nn)&&nn>0)setFilters({sessionNumber:nn});}}/>
+            <div className="field-help">{summaryRecord?'Asignado':'Siguiente sugerido'}</div>
+          </div>
+          <div className="field">
+            <label>Objetivo</label>
+            <input className="input" value={objective} placeholder="Objetivo del entrenamiento" onChange={e=>setObjective(e.target.value)}/>
+          </div>
+          <div className="field">
+            <label>Observación</label>
+            <input className="input" value={observation} placeholder="Resumen del trabajo" onChange={e=>setObservation(e.target.value)}/>
+          </div>
+        </div>
+      </div>
 
-          {/* Fields */}
-          <div className="grid grid-4">
-            <div className="field">
-              <label>Fecha</label>
-              <input className="input" type="date" value={filters.date}
-                onChange={e => setFilters({ date: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Tipo de sesión</label>
-              <select className="select" value={sessionType}
-                onChange={e => setSessionType(e.target.value as TrainingSessionType)}>
-                {SESSION_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      {/* ── QUICK KPIS ──────────────────────────────────────────────── */}
+      <div className="grid grid-4">
+        <KpiCard label="Jugadores incluidos" value={String(selectedRows.length)} tone="green" trend="Seleccionados"/>
+        <KpiCard label="RPE promedio" value={groupAverage(selectedRows.map(r=>r.rpe)).toFixed(1)} tone="amber" trend="Esfuerzo"/>
+        <KpiCard label="MIN promedio" value={groupAverage(selectedRows.map(r=>r.min)).toFixed(0)} tone="dark" trend="Volumen"/>
+        <KpiCard label={gps?'Dist. promedio':'Carga total'} value={gps?`${Math.round(groupAverage(selectedRows.map(r=>r.totalDistance)))} m`:`${Math.round(selectedRows.reduce((s,r)=>s+r.min*r.rpe,0))} UA`} tone="blue" trend={gps?'GPS':'Interna'}/>
+      </div>
+
+      {/* ── PLANILLA CARD ────────────────────────────────────────────── */}
+      <div className="card">
+        {/* Header */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:14}}>
+          <div>
+            <div className="section-eyebrow">Planilla</div>
+            <h3 style={{margin:'4px 0 0'}}>Participación y carga individual</h3>
+            <div className="muted-line" style={{marginTop:4}}>{categoryLabel(activeCat)} · {filters.date||'Sin fecha'} · {detectedMc?.name??'Sin microciclo'} · Sesión {sessNumInput||'—'}</div>
+          </div>
+          <div className="btn-row" style={{flexWrap:'wrap'}}>
+            <div className="field" style={{margin:0}}>
+              <select className="select" value={sourceCat} onChange={e=>setSourceCat(e.target.value as ClubCategory)}>
+                {CATEGORIES.map(c=><option key={c} value={c}>{categoryLabel(c)}</option>)}
               </select>
             </div>
-            <div className="field">
-              <label>N° de sesión</label>
-              <input className="input" type="number" min="1"
-                placeholder="Auto" value={sessionNumberInput}
-                readOnly={!!summaryRecord}
-                onChange={e => {
-                  if (summaryRecord) return;
-                  setSessionNumberInput(e.target.value);
-                  const n = Number(e.target.value);
-                  if (Number.isFinite(n) && n > 0) setFilters({ sessionNumber: n });
-                }} />
-              <div className="field-help">{summaryRecord ? 'Asignado a sesión guardada' : 'Siguiente disponible sugerido'}</div>
-            </div>
-            <div className="field">
-              <label>Categoría</label>
-              <input className="input" value={categoryLabel(activeCategory)} readOnly />
-            </div>
-          </div>
-          <div className="grid grid-2" style={{ marginTop: 12 }}>
-            <div className="field">
-              <label>Objetivo de sesión</label>
-              <input className="input" value={sessionObjective} placeholder="Objetivo principal del entrenamiento"
-                onChange={e => setSessionObjective(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Observación general</label>
-              <input className="input" value={sessionObservation} placeholder="Resumen del trabajo realizado"
-                onChange={e => setSessionObservation(e.target.value)} />
-            </div>
+            <button type="button" className="btn secondary" onClick={()=>setViewMode(v=>v==='cards'?'table':'cards')}>
+              {viewMode==='cards'?'Vista tabla':'Vista tarjetas'}
+            </button>
+            {gps&&<button type="button" className="btn secondary" onClick={()=>setShowCsv(true)}><Upload size={14}/> Importar CSV GPS</button>}
+            <button type="button" className="btn secondary" onClick={()=>downloadCsv(`sesion-${activeCat}.csv`,selectedRows.map(r=>({fecha:filters.date,jugador:r.player.name,minutos:r.min,rpe:r.rpe})))}>Exportar CSV</button>
+            <button type="button" className="btn" disabled={isSaving} onClick={saveSession} style={{minWidth:140}}>
+              {isSaving?'Guardando…':summaryRecord?'Actualizar sesión':'Guardar sesión'}
+            </button>
           </div>
         </div>
 
-        {/* ══ KPIs rápidos ════════════════════════════════════════════════════ */}
-        <div className="grid grid-4">
-          <KpiCard label="Jugadores incluidos" value={String(selectedRows.length)} tone="green" trend="Seleccionados en planilla" />
-          <KpiCard label="MIN promedio" value={groupAverage(selectedRows.map(r => r.min)).toFixed(0)} tone="dark" trend="Volumen medio" />
-          <KpiCard label="RPE promedio" value={groupAverage(selectedRows.map(r => r.rpe)).toFixed(1)} tone="amber" trend="Esfuerzo percibido" />
-          <KpiCard label="Invitados" value={String(selectedRows.filter(() => sourceCategory !== activeCategory).length)} tone="blue" trend="Movimientos de categoría" />
+        {/* Toolbar: search + select all + global RPE/MIN */}
+        <div style={{display:'flex',gap:10,marginBottom:14,flexWrap:'wrap',alignItems:'flex-end'}}>
+          {/* Search */}
+          <div style={{position:'relative',flex:'1',minWidth:180}}>
+            <Search size={13} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'#94a3b8'}}/>
+            <input className="input" placeholder="Buscar jugador…" value={search} onChange={e=>setSearch(e.target.value)}
+              style={{paddingLeft:30,height:38}}/>
+          </div>
+          {/* Select controls */}
+          <div className="btn-row" style={{gap:6}}>
+            <button type="button" className="btn secondary" style={{padding:'6px 12px',fontSize:12}} onClick={selectAll}><Users size={12}/> Todos</button>
+            <button type="button" className="btn secondary" style={{padding:'6px 12px',fontSize:12}} onClick={selectNone}>Ninguno</button>
+          </div>
+          {/* Global apply */}
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <input className="input" type="number" min={0} max={10} step={0.5} placeholder="RPE global"
+              value={globalRpe} onChange={e=>setGlobalRpe(e.target.value)} style={{width:110,height:38}}/>
+            <input className="input" type="number" min={0} max={240} placeholder="MIN global"
+              value={globalMin} onChange={e=>setGlobalMin(e.target.value)} style={{width:110,height:38}}/>
+            <button type="button" className="btn secondary" style={{padding:'6px 12px',fontSize:12,height:38}} onClick={applyGlobal} disabled={!selectedRows.length}>
+              <Zap size={12}/> Aplicar a seleccionados
+            </button>
+          </div>
         </div>
 
-        {/* ══ PLANILLA ════════════════════════════════════════════════════════ */}
-        <div className="card">
-          {/* Header planilla */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-            <div>
-              <div className="section-eyebrow">Planilla</div>
-              <h3 style={{ margin: '4px 0 0' }}>Participación y carga individual</h3>
-              <div className="muted-line" style={{ marginTop: 6 }}>
-                {categoryLabel(activeCategory)} · {filters.date || 'Sin fecha'} · {detectedMicrocycle?.name ?? 'Sin microciclo'} · Sesión {sessionNumberInput || '—'}
-              </div>
-            </div>
-            <div className="btn-row" style={{ flexWrap: 'wrap' }}>
-              <div className="field" style={{ margin: 0 }}>
-                <label style={{ fontSize: 10 }}>Categoría del jugador</label>
-                <select className="select" value={sourceCategory}
-                  onChange={e => setSourceCategory(e.target.value as ClubCategory)}>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel(c)}</option>)}
-                </select>
-              </div>
-              <button type="button" className="btn secondary"
-                onClick={() => downloadCsv(`sesion-${activeCategory}.csv`, selectedRows.map(r => ({
-                  fecha: filters.date, jugador: r.player.name,
-                  categoria: categoryLabel(activeCategory),
-                  minutos: r.min, rpe: r.rpe,
-                })))}>
-                Exportar CSV
-              </button>
-              <button type="button" className="btn" disabled={isSaving} onClick={saveSession}
-                style={{ minWidth: 140 }}>
-                {isSaving ? 'Guardando…' : summaryRecord ? 'Actualizar sesión' : 'Guardar sesión'}
-              </button>
-            </div>
-          </div>
-
-          {/* Grid de tarjetas de jugadores */}
+        {/* CARDS view */}
+        {viewMode==='cards' && (
           <div className="session-player-grid mobile-clean-grid">
-            {rows.map(row => {
-              const invited = sourceCategory !== activeCategory;
-              const hasGps  = row.playerLoad > 0 || row.totalDistance > 0;
-              const needsRpe = row.selected && row.min > 0 && row.rpe === 0;
-              const cardState = !row.selected ? 'state-empty'
-                : (row.min > 0 && row.rpe > 0) ? 'state-complete'
-                : 'state-partial';
+            {filteredRows.map(row=>{
+              const invited = sourceCat!==activeCat;
+              const hasGps  = row.playerLoad>0||row.totalDistance>0;
+              const needRpe = row.selected&&row.min>0&&row.rpe===0;
+              const state   = !row.selected?'state-empty':(row.min>0&&row.rpe>0)?'state-complete':'state-partial';
+              const validateRow = ()=>{
+                if(row.min>240) return 'MIN máximo 240';
+                if(row.rpe>10)  return 'RPE máximo 10';
+                if(row.participation==='No participa'&&row.min>0) return '"No participa" con MIN > 0';
+                return null;
+              };
+              const err = validateRow();
               return (
-                <div key={row.player.id} className={`session-player-card ${cardState}`}>
-                  {/* Player header */}
+                <div key={row.player.id} className={`session-player-card ${state}${err?' has-error':''}`}>
                   <div className="session-player-header">
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <strong style={{ fontSize: 13 }}>{row.player.name}</strong>
-                        {row.player.jerseyNumber
-                          ? <span className="jersey-badge">#{row.player.jerseyNumber}</span>
-                          : null}
+                    <div style={{minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                        <strong style={{fontSize:13}}>{row.player.name}</strong>
+                        {row.player.jerseyNumber?<span className="jersey-badge">#{row.player.jerseyNumber}</span>:null}
                       </div>
                       <div className="muted-line">{row.player.position} · {categoryLabel(row.player.category)}</div>
-                      {invited && <div style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8' }}>Invitado en {categoryLabel(activeCategory)}</div>}
-                      {hasGps  && <div style={{ fontSize: 11, fontWeight: 800, color: '#059669' }}>📡 GPS cargado · ingresa RPE</div>}
-                      {needsRpe && <div style={{ fontSize: 11, fontWeight: 800, color: '#dc2626' }}>⚠ RPE requerido</div>}
+                      {invited&&<div style={{fontSize:11,fontWeight:800,color:'#1d4ed8'}}>Invitado en {categoryLabel(activeCat)}</div>}
+                      {hasGps&&<div style={{fontSize:11,fontWeight:800,color:'#059669'}}>📡 GPS · ingresa RPE</div>}
+                      {needRpe&&<div style={{fontSize:11,fontWeight:800,color:'#dc2626'}}>⚠ RPE requerido</div>}
+                      {err&&<div style={{fontSize:11,fontWeight:800,color:'#dc2626'}}>✗ {err}</div>}
                     </div>
-                    <div className="btn-row" style={{ alignItems: 'flex-start', gap: 8 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
-                        <input type="checkbox" checked={row.selected}
-                          onChange={e => updateRow(row.player.id, { selected: e.target.checked })} />
-                        Incluir
+                    <div className="btn-row" style={{alignItems:'flex-start',gap:8}}>
+                      <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,fontWeight:700}}>
+                        <input type="checkbox" checked={row.selected} onChange={e=>updateRow(row.player.id,{selected:e.target.checked})}/>Incluir
                       </label>
-                      <ToneBadge text={row.player.status}
-                        tone={row.player.status === 'Disponible' ? 'green'
-                          : row.player.status === 'Molestia' ? 'yellow'
-                          : row.player.status === 'Readaptación' ? 'orange'
-                          : 'red'} />
+                      <ToneBadge text={row.player.status} tone={row.player.status==='Disponible'?'green':row.player.status==='Molestia'?'yellow':row.player.status==='Readaptación'?'orange':'red'}/>
                     </div>
                   </div>
-
-                  {/* Fields grid */}
-                  <div className={`grid session-fields-grid ${youthSimple ? 'session-simple-grid' : 'session-metrics-grid'}`}>
+                  <div className={`grid session-fields-grid ${youth?'session-simple-grid':'session-metrics-grid'}`}>
                     <div className="field">
                       <label>Participación</label>
                       <select className="select session-input-large" value={row.participation}
-                        onChange={e => updateRow(row.player.id, { participation: e.target.value as SessionParticipation })}>
-                        {PARTICIPATION_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                        onChange={e=>updateRow(row.player.id,{participation:e.target.value as SessionParticipation})}>
+                        {PARTICIPATION_OPTIONS.map(o=><option key={o}>{o}</option>)}
                       </select>
                     </div>
                     <div className="field">
                       <label>Minutos</label>
-                      <input className="input session-input-large" type="number" value={num(row.min)}
-                        onChange={e => updateRow(row.player.id, { min: Number(e.target.value) || 0 })} />
+                      <input className="input session-input-large" type="number" value={n(row.min)}
+                        style={row.min>240?{borderColor:'#fca5a5'}:{}}
+                        onChange={e=>updateRow(row.player.id,{min:Number(e.target.value)||0})}/>
                     </div>
                     <div className="field">
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        RPE
-                        {needsRpe && <span style={{ fontSize: 10, color: '#dc2626', fontWeight: 800 }}>requerido</span>}
-                      </label>
-                      <input className="input session-input-large" type="number" min={0} max={10}
-                        value={num(row.rpe)}
-                        style={needsRpe ? { borderColor: '#fca5a5', background: '#fff5f5' } : {}}
-                        onChange={e => updateRow(row.player.id, { rpe: Math.min(10, Math.max(0, Number(e.target.value) || 0)) })} />
+                      <label style={{display:'flex',alignItems:'center',gap:6}}>RPE{needRpe&&<span style={{fontSize:10,color:'#dc2626',fontWeight:800}}>*</span>}</label>
+                      <input className="input session-input-large" type="number" min={0} max={10} value={n(row.rpe)}
+                        style={needRpe?{borderColor:'#fca5a5',background:'#fff5f5'}:row.rpe>10?{borderColor:'#fca5a5'}:{}}
+                        onChange={e=>updateRow(row.player.id,{rpe:Math.min(10,Math.max(0,Number(e.target.value)||0))})}/>
                     </div>
-                    {invited && <>
+                    {invited&&<>
                       <div className="field">
                         <label>Movimiento</label>
                         <select className="select session-input-large" value={row.movementType}
-                          onChange={e => updateRow(row.player.id, { movementType: e.target.value as MovementType })}>
-                          {MOVEMENT_OPTIONS.filter(m => m.value !== 'base').map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                          onChange={e=>updateRow(row.player.id,{movementType:e.target.value as MovementType})}>
+                          {MOVEMENT_OPTIONS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
                         </select>
                       </div>
                       <div className="field">
                         <label>Nota</label>
                         <input className="input session-input-large" value={row.movementNote}
-                          onChange={e => updateRow(row.player.id, { movementNote: e.target.value })} />
+                          onChange={e=>updateRow(row.player.id,{movementNote:e.target.value})}/>
                       </div>
                     </>}
-                    {!youthSimple && row.player.position !== 'Portero' && <>
-                      <div className="field"><label>ACC</label><input className="input session-input-large" type="number" value={num(row.acc)} onChange={e => updateRow(row.player.id, { acc: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>DCC</label><input className="input session-input-large" type="number" value={num(row.dcc)} onChange={e => updateRow(row.player.id, { dcc: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>Sprints</label><input className="input session-input-large" type="number" value={num(row.sprints)} onChange={e => updateRow(row.player.id, { sprints: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>RHIE</label><input className="input session-input-large" type="number" value={num(row.rhie)} onChange={e => updateRow(row.player.id, { rhie: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>IMA</label><input className="input session-input-large" type="number" value={num(row.ima)} onChange={e => updateRow(row.player.id, { ima: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>Distancia (m)</label><input className="input session-input-large" type="number" value={num(row.totalDistance)} onChange={e => updateRow(row.player.id, { totalDistance: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>Vel. máx (km/h)</label><input className="input session-input-large" type="number" step="0.1" value={num(row.maxVelocity)} onChange={e => updateRow(row.player.id, { maxVelocity: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>Player Load</label><input className="input session-input-large" type="number" value={num(row.playerLoad)} onChange={e => updateRow(row.player.id, { playerLoad: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>HSR (m)</label><input className="input session-input-large" type="number" value={num(row.highSpeedDistance)} onChange={e => updateRow(row.player.id, { highSpeedDistance: Number(e.target.value) || 0 })} /></div>
-                      <div className="field"><label>Sprint dist (m)</label><input className="input session-input-large" type="number" value={num(row.sprintDistance)} onChange={e => updateRow(row.player.id, { sprintDistance: Number(e.target.value) || 0 })} /></div>
+                    {!youth&&row.player.position!=='Portero'&&<>
+                      <div className="field"><label>Aceleraciones</label><input className="input session-input-large" type="number" value={n(row.acc)} onChange={e=>updateRow(row.player.id,{acc:Number(e.target.value)||0})}/></div>
+                      <div className="field"><label>Desaceleraciones</label><input className="input session-input-large" type="number" value={n(row.dcc)} onChange={e=>updateRow(row.player.id,{dcc:Number(e.target.value)||0})}/></div>
+                      <div className="field"><label>Sprint efforts</label><input className="input session-input-large" type="number" value={n(row.sprints)} onChange={e=>updateRow(row.player.id,{sprints:Number(e.target.value)||0})}/></div>
+                      <div className="field"><label>RHIE</label><input className="input session-input-large" type="number" value={n(row.rhie)} onChange={e=>updateRow(row.player.id,{rhie:Number(e.target.value)||0})}/></div>
+                      <div className="field"><label>Distancia (m)</label><input className="input session-input-large" type="number" value={n(row.totalDistance)} onChange={e=>updateRow(row.player.id,{totalDistance:Number(e.target.value)||0})}/></div>
+                      <div className="field"><label>Vel. máxima (km/h)</label><input className="input session-input-large" type="number" step="0.1" value={n(row.maxVelocity)} onChange={e=>updateRow(row.player.id,{maxVelocity:Number(e.target.value)||0})}/></div>
+                      <div className="field"><label>Player Load</label><input className="input session-input-large" type="number" value={n(row.playerLoad)} onChange={e=>updateRow(row.player.id,{playerLoad:Number(e.target.value)||0})}/></div>
                     </>}
                   </div>
                 </div>
               );
             })}
+            {!filteredRows.length&&<EmptyState title="Sin resultados" text="Ajusta la búsqueda."/>}
           </div>
+        )}
 
-          {/* Botón guardar al final de la planilla también */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, gap: 10 }}>
-            <button type="button" className="btn" disabled={isSaving} onClick={saveSession}
-              style={{ minWidth: 160, padding: '12px 24px', fontSize: 15 }}>
-              {isSaving ? 'Guardando…' : summaryRecord ? '✓ Actualizar sesión' : '✓ Guardar sesión'}
-            </button>
-          </div>
-        </div>
-
-        {/* ══ INFORME PREVIEW ═════════════════════════════════════════════════ */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div>
-              <div className="section-eyebrow">Informe</div>
-              <h3 style={{ margin: '4px 0 0' }}>Informe grupal de sesión</h3>
-            </div>
-            <div className="btn-row">
-              <button type="button" className="btn secondary" onClick={() => setShowReport(v => !v)}>
-                {showReport ? 'Ocultar vista previa' : 'Vista previa'}
-              </button>
-              <button type="button" className="btn" onClick={() => window.print()}>
-                Exportar PDF
-              </button>
-            </div>
-          </div>
-          {showReport && (
-            <div className="report-preview-shell" style={{ marginTop: 16 }}>
-              <SessionReportTemplate
-                date={filters.date} category={activeCategory}
-                microcycle={detectedMicrocycle}
-                sessionNumber={sessionNumberInput || filters.sessionNumber}
-                sessionType={sessionType} objective={sessionObjective}
-                observation={sessionObservation} rows={reportRows}
-                absentPlayers={absentPlayers}
-                dataQualityPercent={ops.dataQualityPercent}
-                wellnessRecords={sessionWellness} compact
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ══ HISTORIAL ═══════════════════════════════════════════════════════ */}
-        <div className="card table-wrap">
-          <div style={{ marginBottom: 14 }}>
-            <div className="section-eyebrow">Historial</div>
-            <h3 style={{ margin: '4px 0 0' }}>Sesiones guardadas</h3>
-            <div className="muted-line" style={{ marginTop: 6 }}>Haz clic en "Editar" para cargar una sesión existente.</div>
-          </div>
-          {sessionHistory.length ? (
-            <table className="data-table">
+        {/* TABLE view */}
+        {viewMode==='table' && (
+          <div className="table-wrap" style={{overflowX:'auto'}}>
+            <table className="data-table" style={{fontSize:12}}>
               <thead>
                 <tr>
-                  <th>Fecha</th><th>Categoría</th><th>Microciclo</th>
-                  <th>N°</th><th>Tipo</th><th>Objetivo</th><th>Estado</th><th>Acciones</th>
+                  <th style={{width:30}}></th>
+                  <th style={{textAlign:'left',minWidth:160}}>Jugador</th>
+                  <th>Participación</th>
+                  <th>MIN</th>
+                  <th>RPE</th>
+                  {!youth&&<><th>Dist.</th><th>PL</th><th>HSR</th><th>ACC</th><th>DCC</th><th>Vel.</th></>}
                 </tr>
               </thead>
               <tbody>
-                {sessionHistory.map(item => {
-                  const mc = data.microcycles.find(m => m.id === item.microcycleId);
-                  const isEditing = editingSessionId === item.id;
+                {filteredRows.map(row=>{
+                  const needRpe=row.selected&&row.min>0&&row.rpe===0;
                   return (
-                    <tr key={item.id} style={isEditing ? { background: '#eff6ff' } : {}}>
-                      <td>{item.date}</td>
-                      <td>{categoryLabel(item.category ?? activeCategory)}</td>
-                      <td>{mc?.name ?? '—'}</td>
-                      <td>{item.sessionNumber}</td>
-                      <td>{item.sessionType}</td>
-                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.objective || '—'}</td>
-                      <td><span style={{ padding: '3px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700, background: item.status === 'Cerrada' ? '#fee2e2' : '#dcfce7', color: item.status === 'Cerrada' ? '#991b1b' : '#065f46' }}>{item.status ?? 'Borrador'}</span></td>
-                      <td>
-                        <div className="btn-row">
-                          <button type="button" className="btn secondary" onClick={() => editSession(item.id)}>
-                            {isEditing ? 'Editando…' : 'Editar'}
-                          </button>
-                          <button type="button" className="btn danger" onClick={() => deleteSession(item.id)}>
-                            Eliminar
-                          </button>
-                        </div>
+                    <tr key={row.player.id} style={row.selected?{background:'#f0f9ff'}:{}}>
+                      <td style={{textAlign:'center'}}>
+                        <input type="checkbox" checked={row.selected} onChange={e=>updateRow(row.player.id,{selected:e.target.checked})}/>
                       </td>
+                      <td><strong style={{fontSize:12}}>{row.player.name}</strong><div style={{fontSize:10,color:'#94a3b8'}}>{row.player.position}</div></td>
+                      <td>
+                        <select className="select" style={{fontSize:11,padding:'3px 6px',height:30}} value={row.participation}
+                          onChange={e=>updateRow(row.player.id,{participation:e.target.value as SessionParticipation})}>
+                          {PARTICIPATION_OPTIONS.map(o=><option key={o}>{o}</option>)}
+                        </select>
+                      </td>
+                      <td><input type="number" value={n(row.min)} onChange={e=>updateRow(row.player.id,{min:Number(e.target.value)||0})} style={{width:55,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                      <td><input type="number" min={0} max={10} value={n(row.rpe)} onChange={e=>updateRow(row.player.id,{rpe:Math.min(10,Math.max(0,Number(e.target.value)||0))})} style={{width:45,padding:'3px 6px',border:`1px solid ${needRpe?'#fca5a5':'#e2e8f0'}`,borderRadius:8,textAlign:'center',fontSize:12,background:needRpe?'#fff5f5':''}}/></td>
+                      {!youth&&row.player.position!=='Portero'&&<>
+                        <td><input type="number" value={n(row.acc)} onChange={e=>updateRow(row.player.id,{acc:Number(e.target.value)||0})} style={{width:45,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                        <td><input type="number" value={n(row.dcc)} onChange={e=>updateRow(row.player.id,{dcc:Number(e.target.value)||0})} style={{width:45,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                        <td><input type="number" value={n(row.sprints)} onChange={e=>updateRow(row.player.id,{sprints:Number(e.target.value)||0})} style={{width:50,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                        <td><input type="number" value={n(row.rhie)} onChange={e=>updateRow(row.player.id,{rhie:Number(e.target.value)||0})} style={{width:45,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                        <td><input type="number" value={n(row.totalDistance)} onChange={e=>updateRow(row.player.id,{totalDistance:Number(e.target.value)||0})} style={{width:65,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                        <td><input type="number" step="0.1" value={n(row.maxVelocity)} onChange={e=>updateRow(row.player.id,{maxVelocity:Number(e.target.value)||0})} style={{width:55,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                        <td><input type="number" value={n(row.playerLoad)} onChange={e=>updateRow(row.player.id,{playerLoad:Number(e.target.value)||0})} style={{width:55,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                      </>}
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          ) : (
-            <EmptyState title="Sin sesiones guardadas" text="Las sesiones que guardes aparecerán aquí." />
-          )}
+          </div>
+        )}
+
+        {/* Save bottom */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:16,gap:10,flexWrap:'wrap'}}>
+          <div style={{fontSize:12,color:'#64748b',fontWeight:600}}>
+            <Clock size={12} style={{display:'inline',marginRight:4}}/>
+            {selectedRows.length} de {rows.length} jugadores seleccionados
+          </div>
+          <button type="button" className="btn" disabled={isSaving} onClick={saveSession} style={{minWidth:180,padding:'12px 24px',fontSize:14}}>
+            {isSaving?'Guardando…':summaryRecord?'✓ Actualizar sesión':'✓ Guardar sesión'}
+          </button>
         </div>
       </div>
 
-      {/* PDF — solo al imprimir */}
-      <SessionReportTemplate
-        date={filters.date} category={activeCategory}
-        microcycle={detectedMicrocycle}
-        sessionNumber={sessionNumberInput || filters.sessionNumber}
-        sessionType={sessionType} objective={sessionObjective}
-        observation={sessionObservation} rows={reportRows}
-        absentPlayers={absentPlayers}
-        dataQualityPercent={ops.dataQualityPercent}
-        wellnessRecords={sessionWellness}
-        className="print-only"
-      />
+      {/* ── INFORME ───────────────────────────────────────────────────── */}
+      <div className="card">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <div><div className="section-eyebrow">Informe</div><h3 style={{margin:'4px 0 0'}}>Informe grupal de sesión</h3></div>
+          <div className="btn-row">
+            <button type="button" className="btn secondary" onClick={()=>setShowReport(v=>!v)}>{showReport?'Ocultar':'Vista previa'}</button>
+            <button type="button" className="btn" onClick={()=>window.print()}>Exportar PDF</button>
+          </div>
+        </div>
+        {showReport&&(
+          <div className="report-preview-shell" style={{marginTop:16}}>
+            <SessionReportTemplate date={filters.date} category={activeCat} microcycle={detectedMc} sessionNumber={sessNumInput||filters.sessionNumber} sessionType={sessType} objective={objective} observation={observation} rows={reportRows} absentPlayers={absentPlayers} dataQualityPercent={ops.dataQualityPercent} wellnessRecords={sessWellness} compact/>
+          </div>
+        )}
+      </div>
 
-      {ConfirmModal}
+      {/* ── HISTORIAL ──────────────────────────────────────────────────── */}
+      <div className="card table-wrap">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:14}}>
+          <div><div className="section-eyebrow">Historial</div><h3 style={{margin:'4px 0 0'}}>Sesiones guardadas</h3><div className="muted-line" style={{marginTop:4}}>{sessionHistory.length} sesiones · última actualización</div></div>
+        </div>
+        {sessionHistory.length?(
+          <>
+          <table className="data-table">
+            <thead>
+              <tr><th>Fecha</th><th>N°</th><th>Tipo</th><th>Microciclo</th><th>Objetivo</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+              {histSlice.map(item=>{
+                const mc=data.microcycles.find(m=>m.id===item.microcycleId);
+                const isEdit=editingId===item.id;
+                return (
+                  <tr key={item.id} style={isEdit?{background:'#eff6ff',outline:'2px solid #bfdbfe'}:{}}>
+                    <td style={{fontWeight:700}}>{item.date}</td>
+                    <td style={{textAlign:'center',fontWeight:900,fontSize:15}}>{item.sessionNumber}</td>
+                    <td><span style={{padding:'3px 8px',borderRadius:999,background:'#f0f4fb',fontSize:11,fontWeight:700}}>{item.sessionType}</span></td>
+                    <td style={{fontSize:12,color:'#64748b'}}>{mc?.name??'—'}</td>
+                    <td style={{maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:12}}>{item.objective||'—'}</td>
+                    <td><span style={{padding:'3px 8px',borderRadius:8,fontSize:11,fontWeight:700,background:item.status==='Cerrada'?'#fee2e2':'#dcfce7',color:item.status==='Cerrada'?'#991b1b':'#065f46'}}>{item.status??'Borrador'}</span></td>
+                    <td>
+                      <div className="btn-row" style={{gap:6}}>
+                        <button type="button" className="btn secondary" style={{padding:'5px 10px',fontSize:12}} onClick={()=>editSession(item.id)}>{isEdit?'✓ Editando':'Editar'}</button>
+                        <button type="button" className="btn secondary" style={{padding:'5px 10px',fontSize:12}} onClick={()=>duplicateSession(item.id)} title="Duplicar sesión a fecha activa"><ChevronDown size={12}/></button>
+                        <button type="button" className="btn danger" style={{padding:'5px 10px',fontSize:12}} onClick={()=>deleteSession(item.id)}>Eliminar</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {histPages>1&&(
+            <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:12}}>
+              <button type="button" className="btn secondary" disabled={histPage===0} onClick={()=>setHistPage(p=>p-1)}>‹ Anterior</button>
+              <span style={{display:'flex',alignItems:'center',fontSize:12,color:'#64748b',fontWeight:700}}>Página {histPage+1} de {histPages}</span>
+              <button type="button" className="btn secondary" disabled={histPage>=histPages-1} onClick={()=>setHistPage(p=>p+1)}>Siguiente ›</button>
+            </div>
+          )}
+          </>
+        ):<EmptyState title="Sin sesiones guardadas" text="Las sesiones guardadas aparecerán aquí."/>}
+      </div>
+    </div>
 
-      {showCsvImporter && (
-        <CsvImporter
-          players={ops.players}
-          sessionId={summaryRecord?.id ?? crypto.randomUUID()}
-          date={filters.date}
-          microcycleId={activeMicrocycleId}
-          sessionNumber={Number(sessionNumberInput) || filters.sessionNumber}
-          category={activeCategory}
-          onImport={handleCsvImport}
-          onClose={() => setShowCsvImporter(false)}
-        />
-      )}
+    {/* PDF print */}
+    <SessionReportTemplate date={filters.date} category={activeCat} microcycle={detectedMc} sessionNumber={sessNumInput||filters.sessionNumber} sessionType={sessType} objective={objective} observation={observation} rows={reportRows} absentPlayers={absentPlayers} dataQualityPercent={ops.dataQualityPercent} wellnessRecords={sessWellness} className="print-only"/>
+
+    {ConfirmModal}
+    {showCsv&&<CsvImporter players={ops.players} sessionId={summaryRecord?.id??crypto.randomUUID()} date={filters.date} microcycleId={activeMcId} sessionNumber={Number(sessNumInput)||filters.sessionNumber} category={activeCat} onImport={handleCsvImport} onClose={()=>setShowCsv(false)}/>}
     </>
   );
 }
