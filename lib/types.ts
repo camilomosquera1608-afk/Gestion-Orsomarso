@@ -182,6 +182,9 @@ export interface CompetitionRecord {
   rhie?: number;
   ima?: number;  // legacy
   totalDistance?: number;
+  highSpeedDistance?: number;
+  hsr?: number;
+  sprintDistance?: number;
   maxVelocity?: number;
   playerLoad?: number;
   goalsConceded?: number;
