@@ -39,6 +39,7 @@ const toneForResult = (result: string): CompetitionReportTone => {
 };
 
 const formatDate = (date: string) => date || 'Sin fecha';
+const numberFmt = (value: number, digits = 0) => Number.isFinite(value) ? value.toLocaleString('es-CO', { maximumFractionDigits: digits, minimumFractionDigits: digits }) : '0';
 const toneClass = (tone: CompetitionReportTone = 'neutral') => `pdf-report-tone-${tone}`;
 
 function IconBadge({ icon: Icon, tone = 'blue' }: { icon: IconComponent; tone?: CompetitionReportTone }) {
@@ -105,6 +106,8 @@ function PlayerCards({ rows }: { rows: CompetitionReportPlayerRow[] }) {
             <span><Clock size={12} /> {row.minutes} min</span>
             <span><Zap size={12} /> {row.production}</span>
             <span><Shield size={12} /> {row.discipline}</span>
+            {row.totalDistance > 0 ? <span>{numberFmt(row.totalDistance)} m</span> : null}
+            {row.maxVelocity > 0 ? <span>Vmax {numberFmt(row.maxVelocity, 1)}</span> : null}
           </div>
           {row.medicalObservation ? <p>{row.medicalObservation}</p> : null}
         </div>
@@ -125,6 +128,12 @@ function PlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] }) {
           <th>MIN</th>
           <th>Producción</th>
           <th>Disciplina</th>
+          <th>Dist. (m)</th>
+          <th>m/min</th>
+          <th>ACC</th>
+          <th>DCC</th>
+          <th>Sprint</th>
+          <th>Vmax</th>
           <th>Estado médico</th>
           <th>Obs.</th>
         </tr>
@@ -138,6 +147,12 @@ function PlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] }) {
             <td>{row.minutes}</td>
             <td>{row.production}</td>
             <td>{row.discipline}</td>
+            <td>{row.totalDistance ? numberFmt(row.totalDistance) : '-'}</td>
+            <td>{row.metersPerMinute || '-'}</td>
+            <td>{row.acc || '-'}</td>
+            <td>{row.dcc || '-'}</td>
+            <td>{row.sprints || '-'}</td>
+            <td>{row.maxVelocity ? numberFmt(row.maxVelocity, 1) : '-'}</td>
             <td><PlayerBadge tone={row.medicalStatus === 'Lesionado' ? 'red' : 'green'}>{row.medicalStatus}</PlayerBadge></td>
             <td>{row.medicalObservation || '-'}</td>
           </tr>
@@ -170,6 +185,7 @@ export function CompetitionReportTemplate({ report, category, className = '', co
             { label: 'Resultado', value: report.resultType, note: 'Marcador', tone: resultTone },
             { label: 'Jugadores', value: report.stats.players, note: 'Planilla', tone: 'blue' },
             { label: 'Goles', value: report.stats.goals, note: 'Orsomarso', tone: 'green' },
+            { label: 'Distancia', value: `${numberFmt(report.stats.totalDistance)} m`, note: 'GPS campo', tone: 'dark' },
           ]}
         />
       ) : null}
@@ -227,6 +243,10 @@ export function CompetitionReportTemplate({ report, category, className = '', co
           <ReportKpi icon={AlertTriangle} label="TR" value={report.stats.redCards} note="Rojas" tone="red" />
           <ReportKpi icon={HeartPulse} label="Lesionados" value={report.stats.medical} note="Médico" tone={report.stats.medical ? 'red' : 'green'} />
           <ReportKpi icon={Shield} label="GE" value={report.stats.goalsConceded} note="Portería" tone="neutral" />
+          <ReportKpi icon={Zap} label="Distancia" value={`${numberFmt(report.stats.totalDistance)} m`} note="GPS total" tone="dark" />
+          <ReportKpi icon={Zap} label="m/min" value={report.stats.avgMetersPerMinute || '-'} note="Promedio campo" tone="blue" />
+          <ReportKpi icon={Zap} label="ACC/DCC" value={`${report.stats.acc}/${report.stats.dcc}`} note=">3 m/s²" tone="amber" />
+          <ReportKpi icon={Zap} label="Vmax" value={report.stats.maxVelocity ? `${numberFmt(report.stats.maxVelocity, 1)} km/h` : '-'} note="Máxima" tone="green" />
         </div>
       </ReportSection>
 

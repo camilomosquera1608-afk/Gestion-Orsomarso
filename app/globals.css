@@ -6259,3 +6259,140 @@ img[loading="lazy"] { background: var(--line-soft); }
   background: #fff;
   box-shadow: 0 28px 70px rgba(15, 23, 42, .22);
 }
+
+/* v109.5 - PDF report polish: compact page flow and professional headers */
+.sr-report-topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  border: 1px solid #d8e1ee;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
+  color: #06152f;
+}
+.sr-report-topbar > div { display: grid; gap: 3px; }
+.sr-report-topbar > div:last-child { text-align: right; }
+.sr-report-topbar span {
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: .18em;
+  color: #1557d6;
+  text-transform: uppercase;
+}
+.sr-report-topbar strong {
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+}
+.sr-report-topbar img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 14px;
+  border: 1px solid #d8e1ee;
+  background: #fff;
+  padding: 4px;
+}
+
+/* More premium competition/evaluation exports without changing data logic */
+.competition-report-document .pdf-report-header,
+.evaluations-report-document .pdf-report-header {
+  background: linear-gradient(135deg, #06152f 0%, #0e3274 62%, #1557d6 100%) !important;
+  color: #fff !important;
+  border: 0 !important;
+  border-radius: 22px !important;
+  padding: 18px !important;
+}
+.competition-report-document .pdf-report-header h1,
+.evaluations-report-document .pdf-report-header h1,
+.competition-report-document .pdf-report-header-meta strong,
+.evaluations-report-document .pdf-report-header-meta strong { color: #fff !important; }
+.competition-report-document .pdf-report-brand span,
+.evaluations-report-document .pdf-report-brand span,
+.competition-report-document .pdf-report-brand p,
+.evaluations-report-document .pdf-report-brand p,
+.competition-report-document .pdf-report-header-meta,
+.evaluations-report-document .pdf-report-header-meta,
+.competition-report-document .pdf-report-header-meta span,
+.evaluations-report-document .pdf-report-header-meta span { color: rgba(255,255,255,.72) !important; }
+.competition-report-document .pdf-report-brand img,
+.evaluations-report-document .pdf-report-brand img {
+  background: #fff;
+  border-radius: 16px;
+  padding: 5px;
+}
+.competition-report-table-modern th,
+.pdf-report-table th { white-space: nowrap; }
+
+@media print {
+  /* session report page flow: avoid blank gaps between pages */
+  .session-report-document {
+    gap: 0 !important;
+  }
+  .session-report-document .premium-report-header {
+    display: none !important;
+  }
+  .sr-report-topbar {
+    display: grid !important;
+    padding: 3mm 4mm !important;
+    margin: 0 0 3mm !important;
+    border-radius: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-top: 0 !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+  .sr-report-topbar span { font-size: 5.5pt !important; }
+  .sr-report-topbar strong { font-size: 11pt !important; }
+  .sr-report-topbar img { width: 11mm !important; height: 11mm !important; border-radius: 3mm !important; padding: 1mm !important; }
+  .session-report-document .sr-section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin-top: 0 !important;
+    margin-bottom: 2.5mm !important;
+  }
+  .session-report-document .sr-section + .sr-section { margin-top: 2mm !important; }
+  .session-report-document .sr-heat-table {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .session-report-document .sr-heat-table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .session-report-document section[style*="page-break-before"] {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* Competition and valuation PDF: A4 print-safe premium look */
+  .competition-report-document .pdf-report-header,
+  .evaluations-report-document .pdf-report-header {
+    border-radius: 5mm !important;
+    padding: 5mm !important;
+    background: linear-gradient(135deg, #06152f 0%, #0e3274 62%, #1557d6 100%) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .competition-report-document .pdf-report-cover,
+  .evaluations-report-document .pdf-report-cover {
+    min-height: 255mm !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  .competition-report-document .pdf-report-section,
+  .evaluations-report-document .pdf-report-section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .competition-report-document .pdf-report-table tr,
+  .evaluations-report-document .pdf-report-table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

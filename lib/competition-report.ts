@@ -16,6 +16,14 @@ export interface CompetitionReportPlayerRow {
   redCards: number;
   medicalStatus: string;
   medicalObservation: string;
+  totalDistance: number;
+  metersPerMinute: number;
+  acc: number;
+  dcc: number;
+  sprints: number;
+  sprintDistance: number;
+  maxVelocity: number;
+  playerLoad: number;
 }
 
 export interface CompetitionReportStats {
@@ -31,6 +39,14 @@ export interface CompetitionReportStats {
   yellowCards: number;
   redCards: number;
   medical: number;
+  totalDistance: number;
+  avgMetersPerMinute: number;
+  acc: number;
+  dcc: number;
+  sprints: number;
+  sprintDistance: number;
+  maxVelocity: number;
+  playerLoad: number;
 }
 
 export interface CompetitionReportData {
@@ -104,6 +120,14 @@ export const buildCompetitionReportData = ({
       redCards,
       medicalStatus,
       medicalObservation,
+      totalDistance: toSafeNumber(record.totalDistance),
+      metersPerMinute: toSafeNumber(record.minutesPlayed) > 0 ? Math.round(toSafeNumber(record.totalDistance) / Math.max(1, toSafeNumber(record.minutesPlayed))) : 0,
+      acc: toSafeNumber(record.acc),
+      dcc: toSafeNumber(record.dcc),
+      sprints: toSafeNumber(record.sprints),
+      sprintDistance: toSafeNumber(record.sprintDistance ?? record.hsr),
+      maxVelocity: toSafeNumber(record.maxVelocity),
+      playerLoad: toSafeNumber(record.playerLoad),
     };
   }).sort((a, b) => {
     const roleOrder = (role: string) => (role === 'Titular' ? 0 : role === 'Suplente' ? 1 : 2);
@@ -130,6 +154,14 @@ export const buildCompetitionReportData = ({
     yellowCards: rows.reduce((acc, row) => acc + row.yellowCards, 0),
     redCards: rows.reduce((acc, row) => acc + row.redCards, 0),
     medical: medicalRows.length,
+    totalDistance: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.totalDistance), 0),
+    avgMetersPerMinute: fieldRecords.length ? Math.round(fieldRecords.reduce((acc, record) => acc + (toSafeNumber(record.minutesPlayed) > 0 ? toSafeNumber(record.totalDistance) / Math.max(1, toSafeNumber(record.minutesPlayed)) : 0), 0) / fieldRecords.length) : 0,
+    acc: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.acc), 0),
+    dcc: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.dcc), 0),
+    sprints: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.sprints), 0),
+    sprintDistance: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.sprintDistance ?? record.hsr), 0),
+    maxVelocity: fieldRecords.reduce((acc, record) => Math.max(acc, toSafeNumber(record.maxVelocity)), 0),
+    playerLoad: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.playerLoad), 0),
   };
 
   const resultType = getCompetitionResult(match);

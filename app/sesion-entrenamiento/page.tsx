@@ -82,7 +82,7 @@ export default function SesionEntrenamientoPage() {
     data, filters, setFilters,
     addExternalLoad, updateExternalLoad, deleteExternalLoad,
     upsertInternalLoad, deleteInternalLoad,
-    upsertTrainingSessionSummary, deleteTrainingSessionSummary,
+    upsertTrainingSessionSummary, saveTrainingSessionBundle, deleteTrainingSessionSummary,
   } = useApp();
 
   const session     = getStaffSession();
@@ -251,14 +251,13 @@ export default function SesionEntrenamientoPage() {
 
     setIsSaving(true);
     if(parsedNum!==filters.sessionNumber) setFilters({sessionNumber:parsedNum});
-    const sessionId=summaryRecord?.id??crypto.randomUUID();
+    const sessionId=summaryRecord?.id??editingId??crypto.randomUUID();
+    const summary={id:sessionId,date:filters.date,category:activeCat,microcycleId:activeMcId,sessionNumber:parsedNum,sessionType:sessType,objective,observation,status:summaryRecord?.status??'Borrador' as const};
 
-    upsertTrainingSessionSummary({id:sessionId,date:filters.date,category:activeCat,microcycleId:activeMcId,sessionNumber:parsedNum,sessionType:sessType,objective,observation,status:summaryRecord?.status??'Borrador'});
-
-    selectedRows.forEach(row=>{
+    const externalRows = selectedRows.map(row=>{
       const ex=existingRecs.find(r=>r.playerId===row.player.id);
       const movType=sourceCat===activeCat?'base':row.movementType;
-      const ext={
+      return {
         id:ex?.id??crypto.randomUUID(),sessionId,playerId:row.player.id,date:filters.date,
         min:row.min, rpe:Math.min(10,Math.max(0,row.rpe)),
         acc:youth?0:row.acc, dcc:youth?0:row.dcc,
@@ -273,18 +272,20 @@ export default function SesionEntrenamientoPage() {
         movementNote:row.movementNote, movementModule:'sesion' as const,
         loggedBy:session.displayName,
       };
-      if(ex) updateExternalLoad(ext); else addExternalLoad(ext);
-      const exInt=existingInt.find(r=>r.playerId===row.player.id);
-      upsertInternalLoad({id:exInt?.id??crypto.randomUUID(),sessionId,playerId:row.player.id,date:filters.date,rpe:Math.min(10,Math.max(0,row.rpe)),duration:row.min,microcycleId:activeMcId,sessionNumber:parsedNum,category:activeCat,baseCategory:row.player.category??sourceCat,actingCategory:activeCat,movementType:movType,movementNote:row.movementNote,movementModule:'sesion' as const,loggedBy:session.displayName});
     });
 
-    existingRecs.filter(r=>!selectedRows.find(row=>row.player.id===r.playerId)).forEach(r=>deleteExternalLoad(r.id));
-    existingInt.filter(r=>!selectedRows.find(row=>row.player.id===r.playerId)).forEach(r=>deleteInternalLoad(r.id));
+    const internalRows = selectedRows.map(row=>{
+      const exInt=existingInt.find(r=>r.playerId===row.player.id);
+      const movType=sourceCat===activeCat?'base':row.movementType;
+      return {id:exInt?.id??crypto.randomUUID(),sessionId,playerId:row.player.id,date:filters.date,rpe:Math.min(10,Math.max(0,row.rpe)),duration:row.min,microcycleId:activeMcId,sessionNumber:parsedNum,category:activeCat,baseCategory:row.player.category??sourceCat,actingCategory:activeCat,movementType:movType,movementNote:row.movementNote,movementModule:'sesion' as const,loggedBy:session.displayName};
+    });
+
+    saveTrainingSessionBundle(summary, externalRows, internalRows);
 
     setEditingId(sessionId);
     setIsSaving(false);
     flash(summaryRecord?'Sesión actualizada correctamente. ✓ Guardado':'Sesión guardada correctamente. ✓ Guardado','success');
-  },[isSaving,sessNumInput,filters,detectedMc,selectedRows,summaryRecord,editingId,activeCat,activeMcId,sessType,objective,observation,data.trainingSessionSummaries,existingRecs,existingInt,sourceCat,youth,session.displayName,addExternalLoad,updateExternalLoad,upsertInternalLoad,deleteExternalLoad,deleteInternalLoad,upsertTrainingSessionSummary,setFilters,flash]);
+  },[isSaving,sessNumInput,filters,detectedMc,selectedRows,summaryRecord,editingId,activeCat,activeMcId,sessType,objective,observation,data.trainingSessionSummaries,existingRecs,existingInt,sourceCat,youth,session.displayName,addExternalLoad,upsertInternalLoad,saveTrainingSessionBundle,setFilters,flash]);
 
   const deleteSession = async (sessionId:string)=>{
     const t=data.trainingSessionSummaries.find(i=>i.id===sessionId);
@@ -556,11 +557,10 @@ export default function SesionEntrenamientoPage() {
                       <div className="field"><label>Desaceleraciones</label><input className="input session-input-large" type="number" value={n(row.dcc)} onChange={e=>updateRow(row.player.id,{dcc:Number(e.target.value)||0})}/></div>
                       <div className="field"><label>Sprint efforts</label><input className="input session-input-large" type="number" value={n(row.sprints)} onChange={e=>updateRow(row.player.id,{sprints:Number(e.target.value)||0})}/></div>
                       <div className="field"><label>RHIE</label><input className="input session-input-large" type="number" value={n(row.rhie)} onChange={e=>updateRow(row.player.id,{rhie:Number(e.target.value)||0})}/></div>
+                      <div className="field"><label>IMA</label><input className="input session-input-large" type="number" value={n(row.ima)} onChange={e=>updateRow(row.player.id,{ima:Number(e.target.value)||0})}/></div>
                       <div className="field"><label>Distancia (m)</label><input className="input session-input-large" type="number" value={n(row.totalDistance)} onChange={e=>updateRow(row.player.id,{totalDistance:Number(e.target.value)||0})}/></div>
                       <div className="field"><label>Vel. máxima (km/h)</label><input className="input session-input-large" type="number" step="0.1" value={n(row.maxVelocity)} onChange={e=>updateRow(row.player.id,{maxVelocity:Number(e.target.value)||0})}/></div>
                       <div className="field"><label>Player Load</label><input className="input session-input-large" type="number" value={n(row.playerLoad)} onChange={e=>updateRow(row.player.id,{playerLoad:Number(e.target.value)||0})}/></div>
-                      <div className="field"><label>RPE</label><input className="input session-input-large" type="number" min={0} max={10} value={n(row.rpe)} onChange={e=>updateRow(row.player.id,{rpe:Math.min(10,Math.max(0,Number(e.target.value)||0))})}/></div>
-                      <div className="field"><label>Minutos</label><input className="input session-input-large" type="number" value={n(row.min)} onChange={e=>updateRow(row.player.id,{min:Number(e.target.value)||0})}/></div>
                     </>}
                   </div>
                 </div>
@@ -581,7 +581,7 @@ export default function SesionEntrenamientoPage() {
                   <th>Participación</th>
                   <th>MIN</th>
                   <th>RPE</th>
-                  {!youth&&<><th>Dist.</th><th>PL</th><th>HSR</th><th>ACC</th><th>DCC</th><th>Vel.</th></>}
+                  {!youth&&<><th>ACC</th><th>DCC</th><th>Sprint</th><th>RHIE</th><th>IMA</th><th>Dist.</th><th>Vel.</th><th>PL</th></>}
                 </tr>
               </thead>
               <tbody>
@@ -606,6 +606,7 @@ export default function SesionEntrenamientoPage() {
                         <td><input type="number" value={n(row.dcc)} onChange={e=>updateRow(row.player.id,{dcc:Number(e.target.value)||0})} style={{width:45,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
                         <td><input type="number" value={n(row.sprints)} onChange={e=>updateRow(row.player.id,{sprints:Number(e.target.value)||0})} style={{width:50,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
                         <td><input type="number" value={n(row.rhie)} onChange={e=>updateRow(row.player.id,{rhie:Number(e.target.value)||0})} style={{width:45,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
+                        <td><input type="number" value={n(row.ima)} onChange={e=>updateRow(row.player.id,{ima:Number(e.target.value)||0})} style={{width:45,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
                         <td><input type="number" value={n(row.totalDistance)} onChange={e=>updateRow(row.player.id,{totalDistance:Number(e.target.value)||0})} style={{width:65,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
                         <td><input type="number" step="0.1" value={n(row.maxVelocity)} onChange={e=>updateRow(row.player.id,{maxVelocity:Number(e.target.value)||0})} style={{width:55,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>
                         <td><input type="number" value={n(row.playerLoad)} onChange={e=>updateRow(row.player.id,{playerLoad:Number(e.target.value)||0})} style={{width:55,padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:8,textAlign:'center',fontSize:12}}/></td>

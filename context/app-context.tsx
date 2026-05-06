@@ -48,6 +48,7 @@ interface AppContextValue {
   upsertCompetitionMatchSummary: (record: CompetitionMatchSummary) => void;
   deleteCompetitionMatchSummary: (matchId: string) => void;
   upsertTrainingSessionSummary: (record: TrainingSessionSummary) => void;
+  saveTrainingSessionBundle: (record: TrainingSessionSummary, externalLoads: DailyExternalLoadRecord[], internalLoads: DailyInternalLoadRecord[]) => void;
   deleteTrainingSessionSummary: (sessionId: string) => void;
   updateMicrocycle: (record: Microcycle) => void;
   deleteMicrocycle: (microcycleId: string) => void;
@@ -873,6 +874,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         ),
       ],
     })),
+
+    // Guarda una sesion completa en una sola mutacion local/remota.
+    // Evita que Supabase reciba primero solo el encabezado de la sesion
+    // y despues se pierdan las cargas por carreras de sincronizacion.
+    saveTrainingSessionBundle: (record, externalLoads, internalLoads) => applyMutation((prev) => {
+      const matchesSession = (item: { sessionId?: string; date: string; category?: string; actingCategory?: string; sessionNumber?: number }) => {
+        if (item.sessionId === record.id) return true;
+        return item.date === record.date
+          && (item.category ?? item.actingCategory) === record.category
+          && (item.sessionNumber ?? record.sessionNumber) === record.sessionNumber;
+      };
+
+      return {
+        ...prev,
+        trainingSessionSummaries: [
+          record,
+          ...prev.trainingSessionSummaries.filter((item) =>
+            !(item.id === record.id ||
+              (item.date === record.date &&
+               item.category === record.category &&
+               item.sessionNumber === record.sessionNumber)),
+          ),
+        ],
+        externalLoads: [
+          ...externalLoads,
+          ...prev.externalLoads.filter((item) => !matchesSession(item)),
+        ],
+        internalLoads: [
+          ...internalLoads,
+          ...prev.internalLoads.filter((item) => !matchesSession(item)),
+        ],
+      };
+    }),
     deleteTrainingSessionSummary: (sessionId) => {
       const current = dataRef.current;
       const target = current.trainingSessionSummaries.find((item) => item.id === sessionId);

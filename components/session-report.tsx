@@ -156,8 +156,8 @@ export function SessionReportTemplate({
   const avgRpe  = avg(reg.map(r => r.rpe));
   const totalDist = sumN(reg.map(r => r.totalDistance));
   const totalPL   = sumN(reg.map(r => r.playerLoad));
-  const totalSpr  = 0; // Removed
-  const totalHSR  = 0; // Removed
+  const totalSpr  = sumN(reg.map(r => r.sprints));
+  const totalHSR  = sumN(reg.map(r => r.rhie))
   const maxVel    = maxN(reg.map(r => r.maxVelocity));
   const avgMMin   = avg(reg.map(r => r.min > 0 && r.totalDistance ? r.totalDistance / r.min : 0));
   const avgAcc    = avg(reg.map(r => r.acc));
@@ -192,13 +192,15 @@ export function SessionReportTemplate({
   const lowWell   = reg.filter(r => { const w = wellAvg(wellMap.get(r.player.id)); return w > 0 && w < 3.2; });
 
   return (
-    <article className={`pdf-report-document ${className}`} style={{ fontFamily: "'Inter','Helvetica Neue',sans-serif" }}>
-      <ReportHeader
-        title="Informe de sesión"
-        subtitle={`${formatPdfDate(date)} · Sesión ${sessionNumber || '—'}`}
-        category={category}
-        generatedAt={generatedAt}
-      />
+    <article className={`pdf-report-document session-report-document ${className}`} style={{ fontFamily: "'Inter','Helvetica Neue',sans-serif" }}>
+      {compact && (
+        <ReportHeader
+          title="Informe de sesión"
+          subtitle={`${formatPdfDate(date)} · Sesión ${sessionNumber || '—'}`}
+          category={category}
+          generatedAt={generatedAt}
+        />
+      )}
 
       {/* ══ PORTADA — estilo Palmeiras ════════════════════════════════════ */}
       {!compact && (
@@ -250,6 +252,20 @@ export function SessionReportTemplate({
               <div className="srp-kpi-div" />
               <div className="srp-kpi"><div className="srp-kpi-label">WELLNESS</div><div className="srp-kpi-value">{avgWell ? avgWell.toFixed(1) : '—'}</div><div className="srp-kpi-note">/5 promedio</div></div>
             </>}
+          </div>
+        </div>
+      )}
+
+      {!compact && (
+        <div className="sr-report-topbar">
+          <div>
+            <span>DIRECCIÓN DE RENDIMIENTO</span>
+            <strong>INFORME SESIÓN GRUPAL {sessionNumber || '—'}</strong>
+          </div>
+          <img src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={48} height={48} />
+          <div>
+            <span>{formatPdfDate(date)}</span>
+            <strong>{mcText}</strong>
           </div>
         </div>
       )}
@@ -442,7 +458,7 @@ export function SessionReportTemplate({
         <div className="sr-insight">
           {reg.length
             ? gps
-              ? `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Distancia acumulada ${formatPdfNumber(totalDist)} m (${formatPdfNumber(totalDist / Math.max(1, reg.length))} m/jugador), Player Load ${formatPdfNumber(totalPL)}, HSR ${formatPdfNumber(totalHSR)} m${false ? `, Sprint ${formatPdfNumber(totalSpr)} m` : ''}, velocidad máxima ${formatPdfNumber(maxVel, 1)} km/h.`
+              ? `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Distancia acumulada ${formatPdfNumber(totalDist)} m (${formatPdfNumber(totalDist / Math.max(1, reg.length))} m/jugador), Player Load ${formatPdfNumber(totalPL)}, RHIE ${formatPdfNumber(totalHSR)} · Sprint efforts ${formatPdfNumber(totalSpr)}, velocidad máxima ${formatPdfNumber(maxVel, 1)} km/h.`
               : `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Carga interna total ${Math.round(totalLoad)} UA (${Math.round(avgMin)} min, RPE ${avgRpe.toFixed(1)}).${avgWell ? ` Wellness grupal ${avgWell.toFixed(1)}/5.` : ''}`
             : 'Sin registros de sesión.'}
         </div>

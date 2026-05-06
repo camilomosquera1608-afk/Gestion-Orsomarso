@@ -138,6 +138,7 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
 
     const matchUuidToLegacy = Object.fromEntries(((matchesRes.data ?? []) as DbRow[]).map((row) => [String(row.id), String(row.legacy_id ?? row.id)]));
     const matchByUuid = Object.fromEntries(((matchesRes.data ?? []) as DbRow[]).map((row) => [String(row.id), row]));
+    const sessionUuidToLegacy = Object.fromEntries(((sessionsRes.data ?? []) as DbRow[]).map((row) => [String(row.id), String(row.legacy_id ?? row.id)]));
 
     const competitionPlayersRes = await supabase.from('competition_players').select('*').order('created_at', { ascending: false });
     if (competitionPlayersRes.error) throw competitionPlayersRes.error;
@@ -198,7 +199,7 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
 
     const internalLoads: DailyInternalLoadRecord[] = ((internalRes.data ?? []) as DbRow[]).map((row) => ({
       id: String(row.legacy_id ?? row.id),
-      sessionId: row.session_id ?? undefined,
+      sessionId: row.session_id ? sessionUuidToLegacy[String(row.session_id)] ?? String(row.session_id) : undefined,
       playerId: playerUuidToLegacy[String(row.player_id)] ?? String(row.player_id),
       date: row.date,
       rpe: num(row.rpe),
@@ -215,7 +216,7 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
 
     const externalLoads: DailyExternalLoadRecord[] = ((externalRes.data ?? []) as DbRow[]).map((row) => ({
       id: String(row.legacy_id ?? row.id),
-      sessionId: row.session_id ?? undefined,
+      sessionId: row.session_id ? sessionUuidToLegacy[String(row.session_id)] ?? String(row.session_id) : undefined,
       playerId: playerUuidToLegacy[String(row.player_id)] ?? String(row.player_id),
       date: row.date,
       min: num(row.minutes),
@@ -642,6 +643,111 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
           }
         }
       }
+    }
+
+
+    // Link loads to the real Supabase training_sessions.id and maintain session_players.
+    // This makes each saved session open with its player data instead of only the session header.
+    const sessionsLookup = await supabase
+      .from('training_sessions')
+      .select('id, legacy_id, date, category, session_number');
+    if (!sessionsLookup.error) {
+      const sessionRowsDb = (sessionsLookup.data ?? []) as DbRow[];
+      const sessionByLegacy = Object.fromEntries(sessionRowsDb.map((row) => [String(row.legacy_id ?? row.id), String(row.id)]));
+      const sessionByNatural = Object.fromEntries(sessionRowsDb.map((row) => [`${row.date}::${row.category}::${row.session_number ?? 1}`, String(row.id)]));
+      const sessionUuidFor = (record: { sessionId?: string; date: string; category?: ClubCategory; actingCategory?: ClubCategory; sessionNumber?: number }) => {
+        if (record.sessionId && sessionByLegacy[record.sessionId]) return sessionByLegacy[record.sessionId];
+        const cat = category(record.category ?? record.actingCategory);
+        return sessionByNatural[`${isoDate(record.date)}::${cat}::${record.sessionNumber ?? 1}`] ?? null;
+      };
+
+      await upsertRows(supabase, 'daily_internal_loads', data.internalLoads
+        .filter((record) => playerUuid(record.playerId) && isoDate(record.date))
+        .map((record) => ({
+          legacy_id: record.id,
+          player_id: playerUuid(record.playerId),
+          microcycle_id: microcycleUuid(record.microcycleId),
+          date: isoDate(record.date),
+          category: category(record.category),
+          base_category: record.baseCategory ?? null,
+          acting_category: record.actingCategory ?? null,
+          session_number: record.sessionNumber ?? null,
+          session_id: sessionUuidFor(record),
+          rpe: num(record.rpe),
+          duration: num(record.duration),
+          movement_type: record.movementType ?? null,
+          movement_note: record.movementNote ?? null,
+          logged_by: record.loggedBy ?? null,
+        })));
+
+      await upsertRows(supabase, 'daily_external_loads', data.externalLoads
+        .filter((record) => supportsGps(record.category ?? playerCategoryById[record.playerId]) && playerUuid(record.playerId) && isoDate(record.date))
+        .map((record) => ({
+          legacy_id: record.id,
+          player_id: playerUuid(record.playerId),
+          microcycle_id: microcycleUuid(record.microcycleId),
+          date: isoDate(record.date),
+          category: 'Sub20',
+          base_category: record.baseCategory ?? null,
+          acting_category: record.actingCategory ?? null,
+          session_number: record.sessionNumber ?? null,
+          session_id: sessionUuidFor(record),
+          minutes: num(record.min),
+          acc: num(record.acc),
+          dcc: num(record.dcc),
+          sprints: num(record.sprints),
+          rhie: num(record.rhie),
+          ima: num(record.ima),
+          rpe: record.rpe ?? null,
+          total_distance: record.totalDistance ?? null,
+          max_velocity: record.maxVelocity ?? null,
+          player_load: record.playerLoad ?? null,
+          participation: record.participation ?? null,
+          session_type: record.sessionType ?? null,
+          movement_type: record.movementType ?? null,
+          movement_note: record.movementNote ?? null,
+          logged_by: record.loggedBy ?? null,
+        })));
+
+      const sessionPlayerRows = new Map<string, DbRow>();
+      const putSessionPlayer = (row: DbRow) => {
+        const key = `${row.session_id}::${row.player_id}`;
+        sessionPlayerRows.set(key, { ...(sessionPlayerRows.get(key) ?? {}), ...row });
+      };
+      data.internalLoads.forEach((record) => {
+        const sid = sessionUuidFor(record);
+        const pid = playerUuid(record.playerId);
+        if (!sid || !pid) return;
+        putSessionPlayer({
+          session_id: sid,
+          player_id: pid,
+          participation: 'Completa',
+          minutes: num(record.duration),
+          rpe: num(record.rpe),
+          status: 'Registrado',
+        });
+      });
+      data.externalLoads.forEach((record) => {
+        const sid = sessionUuidFor(record);
+        const pid = playerUuid(record.playerId);
+        if (!sid || !pid) return;
+        putSessionPlayer({
+          session_id: sid,
+          player_id: pid,
+          participation: record.participation ?? 'Completa',
+          minutes: num(record.min),
+          rpe: num(record.rpe),
+          status: 'Registrado',
+          acc: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? num(record.acc) : null,
+          dcc: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? num(record.dcc) : null,
+          sprints: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? num(record.sprints) : null,
+          rhie: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? num(record.rhie) : null,
+          ima: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? num(record.ima) : null,
+        });
+      });
+      await upsertRows(supabase, 'session_players', [...sessionPlayerRows.values()], 'session_id,player_id');
+    } else {
+      console.warn('[Supabase] training_sessions lookup failed:', sessionsLookup.error.message);
     }
 
     await upsertRows(supabase, 'competition_matches', data.competitionMatchSummaries

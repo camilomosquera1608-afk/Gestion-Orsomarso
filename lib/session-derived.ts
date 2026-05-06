@@ -37,6 +37,25 @@ export const getSessionForDateAndCategory = (
   return categorySessions[0];
 };
 
+const matchesTrainingSession = (
+  record: { sessionId?: string; date: string; category?: string; actingCategory?: string; sessionNumber?: number; playerId: string },
+  playerIds: Set<string>,
+  session?: TrainingSessionSummary,
+  fallbackDate?: string,
+  fallbackCategory?: ClubCategory | 'all',
+) => {
+  if (session?.id && record.sessionId === session.id) return true;
+  if (session) {
+    return record.date === session.date
+      && playerIds.has(record.playerId)
+      && sameCategory(session.category ?? fallbackCategory ?? 'all', record.category ?? record.actingCategory)
+      && (record.sessionNumber ?? session.sessionNumber) === session.sessionNumber;
+  }
+  return record.date === fallbackDate
+    && playerIds.has(record.playerId)
+    && sameCategory(fallbackCategory ?? 'all', record.category ?? record.actingCategory);
+};
+
 export const getSessionPlayersForSession = (
   data: AppData,
   session?: TrainingSessionSummary,
@@ -45,18 +64,40 @@ export const getSessionPlayersForSession = (
 ): DailyExternalLoadRecord[] => {
   if (!session && !fallbackDate) return [];
   const playerIds = new Set(data.players.filter((player) => sameCategory(fallbackCategory ?? session?.category ?? 'all', player.category)).map((player) => player.id));
-  return data.externalLoads
-    .filter((record) => {
-      if (session?.id && record.sessionId === session.id) return true;
-      if (session) {
-        return record.date === session.date
-          && playerIds.has(record.playerId)
-          && sameCategory(session.category ?? fallbackCategory ?? 'all', record.category ?? record.actingCategory)
-          && (record.sessionNumber ?? session.sessionNumber) === session.sessionNumber;
-      }
-      return record.date === fallbackDate && playerIds.has(record.playerId) && sameCategory(fallbackCategory ?? 'all', record.category ?? record.actingCategory);
-    })
+  const external = data.externalLoads
+    .filter((record) => matchesTrainingSession(record, playerIds, session, fallbackDate, fallbackCategory))
     .filter((record, index, records) => records.findIndex((item) => item.playerId === record.playerId && (item.sessionId || '') === (record.sessionId || '') && item.date === record.date) === index);
+
+  if (external.length) return external;
+
+  // Fallback clave para U15/U17 o para sincronizaciones parciales: esas categorias
+  // pueden quedar solamente en cargas internas. Convertimos MIN/RPE en filas visibles
+  // para que la sesion nunca aparezca vacia despues de refrescar.
+  return data.internalLoads
+    .filter((record) => matchesTrainingSession(record, playerIds, session, fallbackDate, fallbackCategory))
+    .map((record) => ({
+      id: `internal-${record.id}`,
+      sessionId: record.sessionId,
+      playerId: record.playerId,
+      date: record.date,
+      min: record.duration ?? 0,
+      rpe: record.rpe ?? 0,
+      acc: 0,
+      dcc: 0,
+      sprints: 0,
+      rhie: 0,
+      ima: 0,
+      participation: 'Completa',
+      microcycleId: record.microcycleId,
+      sessionNumber: record.sessionNumber,
+      category: record.category,
+      baseCategory: record.baseCategory,
+      actingCategory: record.actingCategory,
+      movementType: record.movementType,
+      movementNote: record.movementNote,
+      movementModule: record.movementModule,
+      loggedBy: record.loggedBy,
+    }));
 };
 
 export const getInternalLoadsForSession = (
