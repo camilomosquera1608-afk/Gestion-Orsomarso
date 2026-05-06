@@ -33,7 +33,7 @@ const MOVEMENT_OPTIONS: Array<{ value: MovementType; label: string }> = [
   { value: 'subio_a_entrenar', label: 'Subió a entrenar' },
   { value: 'bajo_a_entrenar', label: 'Bajó a entrenar' },
 ];
-const GPS_FIELDS = ['acc','dcc','sprints','rhie','ima','totalDistance','maxVelocity','playerLoad','highSpeedDistance','sprintDistance'] as const;
+const GPS_FIELDS = ['acc','dcc','sprints','rhie','totalDistance','maxVelocity','playerLoad'] as const;
 
 const normalizeCat = (v: string | null): ClubCategory | undefined => {
   const n = (v ?? '').toLowerCase().replace(/\s+/g,'');
@@ -46,17 +46,15 @@ const normalizeCat = (v: string | null): ClubCategory | undefined => {
 type RowState = {
   selected: boolean; participation: SessionParticipation;
   min: number; rpe: number; acc: number; dcc: number;
-  sprints: number; rhie: number; ima: number;
+  sprints: number; rhie: number;
   totalDistance: number; maxVelocity: number; playerLoad: number;
-  highSpeedDistance: number; sprintDistance: number;
   movementType: MovementType; movementNote: string;
 };
 type Msg = { text: string; kind: 'error'|'success'|'info' };
 const DEFAULT_ROW: RowState = {
   selected:false, participation:'Completa',
-  min:0, rpe:0, acc:0, dcc:0, sprints:0, rhie:0, ima:0,
+  min:0, rpe:0, acc:0, dcc:0, sprints:0, rhie:0,
   totalDistance:0, maxVelocity:0, playerLoad:0,
-  highSpeedDistance:0, sprintDistance:0,
   movementType:'subio_a_entrenar', movementNote:'',
 };
 const n = (v:number) => v===0?'':String(v);
@@ -186,11 +184,9 @@ export default function SesionEntrenamientoPage() {
         selected:!!ex, participation:ex?.participation??'Completa',
         min:ex?.min??0, rpe:ex?.rpe??0,
         acc:ex?.acc??0, dcc:ex?.dcc??0, sprints:ex?.sprints??0,
-        rhie:ex?.rhie??0, ima:ex?.ima??0,
+        rhie:ex?.rhie??0,
         totalDistance:ex?.totalDistance??0, maxVelocity:ex?.maxVelocity??0,
         playerLoad:ex?.playerLoad??0,
-        highSpeedDistance:ex?.highSpeedDistance??ex?.hsr??0,
-        sprintDistance:ex?.sprintDistance??0,
         movementType:ex?.movementType??'subio_a_entrenar',
         movementNote:ex?.movementNote??'',
       };
@@ -266,15 +262,10 @@ export default function SesionEntrenamientoPage() {
         id:ex?.id??crypto.randomUUID(),sessionId,playerId:row.player.id,date:filters.date,
         min:row.min, rpe:Math.min(10,Math.max(0,row.rpe)),
         acc:youth?0:row.acc, dcc:youth?0:row.dcc,
-        sprints:youth?0:row.sprints, rhie:youth?0:row.rhie, ima:youth?0:row.ima,
+        sprints:youth?0:row.sprints, rhie:youth?0:row.rhie,
         totalDistance:youth?undefined:row.totalDistance,
-        distancePerMin:youth||!row.totalDistance||!row.min?undefined:Number((row.totalDistance/row.min).toFixed(1)),
         maxVelocity:youth?undefined:row.maxVelocity,
         playerLoad:youth?undefined:row.playerLoad,
-        playerLoadPerMin:youth||!row.playerLoad||!row.min?undefined:Number((row.playerLoad/row.min).toFixed(2)),
-        highSpeedDistance:youth?undefined:row.highSpeedDistance,
-        sprintDistance:youth?undefined:row.sprintDistance,
-        hsr:youth?undefined:row.highSpeedDistance,
         participation:row.participation, microcycleId:activeMcId,
         sessionNumber:parsedNum, sessionType:sessType,
         category:activeCat, baseCategory:row.player.category??sourceCat,
@@ -341,10 +332,9 @@ export default function SesionEntrenamientoPage() {
         next[r.playerId]={
           selected:true, participation:(r.participation as SessionParticipation)??'Completa',
           min:r.min??0, rpe:r.rpe && r.rpe > 0 ? Math.min(10,Math.max(0,r.rpe)) : prev[r.playerId]?.rpe??0,
-          acc:r.acc??0, dcc:r.dcc??0, sprints:r.sprints??0, rhie:r.rhie??0, ima:r.ima??0,
+          acc:r.acc??0, dcc:r.dcc??0, sprints:r.sprints??0, rhie:r.rhie??0,
           totalDistance:r.totalDistance??0, maxVelocity:r.maxVelocity??0,
-          playerLoad:r.playerLoad??0, highSpeedDistance:r.highSpeedDistance??r.hsr??0,
-          sprintDistance:r.sprintDistance??0,
+          playerLoad:r.playerLoad??0,
           movementType:r.movementType as MovementType ?? prev[r.playerId]?.movementType??'subio_a_entrenar',
           movementNote:prev[r.playerId]?.movementNote??'',
         };
@@ -569,6 +559,8 @@ export default function SesionEntrenamientoPage() {
                       <div className="field"><label>Distancia (m)</label><input className="input session-input-large" type="number" value={n(row.totalDistance)} onChange={e=>updateRow(row.player.id,{totalDistance:Number(e.target.value)||0})}/></div>
                       <div className="field"><label>Vel. máxima (km/h)</label><input className="input session-input-large" type="number" step="0.1" value={n(row.maxVelocity)} onChange={e=>updateRow(row.player.id,{maxVelocity:Number(e.target.value)||0})}/></div>
                       <div className="field"><label>Player Load</label><input className="input session-input-large" type="number" value={n(row.playerLoad)} onChange={e=>updateRow(row.player.id,{playerLoad:Number(e.target.value)||0})}/></div>
+                      <div className="field"><label>RPE</label><input className="input session-input-large" type="number" min={0} max={10} value={n(row.rpe)} onChange={e=>updateRow(row.player.id,{rpe:Math.min(10,Math.max(0,Number(e.target.value)||0))})}/></div>
+                      <div className="field"><label>Minutos</label><input className="input session-input-large" type="number" value={n(row.min)} onChange={e=>updateRow(row.player.id,{min:Number(e.target.value)||0})}/></div>
                     </>}
                   </div>
                 </div>

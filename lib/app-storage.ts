@@ -156,7 +156,10 @@ export const getLocalStorageWarning = (): 'ok' | 'warn' | 'danger' => {
 const DERIVED_FIELDS = new Set([
   'distancePerMin',    // derived: totalDistance / min
   'playerLoadPerMin',  // derived: playerLoad / min
-  'hsr',               // duplicate of highSpeedDistance
+  'hsr',               // removed field
+  'highSpeedDistance', // removed field
+  'sprintDistance',    // removed field
+  'ima',               // removed field
   'actingCategory',    // almost always === category
 ]);
 

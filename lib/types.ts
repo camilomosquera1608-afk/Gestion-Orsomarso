@@ -89,16 +89,10 @@ export interface DailyExternalLoadRecord {
   dcc: number;
   sprints: number;
   rhie: number;
-  ima: number;
   rpe?: number;
   totalDistance?: number;
-  distancePerMin?: number;
   maxVelocity?: number;
   playerLoad?: number;
-  playerLoadPerMin?: number;
-  highSpeedDistance?: number;
-  sprintDistance?: number;
-  hsr?: number;
   participation?: SessionParticipation;
   microcycleId?: string;
   sessionNumber?: number;
@@ -110,6 +104,13 @@ export interface DailyExternalLoadRecord {
   movementNote?: string;
   movementModule?: MovementModule;
   loggedBy?: string;
+  // Legacy GPS fields — kept for backward compat with historical Supabase data
+  highSpeedDistance?: number;
+  sprintDistance?: number;
+  hsr?: number;
+  distancePerMin?: number;
+  playerLoadPerMin?: number;
+  ima?: number;
 }
 
 export interface CMJRecord {
@@ -179,11 +180,8 @@ export interface CompetitionRecord {
   dcc?: number;
   sprints?: number;
   rhie?: number;
-  ima?: number;
+  ima?: number;  // legacy
   totalDistance?: number;
-  highSpeedDistance?: number;
-  sprintDistance?: number;
-  hsr?: number;
   maxVelocity?: number;
   playerLoad?: number;
   goalsConceded?: number;

@@ -11,7 +11,7 @@ type Row = {
   player: Player; selected: boolean; participation: SessionParticipation;
   min: number; rpe: number; acc: number; dcc: number; sprints: number; rhie: number; ima: number;
   totalDistance?: number; maxVelocity?: number; playerLoad?: number;
-  highSpeedDistance?: number; sprintDistance?: number;
+
 };
 type Props = {
   date: string; category: ClubCategory; microcycle?: Microcycle;
@@ -156,8 +156,8 @@ export function SessionReportTemplate({
   const avgRpe  = avg(reg.map(r => r.rpe));
   const totalDist = sumN(reg.map(r => r.totalDistance));
   const totalPL   = sumN(reg.map(r => r.playerLoad));
-  const totalHSR  = sumN(reg.map(r => r.highSpeedDistance));
-  const totalSpr  = sumN(reg.map(r => r.sprintDistance));
+  const totalSpr  = 0; // Removed
+  const totalHSR  = 0; // Removed
   const maxVel    = maxN(reg.map(r => r.maxVelocity));
   const avgMMin   = avg(reg.map(r => r.min > 0 && r.totalDistance ? r.totalDistance / r.min : 0));
   const avgAcc    = avg(reg.map(r => r.acc));
@@ -171,8 +171,7 @@ export function SessionReportTemplate({
 
   // Sorted lists
   const byDist = [...reg].sort((a, b) => safeN(b.totalDistance) - safeN(a.totalDistance));
-  const byHSR  = [...reg].sort((a, b) => safeN(b.highSpeedDistance) - safeN(a.highSpeedDistance));
-  const bySpr  = [...reg].sort((a, b) => safeN(b.sprintDistance) - safeN(a.sprintDistance));
+
   const byAcc  = [...reg].sort((a, b) => b.acc - a.acc);
   const byDcc  = [...reg].sort((a, b) => b.dcc - a.dcc);
   const byVel  = [...reg].sort((a, b) => safeN(b.maxVelocity) - safeN(a.maxVelocity));
@@ -180,8 +179,7 @@ export function SessionReportTemplate({
   // Ranges
   const distArr = reg.map(r => safeN(r.totalDistance));
   const plArr   = reg.map(r => safeN(r.playerLoad));
-  const hsrArr  = reg.map(r => safeN(r.highSpeedDistance));
-  const sprArr  = reg.map(r => safeN(r.sprintDistance));
+
   const accArr  = reg.map(r => r.acc);
   const dccArr  = reg.map(r => r.dcc);
   const velArr  = reg.map(r => safeN(r.maxVelocity));
@@ -189,7 +187,7 @@ export function SessionReportTemplate({
   const mminArr = reg.map(r => r.min > 0 && r.totalDistance ? r.totalDistance / r.min : 0);
 
   // Only show sprint if there's meaningful data
-  const hasSprint = totalSpr > 0;
+  // Sprints and RHIE are shown from GPS params
   const highRpe   = reg.filter(r => r.rpe >= 8);
   const lowWell   = reg.filter(r => { const w = wellAvg(wellMap.get(r.player.id)); return w > 0 && w < 3.2; });
 
@@ -286,7 +284,7 @@ export function SessionReportTemplate({
             <KTile label="Distancia" value={`${formatPdfNumber(totalDist / Math.max(1, reg.length))} m`} note="Prom. jugador" accent={C.blue} />
             <KTile label="m/min" value={formatPdfNumber(avgMMin, 1)} note="Intensidad"
               accent={avgMMin >= 75 ? C.green : avgMMin >= 55 ? C.amber : C.red} />
-            <KTile label="HSR prom." value={`${formatPdfNumber(totalHSR / Math.max(1, reg.length))} m`} note="Alta velocidad" accent={C.blue2} />
+
             <KTile label="Player Load" value={formatPdfNumber(totalPL / Math.max(1, reg.length))} note="Prom. jugador" accent={C.navy} />
             <KTile label="ACC prom." value={String(Math.round(avgAcc))} note=">3 m/s²" accent={C.navy} />
             <KTile label="DEC prom." value={String(Math.round(avgDcc))} note=">-3 m/s²" accent={C.navy} />
@@ -312,9 +310,8 @@ export function SessionReportTemplate({
                 <th className="sr-th-name">Jugador</th>
                 <th>Pos.</th><th>MIN</th><th>RPE</th><th>Carga</th>
                 {gps ? <>
-                  <th>Dist. (m)</th><th>m/min</th><th>PL</th>
-                  <th>HSR (m)</th>{hasSprint && <th>Spr. (m)</th>}
-                  <th>ACC</th><th>DCC</th><th>V.máx</th>
+                  <th>ACC</th><th>DCC</th><th>Sprints</th><th>RHIE</th>
+                  <th>Dist. (m)</th><th>Vel. máx</th><th>Player Load</th><th>RPE</th>
                 </> : <>
                   <th>Wellness</th><th>Participación</th>
                 </>}
@@ -333,14 +330,14 @@ export function SessionReportTemplate({
                     <HC v={r.rpe}  lo={0} hi={10} allowZero={false} />
                     <HC v={load}   lo={rMin(loadArr)} hi={rMax(loadArr)} allowZero={false} />
                     {gps ? <>
-                      <HC v={safeN(r.totalDistance)}    lo={rMin(distArr)} hi={rMax(distArr)} f={v => formatPdfNumber(v)} />
-                      <HC v={mmin}                      lo={rMin(mminArr)} hi={rMax(mminArr)} f={v => formatPdfNumber(v, 1)} />
-                      <HC v={safeN(r.playerLoad)}       lo={rMin(plArr)}   hi={rMax(plArr)}   f={v => formatPdfNumber(v)} />
-                      <HC v={safeN(r.highSpeedDistance)} lo={rMin(hsrArr)} hi={rMax(hsrArr)}  f={v => formatPdfNumber(v)} />
-                      {hasSprint && <HC v={safeN(r.sprintDistance)} lo={rMin(sprArr)} hi={rMax(sprArr)} f={v => formatPdfNumber(v)} />}
-                      <HC v={r.acc} lo={rMin(accArr)} hi={rMax(accArr)} allowZero />
-                      <HC v={r.dcc} lo={rMin(dccArr)} hi={rMax(dccArr)} allowZero />
-                      <HC v={safeN(r.maxVelocity)} lo={rMin(velArr)} hi={rMax(velArr)} f={v => v.toFixed(1)} />
+                      <HC v={r.acc}  lo={rMin(accArr)} hi={rMax(accArr)} allowZero />
+                      <HC v={r.dcc}  lo={rMin(dccArr)} hi={rMax(dccArr)} allowZero />
+                      <HC v={r.sprints} lo={rMin(reg.map(x=>x.sprints))} hi={rMax(reg.map(x=>x.sprints))} allowZero />
+                      <HC v={r.rhie} lo={rMin(reg.map(x=>x.rhie))} hi={rMax(reg.map(x=>x.rhie))} allowZero />
+                      <HC v={safeN(r.totalDistance)} lo={rMin(distArr)} hi={rMax(distArr)} f={v => formatPdfNumber(v)} />
+                      <HC v={safeN(r.maxVelocity)}   lo={rMin(velArr)}  hi={rMax(velArr)}  f={v => v.toFixed(1)} />
+                      <HC v={safeN(r.playerLoad)}    lo={rMin(plArr)}   hi={rMax(plArr)}   f={v => formatPdfNumber(v)} />
+                      <HC v={r.rpe}  lo={0} hi={10} allowZero={false} />
                     </> : <>
                       <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 10, background: well >= 3.7 ? '#d1fae5' : well >= 3.2 ? '#fef9c3' : well > 0 ? '#fee2e2' : C.soft, color: well >= 3.7 ? '#065f46' : well >= 3.2 ? '#713f12' : '#7f1d1d' }}>{well ? well.toFixed(1) : '—'}</td>
                       <td style={{ textAlign: 'center', fontSize: 9, color: C.muted }}>{r.participation}</td>
@@ -358,20 +355,20 @@ export function SessionReportTemplate({
         <section className="sr-section" style={{ pageBreakBefore: 'always' }}>
           <Sec eyebrow="Individual" title="Métricas por jugador" />
 
-          {/* Fila 1: Distancia + HSR */}
+          {/* Fila 1: Distancia + Sprint efforts */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 20 }}>
             <BarCol title={`Distancia total · prom ${formatPdfNumber(totalDist / Math.max(1, reg.length))} m`}
               color={C.blue}
               items={byDist.map(r => ({ name: fmt(r.player.name), value: safeN(r.totalDistance) }))}
               maxVal={rMax(distArr)} />
-            <BarCol title={`Alta velocidad HSR · prom ${formatPdfNumber(totalHSR / Math.max(1, reg.length))} m`}
+            <BarCol title={`Sprint efforts · prom ${Math.round(groupAverage(reg.map(r=>r.sprints)))}`}
               color={C.red}
-              items={byHSR.map(r => ({ name: fmt(r.player.name), value: safeN(r.highSpeedDistance) }))}
-              maxVal={rMax(hsrArr)} />
+              items={[...reg].sort((a,b)=>b.sprints-a.sprints).map(r => ({ name: fmt(r.player.name), value: r.sprints }))}
+              maxVal={Math.max(...reg.map(r=>r.sprints), 1)} />
           </div>
 
           {/* Fila 2: ACC + DCC + Velocidad máxima */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: hasSprint ? 20 : 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: false ? 20 : 0 }}>
             <BarCol title={`ACC >3 m/s² · prom ${Math.round(avgAcc)}`}
               color={C.blue2}
               items={byAcc.map(r => ({ name: fmt(r.player.name), value: r.acc }))}
@@ -386,13 +383,7 @@ export function SessionReportTemplate({
               maxVal={rMax(velArr)} f={v => v.toFixed(1)} />
           </div>
 
-          {/* Sprint solo si hay datos */}
-          {hasSprint && (
-            <BarCol title={`Sprint distance · prom ${formatPdfNumber(totalSpr / Math.max(1, reg.length))} m`}
-              color={C.amber}
-              items={bySpr.filter(r => safeN(r.sprintDistance) > 0).map(r => ({ name: fmt(r.player.name), value: safeN(r.sprintDistance) }))}
-              maxVal={rMax(sprArr)} />
-          )}
+
         </section>
       )}
 
@@ -451,7 +442,7 @@ export function SessionReportTemplate({
         <div className="sr-insight">
           {reg.length
             ? gps
-              ? `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Distancia acumulada ${formatPdfNumber(totalDist)} m (${formatPdfNumber(totalDist / Math.max(1, reg.length))} m/jugador), Player Load ${formatPdfNumber(totalPL)}, HSR ${formatPdfNumber(totalHSR)} m${hasSprint ? `, Sprint ${formatPdfNumber(totalSpr)} m` : ''}, velocidad máxima ${formatPdfNumber(maxVel, 1)} km/h.`
+              ? `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Distancia acumulada ${formatPdfNumber(totalDist)} m (${formatPdfNumber(totalDist / Math.max(1, reg.length))} m/jugador), Player Load ${formatPdfNumber(totalPL)}, HSR ${formatPdfNumber(totalHSR)} m${false ? `, Sprint ${formatPdfNumber(totalSpr)} m` : ''}, velocidad máxima ${formatPdfNumber(maxVel, 1)} km/h.`
               : `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Carga interna total ${Math.round(totalLoad)} UA (${Math.round(avgMin)} min, RPE ${avgRpe.toFixed(1)}).${avgWell ? ` Wellness grupal ${avgWell.toFixed(1)}/5.` : ''}`
             : 'Sin registros de sesión.'}
         </div>

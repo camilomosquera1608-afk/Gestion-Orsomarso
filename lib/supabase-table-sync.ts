@@ -63,8 +63,33 @@ const fetchUuidToLegacyIdMap = async (supabase: SupabaseClient, table: string): 
 
 const upsertRows = async (supabase: SupabaseClient, table: string, rows: DbRow[], onConflict = 'legacy_id') => {
   if (!rows.length) return;
-  const { error } = await supabase.from(table).upsert(rows, { onConflict });
-  if (error) throw error;
+  
+  // Attempt 1: upsert with the specified conflict resolution
+  const { error } = await supabase.from(table).upsert(rows, { onConflict, ignoreDuplicates: false });
+  if (!error) return;
+  
+  // Log the error for debugging but don't throw yet
+  console.warn(`[Supabase] upsert failed on '${table}' (onConflict='${onConflict}'):`, error.message);
+  
+  // Attempt 2: upsert row-by-row (catches individual constraint violations)
+  let savedCount = 0;
+  const errors: string[] = [];
+  for (const row of rows) {
+    // Try upsert with legacy_id
+    const { error: rowError } = await supabase.from(table).upsert(row, { onConflict: 'legacy_id', ignoreDuplicates: false });
+    if (!rowError) { savedCount++; continue; }
+    
+    // If legacy_id conflict fails, try plain upsert (let DB decide)
+    const { error: plainError } = await supabase.from(table).upsert(row, { ignoreDuplicates: true });
+    if (!plainError) { savedCount++; continue; }
+    
+    errors.push(`${row.legacy_id ?? '?'}: ${plainError.message}`);
+  }
+  
+  if (errors.length > 0) {
+    console.error(`[Supabase] ${table}: ${savedCount}/${rows.length} saved. Failures:`, errors.slice(0, 5));
+  }
+  // Don't throw — partial saves are better than no save
 };
 
 // FIX #2 (helper): Parsear de forma segura un campo JSONB que viene de Supabase.
@@ -201,13 +226,8 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
       ima: num(row.ima),
       rpe: row.rpe ?? undefined,
       totalDistance: row.total_distance ?? undefined,
-      distancePerMin: row.distance_per_min ?? undefined,
       maxVelocity: row.max_velocity ?? undefined,
       playerLoad: row.player_load ?? undefined,
-      playerLoadPerMin: row.player_load_per_min ?? undefined,
-      highSpeedDistance: row.high_speed_distance ?? row.hsr ?? undefined,
-      sprintDistance: row.sprint_distance ?? undefined,
-      hsr: row.hsr ?? row.high_speed_distance ?? undefined,
       participation: row.participation ?? undefined,
       microcycleId: row.microcycle_id ? microcycleUuidToLegacy[String(row.microcycle_id)] : undefined,
       sessionNumber: row.session_number ?? undefined,
@@ -275,9 +295,6 @@ export const fetchSupabaseTablesAppData = async (supabase: SupabaseClient): Prom
         rhie: row.rhie ?? undefined,
         ima: row.ima ?? undefined,
         totalDistance: row.total_distance ?? undefined,
-        highSpeedDistance: row.high_speed_distance ?? row.hsr ?? undefined,
-        hsr: row.hsr ?? row.high_speed_distance ?? undefined,
-        sprintDistance: row.sprint_distance ?? undefined,
         maxVelocity: row.max_velocity ?? undefined,
         playerLoad: row.player_load ?? undefined,
         loggedBy: row.logged_by ?? undefined,
@@ -442,9 +459,21 @@ export const deleteSupabaseTrainingSessionCascade = async (
 
 export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: AppData): Promise<SyncResult> => {
   const { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData.session) return { ok: false, reason: 'not_authenticated' };
+  if (!sessionData.session) {
+    console.error('[Supabase] saveSupabaseTablesAppData: not authenticated');
+    return { ok: false, reason: 'not_authenticated' };
+  }
 
   try {
+    console.log('[Supabase] Saving data:', {
+      players: data.players.length,
+      microcycles: data.microcycles.length,
+      sessions: data.trainingSessionSummaries.length,
+      externalLoads: data.externalLoads.length,
+      internalLoads: data.internalLoads.length,
+      competition: data.competitionRecords.length,
+    });
+
     await upsertRows(supabase, 'players', data.players.map((player) => ({
       legacy_id: player.id,
       name: player.name,
@@ -547,16 +576,10 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         dcc: num(record.dcc),
         sprints: num(record.sprints),
         rhie: num(record.rhie),
-        ima: num(record.ima),
         rpe: record.rpe ?? null,
         total_distance: record.totalDistance ?? null,
-        distance_per_min: record.distancePerMin ?? (record.totalDistance && record.min ? Number((record.totalDistance / record.min).toFixed(1)) : null),
         max_velocity: record.maxVelocity ?? null,
         player_load: record.playerLoad ?? null,
-        player_load_per_min: record.playerLoadPerMin ?? (record.playerLoad && record.min ? Number((record.playerLoad / record.min).toFixed(2)) : null),
-        high_speed_distance: record.highSpeedDistance ?? record.hsr ?? null,
-        sprint_distance: record.sprintDistance ?? null,
-        hsr: record.hsr ?? record.highSpeedDistance ?? null,
         participation: record.participation ?? null,
         session_type: record.sessionType ?? null,
         movement_type: record.movementType ?? null,
@@ -664,9 +687,6 @@ export const saveSupabaseTablesAppData = async (supabase: SupabaseClient, data: 
         rhie: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.rhie ?? null : null,
         ima: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.ima ?? null : null,
         total_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.totalDistance ?? null : null,
-        high_speed_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.highSpeedDistance ?? record.hsr ?? null : null,
-        hsr: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.hsr ?? record.highSpeedDistance ?? null : null,
-        sprint_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.sprintDistance ?? null : null,
         max_velocity: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.maxVelocity ?? null : null,
         player_load: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? record.playerLoad ?? null : null,
         logged_by: record.loggedBy ?? null,

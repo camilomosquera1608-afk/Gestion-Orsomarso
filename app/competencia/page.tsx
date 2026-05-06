@@ -63,8 +63,6 @@ type PlayerDraft = {
   sprints: string;
   rhie: string;
   totalDistance: string;
-  highSpeedDistance: string;
-  sprintDistance: string;
   maxVelocity: string;
   playerLoad: string;
 };
@@ -82,7 +80,7 @@ const emptyPlayerDraft = (playerId = ''): PlayerDraft => ({
   medicalStatus: 'Sin lesión',
   medicalObservation: '',
   acc: '', dcc: '', sprints: '', rhie: '',
-  totalDistance: '', highSpeedDistance: '', sprintDistance: '', maxVelocity: '', playerLoad: '',
+  totalDistance: '', maxVelocity: '', playerLoad: '',
 });
 
 const toNumber = (value: string) => {
@@ -852,8 +850,6 @@ export default function CompetenciaPage() {
                 <div className="field"><label>Sprint efforts</label><input className="input" min="0" type="number" value={playerDraft.sprints} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, sprints: e.target.value }))} /></div>
                 <div className="field"><label>RHIE</label><input className="input" min="0" type="number" value={playerDraft.rhie} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, rhie: e.target.value }))} /></div>
                 <div className="field"><label>Distancia (m)</label><input className="input" min="0" type="number" value={playerDraft.totalDistance} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, totalDistance: e.target.value }))} /></div>
-                <div className="field"><label>HSR (m)</label><input className="input" min="0" type="number" value={playerDraft.highSpeedDistance} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, highSpeedDistance: e.target.value }))} /></div>
-                <div className="field"><label>Sprint dist. (m)</label><input className="input" min="0" type="number" value={playerDraft.sprintDistance} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, sprintDistance: e.target.value }))} /></div>
                 <div className="field"><label>Vel. máxima (km/h)</label><input className="input" min="0" step="0.1" type="number" value={playerDraft.maxVelocity} placeholder="0.0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, maxVelocity: e.target.value }))} /></div>
                 <div className="field"><label>Player Load</label><input className="input" min="0" type="number" value={playerDraft.playerLoad} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, playerLoad: e.target.value }))} /></div>
               </div>
