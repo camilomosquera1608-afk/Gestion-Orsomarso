@@ -332,7 +332,7 @@ export default function SesionEntrenamientoPage() {
         next[r.playerId]={
           selected:true, participation:(r.participation as SessionParticipation)??'Completa',
           min:r.min??0, rpe:r.rpe && r.rpe > 0 ? Math.min(10,Math.max(0,r.rpe)) : prev[r.playerId]?.rpe??0,
-          acc:r.acc??0, dcc:r.dcc??0, sprints:r.sprints??0, rhie:r.rhie??0,
+          acc:r.acc??0, dcc:r.dcc??0, sprints:r.sprints??0, rhie:r.rhie??0, ima:r.ima??0,
           totalDistance:r.totalDistance??0, maxVelocity:r.maxVelocity??0,
           playerLoad:r.playerLoad??0,
           movementType:r.movementType as MovementType ?? prev[r.playerId]?.movementType??'subio_a_entrenar',
