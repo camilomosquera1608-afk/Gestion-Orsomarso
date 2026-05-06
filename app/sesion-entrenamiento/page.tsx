@@ -33,7 +33,7 @@ const MOVEMENT_OPTIONS: Array<{ value: MovementType; label: string }> = [
   { value: 'subio_a_entrenar', label: 'Subió a entrenar' },
   { value: 'bajo_a_entrenar', label: 'Bajó a entrenar' },
 ];
-const GPS_FIELDS = ['acc','dcc','sprints','rhie','totalDistance','maxVelocity','playerLoad'] as const;
+const GPS_FIELDS = ['acc','dcc','sprints','rhie','ima','totalDistance','maxVelocity','playerLoad'] as const;
 
 const normalizeCat = (v: string | null): ClubCategory | undefined => {
   const n = (v ?? '').toLowerCase().replace(/\s+/g,'');
@@ -46,14 +46,14 @@ const normalizeCat = (v: string | null): ClubCategory | undefined => {
 type RowState = {
   selected: boolean; participation: SessionParticipation;
   min: number; rpe: number; acc: number; dcc: number;
-  sprints: number; rhie: number;
+  sprints: number; rhie: number; ima: number;
   totalDistance: number; maxVelocity: number; playerLoad: number;
   movementType: MovementType; movementNote: string;
 };
 type Msg = { text: string; kind: 'error'|'success'|'info' };
 const DEFAULT_ROW: RowState = {
   selected:false, participation:'Completa',
-  min:0, rpe:0, acc:0, dcc:0, sprints:0, rhie:0,
+  min:0, rpe:0, acc:0, dcc:0, sprints:0, rhie:0, ima:0,
   totalDistance:0, maxVelocity:0, playerLoad:0,
   movementType:'subio_a_entrenar', movementNote:'',
 };
@@ -184,7 +184,7 @@ export default function SesionEntrenamientoPage() {
         selected:!!ex, participation:ex?.participation??'Completa',
         min:ex?.min??0, rpe:ex?.rpe??0,
         acc:ex?.acc??0, dcc:ex?.dcc??0, sprints:ex?.sprints??0,
-        rhie:ex?.rhie??0,
+        rhie:ex?.rhie??0, ima:ex?.ima??0,
         totalDistance:ex?.totalDistance??0, maxVelocity:ex?.maxVelocity??0,
         playerLoad:ex?.playerLoad??0,
         movementType:ex?.movementType??'subio_a_entrenar',
@@ -262,7 +262,7 @@ export default function SesionEntrenamientoPage() {
         id:ex?.id??crypto.randomUUID(),sessionId,playerId:row.player.id,date:filters.date,
         min:row.min, rpe:Math.min(10,Math.max(0,row.rpe)),
         acc:youth?0:row.acc, dcc:youth?0:row.dcc,
-        sprints:youth?0:row.sprints, rhie:youth?0:row.rhie,
+        sprints:youth?0:row.sprints, rhie:youth?0:row.rhie, ima:youth?0:row.ima,
         totalDistance:youth?undefined:row.totalDistance,
         maxVelocity:youth?undefined:row.maxVelocity,
         playerLoad:youth?undefined:row.playerLoad,
