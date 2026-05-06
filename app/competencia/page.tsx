@@ -63,6 +63,8 @@ type PlayerDraft = {
   sprints: string;
   rhie: string;
   totalDistance: string;
+  highSpeedDistance: string;
+  sprintDistance: string;
   maxVelocity: string;
   playerLoad: string;
 };
@@ -80,7 +82,7 @@ const emptyPlayerDraft = (playerId = ''): PlayerDraft => ({
   medicalStatus: 'Sin lesión',
   medicalObservation: '',
   acc: '', dcc: '', sprints: '', rhie: '',
-  totalDistance: '', maxVelocity: '', playerLoad: '',
+  totalDistance: '', highSpeedDistance: '', sprintDistance: '', maxVelocity: '', playerLoad: '',
 });
 
 const toNumber = (value: string) => {
