@@ -19,6 +19,7 @@ import { Upload as UploadIcon, FileText, X as XIcon } from 'lucide-react';
 import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
 import { CsvImporter } from '@/components/csv-importer';
 import { supportsGps } from '@/lib/report-utils';
+import { buildCompetitionLogic } from '@/lib/logic-insights';
 
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 const starterOptions: CompetitionPlayerRole[] = ['Titular', 'Suplente'];
@@ -388,6 +389,11 @@ export default function CompetenciaPage() {
     ? buildCompetitionReportData({ data, match: selectedMatch, records: matchRecords, activeCategory })
     : undefined;
 
+  const competitionLogic = useMemo(
+    () => buildCompetitionLogic({ match: selectedMatch, records: matchRecords, players: data.players }),
+    [selectedMatch, matchRecords, data.players],
+  );
+
   useEffect(() => {
     setSourceCategory(activeCategory);
   }, [activeCategory]);
@@ -703,6 +709,35 @@ export default function CompetenciaPage() {
       </div>
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
+
+      <div className="grid grid-2">
+        <div className="card compact-card">
+          <span className="section-eyebrow">Lógica de competencia</span>
+          <h3 style={{ margin: '4px 0 8px' }}>Lectura operativa del partido</h3>
+          <div className="grid" style={{ gap: 8 }}>
+            {competitionLogic.insights.map((insight) => (
+              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
+                <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="card compact-card">
+          <span className="section-eyebrow">Ranking inteligente</span>
+          <h3 style={{ margin: '4px 0 8px' }}>Impacto físico-técnico del partido</h3>
+          <div className="grid" style={{ gap: 8 }}>
+            {competitionLogic.ranking.length ? competitionLogic.ranking.map((row, index) => (
+              <div key={row.playerId} className="mini-stat-card">
+                <div className="toolbar" style={{ padding: 0 }}>
+                  <strong>{index + 1}. {row.name}</strong>
+                  <span className="status-badge ui-tone-blue">{Math.round(row.score)} pts</span>
+                </div>
+                <div className="muted-line">{row.detail}</div>
+              </div>
+            )) : <div className="empty">Carga GPS o jugadores del partido para activar el ranking.</div>}
+          </div>
+        </div>
+      </div>
 
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

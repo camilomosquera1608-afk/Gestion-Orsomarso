@@ -7,6 +7,8 @@ import { EmptyState, SectionHeader, StatusBadge } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
+import { buildIntelligentRanking, buildAbruptLoadAlerts } from '@/lib/logic-insights';
+import type { ClubCategory } from '@/lib/types';
 
 export default function RankingPage() {
   const { data, filters, isLoading } = useApp();
@@ -14,6 +16,9 @@ export default function RankingPage() {
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
   const players = data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory);
+  const rankingCategory = (activeCategory === 'all' ? 'all' : activeCategory) as ClubCategory | 'all';
+  const intelligentRanking = buildIntelligentRanking({ data, players: data.players, referenceDate: filters.date, category: rankingCategory, limit: 10 });
+  const abruptLoadRanking = buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
 
   // Goles — solo jugadores con al menos 1 gol
   const bestGoals = [...players]
@@ -110,6 +115,33 @@ export default function RankingPage() {
           <Link className="btn secondary" href="/informes">Ir a informes</Link>
         </div>
       </div>
+      <div className="grid grid-2">
+        <div className="card">
+          <SectionHeader eyebrow="Ranking inteligente" title="Índice integral de rendimiento" subtitle="Combina competencia, carga reciente, wellness, CMJ, FMS e intensidad GPS." />
+          <div className="grid" style={{ gap: 10 }}>
+            {intelligentRanking.length ? intelligentRanking.map((row, index) => (
+              <Link key={row.id} className="mini-stat-card player-status-link" href={`/jugadores/${row.id}`}>
+                <div className="toolbar" style={{ padding: 0 }}>
+                  <strong>{index + 1}. {row.name}</strong>
+                  <span className="status-badge ui-tone-blue">{Math.round(row.score)} pts</span>
+                </div>
+                <div className="muted-line">{row.detail}</div>
+              </Link>
+            )) : <EmptyState title="Sin datos suficientes" text="Carga competencia, valoraciones, wellness y sesiones para activar el índice." />}
+          </div>
+        </div>
+        <div className="card">
+          <SectionHeader eyebrow="Alerta de carga" title="Aumentos bruscos recientes" subtitle="Compara últimos 7 días contra los 7 días previos." />
+          <div className="grid" style={{ gap: 10 }}>
+            {abruptLoadRanking.length ? abruptLoadRanking.map((alert) => (
+              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : 'yellow'}`}>
+                <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
+              </div>
+            )) : <EmptyState title="Sin aumentos bruscos" text="No hay cambios de carga relevantes para la fecha activa." />}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-2">
         {sections.map(({ title, rows, suffix, emptyText }) => (
           <div key={title} className="card">

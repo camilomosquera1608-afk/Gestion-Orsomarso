@@ -178,7 +178,7 @@ img { max-width: 100%; height: auto; }
 .ui-tone-green,  .tone-green  { color:#065f46; background:var(--green-soft); border:1px solid var(--green-mid); }
 .ui-tone-amber,  .tone-yellow, .tone-orange { color:#92400e; background:var(--amber-soft); border:1px solid var(--amber-mid); }
 .ui-tone-red,    .tone-red    { color:#991b1b; background:var(--red-soft); border:1px solid var(--red-mid); }
-.ui-tone-blue               { color:#1d4ed8; background:var(--blue-soft); border:1px solid var(--blue-mid); }
+.ui-tone-blue, .tone-blue { color:#1d4ed8; background:var(--blue-soft); border:1px solid var(--blue-mid); }
 .ui-tone-neutral            { color:#475569; background:#f1f5f9; border:1px solid #e2e8f0; }
 
 /* ─── KPI Cards ─── */

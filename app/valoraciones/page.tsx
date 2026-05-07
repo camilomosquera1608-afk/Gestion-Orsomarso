@@ -11,6 +11,7 @@ import { ClubCategory } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { buildEvaluationsReportData } from '@/lib/evaluations-report';
+import { buildEvaluationLogic } from '@/lib/logic-insights';
 import { Line, LineChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   FAT_PERCENTAGE_RANGES,
@@ -266,6 +267,10 @@ export default function ValoracionesPage() {
     'Revisar pruebas con puntaje 1.',
   ] : ['Sin histórico suficiente para comparación.'];
 
+  const evaluationLogic = useMemo(
+    () => buildEvaluationLogic({ data, players: data.players, category: activeCategory, limit: 8 }),
+    [data, activeCategory],
+  );
   const evaluationReport = buildEvaluationsReportData({ data, player: selectedPlayer, activeCategory, referenceDate: filters.date });
   const nutritionChartData = [...nutritionHistory].reverse().map((row) => {
     const normalized = normalizeNutritionRecord(row);
@@ -297,6 +302,23 @@ export default function ValoracionesPage() {
         {selectedPlayer ? <div style={{ marginTop: 14, fontWeight: 700 }}>{selectedPlayer.name}</div> : null}
       </div>
       {message ? <div className="card"><strong>{message}</strong></div> : null}
+
+      <div className="card">
+        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <span className="section-eyebrow">Lógica de valoraciones</span>
+            <h3 style={{ margin: 0 }}>Interpretación automática del grupo</h3>
+            <div className="muted-line" style={{ marginTop: 6 }}>Detecta mejoras, retrocesos y alertas funcionales para seguimiento preventivo.</div>
+          </div>
+        </div>
+        <div className="grid grid-2" style={{ gap: 10, marginTop: 14 }}>
+          {evaluationLogic.length ? evaluationLogic.map((insight) => (
+            <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'green'}`}>
+              <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
+            </div>
+          )) : <div className="empty">Sin cambios relevantes detectados. Carga al menos dos mediciones por jugador para activar comparaciones.</div>}
+        </div>
+      </div>
 
       <div className="card">
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

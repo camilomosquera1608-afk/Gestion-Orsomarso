@@ -45,6 +45,7 @@ import {
   getInternalLoadsForSession,
 } from "@/lib/session-derived";
 import { CsvImporter } from "@/components/csv-importer";
+import { buildAbruptLoadAlerts, buildLoadWellnessRelation, buildSessionTypeLoadControl, wellnessReadiness } from "@/lib/logic-insights";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const SESSION_TYPES: {
@@ -507,6 +508,33 @@ export default function SesionEntrenamientoPage() {
     (rec) =>
       rec.date === filters.date &&
       sessionPlayers.some((p) => p.id === rec.playerId),
+  );
+
+  const sessionLoadMetrics = useMemo(() => {
+    const avgMinutes = groupAverage(selectedRows.map((r) => r.min));
+    const avgRpe = groupAverage(selectedRows.map((r) => r.rpe));
+    const avgInternalLoad = groupAverage(selectedRows.map((r) => r.min * r.rpe));
+    const avgDistance = groupAverage(selectedRows.map((r) => r.totalDistance));
+    const avgAcc = groupAverage(selectedRows.map((r) => r.acc));
+    const avgDcc = groupAverage(selectedRows.map((r) => r.dcc));
+    const avgPlayerLoad = groupAverage(selectedRows.map((r) => r.playerLoad));
+    const wellnessReadinessAvg = groupAverage(sessWellness.map((record) => wellnessReadiness(record)));
+    return { avgMinutes, avgRpe, avgInternalLoad, avgDistance, avgAcc, avgDcc, avgPlayerLoad, wellnessReadiness: wellnessReadinessAvg };
+  }, [selectedRows, sessWellness]);
+
+  const sessionTypeLoadControl = useMemo(
+    () => buildSessionTypeLoadControl(sessType, sessionLoadMetrics),
+    [sessType, sessionLoadMetrics],
+  );
+
+  const abruptLoadAlerts = useMemo(
+    () => buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 5 }),
+    [data.players, data.internalLoads, data.externalLoads, filters.date, activeCat],
+  );
+
+  const loadWellnessRelations = useMemo(
+    () => buildLoadWellnessRelation({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, date: filters.date, category: activeCat, limit: 5 }),
+    [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCat],
   );
 
   const mcNotice = filters.date
@@ -1112,6 +1140,30 @@ export default function SesionEntrenamientoPage() {
             tone="blue"
             trend={gps ? "GPS" : "Interna"}
           />
+        </div>
+
+        <div className="grid grid-2">
+          <div className="card compact-card">
+            <div className="section-eyebrow">Lógica de carga</div>
+            <h3 style={{ margin: "4px 0 8px" }}>{sessionTypeLoadControl.title}</h3>
+            <div className={`alert-item tone-${sessionTypeLoadControl.tone === "red" ? "red" : sessionTypeLoadControl.tone === "yellow" ? "yellow" : "green"}`}>
+              <strong>{sessionTypeLoadControl.value}</strong> · {sessionTypeLoadControl.description}
+            </div>
+          </div>
+          <div className="card compact-card">
+            <div className="section-eyebrow">Alertas automáticas</div>
+            <h3 style={{ margin: "4px 0 8px" }}>Aumento brusco y wellness</h3>
+            <div className="grid" style={{ gap: 8 }}>
+              {[...abruptLoadAlerts, ...loadWellnessRelations].slice(0, 4).map((alert) => (
+                <div key={alert.id} className={`alert-item tone-${alert.tone === "red" ? "red" : alert.tone === "yellow" ? "yellow" : "blue"}`}>
+                  <strong>{alert.title}</strong><br />{alert.description}
+                </div>
+              ))}
+              {![...abruptLoadAlerts, ...loadWellnessRelations].length ? (
+                <div className="empty">Sin alertas críticas de carga/wellness para la fecha activa.</div>
+              ) : null}
+            </div>
+          </div>
         </div>
 
         {/* ── PLANILLA CARD ────────────────────────────────────────────── */}
