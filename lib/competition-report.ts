@@ -21,6 +21,7 @@ export interface CompetitionReportPlayerRow {
   acc: number;
   dcc: number;
   sprints: number;
+  highSpeedDistance: number;
   sprintDistance: number;
   maxVelocity: number;
   playerLoad: number;
@@ -44,6 +45,7 @@ export interface CompetitionReportStats {
   acc: number;
   dcc: number;
   sprints: number;
+  highSpeedDistance: number;
   sprintDistance: number;
   maxVelocity: number;
   playerLoad: number;
@@ -125,7 +127,8 @@ export const buildCompetitionReportData = ({
       acc: toSafeNumber(record.acc),
       dcc: toSafeNumber(record.dcc),
       sprints: toSafeNumber(record.sprints),
-      sprintDistance: toSafeNumber(record.sprintDistance ?? record.hsr),
+      highSpeedDistance: toSafeNumber(record.highSpeedDistance ?? record.hsr),
+      sprintDistance: toSafeNumber(record.sprintDistance),
       maxVelocity: toSafeNumber(record.maxVelocity),
       playerLoad: toSafeNumber(record.playerLoad),
     };
@@ -159,7 +162,8 @@ export const buildCompetitionReportData = ({
     acc: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.acc), 0),
     dcc: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.dcc), 0),
     sprints: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.sprints), 0),
-    sprintDistance: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.sprintDistance ?? record.hsr), 0),
+    highSpeedDistance: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.highSpeedDistance ?? record.hsr), 0),
+    sprintDistance: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.sprintDistance), 0),
     maxVelocity: fieldRecords.reduce((acc, record) => Math.max(acc, toSafeNumber(record.maxVelocity)), 0),
     playerLoad: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.playerLoad), 0),
   };
@@ -173,7 +177,7 @@ export const buildCompetitionReportData = ({
   }).format(new Date());
 
   const executiveSummary = rows.length
-    ? `Orsomarso SC ${resultVerb(resultType)} ${score} frente a ${match.opponent} en condición de ${match.venue ?? 'Local'}. La planilla registró ${plural(stats.players, 'jugador', 'jugadores')}, ${plural(stats.starters, 'titular', 'titulares')}, ${plural(stats.substitutes, 'suplente', 'suplentes')}, ${plural(stats.goals, 'gol', 'goles')}, ${plural(stats.assists, 'asistencia', 'asistencias')} y ${plural(stats.medical, 'incidencia médica', 'incidencias médicas')}`
+    ? `Orsomarso SC ${resultVerb(resultType)} ${score} frente a ${match.opponent} en condición de ${match.venue ?? 'Local'}. La planilla registró ${plural(stats.players, 'jugador', 'jugadores')}, ${plural(stats.goals, 'gol', 'goles')}, ${plural(stats.assists, 'asistencia', 'asistencias')}, ${stats.totalDistance.toLocaleString('es-CO')} m GPS de campo, ${stats.avgMetersPerMinute || 0} m/min promedio y ${plural(stats.medical, 'incidencia médica', 'incidencias médicas')}.`
     : 'Sin planilla disponible.';
 
   const recentMatches = data.competitionMatchSummaries

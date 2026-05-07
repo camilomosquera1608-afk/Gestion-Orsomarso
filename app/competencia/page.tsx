@@ -965,7 +965,7 @@ export default function CompetenciaPage() {
           </div>
           {showGroupReport && competitionReport ? (
             <div style={{ marginTop: 16 }}>
-              <CompetitionReportTemplate report={competitionReport} category={activeCategory} compact />
+              <CompetitionReportTemplate report={competitionReport} category={activeCategory} compact eyeballStats={eyeballStats} />
             </div>
           ) : null}
         </div>
@@ -1097,7 +1097,7 @@ export default function CompetenciaPage() {
         />
       ) : null}
 
-      {competitionReport ? <CompetitionReportTemplate report={competitionReport} category={activeCategory} className="print-only" /> : null}
+      {competitionReport ? <CompetitionReportTemplate report={competitionReport} category={activeCategory} className="print-only" eyeballStats={eyeballStats} /> : null}
     </div>
   );
 }

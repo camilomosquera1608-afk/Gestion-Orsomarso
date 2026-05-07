@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Activity,
   BarChart3,
+  BedDouble,
   Bell,
   Briefcase,
   ChevronDown,
@@ -51,7 +52,7 @@ const staffGroups = [
       { href: '/microciclo', label: 'Microciclo', icon: Activity },
       { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
       { href: '/competencia', label: 'Competencia', icon: Trophy },
-      { href: '/competencia/analisis-tactico', label: 'Análisis táctico', icon: BarChart3 },
+      { href: '/casa-hogar', label: 'Casa Hogar', icon: BedDouble },
     ],
   },
   {

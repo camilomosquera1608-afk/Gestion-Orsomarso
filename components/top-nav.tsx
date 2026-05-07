@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Activity, BarChart3, Bell, Briefcase, ChevronDown,
+  Activity, BarChart3, Bell, BedDouble, Briefcase, ChevronDown,
   Dumbbell, FileText, Gauge, HeartPulse, Medal,
   Settings, ShieldCheck, TimerReset, Trophy, TrendingUp,
   UserRoundPlus, Users, LogOut, Menu, Home, type LucideIcon } from 'lucide-react';
@@ -36,7 +36,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/microciclo', label: 'Microciclo', icon: Activity },
         { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
         { href: '/competencia', label: 'Competencia', icon: Trophy },
-        { href: '/competencia/analisis-tactico', label: 'Análisis táctico', icon: BarChart3 },
+        { href: '/casa-hogar', label: 'Casa Hogar', icon: BedDouble },
       ] },
     {
       label: 'Rendimiento',
