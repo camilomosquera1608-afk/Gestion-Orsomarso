@@ -19,7 +19,7 @@ import { Upload as UploadIcon, FileText, X as XIcon } from 'lucide-react';
 import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
 import { CsvImporter } from '@/components/csv-importer';
 import { supportsGps } from '@/lib/report-utils';
-import { buildCompetitionLogic } from '@/lib/logic-insights';
+import { buildCompetitionLogic, buildDataInconsistencyAlerts, buildReturnToPlayAlerts, buildRoleLoadControl } from '@/lib/logic-insights';
 
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 const starterOptions: CompetitionPlayerRole[] = ['Titular', 'Suplente'];
@@ -393,6 +393,18 @@ export default function CompetenciaPage() {
     () => buildCompetitionLogic({ match: selectedMatch, records: matchRecords, players: data.players }),
     [selectedMatch, matchRecords, data.players],
   );
+  const roleLoadAlerts = useMemo(
+    () => buildRoleLoadControl({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: selectedMatch?.date ?? filters.date, category: activeCategory, limit: 5 }),
+    [data.players, data.competitionRecords, data.internalLoads, data.externalLoads, selectedMatch?.date, filters.date, activeCategory],
+  );
+  const returnToPlayAlerts = useMemo(
+    () => buildReturnToPlayAlerts({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: selectedMatch?.date ?? filters.date, category: activeCategory, limit: 5 }),
+    [data.players, data.competitionRecords, data.internalLoads, data.externalLoads, selectedMatch?.date, filters.date, activeCategory],
+  );
+  const competitionInconsistencies = useMemo(
+    () => buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: selectedMatch?.date ?? filters.date, category: activeCategory, limit: 5 }),
+    [data.players, data.internalLoads, data.externalLoads, data.competitionRecords, selectedMatch?.date, filters.date, activeCategory],
+  );
 
   useEffect(() => {
     setSourceCategory(activeCategory);
@@ -735,6 +747,32 @@ export default function CompetenciaPage() {
                 <div className="muted-line">{row.detail}</div>
               </div>
             )) : <div className="empty">Carga GPS o jugadores del partido para activar el ranking.</div>}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-2">
+        <div className="card compact-card">
+          <span className="section-eyebrow">Rol competitivo y retorno</span>
+          <h3 style={{ margin: '4px 0 8px' }}>Control profesional del jugador</h3>
+          <div className="grid" style={{ gap: 8 }}>
+            {[...returnToPlayAlerts, ...roleLoadAlerts].slice(0, 5).map((insight) => (
+              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
+                <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
+              </div>
+            ))}
+            {![...returnToPlayAlerts, ...roleLoadAlerts].length ? <div className="empty">Sin alertas de rol competitivo o retorno progresivo.</div> : null}
+          </div>
+        </div>
+        <div className="card compact-card">
+          <span className="section-eyebrow">Calidad del dato</span>
+          <h3 style={{ margin: '4px 0 8px' }}>Incoherencias de competencia/GPS</h3>
+          <div className="grid" style={{ gap: 8 }}>
+            {competitionInconsistencies.length ? competitionInconsistencies.map((insight) => (
+              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
+                <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
+              </div>
+            )) : <div className="empty">Sin incoherencias relevantes en el partido seleccionado.</div>}
           </div>
         </div>
       </div>

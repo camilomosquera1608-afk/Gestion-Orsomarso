@@ -45,7 +45,7 @@ import {
   getInternalLoadsForSession,
 } from "@/lib/session-derived";
 import { CsvImporter } from "@/components/csv-importer";
-import { buildAbruptLoadAlerts, buildLoadWellnessRelation, buildSessionTypeLoadControl, wellnessReadiness } from "@/lib/logic-insights";
+import { buildAbruptLoadAlerts, buildAvailabilityIndex, buildDataInconsistencyAlerts, buildLoadWellnessRelation, buildPlayerReadinessSemaphores, buildPositionComparisonInsights, buildSelfComparisonInsights, buildSessionTypeLoadControl, wellnessReadiness } from "@/lib/logic-insights";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const SESSION_TYPES: {
@@ -535,6 +535,27 @@ export default function SesionEntrenamientoPage() {
   const loadWellnessRelations = useMemo(
     () => buildLoadWellnessRelation({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, date: filters.date, category: activeCat, limit: 5 }),
     [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCat],
+  );
+
+  const readinessRows = useMemo(
+    () => buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 6 }),
+    [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCat],
+  );
+  const availabilityIndex = useMemo(
+    () => buildAvailabilityIndex({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat }),
+    [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCat],
+  );
+  const selfComparisonInsights = useMemo(
+    () => buildSelfComparisonInsights({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 4 }),
+    [data.players, data.internalLoads, data.externalLoads, filters.date, activeCat],
+  );
+  const positionComparisonInsights = useMemo(
+    () => buildPositionComparisonInsights({ players: data.players, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 4 }),
+    [data.players, data.externalLoads, filters.date, activeCat],
+  );
+  const dataInconsistencyAlerts = useMemo(
+    () => buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: filters.date, category: activeCat, limit: 6 }),
+    [data.players, data.internalLoads, data.externalLoads, data.competitionRecords, filters.date, activeCat],
   );
 
   const mcNotice = filters.date
@@ -1149,19 +1170,49 @@ export default function SesionEntrenamientoPage() {
             <div className={`alert-item tone-${sessionTypeLoadControl.tone === "red" ? "red" : sessionTypeLoadControl.tone === "yellow" ? "yellow" : "green"}`}>
               <strong>{sessionTypeLoadControl.value}</strong> · {sessionTypeLoadControl.description}
             </div>
+            <div className={`alert-item tone-${availabilityIndex.tone === "red" ? "red" : availabilityIndex.tone === "yellow" ? "yellow" : "green"}`} style={{ marginTop: 8 }}>
+              <strong>{availabilityIndex.title}</strong> · {availabilityIndex.value}<br />{availabilityIndex.description}
+            </div>
           </div>
           <div className="card compact-card">
-            <div className="section-eyebrow">Alertas automáticas</div>
-            <h3 style={{ margin: "4px 0 8px" }}>Aumento brusco y wellness</h3>
+            <div className="section-eyebrow">Semáforo integral</div>
+            <h3 style={{ margin: "4px 0 8px" }}>Disponibilidad individual</h3>
             <div className="grid" style={{ gap: 8 }}>
-              {[...abruptLoadAlerts, ...loadWellnessRelations].slice(0, 4).map((alert) => (
-                <div key={alert.id} className={`alert-item tone-${alert.tone === "red" ? "red" : alert.tone === "yellow" ? "yellow" : "blue"}`}>
-                  <strong>{alert.title}</strong><br />{alert.description}
+              {readinessRows.slice(0, 5).map((row) => (
+                <div key={row.playerId} className={`alert-item tone-${row.tone === "red" ? "red" : row.tone === "yellow" ? "yellow" : "green"}`}>
+                  <strong>{row.name}</strong> · {row.label} · {Math.round(row.score)}%<br />{row.detail}
                 </div>
               ))}
-              {![...abruptLoadAlerts, ...loadWellnessRelations].length ? (
-                <div className="empty">Sin alertas críticas de carga/wellness para la fecha activa.</div>
+              {!readinessRows.length ? <div className="empty">Sin datos suficientes para calcular semáforo integral.</div> : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-2">
+          <div className="card compact-card">
+            <div className="section-eyebrow">Alertas automáticas</div>
+            <h3 style={{ margin: "4px 0 8px" }}>Aumento brusco, wellness e incoherencias</h3>
+            <div className="grid" style={{ gap: 8 }}>
+              {[...dataInconsistencyAlerts, ...abruptLoadAlerts, ...loadWellnessRelations].slice(0, 5).map((alert) => (
+                <div key={alert.id} className={`alert-item tone-${alert.tone === "red" ? "red" : alert.tone === "yellow" ? "yellow" : "blue"}`}>
+                  <strong>{alert.title}</strong>{alert.value ? ` · ${alert.value}` : ""}<br />{alert.description}
+                </div>
+              ))}
+              {![...dataInconsistencyAlerts, ...abruptLoadAlerts, ...loadWellnessRelations].length ? (
+                <div className="empty">Sin alertas críticas de carga, wellness o coherencia para la fecha activa.</div>
               ) : null}
+            </div>
+          </div>
+          <div className="card compact-card">
+            <div className="section-eyebrow">Comparaciones inteligentes</div>
+            <h3 style={{ margin: "4px 0 8px" }}>Jugador vs sí mismo y posición</h3>
+            <div className="grid" style={{ gap: 8 }}>
+              {[...selfComparisonInsights, ...positionComparisonInsights].slice(0, 5).map((insight) => (
+                <div key={insight.id} className={`alert-item tone-${insight.tone === "red" ? "red" : insight.tone === "yellow" ? "yellow" : "blue"}`}>
+                  <strong>{insight.title}</strong>{insight.value ? ` · ${insight.value}` : ""}<br />{insight.description}
+                </div>
+              ))}
+              {![...selfComparisonInsights, ...positionComparisonInsights].length ? <div className="empty">Sin desviaciones relevantes frente al historial individual o pares de posición.</div> : null}
             </div>
           </div>
         </div>

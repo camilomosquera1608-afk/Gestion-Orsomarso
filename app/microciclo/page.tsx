@@ -12,7 +12,7 @@ import { averageWellness, calculateInternalLoad, groupAverage, getMicrocyclesFor
 import { buildMicrocycleWeek } from '@/lib/operational-helpers';
 import { supportsGps } from '@/lib/report-utils';
 import { findOverlappingMicrocycle } from '@/lib/operational-validation';
-import { buildAbruptLoadAlerts, buildMicrocycleLogic } from '@/lib/logic-insights';
+import { buildAbruptLoadAlerts, buildDataInconsistencyAlerts, buildMicrocycleLogic, buildPlayerReadinessSemaphores, buildReturnToPlayAlerts, buildRoleLoadControl, buildSelfComparisonInsights, buildWeeklyMonotonyFatigue } from '@/lib/logic-insights';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación', deci: 'Decisión' };
@@ -128,7 +128,14 @@ export default function MicrocicloPage() {
   };
 
   const microcycleLogic = buildMicrocycleLogic({ data, microcycle, players, category: effectiveCategory });
-  const microcycleAbruptAlerts = buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycle.endDate || filters.date, category: effectiveCategory, limit: 5 });
+  const microcycleReferenceDate = microcycle.endDate || filters.date;
+  const microcycleAbruptAlerts = buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
+  const microcycleMonotony = buildWeeklyMonotonyFatigue({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory });
+  const microcycleReadiness = buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
+  const microcycleRoleAlerts = buildRoleLoadControl({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
+  const microcycleReturnAlerts = buildReturnToPlayAlerts({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
+  const microcycleSelfComparison = buildSelfComparisonInsights({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
+  const microcycleInconsistencies = buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: '', category: effectiveCategory, limit: 5 });
 
   const timeline = sessionRecords.reduce((acc, record) => {
     const existing = acc.find((item) => item.date === record.date && item.sessionNumber === (record.sessionNumber ?? 1));
@@ -209,16 +216,45 @@ export default function MicrocicloPage() {
                 <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
               </div>
             ))}
+            <div className={`alert-item tone-${microcycleMonotony.tone === 'red' ? 'red' : microcycleMonotony.tone === 'yellow' ? 'yellow' : 'green'}`}>
+              <strong>{microcycleMonotony.title}</strong> · {microcycleMonotony.value}<br />{microcycleMonotony.description}
+            </div>
           </div>
         </div>
         <div className="card compact-card">
-          <SectionHeader eyebrow="Carga aguda" title="Aumentos bruscos del microciclo" subtitle="Detecta jugadores con incrementos relevantes de carga reciente." />
+          <SectionHeader eyebrow="Carga aguda" title="Aumentos bruscos y disponibilidad" subtitle="Detecta incrementos, semáforo integral y riesgo de fatiga." />
           <div className="grid" style={{ gap: 8 }}>
-            {microcycleAbruptAlerts.length ? microcycleAbruptAlerts.map((alert) => (
-              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : 'yellow'}`}>
+            {[...microcycleAbruptAlerts, ...microcycleReadiness.filter((row) => row.tone !== 'green').map((row) => ({ id: `mc-ready-${row.playerId}`, title: `${row.name}: ${row.label}`, tone: row.tone, value: `${Math.round(row.score)}%`, description: row.detail }))].slice(0, 6).map((alert) => (
+              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : alert.tone === 'yellow' ? 'yellow' : 'green'}`}>
                 <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
               </div>
-            )) : <div className="empty">Sin aumentos bruscos detectados para este microciclo.</div>}
+            ))}
+            {![...microcycleAbruptAlerts, ...microcycleReadiness.filter((row) => row.tone !== 'green')].length ? <div className="empty">Sin aumentos bruscos ni semáforos de riesgo para este microciclo.</div> : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-2">
+        <div className="card compact-card">
+          <SectionHeader eyebrow="Rol competitivo" title="Control por rol y retorno" subtitle="Diferencia titulares, rotación, retorno y readaptación." />
+          <div className="grid" style={{ gap: 8 }}>
+            {[...microcycleReturnAlerts, ...microcycleRoleAlerts].slice(0, 6).map((alert) => (
+              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : alert.tone === 'yellow' ? 'yellow' : 'blue'}`}>
+                <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
+              </div>
+            ))}
+            {![...microcycleReturnAlerts, ...microcycleRoleAlerts].length ? <div className="empty">Sin alertas de rol competitivo o retorno progresivo.</div> : null}
+          </div>
+        </div>
+        <div className="card compact-card">
+          <SectionHeader eyebrow="Calidad y comparación" title="Historial individual e incoherencias" subtitle="Cruza al jugador contra su propio promedio y detecta datos atípicos." />
+          <div className="grid" style={{ gap: 8 }}>
+            {[...microcycleInconsistencies, ...microcycleSelfComparison].slice(0, 6).map((alert) => (
+              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : alert.tone === 'yellow' ? 'yellow' : 'blue'}`}>
+                <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
+              </div>
+            ))}
+            {![...microcycleInconsistencies, ...microcycleSelfComparison].length ? <div className="empty">Sin incoherencias ni desviaciones individuales relevantes.</div> : null}
           </div>
         </div>
       </div>

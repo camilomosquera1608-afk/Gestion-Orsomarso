@@ -11,7 +11,7 @@ import { ClubCategory } from '@/lib/types';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { buildEvaluationsReportData } from '@/lib/evaluations-report';
-import { buildEvaluationLogic } from '@/lib/logic-insights';
+import { buildAvailabilityIndex, buildEvaluationLogic, buildPlayerReadinessSemaphores, buildSelfComparisonInsights } from '@/lib/logic-insights';
 import { Line, LineChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   FAT_PERCENTAGE_RANGES,
@@ -271,6 +271,18 @@ export default function ValoracionesPage() {
     () => buildEvaluationLogic({ data, players: data.players, category: activeCategory, limit: 8 }),
     [data, activeCategory],
   );
+  const valuationReadiness = useMemo(
+    () => buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCategory, limit: 5 }),
+    [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCategory],
+  );
+  const valuationAvailabilityIndex = useMemo(
+    () => buildAvailabilityIndex({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCategory }),
+    [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCategory],
+  );
+  const valuationSelfComparison = useMemo(
+    () => buildSelfComparisonInsights({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCategory, limit: 4 }),
+    [data.players, data.internalLoads, data.externalLoads, filters.date, activeCategory],
+  );
   const evaluationReport = buildEvaluationsReportData({ data, player: selectedPlayer, activeCategory, referenceDate: filters.date });
   const nutritionChartData = [...nutritionHistory].reverse().map((row) => {
     const normalized = normalizeNutritionRecord(row);
@@ -308,15 +320,25 @@ export default function ValoracionesPage() {
           <div>
             <span className="section-eyebrow">Lógica de valoraciones</span>
             <h3 style={{ margin: 0 }}>Interpretación automática del grupo</h3>
-            <div className="muted-line" style={{ marginTop: 6 }}>Detecta mejoras, retrocesos y alertas funcionales para seguimiento preventivo.</div>
+            <div className="muted-line" style={{ marginTop: 6 }}>Detecta mejoras, retrocesos, disponibilidad y alertas funcionales para seguimiento preventivo.</div>
           </div>
         </div>
+        <div className={`alert-item tone-${valuationAvailabilityIndex.tone === 'red' ? 'red' : valuationAvailabilityIndex.tone === 'yellow' ? 'yellow' : 'green'}`} style={{ marginTop: 14 }}>
+          <strong>{valuationAvailabilityIndex.title}</strong> · {valuationAvailabilityIndex.value}<br />{valuationAvailabilityIndex.description}
+        </div>
         <div className="grid grid-2" style={{ gap: 10, marginTop: 14 }}>
-          {evaluationLogic.length ? evaluationLogic.map((insight) => (
+          {[...evaluationLogic, ...valuationSelfComparison].length ? [...evaluationLogic, ...valuationSelfComparison].slice(0, 8).map((insight) => (
             <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'green'}`}>
               <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
             </div>
           )) : <div className="empty">Sin cambios relevantes detectados. Carga al menos dos mediciones por jugador para activar comparaciones.</div>}
+        </div>
+        <div className="grid" style={{ gap: 8, marginTop: 14 }}>
+          {valuationReadiness.filter((row) => row.tone !== 'green').slice(0, 4).map((row) => (
+            <div key={row.playerId} className={`alert-item tone-${row.tone === 'red' ? 'red' : 'yellow'}`}>
+              <strong>{row.name}: {row.label}</strong> · {Math.round(row.score)}%<br />{row.detail}
+            </div>
+          ))}
         </div>
       </div>
 

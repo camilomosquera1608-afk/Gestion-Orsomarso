@@ -7,7 +7,7 @@ import { EmptyState, SectionHeader, StatusBadge } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import { buildIntelligentRanking, buildAbruptLoadAlerts } from '@/lib/logic-insights';
+import { buildAbruptLoadAlerts, buildAvailabilityIndex, buildDataInconsistencyAlerts, buildIntelligentRanking, buildPlayerReadinessSemaphores, buildPositionComparisonInsights, buildSelfComparisonInsights } from '@/lib/logic-insights';
 import type { ClubCategory } from '@/lib/types';
 
 export default function RankingPage() {
@@ -19,6 +19,11 @@ export default function RankingPage() {
   const rankingCategory = (activeCategory === 'all' ? 'all' : activeCategory) as ClubCategory | 'all';
   const intelligentRanking = buildIntelligentRanking({ data, players: data.players, referenceDate: filters.date, category: rankingCategory, limit: 10 });
   const abruptLoadRanking = buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
+  const readinessRanking = buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 8 });
+  const availabilityIndex = buildAvailabilityIndex({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory });
+  const selfComparison = buildSelfComparisonInsights({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
+  const positionComparison = buildPositionComparisonInsights({ players: data.players, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
+  const dataInconsistencies = buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: filters.date, category: rankingCategory, limit: 5 });
 
   // Goles — solo jugadores con al menos 1 gol
   const bestGoals = [...players]
@@ -138,6 +143,34 @@ export default function RankingPage() {
                 <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
               </div>
             )) : <EmptyState title="Sin aumentos bruscos" text="No hay cambios de carga relevantes para la fecha activa." />}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-2">
+        <div className="card">
+          <SectionHeader eyebrow="Disponibilidad" title="Semáforo integral del jugador" subtitle={`${availabilityIndex.title}: ${availabilityIndex.value}.`} />
+          <div className="grid" style={{ gap: 10 }}>
+            {readinessRanking.length ? readinessRanking.map((row, index) => (
+              <Link key={row.playerId} className="mini-stat-card player-status-link" href={`/jugadores/${row.playerId}`}>
+                <div className="toolbar" style={{ padding: 0 }}>
+                  <strong>{index + 1}. {row.name}</strong>
+                  <span className={`status-badge ui-tone-${row.tone === 'red' ? 'red' : row.tone === 'yellow' ? 'yellow' : 'green'}`}>{row.label} · {Math.round(row.score)}%</span>
+                </div>
+                <div className="muted-line">{row.detail}</div>
+              </Link>
+            )) : <EmptyState title="Sin datos suficientes" text="Carga wellness y sesiones para activar el semáforo integral." />}
+          </div>
+        </div>
+        <div className="card">
+          <SectionHeader eyebrow="Control profesional" title="Comparaciones e incoherencias" subtitle="Detecta desviaciones individuales, por posición y errores de datos." />
+          <div className="grid" style={{ gap: 10 }}>
+            {[...dataInconsistencies, ...selfComparison, ...positionComparison].slice(0, 6).map((insight) => (
+              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
+                <strong>{insight.title}</strong>{insight.value ? ` · ${insight.value}` : ''}<br />{insight.description}
+              </div>
+            ))}
+            {![...dataInconsistencies, ...selfComparison, ...positionComparison].length ? <EmptyState title="Sin desviaciones importantes" text="No hay alertas por comparación individual, posición o coherencia de datos para la fecha activa." /> : null}
           </div>
         </div>
       </div>
