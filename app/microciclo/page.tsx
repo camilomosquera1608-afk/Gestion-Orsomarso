@@ -14,7 +14,7 @@ import { supportsGps } from '@/lib/report-utils';
 import { findOverlappingMicrocycle } from '@/lib/operational-validation';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación' };
+const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación', deci: 'Decisión' };
 
 export default function MicrocicloPage() {
   const { data, filters, setFilters, updateMicrocycle, deleteMicrocycle, deleteTrainingSessionSummary } = useApp();

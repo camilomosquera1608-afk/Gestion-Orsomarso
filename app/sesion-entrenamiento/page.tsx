@@ -56,6 +56,7 @@ const SESSION_TYPES: {
   { value: "cdEf", label: "Ejecución", color: "#1557d6" },
   { value: "cdeF", label: "Condición física", color: "#d97706" },
   { value: "Cdef", label: "Comunicación", color: "#7c3aed" },
+  { value: "deci", label: "Decisión", color: "#be123c" },
 ];
 const PARTICIPATION_OPTIONS: SessionParticipation[] = [
   "Completa",

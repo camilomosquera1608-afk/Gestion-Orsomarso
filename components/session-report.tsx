@@ -33,10 +33,20 @@ const wellAvg = (r?: DailyWellnessRecord) => {
   const vs = [r.sleep, r.fatigue, r.stress, r.musclePain, r.mood].filter(v => Number.isFinite(v) && v > 0);
   return vs.length ? vs.reduce((a, v) => a + v, 0) / vs.length : 0;
 };
+const wellnessReadiness = (r?: DailyWellnessRecord) => {
+  if (!r) return 0;
+  const sleep = safeN(r.sleep);
+  const mood = safeN(r.mood);
+  const fatigue = r.fatigue > 0 ? 6 - r.fatigue : 0;
+  const stress = r.stress > 0 ? 6 - r.stress : 0;
+  const pain = r.musclePain > 0 ? 6 - r.musclePain : 0;
+  const vs = [sleep, fatigue, stress, pain, mood].filter(v => Number.isFinite(v) && v > 0);
+  return vs.length ? vs.reduce((a, v) => a + v, 0) / vs.length : 0;
+};
 const rMin = (a: number[]) => Math.min(...a.filter(v => v > 0), 0);
 const rMax = (a: number[]) => Math.max(...a, 1);
 const sessionLabel = (v: TrainingSessionType) =>
-  ({ cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación' }[v] ?? v);
+  ({ cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación', deci: 'Decisión' }[v] ?? v);
 
 // Shorten name but keep enough to be identifiable
 const fmt = (name: string) => {
@@ -134,7 +144,7 @@ function BarCol({ title, color, items, maxVal, f }: {
         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
         {title}
       </div>
-      {items.map(item => <HBar key={item.name} name={item.name} value={item.value} maxVal={maxVal} color={color} f={f} />)}
+      {items.map(item => <HBar key={item.name} name={item.name} value={item.value} maxVal={maxVal} color={color} {...(f ? { f } : {})} />)}
     </div>
   );
 }
@@ -157,13 +167,20 @@ export function SessionReportTemplate({
   const totalDist = sumN(reg.map(r => r.totalDistance));
   const totalPL   = sumN(reg.map(r => r.playerLoad));
   const totalSpr  = sumN(reg.map(r => r.sprints));
-  const totalHSR  = sumN(reg.map(r => r.rhie))
+  const totalHSR  = sumN(reg.map(r => r.rhie));
   const maxVel    = maxN(reg.map(r => r.maxVelocity));
   const avgMMin   = avg(reg.map(r => r.min > 0 && r.totalDistance ? r.totalDistance / r.min : 0));
   const avgAcc    = avg(reg.map(r => r.acc));
   const avgDcc    = avg(reg.map(r => r.dcc));
+  const avgIma    = avg(reg.map(r => r.ima));
+  const avgLoad   = totalLoad / Math.max(1, reg.length);
   const wellMap   = new Map(wellnessRecords.map(r => [r.playerId, r]));
   const avgWell   = avg(reg.map(r => wellAvg(wellMap.get(r.player.id))).filter(v => v > 0));
+  const avgReadiness = avg(reg.map(r => wellnessReadiness(wellMap.get(r.player.id))).filter(v => v > 0));
+  const avgFatigue = avg(reg.map(r => safeN(wellMap.get(r.player.id)?.fatigue)).filter(v => v > 0));
+  const avgStress = avg(reg.map(r => safeN(wellMap.get(r.player.id)?.stress)).filter(v => v > 0));
+  const avgPain = avg(reg.map(r => safeN(wellMap.get(r.player.id)?.musclePain)).filter(v => v > 0));
+  const loadWellnessRatio = avgReadiness > 0 ? avgLoad / avgReadiness : 0;
   const partScore = reg.length + absentPlayers.length ? pct(reg.length, reg.length + absentPlayers.length) : 0;
   const volScore  = gps ? pct(totalDist, reg.length * 6200) : pct(totalLoad, reg.length * 650);
   const intScore  = gps ? pct(avgMMin, 95) : pct(avgRpe * 10, 100);
@@ -250,7 +267,7 @@ export function SessionReportTemplate({
               <div className="srp-kpi-div" />
               <div className="srp-kpi"><div className="srp-kpi-label">RPE PROMEDIO</div><div className="srp-kpi-value">{avgRpe.toFixed(1)}</div><div className="srp-kpi-note">escala 1–10</div></div>
               <div className="srp-kpi-div" />
-              <div className="srp-kpi"><div className="srp-kpi-label">WELLNESS</div><div className="srp-kpi-value">{avgWell ? avgWell.toFixed(1) : '—'}</div><div className="srp-kpi-note">/5 promedio</div></div>
+              <div className="srp-kpi"><div className="srp-kpi-label">WELLNESS</div><div className="srp-kpi-value">{avgReadiness ? avgReadiness.toFixed(1) : '—'}</div><div className="srp-kpi-note">readiness /5</div></div>
             </>}
           </div>
         </div>
@@ -286,9 +303,9 @@ export function SessionReportTemplate({
           <Gauge val={partScore} label="Participación"
             sub={`${reg.length} / ${reg.length + absentPlayers.length}`}
             color={partScore >= 70 ? C.green : partScore >= 45 ? C.amber : C.red} />
-          {!gps && <Gauge val={pct(avgWell, 5)} label="Wellness"
-            sub={avgWell ? `${avgWell.toFixed(1)} / 5` : 'sin datos'}
-            color={avgWell >= 3.7 ? C.green : avgWell >= 3.2 ? C.amber : C.red} />}
+          <Gauge val={pct(avgReadiness, 5)} label="Wellness"
+            sub={avgReadiness ? `${avgReadiness.toFixed(1)} / 5` : 'sin datos'}
+            color={avgReadiness >= 3.7 ? C.green : avgReadiness >= 3.2 ? C.amber : C.red} />
         </div>
 
         {/* KPI tiles */}
@@ -297,17 +314,20 @@ export function SessionReportTemplate({
           <KTile label="RPE promedio" value={avgRpe.toFixed(1)} note="Escala 1–10"
             accent={avgRpe <= 6 ? C.green : avgRpe <= 8 ? C.amber : C.red} />
           {gps ? <>
-            <KTile label="Distancia" value={`${formatPdfNumber(totalDist / Math.max(1, reg.length))} m`} note="Prom. jugador" accent={C.blue} />
-            <KTile label="m/min" value={formatPdfNumber(avgMMin, 1)} note="Intensidad"
+            <KTile label="Distancia prom." value={`${formatPdfNumber(totalDist / Math.max(1, reg.length))} m`} note="Por jugador" accent={C.blue} />
+            <KTile label="m/min" value={formatPdfNumber(avgMMin, 1)} note="Intensidad locomotora"
               accent={avgMMin >= 75 ? C.green : avgMMin >= 55 ? C.amber : C.red} />
-
+            <KTile label="Carga interna" value={`${Math.round(avgLoad)} UA`} note="MIN×RPE prom." accent={C.amber} />
             <KTile label="Player Load" value={formatPdfNumber(totalPL / Math.max(1, reg.length))} note="Prom. jugador" accent={C.navy} />
-            <KTile label="ACC prom." value={String(Math.round(avgAcc))} note=">3 m/s²" accent={C.navy} />
-            <KTile label="DEC prom." value={String(Math.round(avgDcc))} note=">-3 m/s²" accent={C.navy} />
+            <KTile label="ACC / DCC" value={`${Math.round(avgAcc)} / ${Math.round(avgDcc)}`} note="Promedios" accent={C.navy} />
+            <KTile label="IMA prom." value={formatPdfNumber(avgIma, 1)} note="Cambios de intensidad" accent={C.blue2} />
+            <KTile label="Wellness readiness" value={avgReadiness ? avgReadiness.toFixed(1) : '—'} note="Sueño/ánimo vs fatiga/dolor" accent={avgReadiness >= 3.7 ? C.green : C.amber} />
+            <KTile label="Carga/Wellness" value={loadWellnessRatio ? formatPdfNumber(loadWellnessRatio, 0) : '—'} note="UA por punto wellness" accent={loadWellnessRatio > 160 ? C.red : loadWellnessRatio > 115 ? C.amber : C.green} />
           </> : <>
             <KTile label="Carga total" value={`${Math.round(totalLoad)} UA`} note="Equipo" accent={C.blue} />
-            <KTile label="Wellness" value={avgWell ? avgWell.toFixed(1) : '—'} note="/5"
-              accent={avgWell >= 3.7 ? C.green : C.amber} />
+            <KTile label="Wellness readiness" value={avgReadiness ? avgReadiness.toFixed(1) : '—'} note="/5 ajustado"
+              accent={avgReadiness >= 3.7 ? C.green : C.amber} />
+            <KTile label="Fatiga / dolor" value={`${avgFatigue ? avgFatigue.toFixed(1) : '—'} / ${avgPain ? avgPain.toFixed(1) : '—'}`} note="Prom. wellness" accent={(avgFatigue > 3.5 || avgPain > 3.5) ? C.red : C.amber} />
             <KTile label="Completitud" value={`${dataQualityPercent}%`} note="Planilla" accent={C.green} />
             <KTile label="Participación" value={`${partScore}%`} note={`${reg.length}/${reg.length + absentPlayers.length}`}
               accent={partScore >= 70 ? C.green : C.amber} />
@@ -327,7 +347,7 @@ export function SessionReportTemplate({
                 <th>Pos.</th><th>MIN</th><th>RPE</th><th>Carga</th>
                 {gps ? <>
                   <th>ACC</th><th>DCC</th><th>Sprints</th><th>RHIE</th>
-                  <th>Dist. (m)</th><th>Vel. máx</th><th>Player Load</th><th>RPE</th>
+                  <th>Dist. (m)</th><th>Vel. máx</th><th>Player Load</th>
                 </> : <>
                   <th>Wellness</th><th>Participación</th>
                 </>}
@@ -353,7 +373,6 @@ export function SessionReportTemplate({
                       <HC v={safeN(r.totalDistance)} lo={rMin(distArr)} hi={rMax(distArr)} f={v => formatPdfNumber(v)} />
                       <HC v={safeN(r.maxVelocity)}   lo={rMin(velArr)}  hi={rMax(velArr)}  f={v => v.toFixed(1)} />
                       <HC v={safeN(r.playerLoad)}    lo={rMin(plArr)}   hi={rMax(plArr)}   f={v => formatPdfNumber(v)} />
-                      <HC v={r.rpe}  lo={0} hi={10} allowZero={false} />
                     </> : <>
                       <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 10, background: well >= 3.7 ? '#d1fae5' : well >= 3.2 ? '#fef9c3' : well > 0 ? '#fee2e2' : C.soft, color: well >= 3.7 ? '#065f46' : well >= 3.2 ? '#713f12' : '#7f1d1d' }}>{well ? well.toFixed(1) : '—'}</td>
                       <td style={{ textAlign: 'center', fontSize: 9, color: C.muted }}>{r.participation}</td>
@@ -452,14 +471,33 @@ export function SessionReportTemplate({
         </section>
       )}
 
+      {/* ══ RELACIÓN CARGA + WELLNESS ═══════════════════════════════════════ */}
+      {wellnessRecords.length > 0 && reg.length > 0 && (
+        <section className="sr-section">
+          <Sec eyebrow="Control integrado" title="Relación carga externa/interna vs wellness"
+            sub="Cruce operativo para detectar jugadores con alta carga y baja disposición subjetiva." />
+          <div className="sr-kpi-grid" style={{ marginBottom: 10 }}>
+            <KTile label="Readiness grupal" value={avgReadiness ? avgReadiness.toFixed(1) : '—'} note="Sueño + ánimo - fatiga/dolor/estrés" accent={avgReadiness >= 3.7 ? C.green : avgReadiness >= 3.2 ? C.amber : C.red} />
+            <KTile label="Fatiga prom." value={avgFatigue ? avgFatigue.toFixed(1) : '—'} note="Más alto = mayor alerta" accent={avgFatigue >= 3.5 ? C.red : avgFatigue >= 2.8 ? C.amber : C.green} />
+            <KTile label="Dolor muscular" value={avgPain ? avgPain.toFixed(1) : '—'} note="Más alto = mayor alerta" accent={avgPain >= 3.5 ? C.red : avgPain >= 2.8 ? C.amber : C.green} />
+            <KTile label="Estrés prom." value={avgStress ? avgStress.toFixed(1) : '—'} note="Más alto = mayor alerta" accent={avgStress >= 3.5 ? C.red : avgStress >= 2.8 ? C.amber : C.green} />
+          </div>
+          <div className="sr-insight sr-insight-neutral">
+            {avgReadiness
+              ? `Lectura: carga interna promedio ${Math.round(avgLoad)} UA con readiness ${avgReadiness.toFixed(1)}/5. ${loadWellnessRatio > 160 ? 'Relación alta: conviene revisar recuperación, fatiga y dolor antes de aumentar volumen.' : loadWellnessRatio > 115 ? 'Relación moderada: mantener control individual y observar jugadores con RPE elevado.' : 'Relación estable: la carga parece coherente con el estado subjetivo del grupo.'}`
+              : 'No hay suficientes registros wellness para calcular la relación carga-bienestar.'}
+          </div>
+        </section>
+      )}
+
       {/* ══ ANÁLISIS + ALERTAS ════════════════════════════════════════════════ */}
       <section className="sr-section">
         <Sec eyebrow="Análisis" title="Lectura de sesión" />
         <div className="sr-insight">
           {reg.length
             ? gps
-              ? `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Distancia acumulada ${formatPdfNumber(totalDist)} m (${formatPdfNumber(totalDist / Math.max(1, reg.length))} m/jugador), Player Load ${formatPdfNumber(totalPL)}, RHIE ${formatPdfNumber(totalHSR)} · Sprint efforts ${formatPdfNumber(totalSpr)}, velocidad máxima ${formatPdfNumber(maxVel, 1)} km/h.`
-              : `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Carga interna total ${Math.round(totalLoad)} UA (${Math.round(avgMin)} min, RPE ${avgRpe.toFixed(1)}).${avgWell ? ` Wellness grupal ${avgWell.toFixed(1)}/5.` : ''}`
+              ? `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Distancia acumulada ${formatPdfNumber(totalDist)} m (${formatPdfNumber(totalDist / Math.max(1, reg.length))} m/jugador), Player Load ${formatPdfNumber(totalPL)}, RHIE ${formatPdfNumber(totalHSR)}, IMA prom. ${formatPdfNumber(avgIma, 1)} · Sprint efforts ${formatPdfNumber(totalSpr)}, velocidad máxima ${formatPdfNumber(maxVel, 1)} km/h.`
+              : `Sesión ${sessionNumber || '—'} · ${categoryLabel(category)} · ${reg.length} jugadores. Carga interna total ${Math.round(totalLoad)} UA (${Math.round(avgMin)} min, RPE ${avgRpe.toFixed(1)}).${avgReadiness ? ` Wellness readiness ${avgReadiness.toFixed(1)}/5.` : ''}`
             : 'Sin registros de sesión.'}
         </div>
         {objective?.trim() && <div className="sr-insight sr-insight-green" style={{ marginTop: 8 }}><strong>Objetivo:</strong> {getPdfSafeText(objective)}</div>}
