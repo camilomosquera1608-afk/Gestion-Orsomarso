@@ -35,7 +35,7 @@ type Props = {
 
 type IconComponent = typeof Users;
 type ChartItem = { name: string; value: number; sub?: string };
-type EyeballRow = { stat: string; rival: string | number; orso: string | number };
+type EyeballRow = { stat: string; rival: string | number; orso: string | number; unit?: '%' | ''; rawStat?: string; index?: number };
 
 const C = {
   blue: '#1557d6',
@@ -90,14 +90,42 @@ const allEyeballRows = (stats?: EyeballMatchStats | null): Array<EyeballRow & { 
   return Object.entries(stats.sections).flatMap(([section, rows]) => rows.map((row) => ({ ...row, section })));
 };
 
-const findEyeballStat = (stats: EyeballMatchStats | null | undefined, names: string[]) => {
+const sectionRows = (stats: EyeballMatchStats | null | undefined, sectionName: string): Array<EyeballRow & { section: string }> => {
+  if (!stats) return [];
+  const normalizedTarget = normalizeText(sectionName);
+  const entry = Object.entries(stats.sections).find(([section]) => normalizeText(section) === normalizedTarget);
+  return entry ? entry[1].map((row) => ({ ...row, section: entry[0] })) : [];
+};
+
+const getSectionStat = (stats: EyeballMatchStats | null | undefined, sectionName: string, names: string[]) => {
+  const normalized = names.map(normalizeText);
+  return sectionRows(stats, sectionName).find((row) => {
+    const name = normalizeText(row.stat);
+    return normalized.some((needle) => name === needle || name.includes(needle));
+  }) ?? null;
+};
+
+const combineRows = (...sets: Array<Array<EyeballRow & { section: string }>>) => {
+  const unique = new Map<string, EyeballRow & { section: string }>();
+  sets.flat().forEach((row) => unique.set(`${row.section}-${row.stat}-${row.index ?? ''}`, row));
+  return Array.from(unique.values());
+};
+
+const compareText = (row: EyeballRow) => {
+  const o = statNumber(row.orso);
+  const r = statNumber(row.rival);
+  const lowerBetter = isLowerBetter(row.stat);
+  if (o === r) return 'Equilibrado';
+  return lowerBetter ? (o < r ? 'Ventaja Orsomarso' : 'Ventaja rival') : (o > r ? 'Ventaja Orsomarso' : 'Ventaja rival');
+};
+
+const findEyeballStat = (stats: EyeballMatchStats | null | undefined, names: string[], preferredSections: string[] = []) => {
   if (!stats) return null;
   const normalized = names.map(normalizeText);
-  for (const row of allEyeballRows(stats)) {
-    const name = normalizeText(row.stat);
-    if (normalized.some((needle) => name.includes(needle))) return row;
-  }
-  return null;
+  const rows = preferredSections.length ? combineRows(...preferredSections.map((section) => sectionRows(stats, section))) : allEyeballRows(stats);
+  const exact = rows.find((row) => normalized.some((needle) => normalizeText(row.stat) === needle));
+  if (exact) return exact;
+  return rows.find((row) => normalized.some((needle) => normalizeText(row.stat).includes(needle))) ?? null;
 };
 
 const pickEyeballRows = (stats: EyeballMatchStats | null | undefined, patterns: string[], limit = 12) => {
@@ -337,24 +365,22 @@ function LineupSection({ report }: { report: CompetitionReportData }) {
 }
 
 function EyeballKpiStrip({ stats }: { stats?: EyeballMatchStats | null }) {
-  const possession = findEyeballStat(stats, ['posesiones', 'posesion']);
-  const passPrecision = findEyeballStat(stats, ['precision de pases', 'precisión de pases']);
-  const shots = findEyeballStat(stats, ['remates totales', 'tiros totales']);
-  const shotsOnTarget = findEyeballStat(stats, ['remates a puerta', 'tiros a puerta']);
-  const recoveries = findEyeballStat(stats, ['recuperaciones']);
-  const turnovers = findEyeballStat(stats, ['balones perdidos', 'perdidas']);
-  const xg = findEyeballStat(stats, ['xg']);
-  const conversion = findEyeballStat(stats, ['conversion', 'conversión']);
-  const cards = findEyeballStat(stats, ['tarjetas amarillas']);
+  const possession = getSectionStat(stats, 'Resumen', ['Posesión', 'Posesiones']);
+  const passPrecision = getSectionStat(stats, 'Distribución', ['Precisión de pases']);
+  const shots = getSectionStat(stats, 'Ofensivo', ['Disparos en total']);
+  const shotsOnTarget = getSectionStat(stats, 'Ofensivo', ['Tiros a puerta']);
+  const recoveries = getSectionStat(stats, 'Defensivo', ['Recuperaciones']);
+  const blocks = getSectionStat(stats, 'Defensivo', ['Bloqueos']);
+  const conversion = getSectionStat(stats, 'Ofensivo', ['Tasa de conversión de tiros']);
+  const passes = getSectionStat(stats, 'Distribución', ['Pases']);
   const rows = [
-    { icon: PieChart, label: 'Posesión', value: possession?.orso ?? (stats ? `${numberFmt(stats.possession)}%` : '-'), note: 'Eyeball', tone: 'blue' as CompetitionReportTone },
-    { icon: Repeat2, label: 'Precisión pases', value: passPrecision?.orso ?? (stats ? `${numberFmt(stats.passPrecision)}%` : '-'), note: 'Eficiencia', tone: 'green' as CompetitionReportTone },
-    { icon: Target, label: 'Remates', value: shots?.orso ?? '-', note: shotsOnTarget ? `A puerta: ${valueText(shotsOnTarget.orso)}` : 'Ataque', tone: 'amber' as CompetitionReportTone },
-    { icon: Zap, label: 'xG', value: xg?.orso ?? '-', note: 'Amenaza ofensiva', tone: 'blue' as CompetitionReportTone },
+    { icon: PieChart, label: 'Posesión', value: possession?.orso ?? (stats ? `${numberFmt(stats.possession)}%` : '-'), note: 'Control', tone: 'blue' as CompetitionReportTone },
+    { icon: Repeat2, label: 'Precisión pase', value: passPrecision?.orso ?? (stats ? `${numberFmt(stats.passPrecision)}%` : '-'), note: 'Distribución', tone: 'green' as CompetitionReportTone },
+    { icon: Target, label: 'Disparos', value: shots?.orso ?? '-', note: shotsOnTarget ? `A puerta: ${valueText(shotsOnTarget.orso)}` : 'Ofensivo', tone: 'amber' as CompetitionReportTone },
     { icon: Trophy, label: 'Conversión', value: conversion?.orso ?? (stats ? `${numberFmt(stats.conversionRate)}%` : '-'), note: 'Finalización', tone: 'green' as CompetitionReportTone },
     { icon: ShieldCheck, label: 'Recuperaciones', value: recoveries?.orso ?? '-', note: 'Fase defensiva', tone: 'dark' as CompetitionReportTone },
-    { icon: AlertTriangle, label: 'Pérdidas', value: turnovers?.orso ?? '-', note: 'Control balón', tone: 'red' as CompetitionReportTone },
-    { icon: Flag, label: 'Amarillas', value: cards?.orso ?? '-', note: 'Disciplina', tone: 'amber' as CompetitionReportTone },
+    { icon: Flag, label: 'Bloqueos', value: blocks?.orso ?? '-', note: 'Protección arco', tone: 'blue' as CompetitionReportTone },
+    { icon: ClipboardList, label: 'Pases', value: passes?.orso ?? '-', note: 'Volumen', tone: 'neutral' as CompetitionReportTone },
   ];
   return <div className="pdf-report-kpi-grid competition-kpi-grid competition-kpi-grid-clean fd-stat-kpis">{rows.map((row) => <ReportKpi key={row.label} icon={row.icon} label={row.label} value={valueText(row.value)} note={row.note} tone={row.tone} />)}</div>;
 }
@@ -382,22 +408,33 @@ function MatchDynamicsSection({ stats }: { stats?: EyeballMatchStats | null }) {
 
 function GeneralStatsSection({ stats }: { stats?: EyeballMatchStats | null }) {
   if (!stats) return null;
-  const rows = allEyeballRows(stats).slice(0, 28);
+  const rows = sectionRows(stats, 'Resumen');
+  if (!rows.length) return null;
   return (
-    <ReportSection icon={ClipboardList} eyebrow="Informe partido" title="Estadísticas generales" subtitle="Tabla comparativa general con las estadísticas disponibles en el archivo Eyeball.">
+    <ReportSection icon={ClipboardList} eyebrow="Informe partido" title="Estadísticas generales" subtitle="Resumen principal exportado por Eyeball.">
+      <div className="orso-summary-grid">
+        {rows.slice(0, 8).map((row) => (
+          <div key={`${row.stat}-${row.index}`} className="orso-summary-card">
+            <span>{row.stat}</span>
+            <strong>{valueText(row.orso)}</strong>
+            <small>Rival: {valueText(row.rival)} · {compareText(row)}</small>
+          </div>
+        ))}
+      </div>
       <EyeballComparisonTable rows={rows} />
     </ReportSection>
   );
 }
 
-function TacticalBlock({ icon, eyebrow, title, subtitle, stats, patterns, empty }: { icon: IconComponent; eyebrow: string; title: string; subtitle?: string; stats?: EyeballMatchStats | null; patterns: string[]; empty: string }) {
-  const rows = pickEyeballRows(stats, patterns, 18);
+function TacticalBlock({ icon, eyebrow, title, subtitle, stats, sectionName, patterns, empty, color }: { icon: IconComponent; eyebrow: string; title: string; subtitle?: string; stats?: EyeballMatchStats | null; sectionName?: string; patterns?: string[]; empty: string; color?: string }) {
+  const rows = sectionName ? sectionRows(stats, sectionName) : pickEyeballRows(stats, patterns ?? [], 18);
   if (!rows.length) return null;
-  const chartItems = rows.slice(0, 8).map((row) => ({ name: row.stat, value: statNumber(row.orso), sub: row.section }));
+  const chartItems = rows.slice(0, 9).map((row) => ({ name: row.stat, value: statNumber(row.orso), sub: valueText(row.orso) }));
+  const selectedColor = color ?? (eyebrow.includes('Defens') ? C.green : eyebrow.includes('Pases') ? C.blue : C.red);
   return (
     <ReportSection icon={icon} eyebrow={eyebrow} title={title} subtitle={subtitle}>
-      <div className="fd-tactical-grid">
-        <BarPanel title={title} subtitle="Orsomarso" items={chartItems} color={eyebrow.includes('Defens') ? C.green : eyebrow.includes('Pases') ? C.blue : C.red} formatter={(v) => numberFmt(v, Number.isInteger(v) ? 0 : 1)} />
+      <div className="fd-tactical-grid orso-tactical-clean-grid">
+        <BarPanel title={title} subtitle="Orsomarso" items={chartItems} color={selectedColor} formatter={(v) => numberFmt(v, Number.isInteger(v) ? 0 : 1)} />
         <EyeballComparisonTable rows={rows} title="Comparativo" />
       </div>
       {!rows.length ? <EmptyReportState text={empty} /> : null}
@@ -405,21 +442,20 @@ function TacticalBlock({ icon, eyebrow, title, subtitle, stats, patterns, empty 
   );
 }
 
-function EyeballSectionCards({ stats }: { stats?: EyeballMatchStats | null }) {
-  if (!stats) return null;
-  const sectionEntries = Object.entries(stats.sections).filter(([, rows]) => rows.length);
-  const important = sectionEntries.filter(([section]) => !/general|resumen/i.test(section)).slice(0, 6);
-  if (!important.length) return null;
+function KeyPassDistributionSection({ stats }: { stats?: EyeballMatchStats | null }) {
+  const distribution = sectionRows(stats, 'Distribución');
+  if (!distribution.length) return null;
+  const volumeRows = distribution.filter((row) => /pases$|pases exitosos$|precision|precisión|posesion|dominio/i.test(row.stat));
+  const progressionRows = distribution.filter((row) => /ultimo tercio|medio campo|tercer defensivo|hacia adelante|progres/i.test(row.stat));
+  const directionRows = distribution.filter((row) => /laterales|atr[aá]s|largos|media distancia|cortos|centros/i.test(row.stat));
   return (
-    <ReportSection icon={FileText} eyebrow="Informe partido" title="Bloques complementarios Eyeball" subtitle="Resumen por categorías del archivo CSV importado.">
-      <div className="eyeball-sections-grid fd-sections-grid">
-        {important.map(([section, rows]) => (
-          <div key={section} className="eyeball-section-card">
-            <div className="eyeball-section-title">{section}</div>
-            {rows.slice(0, 7).map((row) => <ComparisonStat key={`${section}-${row.stat}`} label={row.stat} orso={row.orso} rival={row.rival} lowerBetter={isLowerBetter(row.stat)} />)}
-          </div>
-        ))}
+    <ReportSection icon={Repeat2} eyebrow="Pases" title="Pases y circulación" subtitle="Volumen, precisión, progresión y dirección de los pases exportados por Eyeball.">
+      <div className="orso-distribution-panels">
+        <BarPanel title="Volumen y precisión" subtitle="Orsomarso" items={volumeRows.slice(0, 6).map((row) => ({ name: row.stat, value: statNumber(row.orso), sub: valueText(row.orso) }))} color={C.blue} />
+        <BarPanel title="Progresión territorial" subtitle="Último tercio y campo" items={progressionRows.slice(0, 7).map((row) => ({ name: row.stat, value: statNumber(row.orso), sub: valueText(row.orso) }))} color={C.green} />
+        <BarPanel title="Dirección y longitud" subtitle="Tipos de pase" items={directionRows.slice(0, 8).map((row) => ({ name: row.stat, value: statNumber(row.orso), sub: valueText(row.orso) }))} color={C.amber} />
       </div>
+      <EyeballComparisonTable rows={distribution} title="Distribución completa" />
     </ReportSection>
   );
 }
@@ -483,10 +519,6 @@ export function CompetitionReportTemplate({ report, category, className = '', co
       : report.microcycle.name
     : 'Sin microciclo asignado';
   const compactHistory = report.recentMatches.slice(0, 4);
-  const offensivePatterns = ['xg', 'goles', 'remates', 'tiros', 'conversion', 'shot on target', 'penaltis', 'asistencias', 'palo'];
-  const passingPatterns = ['posesion', 'posesiones', 'pases', 'precision', 'progresivos', 'centros', 'zona'];
-  const lossesPatterns = ['balones perdidos', 'perdidas', 'pase errado', 'mal control', 'interceptado', 'fuera de juego'];
-  const defensivePatterns = ['recuperaciones', 'duelos', 'anticipacion', 'despejes', 'entradas', 'bloqueados', 'faltas'];
   const setPiecePatterns = ['tiros de esquina', 'saques de banda', 'tiros libres', 'reinicios', 'centros'];
 
   return (
@@ -505,12 +537,10 @@ export function CompetitionReportTemplate({ report, category, className = '', co
       <LineupSection report={report} />
       <MatchDynamicsSection stats={eyeballStats} />
       <GeneralStatsSection stats={eyeballStats} />
-      <TacticalBlock icon={Target} eyebrow="Acciones ofensivas" title="Acciones ofensivas" subtitle="xG, remates, goles, conversión y finalización." stats={eyeballStats} patterns={offensivePatterns} empty="Sin datos ofensivos." />
-      <TacticalBlock icon={Repeat2} eyebrow="Pases" title="Pases y circulación" subtitle="Posesión, precisión de pase, zonas y progresión." stats={eyeballStats} patterns={passingPatterns} empty="Sin datos de pase." />
-      <TacticalBlock icon={AlertTriangle} eyebrow="Balones perdidos" title="Balones perdidos" subtitle="Pérdidas por tipo, zona o causa reportada por Eyeball." stats={eyeballStats} patterns={lossesPatterns} empty="Sin datos de pérdidas." />
-      <TacticalBlock icon={ShieldCheck} eyebrow="Defensivo" title="Recuperaciones, duelos y acciones defensivas" subtitle="Comportamiento defensivo disponible en el CSV Eyeball." stats={eyeballStats} patterns={defensivePatterns} empty="Sin datos defensivos." />
-      <TacticalBlock icon={Flag} eyebrow="Pelota quieta" title="Acciones de pelota quieta" subtitle="Centros, tiros libres, tiros de esquina, saques de banda y reinicios." stats={eyeballStats} patterns={setPiecePatterns} empty="Sin datos de pelota quieta." />
-      <EyeballSectionCards stats={eyeballStats} />
+      <TacticalBlock icon={Target} eyebrow="Acciones ofensivas" title="Acciones ofensivas" subtitle="Disparos, finalización, regates y conversión del CSV Eyeball." stats={eyeballStats} sectionName="Ofensivo" empty="Sin datos ofensivos." color={C.red} />
+      <KeyPassDistributionSection stats={eyeballStats} />
+      <TacticalBlock icon={ShieldCheck} eyebrow="Defensivo" title="Recuperaciones, duelos y acciones defensivas" subtitle="Entradas, duelos, intercepciones, despejes, recuperaciones y bloqueos." stats={eyeballStats} sectionName="Defensivo" empty="Sin datos defensivos." color={C.green} />
+      <TacticalBlock icon={Flag} eyebrow="Pelota quieta" title="Acciones de pelota quieta" subtitle="Tiros libres, córners y centros disponibles en Eyeball." stats={eyeballStats} patterns={setPiecePatterns} empty="Sin datos de pelota quieta." color={C.amber} />
       <GpsPhysicalSection report={report} />
       <ReportSection icon={ClipboardList} eyebrow="Planilla + GPS" title="Tabla individual integrada" subtitle="Planilla, producción, disciplina y carga física por jugador."><IntegratedPlayerTable rows={report.rows} /></ReportSection>
       <div className="pdf-report-two-columns compact-blocks competition-report-bottom-grid fd-report-bottom">

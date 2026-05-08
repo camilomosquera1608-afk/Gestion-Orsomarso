@@ -6735,3 +6735,30 @@ img[loading="lazy"] { background: var(--line-soft); }
   .orso-integrated-table { font-size: 5.8px !important; }
   .orso-integrated-table th, .orso-integrated-table td { padding: 2.5px !important; }
 }
+
+/* v110.5 Eyeball real team-stats CSV + cleaner report blocks */
+.orso-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.orso-summary-card { border: 1px solid #d8e1ee; border-radius: 14px; padding: 12px; background: linear-gradient(180deg,#fff 0%,#f8fafc 100%); }
+.orso-summary-card span { display: block; color: #64748b; font-size: 9px; font-weight: 950; text-transform: uppercase; letter-spacing: .08em; }
+.orso-summary-card strong { display: block; color: #06152f; font-size: 24px; line-height: 1.1; margin-top: 4px; }
+.orso-summary-card small { display: block; color: #64748b; font-size: 9px; font-weight: 800; margin-top: 3px; }
+.orso-tactical-clean-grid { grid-template-columns: minmax(280px,.82fr) minmax(0,1.18fr); align-items: start; }
+.orso-distribution-panels { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 14px; }
+.fd-table-wrap h4 { margin: 0 0 8px; color: #06152f; text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 950; }
+.official-lineup-table td.card-yellow::before { content: '▲ '; color: #a16207; font-weight: 950; }
+.official-lineup-table td.card-red::before { content: '◆ '; color: #fff; font-weight: 950; }
+.official-lineup-table td:nth-child(5) { font-weight: 850; }
+.official-lineup-table td:nth-child(6), .official-lineup-table td:nth-child(7), .official-lineup-table td:nth-child(8), .official-lineup-table td:nth-child(9) { min-width: 38px; }
+@media (max-width: 1200px) {
+  .orso-summary-grid, .orso-distribution-panels { grid-template-columns: 1fr 1fr; }
+  .orso-tactical-clean-grid { grid-template-columns: 1fr; }
+}
+@media print {
+  .orso-summary-grid { grid-template-columns: repeat(4, minmax(0,1fr)) !important; gap: 2mm !important; margin-bottom: 3mm !important; }
+  .orso-summary-card { padding: 2mm !important; border-radius: 2mm !important; }
+  .orso-summary-card span { font-size: 5.8pt !important; }
+  .orso-summary-card strong { font-size: 13pt !important; }
+  .orso-summary-card small { font-size: 5.6pt !important; }
+  .orso-distribution-panels { grid-template-columns: repeat(3, minmax(0,1fr)) !important; gap: 2mm !important; }
+  .orso-tactical-clean-grid { grid-template-columns: 58mm 1fr !important; gap: 3mm !important; }
+}

@@ -95,8 +95,8 @@ const isNegative = (value: string) => value.trim() !== '' && toNumber(value) < 0
 const displayNumber = (value?: number) => (value && value > 0 ? String(value) : '');
 const displayOptionalNumber = (value?: number) => (typeof value === 'number' ? String(value) : '');
 
-type FormationKey = '4-2-3-1' | '4-3-3' | '4-4-2' | '3-5-2' | '4-1-4-1';
-const formationOptions: FormationKey[] = ['4-2-3-1', '4-3-3', '4-4-2', '3-5-2', '4-1-4-1'];
+type FormationKey = '4-2-3-1' | '4-3-3' | '4-4-2' | '3-5-2' | '4-1-4-1' | '3-4-3' | '5-3-2' | '5-4-1';
+const formationOptions: FormationKey[] = ['4-2-3-1', '4-3-3', '4-4-2', '3-5-2', '4-1-4-1', '3-4-3', '5-3-2', '5-4-1'];
 const formationTemplates: Record<FormationKey, Omit<CompetitionLineupSlot, 'playerId'>[]> = {
   '4-2-3-1': [
     { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
@@ -130,10 +130,31 @@ const formationTemplates: Record<FormationKey, Omit<CompetitionLineupSlot, 'play
     { id: 'lm', label: 'MI', line: 'Mediocampo', x: 18, y: 43 }, { id: 'cm1', label: 'MC', line: 'Mediocampo', x: 40, y: 45 }, { id: 'cm2', label: 'MC', line: 'Mediocampo', x: 60, y: 45 }, { id: 'rm', label: 'MD', line: 'Mediocampo', x: 82, y: 43 },
     { id: 'st', label: 'DC', line: 'Ataque', x: 50, y: 16 },
   ],
+  '3-4-3': [
+    { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
+    { id: 'lcb', label: 'DFC', line: 'Defensa', x: 30, y: 75 }, { id: 'cb', label: 'DFC', line: 'Defensa', x: 50, y: 78 }, { id: 'rcb', label: 'DFC', line: 'Defensa', x: 70, y: 75 },
+    { id: 'lm', label: 'MI', line: 'Mediocampo', x: 16, y: 51 }, { id: 'cm1', label: 'MC', line: 'Mediocampo', x: 40, y: 55 }, { id: 'cm2', label: 'MC', line: 'Mediocampo', x: 60, y: 55 }, { id: 'rm', label: 'MD', line: 'Mediocampo', x: 84, y: 51 },
+    { id: 'lw', label: 'EI', line: 'Ataque', x: 22, y: 23 }, { id: 'st', label: 'DC', line: 'Ataque', x: 50, y: 15 }, { id: 'rw', label: 'ED', line: 'Ataque', x: 78, y: 23 },
+  ],
+  '5-3-2': [
+    { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
+    { id: 'lb', label: 'LI', line: 'Defensa', x: 12, y: 70 }, { id: 'lcb', label: 'DFC', line: 'Defensa', x: 32, y: 76 }, { id: 'cb', label: 'DFC', line: 'Defensa', x: 50, y: 79 }, { id: 'rcb', label: 'DFC', line: 'Defensa', x: 68, y: 76 }, { id: 'rb', label: 'LD', line: 'Defensa', x: 88, y: 70 },
+    { id: 'cm1', label: 'MC', line: 'Mediocampo', x: 35, y: 52 }, { id: 'cm2', label: 'MC', line: 'Mediocampo', x: 50, y: 47 }, { id: 'cm3', label: 'MC', line: 'Mediocampo', x: 65, y: 52 },
+    { id: 'st1', label: 'DC', line: 'Ataque', x: 42, y: 18 }, { id: 'st2', label: 'DC', line: 'Ataque', x: 58, y: 18 },
+  ],
+  '5-4-1': [
+    { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
+    { id: 'lb', label: 'LI', line: 'Defensa', x: 12, y: 70 }, { id: 'lcb', label: 'DFC', line: 'Defensa', x: 32, y: 76 }, { id: 'cb', label: 'DFC', line: 'Defensa', x: 50, y: 79 }, { id: 'rcb', label: 'DFC', line: 'Defensa', x: 68, y: 76 }, { id: 'rb', label: 'LD', line: 'Defensa', x: 88, y: 70 },
+    { id: 'lm', label: 'MI', line: 'Mediocampo', x: 18, y: 48 }, { id: 'cm1', label: 'MC', line: 'Mediocampo', x: 40, y: 52 }, { id: 'cm2', label: 'MC', line: 'Mediocampo', x: 60, y: 52 }, { id: 'rm', label: 'MD', line: 'Mediocampo', x: 82, y: 48 },
+    { id: 'st', label: 'DC', line: 'Ataque', x: 50, y: 16 },
+  ],
 };
 const buildFormationSlots = (formation: FormationKey, existing: CompetitionLineupSlot[] = []): CompetitionLineupSlot[] => {
-  const existingById = new Map(existing.map((slot) => [slot.id, slot.playerId]));
-  return formationTemplates[formation].map((slot) => ({ ...slot, playerId: existingById.get(slot.id) || '' }));
+  const existingById = new Map(existing.map((slot) => [slot.id, slot]));
+  return formationTemplates[formation].map((slot) => {
+    const prev = existingById.get(slot.id);
+    return { ...slot, x: typeof prev?.x === 'number' ? prev.x : slot.x, y: typeof prev?.y === 'number' ? prev.y : slot.y, playerId: prev?.playerId || '' };
+  });
 };
 
 
@@ -321,6 +342,11 @@ export default function CompetenciaPage() {
       ...slot,
       playerId: slot.id === slotId ? playerId : slot.playerId === playerId && playerId ? '' : slot.playerId,
     }));
+    saveLineup(selectedFormation, nextSlots);
+  };
+  const moveLineupSlot = (slotId: string, axis: 'x' | 'y', value: string) => {
+    const numeric = Math.max(4, Math.min(96, Number(value) || 0));
+    const nextSlots = selectedLineupSlots.map((slot) => slot.id === slotId ? { ...slot, [axis]: numeric } : slot);
     saveLineup(selectedFormation, nextSlots);
   };
   const exportCleanPdf = () => {
@@ -1044,6 +1070,10 @@ export default function CompetenciaPage() {
                     <option value="">Sin asignar</option>
                     {lineupPlayerOptions.map(({ record, player }) => <option key={`${slot.id}-${record.id}`} value={record.playerId}>{player?.name ?? 'Jugador'} · {player?.position ?? '-'}</option>)}
                   </select>
+                  <div className="lineup-position-controls">
+                    <input className="input" type="number" min="4" max="96" value={Math.round(slot.x)} onChange={(event) => moveLineupSlot(slot.id, 'x', event.target.value)} title="Posición horizontal" />
+                    <input className="input" type="number" min="4" max="96" value={Math.round(slot.y)} onChange={(event) => moveLineupSlot(slot.id, 'y', event.target.value)} title="Posición vertical" />
+                  </div>
                 </div>
               ))}
             </div>
