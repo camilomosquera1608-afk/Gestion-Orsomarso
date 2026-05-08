@@ -46,6 +46,7 @@ interface AppContextValue {
   updateCompetitionRecord: (record: CompetitionRecord) => void;
   deleteCompetitionRecord: (recordId: string) => void;
   upsertCompetitionMatchSummary: (record: CompetitionMatchSummary) => void;
+  saveCompetitionMatchBundle: (record: CompetitionMatchSummary, records: CompetitionRecord[]) => void;
   deleteCompetitionMatchSummary: (matchId: string) => void;
   upsertTrainingSessionSummary: (record: TrainingSessionSummary) => void;
   saveTrainingSessionBundle: (record: TrainingSessionSummary, externalLoads: DailyExternalLoadRecord[], internalLoads: DailyInternalLoadRecord[]) => void;
@@ -164,9 +165,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const remoteCompIds = new Set(remoteHydrated.competitionRecords.map((r: { id: string }) => r.id));
     const localOnlyComp = current.competitionRecords.filter((r) => !remoteCompIds.has(r.id));
 
-    // Merge competition match summaries
+    // Merge competition match summaries. Match also by date+category+opponent
+    // to avoid duplicates if Supabase reused an existing row with another legacy_id.
+    const matchKey = (r: { date: string; category?: string; opponent: string }) => `${r.date}::${r.category ?? ''}::${r.opponent.trim().toLowerCase()}`;
     const remoteMatchIds = new Set(remoteHydrated.competitionMatchSummaries.map((r: { id: string }) => r.id));
-    const localOnlyMatches = current.competitionMatchSummaries.filter((r) => !remoteMatchIds.has(r.id));
+    const remoteMatchKeys = new Set(remoteHydrated.competitionMatchSummaries.map(matchKey));
+    const localOnlyMatches = current.competitionMatchSummaries.filter((r) => !remoteMatchIds.has(r.id) && !remoteMatchKeys.has(matchKey(r)));
 
     // Merge wellness
     const remoteWellIds = new Set(remoteHydrated.wellness.map((r: { id: string }) => r.id));
@@ -362,7 +366,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             externalLoads: mergeArrays(remoteData.externalLoads, localData?.externalLoads),
             microcycles: mergeArrays(remoteData.microcycles, localData?.microcycles),
             competitionRecords: mergeArrays(remoteData.competitionRecords, localData?.competitionRecords),
-            competitionMatchSummaries: mergeArrays(remoteData.competitionMatchSummaries, localData?.competitionMatchSummaries),
+            competitionMatchSummaries: (() => {
+              if (!localData?.competitionMatchSummaries?.length) return remoteData.competitionMatchSummaries;
+              const key = (r: CompetitionMatchSummary) => `${r.date}::${r.category ?? ''}::${r.opponent.trim().toLowerCase()}`;
+              const remoteIds = new Set(remoteData.competitionMatchSummaries.map((r) => r.id));
+              const remoteKeys = new Set(remoteData.competitionMatchSummaries.map(key));
+              return [...remoteData.competitionMatchSummaries, ...localData.competitionMatchSummaries.filter((r) => !remoteIds.has(r.id) && !remoteKeys.has(key(r)))];
+            })(),
             wellness: mergeArrays(remoteData.wellness, localData?.wellness),
             // Players: remote is source of truth if it has data
             players: remoteData.players.length > 0 ? remoteData.players : (localData?.players ?? remoteData.players),
@@ -847,13 +857,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       applyMutation((prev) => ({ ...prev, fmsRecords: prev.fmsRecords.filter((item) => item.id !== recordId) }));
       void deleteRemoteLegacy('fms_records', recordId);
     },
-    addCompetitionRecord: (record) => applyMutation((prev) => ({ ...prev, competitionRecords: [record, ...prev.competitionRecords] })),
+    addCompetitionRecord: (record) => applyMutation((prev) => ({ ...prev, competitionRecords: [record, ...prev.competitionRecords.filter((item) => !(item.id === record.id || (item.matchId === record.matchId && item.playerId === record.playerId)))] })),
     updateCompetitionRecord: (record) => applyMutation((prev) => ({ ...prev, competitionRecords: prev.competitionRecords.map((item) => item.id === record.id ? record : item) })),
     deleteCompetitionRecord: (recordId) => {
       applyMutation((prev) => ({ ...prev, competitionRecords: prev.competitionRecords.filter((item) => item.id !== recordId) }));
       void deleteRemoteLegacy('competition_players', recordId);
     },
     upsertCompetitionMatchSummary: (record) => applyMutation((prev) => ({ ...prev, competitionMatchSummaries: [record, ...prev.competitionMatchSummaries.filter((item) => !(item.id === record.id || (item.date === record.date && item.category === record.category && item.opponent.trim().toLowerCase() === record.opponent.trim().toLowerCase())))] })),
+
+    // Guarda el partido y toda su planilla en una sola mutacion.
+    // Evita que Supabase devuelva primero solo el encabezado del partido
+    // y la UI pierda temporalmente los jugadores/GPS al refrescar.
+    saveCompetitionMatchBundle: (record, records) => applyMutation((prev) => {
+      const sameMatch = (item: CompetitionRecord) => {
+        if (item.matchId === record.id) return true;
+        return item.date === record.date && item.category === record.category && item.opponent.trim().toLowerCase() === record.opponent.trim().toLowerCase();
+      };
+      const normalizedRecords = records.map((item) => ({
+        ...item,
+        matchId: record.id,
+        date: record.date,
+        opponent: record.opponent,
+        competitionName: record.competitionName,
+        category: item.category ?? record.category,
+      }));
+      return {
+        ...prev,
+        competitionMatchSummaries: [
+          record,
+          ...prev.competitionMatchSummaries.filter((item) => !(item.id === record.id || (item.date === record.date && item.category === record.category && item.opponent.trim().toLowerCase() === record.opponent.trim().toLowerCase()))),
+        ],
+        competitionRecords: [
+          ...normalizedRecords,
+          ...prev.competitionRecords.filter((item) => !sameMatch(item)),
+        ],
+      };
+    }),
     deleteCompetitionMatchSummary: (matchId) => {
       applyMutation((prev) => ({ ...prev, competitionMatchSummaries: prev.competitionMatchSummaries.filter((item) => item.id !== matchId), competitionRecords: prev.competitionRecords.filter((item) => item.matchId !== matchId) }));
       void deleteRemoteLegacy('competition_matches', matchId);

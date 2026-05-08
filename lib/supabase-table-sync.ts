@@ -523,6 +523,9 @@ export const fetchSupabaseTablesAppData = async (
       status: row.status ?? undefined,
       lineupFormation: row.lineup_formation ?? undefined,
       lineupSlots: Array.isArray(row.lineup_slots) ? row.lineup_slots : undefined,
+      eyeballStats: row.eyeball_stats ?? undefined,
+      eyeballFirstHalfStats: row.eyeball_first_half_stats ?? undefined,
+      eyeballSecondHalfStats: row.eyeball_second_half_stats ?? undefined,
     }));
 
     const competitionMatchSummaries: CompetitionMatchSummary[] = (
@@ -545,6 +548,9 @@ export const fetchSupabaseTablesAppData = async (
       status: row.status ?? undefined,
       lineupFormation: row.lineup_formation ?? undefined,
       lineupSlots: Array.isArray(row.lineup_slots) ? row.lineup_slots : undefined,
+      eyeballStats: row.eyeball_stats ?? undefined,
+      eyeballFirstHalfStats: row.eyeball_first_half_stats ?? undefined,
+      eyeballSecondHalfStats: row.eyeball_second_half_stats ?? undefined,
     }));
 
     const competitionRecords: CompetitionRecord[] = (
@@ -578,6 +584,9 @@ export const fetchSupabaseTablesAppData = async (
         rhie: row.rhie ?? undefined,
         ima: row.ima ?? undefined,
         totalDistance: row.total_distance ?? undefined,
+        highSpeedDistance: row.high_speed_distance ?? row.hsr ?? undefined,
+        hsr: row.hsr ?? row.high_speed_distance ?? undefined,
+        sprintDistance: row.sprint_distance ?? undefined,
         maxVelocity: row.max_velocity ?? undefined,
         playerLoad: row.player_load ?? undefined,
         loggedBy: row.logged_by ?? undefined,
@@ -1224,23 +1233,45 @@ export const saveSupabaseTablesAppData = async (
           status: record.status ?? null,
           lineup_formation: record.lineupFormation ?? null,
           lineup_slots: record.lineupSlots ?? [],
+          eyeball_stats: record.eyeballStats ?? null,
+          eyeball_first_half_stats: record.eyeballFirstHalfStats ?? null,
+          eyeball_second_half_stats: record.eyeballSecondHalfStats ?? null,
         })),
     );
 
-    const matchMap = await fetchLegacyIdMap(supabase, "competition_matches");
-    const matchUuid = (legacyId?: string) =>
-      legacyId ? (matchMap[legacyId] ?? null) : null;
+    // Mapa robusto para competencia.
+    // Si el partido ya existia por fecha+categoria+rival pero con otro legacy_id,
+    // Supabase puede ignorar el upsert por el indice unico. En ese caso igual
+    // debemos guardar la planilla usando la fila existente del partido.
+    const matchRowsRes = await supabase
+      .from("competition_matches")
+      .select("id, legacy_id, date, category, opponent");
+    if (matchRowsRes.error) throw matchRowsRes.error;
+    const normalizeMatchKey = (date?: string | null, cat?: string | null, opponent?: string | null) =>
+      `${date ?? ""}::${cat ?? ""}::${String(opponent ?? "").trim().toLowerCase()}`;
+    const matchLegacyMap: LegacyMap = {};
+    const matchKeyMap: LegacyMap = {};
+    ((matchRowsRes.data ?? []) as DbRow[]).forEach((row) => {
+      if (row.legacy_id) matchLegacyMap[String(row.legacy_id)] = String(row.id);
+      matchKeyMap[normalizeMatchKey(row.date, row.category, row.opponent)] = String(row.id);
+    });
+    const localMatchById = Object.fromEntries(data.competitionMatchSummaries.map((match) => [match.id, match]));
+    const matchUuid = (record: CompetitionRecord) => {
+      if (record.matchId && matchLegacyMap[record.matchId]) return matchLegacyMap[record.matchId];
+      const local = record.matchId ? localMatchById[record.matchId] : undefined;
+      return matchKeyMap[normalizeMatchKey(local?.date ?? record.date, local?.category ?? record.category, local?.opponent ?? record.opponent)] ?? null;
+    };
 
     await upsertRows(
       supabase,
       "competition_players",
       data.competitionRecords
         .filter(
-          (record) => matchUuid(record.matchId) && playerUuid(record.playerId),
+          (record) => matchUuid(record) && playerUuid(record.playerId),
         )
         .map((record) => ({
           legacy_id: record.id,
-          match_id: matchUuid(record.matchId),
+          match_id: matchUuid(record),
           player_id: playerUuid(record.playerId),
           category: category(record.category),
           starting_role: record.startingRole ?? null,
@@ -1283,6 +1314,21 @@ export const saveSupabaseTablesAppData = async (
             record.category ?? playerCategoryById[record.playerId],
           )
             ? (record.totalDistance ?? null)
+            : null,
+          high_speed_distance: supportsGps(
+            record.category ?? playerCategoryById[record.playerId],
+          )
+            ? (record.highSpeedDistance ?? record.hsr ?? null)
+            : null,
+          hsr: supportsGps(
+            record.category ?? playerCategoryById[record.playerId],
+          )
+            ? (record.hsr ?? record.highSpeedDistance ?? null)
+            : null,
+          sprint_distance: supportsGps(
+            record.category ?? playerCategoryById[record.playerId],
+          )
+            ? (record.sprintDistance ?? null)
             : null,
           max_velocity: supportsGps(
             record.category ?? playerCategoryById[record.playerId],

@@ -31,6 +31,8 @@ type Props = {
   className?: string;
   compact?: boolean;
   eyeballStats?: EyeballMatchStats | null;
+  eyeballFirstHalfStats?: EyeballMatchStats | null;
+  eyeballSecondHalfStats?: EyeballMatchStats | null;
 };
 
 type IconComponent = typeof Users;
@@ -242,15 +244,9 @@ function EyeballComparisonTable({ rows, title }: { rows: EyeballRow[]; title?: s
     <div className="fd-table-wrap">
       {title ? <h4>{title}</h4> : null}
       <table className="pdf-report-table fd-eyeball-table">
-        <thead><tr><th>Estadística</th><th>Rival</th><th>Orsomarso</th><th>Lectura</th></tr></thead>
+        <thead><tr><th>Estadística</th><th>Rival</th><th>Orsomarso</th></tr></thead>
         <tbody>
-          {rows.map((row) => {
-            const o = statNumber(row.orso);
-            const r = statNumber(row.rival);
-            const lowerBetter = isLowerBetter(row.stat);
-            const advantage = o === r ? 'Equilibrado' : lowerBetter ? (o < r ? 'Ventaja Orsomarso' : 'Ventaja rival') : (o > r ? 'Ventaja Orsomarso' : 'Ventaja rival');
-            return <tr key={`${row.stat}-${row.rival}-${row.orso}`}><td><strong>{row.stat}</strong></td><td>{valueText(row.rival)}</td><td>{valueText(row.orso)}</td><td>{advantage}</td></tr>;
-          })}
+          {rows.map((row) => <tr key={`${row.stat}-${row.rival}-${row.orso}`}><td><strong>{row.stat}</strong></td><td>{valueText(row.rival)}</td><td>{valueText(row.orso)}</td></tr>)}
         </tbody>
       </table>
     </div>
@@ -406,6 +402,44 @@ function MatchDynamicsSection({ stats }: { stats?: EyeballMatchStats | null }) {
   );
 }
 
+
+function PeriodComparisonSection({ first, second }: { first?: EyeballMatchStats | null; second?: EyeballMatchStats | null }) {
+  if (!first && !second) return null;
+  const statDefs = [
+    { section: 'Resumen', names: ['Posesión', 'Posesiones'], label: 'Posesión' },
+    { section: 'Distribución', names: ['Precisión de pases'], label: 'Precisión pase' },
+    { section: 'Ofensivo', names: ['Disparos en total'], label: 'Remates' },
+    { section: 'Ofensivo', names: ['Tiros a puerta'], label: 'A puerta' },
+    { section: 'Ofensivo', names: ['Tasa de conversión de tiros'], label: 'Conversión' },
+    { section: 'Defensivo', names: ['Recuperaciones'], label: 'Recuperaciones' },
+    { section: 'Defensivo', names: ['Entradas exitosas'], label: 'Entradas exitosas' },
+    { section: 'Distribución', names: ['Pases exitosos'], label: 'Pases exitosos' },
+  ];
+  const rows = statDefs.map((def) => {
+    const firstRow = getSectionStat(first, def.section, def.names);
+    const secondRow = getSectionStat(second, def.section, def.names);
+    return { label: def.label, first: firstRow?.orso ?? '-', second: secondRow?.orso ?? '-', firstRival: firstRow?.rival ?? '-', secondRival: secondRow?.rival ?? '-' };
+  }).filter((row) => row.first !== '-' || row.second !== '-');
+  if (!rows.length) return null;
+  const chartRows = rows.map((row) => ({ stat: row.label, rival: statNumber(row.firstRival) + statNumber(row.secondRival), orso: statNumber(row.first) + statNumber(row.second) }));
+  return (
+    <ReportSection icon={BarChart3} eyebrow="Periodos" title="Primer tiempo vs segundo tiempo" subtitle="Comparativo por periodos a partir de los CSV Eyeball 1T y 2T.">
+      <div className="period-report-grid">
+        <div className="fd-table-wrap">
+          <table className="pdf-report-table fd-eyeball-table">
+            <thead><tr><th>Indicador</th><th>Orsomarso 1T</th><th>Orsomarso 2T</th><th>Rival 1T</th><th>Rival 2T</th></tr></thead>
+            <tbody>{rows.map((row) => <tr key={row.label}><td><strong>{row.label}</strong></td><td>{valueText(row.first)}</td><td>{valueText(row.second)}</td><td>{valueText(row.firstRival)}</td><td>{valueText(row.secondRival)}</td></tr>)}</tbody>
+          </table>
+        </div>
+        <div className="eyeball-comparison-card fd-main-comparison">
+          <div className="eyeball-comparison-head"><span>Rival</span><strong>Total 1T + 2T</strong><span>Orsomarso</span></div>
+          {chartRows.map((row) => <ComparisonStat key={row.stat} label={row.stat} orso={row.orso} rival={row.rival} lowerBetter={isLowerBetter(row.stat)} />)}
+        </div>
+      </div>
+    </ReportSection>
+  );
+}
+
 function GeneralStatsSection({ stats }: { stats?: EyeballMatchStats | null }) {
   if (!stats) return null;
   const rows = sectionRows(stats, 'Resumen');
@@ -417,7 +451,7 @@ function GeneralStatsSection({ stats }: { stats?: EyeballMatchStats | null }) {
           <div key={`${row.stat}-${row.index}`} className="orso-summary-card">
             <span>{row.stat}</span>
             <strong>{valueText(row.orso)}</strong>
-            <small>Rival: {valueText(row.rival)} · {compareText(row)}</small>
+            <small>Rival: {valueText(row.rival)}</small>
           </div>
         ))}
       </div>
@@ -509,7 +543,7 @@ function GpsPhysicalSection({ report }: { report: CompetitionReportData }) {
   );
 }
 
-export function CompetitionReportTemplate({ report, category, className = '', compact = false, eyeballStats = null }: Props) {
+export function CompetitionReportTemplate({ report, category, className = '', compact = false, eyeballStats = null, eyeballFirstHalfStats = null, eyeballSecondHalfStats = null }: Props) {
   const match = report.match;
   const resultTone = toneForResult(report.resultType);
   const VenueIcon = match.venue === 'Visitante' ? Bus : Home;
@@ -536,6 +570,7 @@ export function CompetitionReportTemplate({ report, category, className = '', co
       </section>
       <LineupSection report={report} />
       <MatchDynamicsSection stats={eyeballStats} />
+      <PeriodComparisonSection first={eyeballFirstHalfStats} second={eyeballSecondHalfStats} />
       <GeneralStatsSection stats={eyeballStats} />
       <TacticalBlock icon={Target} eyebrow="Acciones ofensivas" title="Acciones ofensivas" subtitle="Disparos, finalización, regates y conversión del CSV Eyeball." stats={eyeballStats} sectionName="Ofensivo" empty="Sin datos ofensivos." color={C.red} />
       <KeyPassDistributionSection stats={eyeballStats} />

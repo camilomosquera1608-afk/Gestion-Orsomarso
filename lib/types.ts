@@ -243,7 +243,11 @@ export interface CompetitionMatchSummary {
   status?: OperationalRecordStatus;
   lineupFormation?: string;
   lineupSlots?: CompetitionLineupSlot[];
+  eyeballStats?: unknown;
+  eyeballFirstHalfStats?: unknown;
+  eyeballSecondHalfStats?: unknown;
 }
+
 
 export interface Microcycle {
   id: string;

@@ -6762,3 +6762,35 @@ img[loading="lazy"] { background: var(--line-soft); }
   .orso-distribution-panels { grid-template-columns: repeat(3, minmax(0,1fr)) !important; gap: 2mm !important; }
   .orso-tactical-clean-grid { grid-template-columns: 58mm 1fr !important; gap: 3mm !important; }
 }
+
+.file-upload-card {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  min-height: 132px;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 18px;
+  padding: 18px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
+  cursor: pointer;
+  color: #06152f;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.file-upload-card:hover {
+  transform: translateY(-1px);
+  border-color: #1557d6;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .08);
+}
+.file-upload-card svg { color: #1557d6; }
+.file-upload-card strong { font-size: 14px; font-weight: 900; }
+.file-upload-card span { font-size: 12px; color: #52647d; font-weight: 700; word-break: break-word; }
+.file-upload-card input { display: none; }
+.period-report-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr);
+  gap: 16px;
+  align-items: start;
+}
+@media print, (max-width: 900px) {
+  .period-report-grid { grid-template-columns: 1fr; }
+}

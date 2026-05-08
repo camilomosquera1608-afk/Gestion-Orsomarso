@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
 import { CompetitionReportTemplate } from '@/components/competition-report';
 import { EmptyState, MatchCard, SectionHeader, StatusBadge } from '@/components/pro-ui';
@@ -14,7 +14,7 @@ import { buildMatchCenterStats } from '@/lib/operational-helpers';
 import { buildCompetitionReportData } from '@/lib/competition-report';
 import { findDuplicateMatch } from '@/lib/operational-validation';
 import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue, type CompetitionLineupSlot, type DailyExternalLoadRecord } from '@/lib/types';
-import { type ChangeEvent, type DragEvent } from 'react';
+import { type ChangeEvent } from 'react';
 import { Upload as UploadIcon, FileText, X as XIcon } from 'lucide-react';
 import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
 import { CsvImporter } from '@/components/csv-importer';
@@ -257,7 +257,7 @@ function EyeballReport({ stats }: { stats: EyeballMatchStats }) {
 }
 
 export default function CompetenciaPage() {
-  const { data, filters, addCompetitionRecord, updateCompetitionRecord, deleteCompetitionRecord, upsertCompetitionMatchSummary, deleteCompetitionMatchSummary } = useApp();
+  const { data, filters, deleteCompetitionRecord, upsertCompetitionMatchSummary, saveCompetitionMatchBundle, deleteCompetitionMatchSummary } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
@@ -273,20 +273,35 @@ export default function CompetenciaPage() {
   const [isSavingPlayer, setIsSavingPlayer] = useState(false);
   const [editingMatchPlayers, setEditingMatchPlayers] = useState(false);
   const [eyeballStats, setEyeballStats] = useState<EyeballMatchStats | null>(null);
+  const [eyeballFirstHalfStats, setEyeballFirstHalfStats] = useState<EyeballMatchStats | null>(null);
+  const [eyeballSecondHalfStats, setEyeballSecondHalfStats] = useState<EyeballMatchStats | null>(null);
   const [eyeballFile, setEyeballFile] = useState('');
+  const [eyeballFirstHalfFile, setEyeballFirstHalfFile] = useState('');
+  const [eyeballSecondHalfFile, setEyeballSecondHalfFile] = useState('');
   const [eyeballError, setEyeballError] = useState('');
-  const [eyeballDrag, setEyeballDrag] = useState(false);
-  const eyeballRef = useRef<HTMLInputElement>(null);
 
-  const processEyeballFile = (file: File) => {
+  const processEyeballFile = (file: File, period: 'full' | 'first' | 'second' = 'full') => {
     setEyeballError('');
-    setEyeballFile(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       const raw = String(e.target?.result ?? '');
       const parsed = parseEyeballCsv(raw);
       if (!parsed) { setEyeballError('No se pudo leer el CSV. Verifica el formato Eyeball.'); return; }
+      if (period === 'first') {
+        setEyeballFirstHalfStats(parsed);
+        setEyeballFirstHalfFile(file.name);
+        if (selectedMatch) upsertCompetitionMatchSummary({ ...selectedMatch, eyeballFirstHalfStats: parsed });
+        return;
+      }
+      if (period === 'second') {
+        setEyeballSecondHalfStats(parsed);
+        setEyeballSecondHalfFile(file.name);
+        if (selectedMatch) upsertCompetitionMatchSummary({ ...selectedMatch, eyeballSecondHalfStats: parsed });
+        return;
+      }
       setEyeballStats(parsed);
+      setEyeballFile(file.name);
+      if (selectedMatch) upsertCompetitionMatchSummary({ ...selectedMatch, eyeballStats: parsed, goalsFor: selectedMatch.goalsFor ?? parsed.goalsFor, goalsAgainst: selectedMatch.goalsAgainst ?? parsed.goalsAgainst });
     };
     reader.readAsText(file, 'UTF-8');
   };
@@ -375,15 +390,14 @@ export default function CompetenciaPage() {
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    const nextByPlayer = new Map<string, CompetitionRecord>();
+    matchRecords.forEach((record) => nextByPlayer.set(record.playerId, record));
 
     records.forEach((gps) => {
       const player = data.players.find((item) => item.id === gps.playerId);
       if (!player || isGoalkeeper(player)) { skipped += 1; return; }
 
-      const existing = data.competitionRecords.find((record) =>
-        record.playerId === gps.playerId &&
-        (record.matchId === selectedMatch.id || (!record.matchId && record.date === selectedMatch.date && record.opponent === selectedMatch.opponent))
-      );
+      const existing = nextByPlayer.get(gps.playerId);
       const baseCategory = (player.category ?? sourceCategory) as ClubCategory;
       const movementType = (gps.movementType ?? inferCompetitionMovement(baseCategory, activeCategory)) as MovementType;
       const gpsPatch = {
@@ -402,7 +416,7 @@ export default function CompetenciaPage() {
       };
 
       if (existing) {
-        updateCompetitionRecord({
+        nextByPlayer.set(gps.playerId, {
           ...existing,
           ...gpsPatch,
           category: activeCategory,
@@ -416,7 +430,7 @@ export default function CompetenciaPage() {
         return;
       }
 
-      addCompetitionRecord({
+      nextByPlayer.set(gps.playerId, {
         id: crypto.randomUUID(),
         matchId: selectedMatch.id,
         playerId: player.id,
@@ -442,6 +456,7 @@ export default function CompetenciaPage() {
       created += 1;
     });
 
+    saveCompetitionMatchBundle(selectedMatch, Array.from(nextByPlayer.values()));
     setShowGpsCsv(false);
     setMessage(`CSV GPS importado: ${updated} actualizados · ${created} creados${skipped ? ` · ${skipped} ignorados` : ''}.`);
   };
@@ -511,6 +526,18 @@ export default function CompetenciaPage() {
     () => buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: selectedMatch?.date ?? filters.date, category: activeCategory, limit: 5 }),
     [data.players, data.internalLoads, data.externalLoads, data.competitionRecords, selectedMatch?.date, filters.date, activeCategory],
   );
+
+  useEffect(() => {
+    if (!selectedMatch) {
+      setEyeballStats(null);
+      setEyeballFirstHalfStats(null);
+      setEyeballSecondHalfStats(null);
+      return;
+    }
+    setEyeballStats((selectedMatch.eyeballStats as EyeballMatchStats | undefined) ?? null);
+    setEyeballFirstHalfStats((selectedMatch.eyeballFirstHalfStats as EyeballMatchStats | undefined) ?? null);
+    setEyeballSecondHalfStats((selectedMatch.eyeballSecondHalfStats as EyeballMatchStats | undefined) ?? null);
+  }, [selectedMatch?.id]);
 
   useEffect(() => {
     setSourceCategory(activeCategory);
@@ -598,12 +625,12 @@ export default function CompetenciaPage() {
     }
 
     setIsSavingMatchPlayers(true);
-    matchRecords.forEach((record) => {
+    const nextRecords = matchRecords.map((record) => {
       const draft = matchPlayerDrafts[record.id];
-      if (!draft) return;
+      if (!draft) return record;
       const player = data.players.find((item) => item.id === draft.playerId);
       const recordGoalkeeper = isGoalkeeper(player);
-      updateCompetitionRecord({
+      return {
         ...record,
         playerId: draft.playerId,
         minutesPlayed: toNumber(draft.minutesPlayed),
@@ -629,8 +656,9 @@ export default function CompetenciaPage() {
           maxVelocity: toNumber(draft.maxVelocity) || undefined,
           playerLoad: toNumber(draft.playerLoad) || undefined,
         }),
-      });
+      };
     });
+    saveCompetitionMatchBundle(selectedMatch, nextRecords);
     setIsSavingMatchPlayers(false);
     setEditingMatchPlayers(false);
     setMessage('Partido y jugadores actualizados correctamente.');
@@ -680,6 +708,9 @@ export default function CompetenciaPage() {
       status: selectedMatch?.id === id ? selectedMatch.status ?? 'Borrador' : 'Borrador',
       lineupFormation: selectedMatch?.id === id ? selectedMatch.lineupFormation : '4-2-3-1',
       lineupSlots: selectedMatch?.id === id ? selectedMatch.lineupSlots : buildFormationSlots('4-2-3-1'),
+      eyeballStats: selectedMatch?.id === id ? selectedMatch.eyeballStats : eyeballStats ?? undefined,
+      eyeballFirstHalfStats: selectedMatch?.id === id ? selectedMatch.eyeballFirstHalfStats : eyeballFirstHalfStats ?? undefined,
+      eyeballSecondHalfStats: selectedMatch?.id === id ? selectedMatch.eyeballSecondHalfStats : eyeballSecondHalfStats ?? undefined,
     });
     setSelectedMatchId(id);
     setIsSavingMatch(false);
@@ -797,8 +828,10 @@ export default function CompetenciaPage() {
       ? { ...baseRecord, goals: 0, assists: 0, goalsConceded: toNumber(playerDraft.goalsConceded), goalsPrevented: toNumber(playerDraft.goalsPrevented) }
       : { ...baseRecord, goals: toNumber(playerDraft.goals), assists: toNumber(playerDraft.assists), goalsConceded: undefined, goalsPrevented: undefined };
 
-    if (editingRecord) updateCompetitionRecord(record);
-    else addCompetitionRecord(record);
+    const nextRecords = editingRecord
+      ? matchRecords.map((item) => item.id === record.id ? record : item)
+      : [record, ...matchRecords];
+    saveCompetitionMatchBundle(selectedMatch, nextRecords);
     setIsSavingPlayer(false);
     resetPlayerDraft();
     setMessage('Jugador guardado correctamente dentro del partido.');
@@ -833,7 +866,7 @@ export default function CompetenciaPage() {
       <div className="grid grid-2">
         <div className="card compact-card">
           <span className="section-eyebrow">Lógica de competencia</span>
-          <h3 style={{ margin: '4px 0 8px' }}>Lectura operativa del partido</h3>
+          <h3 style={{ margin: '4px 0 8px' }}>Indicadores operativos del partido</h3>
           <div className="grid" style={{ gap: 8 }}>
             {competitionLogic.insights.map((insight) => (
               <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
@@ -1097,51 +1130,47 @@ export default function CompetenciaPage() {
           </div>
           {showGroupReport && competitionReport ? (
             <div style={{ marginTop: 16 }}>
-              <CompetitionReportTemplate report={competitionReport} category={activeCategory} eyeballStats={eyeballStats} />
+              <CompetitionReportTemplate report={competitionReport} category={activeCategory} eyeballStats={eyeballStats} eyeballFirstHalfStats={eyeballFirstHalfStats} eyeballSecondHalfStats={eyeballSecondHalfStats} />
             </div>
           ) : null}
         </div>
       ) : null}
 
-      {/* ── ANÁLISIS TÁCTICO EYEBALL — integrado al partido ─────────── */}
+      {/* ── EYEBALL — integrado al informe de competencia ─────────── */}
       {selectedMatch ? (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
             <div>
               <span className="section-eyebrow">Eyeball</span>
               <h3 style={{ margin: '4px 0 0' }}>CSV Eyeball del partido</h3>
-              <div className="muted-line" style={{ marginTop: 4 }}>Importa el CSV de Eyeball para integrarlo al informe estadístico de competencia.</div>
+              <div className="muted-line" style={{ marginTop: 4 }}>Puedes importar partido completo, primer tiempo y segundo tiempo. El informe usará cada archivo para tablas y gráficas por periodo.</div>
             </div>
-            {eyeballStats && (
-              <div className="btn-row">
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}><FileText size={13} style={{ display: 'inline', marginRight: 4 }} />{eyeballFile}</span>
-                <button type="button" className="btn secondary" onClick={() => { setEyeballStats(null); setEyeballFile(''); setEyeballError(''); }}>
-                  <XIcon size={13} /> Cambiar
-                </button>
-              </div>
-            )}
+            <button type="button" className="btn secondary" onClick={() => { setEyeballStats(null); setEyeballFirstHalfStats(null); setEyeballSecondHalfStats(null); setEyeballFile(''); setEyeballFirstHalfFile(''); setEyeballSecondHalfFile(''); setEyeballError(''); if (selectedMatch) upsertCompetitionMatchSummary({ ...selectedMatch, eyeballStats: undefined, eyeballFirstHalfStats: undefined, eyeballSecondHalfStats: undefined }); }}>
+              <XIcon size={13} /> Limpiar Eyeball
+            </button>
           </div>
 
-          {!eyeballStats ? (
-            <div>
-              <div
-                style={{ border: `2px dashed ${eyeballDrag ? '#1557d6' : '#cbd5e1'}`, borderRadius: 16, padding: '32px 24px', textAlign: 'center', cursor: 'pointer', background: eyeballDrag ? '#eff6ff' : '#f8fafc', transition: 'all .15s' }}
-                onClick={() => eyeballRef.current?.click()}
-                onDragOver={(e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setEyeballDrag(true); }}
-                onDragLeave={() => setEyeballDrag(false)}
-                onDrop={(e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setEyeballDrag(false); const f = e.dataTransfer.files?.[0]; if (f) processEyeballFile(f); }}
-              >
-                <UploadIcon size={28} style={{ color: '#1557d6', marginBottom: 10 }} />
-                <div style={{ fontWeight: 800, fontSize: 14, color: '#06152f', marginBottom: 4 }}>Arrastra el CSV de Eyeball aquí</div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>Formato: Categoría · Estadística · Rival · Orsomarso SC</div>
-                <input ref={eyeballRef} type="file" accept=".csv,.txt" style={{ display: 'none' }}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) processEyeballFile(f); }} />
-              </div>
-              {eyeballError && <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13, fontWeight: 700 }}>⚠ {eyeballError}</div>}
-            </div>
-          ) : (
-            <div className="pdf-report-empty" style={{ borderStyle: 'solid', background: '#f0fdf4', color: '#047857', borderColor: '#bbf7d0' }}><FileText size={14} /> CSV Eyeball integrado al informe. Abre la vista previa para revisar el diseño final antes de generar el PDF.</div>
-          )}
+          <div className="grid grid-3">
+            <label className="file-upload-card">
+              <UploadIcon size={22} />
+              <strong>Partido completo</strong>
+              <span>{eyeballFile || 'CSV general Eyeball'}</span>
+              <input type="file" accept=".csv,.txt" onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) processEyeballFile(f, 'full'); }} />
+            </label>
+            <label className="file-upload-card">
+              <UploadIcon size={22} />
+              <strong>Primer tiempo</strong>
+              <span>{eyeballFirstHalfFile || 'CSV 1T Eyeball'}</span>
+              <input type="file" accept=".csv,.txt" onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) processEyeballFile(f, 'first'); }} />
+            </label>
+            <label className="file-upload-card">
+              <UploadIcon size={22} />
+              <strong>Segundo tiempo</strong>
+              <span>{eyeballSecondHalfFile || 'CSV 2T Eyeball'}</span>
+              <input type="file" accept=".csv,.txt" onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) processEyeballFile(f, 'second'); }} />
+            </label>
+          </div>
+          {eyeballError && <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13, fontWeight: 700 }}>⚠ {eyeballError}</div>}
         </div>
       ) : null}
 
@@ -1229,7 +1258,7 @@ export default function CompetenciaPage() {
         />
       ) : null}
 
-      {competitionReport ? <CompetitionReportTemplate report={competitionReport} category={activeCategory} className="print-only" eyeballStats={eyeballStats} /> : null}
+      {competitionReport ? <CompetitionReportTemplate report={competitionReport} category={activeCategory} className="print-only" eyeballStats={eyeballStats} eyeballFirstHalfStats={eyeballFirstHalfStats} eyeballSecondHalfStats={eyeballSecondHalfStats} /> : null}
     </div>
   );
 }
