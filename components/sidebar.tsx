@@ -61,6 +61,7 @@ const staffGroups = [
       { href: '/carga', label: 'Centro de carga', icon: Dumbbell },
       { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
       { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
+      { href: '/riesgo', label: 'Riesgo', icon: TrendingUp },
       { href: '/alertas', label: 'Alertas', icon: Bell },
     ],
   },
