@@ -17,6 +17,11 @@ export interface CompetitionReportPlayerRow {
   redCards: number;
   medicalStatus: string;
   medicalObservation: string;
+  jerseyNumber?: number;
+  goals: number;
+  assists: number;
+  goalsConceded: number;
+  goalsPrevented: number;
   totalDistance: number;
   metersPerMinute: number;
   acc: number;
@@ -124,6 +129,11 @@ export const buildCompetitionReportData = ({
       redCards,
       medicalStatus,
       medicalObservation,
+      jerseyNumber: player?.jerseyNumber,
+      goals: toSafeNumber(record.goals),
+      assists: toSafeNumber(record.assists),
+      goalsConceded: toSafeNumber(record.goalsConceded),
+      goalsPrevented: toSafeNumber(record.goalsPrevented),
       totalDistance: toSafeNumber(record.totalDistance),
       metersPerMinute: toSafeNumber(record.minutesPlayed) > 0 ? Math.round(toSafeNumber(record.totalDistance) / Math.max(1, toSafeNumber(record.minutesPlayed))) : 0,
       acc: toSafeNumber(record.acc),

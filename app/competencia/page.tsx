@@ -14,7 +14,7 @@ import { buildMatchCenterStats } from '@/lib/operational-helpers';
 import { buildCompetitionReportData } from '@/lib/competition-report';
 import { findDuplicateMatch } from '@/lib/operational-validation';
 import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue, type CompetitionLineupSlot, type DailyExternalLoadRecord } from '@/lib/types';
-import { type ChangeEvent } from 'react';
+import { type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Upload as UploadIcon, FileText, X as XIcon } from 'lucide-react';
 import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
 import { CsvImporter } from '@/components/csv-importer';
@@ -94,6 +94,7 @@ const toNumber = (value: string) => {
 const isNegative = (value: string) => value.trim() !== '' && toNumber(value) < 0;
 const displayNumber = (value?: number) => (value && value > 0 ? String(value) : '');
 const displayOptionalNumber = (value?: number) => (typeof value === 'number' ? String(value) : '');
+const clampPercent = (value: number) => Math.max(4, Math.min(96, value));
 
 type FormationKey = '4-2-3-1' | '4-3-3' | '4-4-2' | '3-5-2' | '4-1-4-1' | '3-4-3' | '5-3-2' | '5-4-1';
 const formationOptions: FormationKey[] = ['4-2-3-1', '4-3-3', '4-4-2', '3-5-2', '4-1-4-1', '3-4-3', '5-3-2', '5-4-1'];
@@ -279,6 +280,7 @@ export default function CompetenciaPage() {
   const [eyeballFirstHalfFile, setEyeballFirstHalfFile] = useState('');
   const [eyeballSecondHalfFile, setEyeballSecondHalfFile] = useState('');
   const [eyeballError, setEyeballError] = useState('');
+  const [activeLineupSlotId, setActiveLineupSlotId] = useState('');
 
   const processEyeballFile = (file: File, period: 'full' | 'first' | 'second' = 'full') => {
     setEyeballError('');
@@ -357,12 +359,55 @@ export default function CompetenciaPage() {
       ...slot,
       playerId: slot.id === slotId ? playerId : slot.playerId === playerId && playerId ? '' : slot.playerId,
     }));
+    setActiveLineupSlotId(slotId);
     saveLineup(selectedFormation, nextSlots);
   };
   const moveLineupSlot = (slotId: string, axis: 'x' | 'y', value: string) => {
-    const numeric = Math.max(4, Math.min(96, Number(value) || 0));
+    const numeric = clampPercent(Number(value) || 0);
     const nextSlots = selectedLineupSlots.map((slot) => slot.id === slotId ? { ...slot, [axis]: numeric } : slot);
     saveLineup(selectedFormation, nextSlots);
+  };
+  const moveActiveLineupSlot = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!activeLineupSlotId) {
+      setMessage('Selecciona primero un puesto de la alineación para ubicarlo en la cancha.');
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = clampPercent(((event.clientX - rect.left) / rect.width) * 100);
+    const y = clampPercent(((event.clientY - rect.top) / rect.height) * 100);
+    const nextSlots = selectedLineupSlots.map((slot) => slot.id === activeLineupSlotId ? { ...slot, x, y } : slot);
+    saveLineup(selectedFormation, nextSlots);
+  };
+  const nudgeActiveLineupSlot = (dx: number, dy: number) => {
+    if (!activeLineupSlotId) {
+      setMessage('Selecciona primero un puesto de la alineación.');
+      return;
+    }
+    const nextSlots = selectedLineupSlots.map((slot) => slot.id === activeLineupSlotId ? { ...slot, x: clampPercent(slot.x + dx), y: clampPercent(slot.y + dy) } : slot);
+    saveLineup(selectedFormation, nextSlots);
+  };
+  const uploadOpponentLogo = (file?: File | null) => {
+    if (!selectedMatch || !file) return;
+    if (!file.type.startsWith('image/')) {
+      setMessage('Carga una imagen válida para el escudo rival.');
+      return;
+    }
+    if (file.size > 350 * 1024) {
+      setMessage('El escudo es muy pesado. Usa una imagen menor a 350 KB para no llenar el almacenamiento.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const logo = String(reader.result ?? '');
+      upsertCompetitionMatchSummary({ ...selectedMatch, opponentLogo: logo });
+      setMessage('Escudo rival actualizado.');
+    };
+    reader.readAsDataURL(file);
+  };
+  const removeOpponentLogo = () => {
+    if (!selectedMatch) return;
+    upsertCompetitionMatchSummary({ ...selectedMatch, opponentLogo: undefined });
+    setMessage('Escudo rival eliminado.');
   };
   const exportCleanPdf = () => {
     if (!selectedMatch) return window.print();
@@ -708,6 +753,7 @@ export default function CompetenciaPage() {
       status: selectedMatch?.id === id ? selectedMatch.status ?? 'Borrador' : 'Borrador',
       lineupFormation: selectedMatch?.id === id ? selectedMatch.lineupFormation : '4-2-3-1',
       lineupSlots: selectedMatch?.id === id ? selectedMatch.lineupSlots : buildFormationSlots('4-2-3-1'),
+      opponentLogo: selectedMatch?.id === id ? selectedMatch.opponentLogo : undefined,
       eyeballStats: selectedMatch?.id === id ? selectedMatch.eyeballStats : eyeballStats ?? undefined,
       eyeballFirstHalfStats: selectedMatch?.id === id ? selectedMatch.eyeballFirstHalfStats : eyeballFirstHalfStats ?? undefined,
       eyeballSecondHalfStats: selectedMatch?.id === id ? selectedMatch.eyeballSecondHalfStats : eyeballSecondHalfStats ?? undefined,
@@ -1092,23 +1138,54 @@ export default function CompetenciaPage() {
 
       {selectedMatch ? (
         <div className="card no-print">
-          <SectionHeader eyebrow="Alineación" title="Configurar alineación visual" subtitle="Elige la formación y ubica los jugadores que aparecerán en el informe premium." />
+          <SectionHeader eyebrow="Alineación" title="Configurar alineación visual" subtitle="Selecciona el jugador, activa su puesto y haz clic en la cancha para ubicarlo manualmente." />
           <div className="competition-lineup-editor">
-            <div className="field"><label>Formación</label><select className="select" value={selectedFormation} onChange={(event) => changeLineupFormation(event.target.value as FormationKey)}>{formationOptions.map((formation) => <option key={formation} value={formation}>{formation}</option>)}</select></div>
-            <div className="lineup-slot-grid">
-              {selectedLineupSlots.map((slot) => (
-                <div className="lineup-slot-field" key={slot.id}>
-                  <label>{slot.label} · {slot.line}</label>
-                  <select className="select" value={slot.playerId ?? ''} onChange={(event) => assignLineupPlayer(slot.id, event.target.value)}>
-                    <option value="">Sin asignar</option>
-                    {lineupPlayerOptions.map(({ record, player }) => <option key={`${slot.id}-${record.id}`} value={record.playerId}>{player?.name ?? 'Jugador'} · {player?.position ?? '-'}</option>)}
-                  </select>
-                  <div className="lineup-position-controls">
-                    <input className="input" type="number" min="4" max="96" value={Math.round(slot.x)} onChange={(event) => moveLineupSlot(slot.id, 'x', event.target.value)} title="Posición horizontal" />
-                    <input className="input" type="number" min="4" max="96" value={Math.round(slot.y)} onChange={(event) => moveLineupSlot(slot.id, 'y', event.target.value)} title="Posición vertical" />
-                  </div>
+            <div className="grid grid-3">
+              <div className="field"><label>Formación</label><select className="select" value={selectedFormation} onChange={(event) => changeLineupFormation(event.target.value as FormationKey)}>{formationOptions.map((formation) => <option key={formation} value={formation}>{formation}</option>)}</select></div>
+              <div className="field"><label>Escudo rival</label><input className="input" type="file" accept="image/*" onChange={(event) => uploadOpponentLogo(event.target.files?.[0])} /></div>
+              <div className="lineup-logo-preview">
+                {selectedMatch.opponentLogo ? <img src={selectedMatch.opponentLogo} alt={selectedMatch.opponent} /> : <span>{selectedMatch.opponent.slice(0, 2).toUpperCase()}</span>}
+                {selectedMatch.opponentLogo ? <button type="button" className="btn secondary" onClick={removeOpponentLogo}>Quitar escudo</button> : null}
+              </div>
+            </div>
+            <div className="lineup-manual-grid">
+              <div>
+                <div className="lineup-manual-pitch" onClick={moveActiveLineupSlot}>
+                  <div className="fd-pitch-title">{selectedFormation}</div>
+                  <div className="orso-pitch-lines"><i /><i /><i /><i /></div>
+                  {selectedLineupSlots.map((slot) => {
+                    const playerName = lineupPlayerOptions.find(({ record }) => record.playerId === slot.playerId)?.player?.name ?? '';
+                    return (
+                      <button
+                        type="button"
+                        key={slot.id}
+                        className={`lineup-manual-chip ${activeLineupSlotId === slot.id ? 'active' : ''} ${playerName ? '' : 'empty'}`}
+                        style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+                        onClick={(event) => { event.stopPropagation(); setActiveLineupSlotId(slot.id); }}
+                      >
+                        <strong>{playerName || 'Vacío'}</strong><span>{slot.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-              ))}
+                <div className="lineup-nudge-row">
+                  <button type="button" className="btn secondary" onClick={() => nudgeActiveLineupSlot(0, -3)}>Arriba</button>
+                  <button type="button" className="btn secondary" onClick={() => nudgeActiveLineupSlot(-3, 0)}>Izquierda</button>
+                  <button type="button" className="btn secondary" onClick={() => nudgeActiveLineupSlot(3, 0)}>Derecha</button>
+                  <button type="button" className="btn secondary" onClick={() => nudgeActiveLineupSlot(0, 3)}>Abajo</button>
+                </div>
+              </div>
+              <div className="lineup-slot-grid compact-lineup-slots">
+                {selectedLineupSlots.map((slot) => (
+                  <div className={`lineup-slot-field ${activeLineupSlotId === slot.id ? 'active' : ''}`} key={slot.id} onClick={() => setActiveLineupSlotId(slot.id)}>
+                    <label>{slot.label} · {slot.line}</label>
+                    <select className="select" value={slot.playerId ?? ''} onChange={(event) => assignLineupPlayer(slot.id, event.target.value)}>
+                      <option value="">Seleccionar jugador</option>
+                      {lineupPlayerOptions.map(({ record, player }) => <option key={`${slot.id}-${record.id}`} value={record.playerId}>{player?.name ?? 'Jugador'} · {player?.position ?? '-'}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

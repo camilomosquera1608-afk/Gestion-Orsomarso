@@ -243,6 +243,7 @@ export interface CompetitionMatchSummary {
   status?: OperationalRecordStatus;
   lineupFormation?: string;
   lineupSlots?: CompetitionLineupSlot[];
+  opponentLogo?: string;
   eyeballStats?: unknown;
   eyeballFirstHalfStats?: unknown;
   eyeballSecondHalfStats?: unknown;

@@ -73,4 +73,3 @@ Este paquete mantiene la línea de producción segura:
 - Roles y permisos activos.
 - Realtime/autosave sin cambios intencionales.
 - Administración restaurada para sesiones admin/master válidas.
-- depploy trigger
