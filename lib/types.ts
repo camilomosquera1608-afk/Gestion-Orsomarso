@@ -15,6 +15,16 @@ export type CompetitionVenue = 'Local' | 'Visitante';
 export type MatchResultType = 'Victoria' | 'Empate' | 'Derrota';
 export type CompetitionPlayerRole = 'Titular' | 'Suplente';
 export type CompetitionMedicalStatus = 'Sin lesión' | 'Lesionado';
+
+export interface CompetitionLineupSlot {
+  id: string;
+  label: string;
+  line: 'Arquero' | 'Defensa' | 'Mediocampo' | 'Ataque';
+  x: number;
+  y: number;
+  playerId?: string;
+}
+
 export type OperationalRecordStatus = 'Borrador' | 'En revisión' | 'Cerrada' | 'Reabierta';
 
 
@@ -231,6 +241,8 @@ export interface CompetitionMatchSummary {
   result?: string;
   observation?: string;
   status?: OperationalRecordStatus;
+  lineupFormation?: string;
+  lineupSlots?: CompetitionLineupSlot[];
 }
 
 export interface Microcycle {

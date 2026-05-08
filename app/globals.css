@@ -6692,3 +6692,46 @@ img[loading="lazy"] { background: var(--line-soft); }
 }
 .fd-cover { padding: 34px !important; color: #111827 !important; align-content: center !important; }
 .fd-cover > * { position: relative; z-index: 1; }
+
+/* v110.3 competencia premium: preview PDF, alineacion editable y exportacion limpia */
+.competition-lineup-editor { display: grid; gap: 14px; }
+.lineup-slot-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.lineup-slot-field { border: 1px solid #d8e1ee; border-radius: 16px; padding: 10px; background: #f8fbff; }
+.lineup-slot-field label { display: block; margin-bottom: 6px; font-size: 10px; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; color: #1557d6; }
+.orso-match-cover .fd-cover-logo strong { letter-spacing: .18em; text-transform: uppercase; }
+.orso-lineup-grid { grid-template-columns: minmax(300px, .9fr) minmax(0, 1.1fr); align-items: stretch; }
+.orso-lineup-pitch { position: relative; min-height: 520px; overflow: hidden; border-radius: 24px; border: 1px solid rgba(255,255,255,.24); background: linear-gradient(180deg, #0b3f2e 0%, #0f6b48 52%, #0b3f2e 100%); box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); }
+.orso-lineup-pitch::before { content: ''; position: absolute; inset: 28px 22px; border: 2px solid rgba(255,255,255,.45); border-radius: 16px; }
+.orso-lineup-pitch::after { content: ''; position: absolute; left: 22px; right: 22px; top: 50%; border-top: 2px solid rgba(255,255,255,.4); }
+.orso-pitch-lines i { position: absolute; left: 50%; top: 50%; width: 118px; height: 118px; border-radius: 999px; border: 2px solid rgba(255,255,255,.33); transform: translate(-50%,-50%); }
+.orso-pitch-lines i:nth-child(2) { top: 18%; width: 135px; height: 62px; border-radius: 0 0 70px 70px; border-top: 0; }
+.orso-pitch-lines i:nth-child(3) { top: 82%; width: 135px; height: 62px; border-radius: 70px 70px 0 0; border-bottom: 0; }
+.orso-pitch-lines i:nth-child(4) { width: 8px; height: 8px; background: rgba(255,255,255,.7); border: 0; }
+.orso-pitch-player { position: absolute; transform: translate(-50%,-50%); min-width: 76px; max-width: 108px; padding: 7px 8px; text-align: center; border-radius: 999px; background: #ffffff; color: #06152f; border: 2px solid rgba(21,87,214,.55); box-shadow: 0 12px 28px rgba(0,0,0,.18); z-index: 3; }
+.orso-pitch-player strong { display: block; font-size: 10px; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.orso-pitch-player span { display: block; margin-top: 2px; font-size: 8px; font-weight: 950; color: #1557d6; }
+.orso-pitch-player.empty { background: rgba(255,255,255,.22); color: #dbeafe; border-color: rgba(255,255,255,.5); box-shadow: none; }
+.orso-pitch-player.empty span { color: #dbeafe; }
+.competition-gps-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.orso-integrated-table { font-size: 10.5px; }
+.orso-integrated-table th, .orso-integrated-table td { padding: 7px 6px; }
+.fd-competition-report:not(.pdf-report-compact) { max-width: 1020px; margin: 0 auto; }
+.fd-competition-report .fd-report-page, .fd-competition-report .pdf-report-section { border-radius: 22px; padding: 18px; box-shadow: 0 12px 34px rgba(15,23,42,.06); }
+@media (max-width: 900px) {
+  .lineup-slot-grid, .competition-gps-chart-grid, .orso-lineup-grid { grid-template-columns: 1fr; }
+  .orso-lineup-pitch { min-height: 420px; }
+}
+@media print {
+  @page { size: A4 portrait; margin: 8mm; }
+  html, body { background: #fff !important; }
+  .fd-competition-report { max-width: none !important; width: 100% !important; }
+  .fd-competition-report .pdf-report-section { box-shadow: none !important; border-radius: 0 !important; padding: 6px 0 !important; }
+  .orso-lineup-grid { grid-template-columns: .75fr 1.25fr !important; gap: 6px !important; }
+  .orso-lineup-pitch { min-height: 255px !important; border-radius: 10px !important; }
+  .orso-pitch-player { min-width: 42px !important; max-width: 62px !important; padding: 3px 4px !important; border-width: 1px !important; }
+  .orso-pitch-player strong { font-size: 5.8px !important; }
+  .orso-pitch-player span { font-size: 5px !important; }
+  .competition-gps-chart-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 5px !important; }
+  .orso-integrated-table { font-size: 5.8px !important; }
+  .orso-integrated-table th, .orso-integrated-table td { padding: 2.5px !important; }
+}

@@ -521,6 +521,8 @@ export const fetchSupabaseTablesAppData = async (
       objective: row.objective ?? undefined,
       observation: row.observation ?? undefined,
       status: row.status ?? undefined,
+      lineupFormation: row.lineup_formation ?? undefined,
+      lineupSlots: Array.isArray(row.lineup_slots) ? row.lineup_slots : undefined,
     }));
 
     const competitionMatchSummaries: CompetitionMatchSummary[] = (
@@ -541,6 +543,8 @@ export const fetchSupabaseTablesAppData = async (
           : undefined,
       observation: row.observation ?? undefined,
       status: row.status ?? undefined,
+      lineupFormation: row.lineup_formation ?? undefined,
+      lineupSlots: Array.isArray(row.lineup_slots) ? row.lineup_slots : undefined,
     }));
 
     const competitionRecords: CompetitionRecord[] = (
@@ -1218,6 +1222,8 @@ export const saveSupabaseTablesAppData = async (
           result_type: record.resultType ?? null,
           observation: record.observation ?? null,
           status: record.status ?? null,
+          lineup_formation: record.lineupFormation ?? null,
+          lineup_slots: record.lineupSlots ?? [],
         })),
     );
 

@@ -5,6 +5,7 @@ export type CompetitionReportTone = 'green' | 'blue' | 'red' | 'amber' | 'neutra
 
 export interface CompetitionReportPlayerRow {
   id: string;
+  playerId: string;
   name: string;
   position: string;
   role: string;
@@ -109,6 +110,7 @@ export const buildCompetitionReportData = ({
 
     return {
       id: record.id,
+      playerId: record.playerId,
       name: player?.name ?? 'Jugador no identificado',
       position: player?.position ?? '-',
       role: record.startingRole ?? '-',

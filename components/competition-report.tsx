@@ -255,19 +255,19 @@ function PlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] }) {
   );
 }
 
-function CompetitionAnalyticsCover({ report, category, eyeballStats }: { report: CompetitionReportData; category: ClubCategory; eyeballStats?: EyeballMatchStats | null }) {
+function CompetitionPerformanceCover({ report, category, eyeballStats }: { report: CompetitionReportData; category: ClubCategory; eyeballStats?: EyeballMatchStats | null }) {
   const match = report.match;
   const resultTone = toneForResult(report.resultType);
   return (
-    <section className="fd-cover pdf-report-cover">
-      <div className="fd-cover-logo"><span>Orsomarso</span><strong>Analytics</strong></div>
+    <section className="fd-cover pdf-report-cover orso-match-cover">
+      <div className="fd-cover-logo"><span>Orsomarso SC</span><strong>Departamento de Rendimiento</strong></div>
       <div className="fd-cover-main">
-        <span>Informe estadístico partido</span>
+        <span>Informe estadístico de competencia</span>
         <h1>{categoryLabel(category)}</h1>
         <p>{match.competitionName || 'Competencia'} · {formatDate(match.date)}</p>
       </div>
       <div className="fd-cover-match">
-        <div><img src="/orsomarso-crest.jpg" alt="Orsomarso SC" /><strong>Orsomarso</strong></div>
+        <div><img src="/orsomarso-crest.jpg" alt="Orsomarso SC" /><strong>Orsomarso SC</strong></div>
         <b>VS</b>
         <div><span className="fd-rival-crest">{match.opponent.slice(0, 2).toUpperCase()}</span><strong>{match.opponent}</strong></div>
       </div>
@@ -276,6 +276,7 @@ function CompetitionAnalyticsCover({ report, category, eyeballStats }: { report:
         <span>{match.venue ?? 'Local'}</span>
         <span>{report.microcycle?.name ?? 'Sin microciclo'}</span>
         <span>{eyeballStats ? 'Eyeball integrado' : 'Eyeball pendiente'}</span>
+        <span>{report.stats.totalDistance ? 'GPS integrado' : 'GPS pendiente'}</span>
       </div>
     </section>
   );
@@ -290,32 +291,45 @@ const positionGroup = (position: string) => {
   return 'Otros';
 };
 
-function LineupPitch({ rows }: { rows: CompetitionReportPlayerRow[] }) {
+type PitchSlot = { id: string; label: string; x: number; y: number; playerId?: string };
+const fallbackPitchSlots = (rows: CompetitionReportPlayerRow[]): PitchSlot[] => {
   const starters = rows.filter((row) => row.role === 'Titular');
-  const group = (name: string) => starters.filter((row) => positionGroup(row.position) === name).slice(0, name === 'Arquero' ? 1 : 5);
-  const lines = [
-    { label: 'Ataque', rows: group('Ataque') },
-    { label: 'Mediocampo', rows: group('Mediocampo') },
-    { label: 'Defensa', rows: group('Defensa') },
-    { label: 'Arquero', rows: group('Arquero') },
+  const byGroup = (name: string) => starters.filter((row) => positionGroup(row.position) === name);
+  const base = [
+    ...byGroup('Ataque').slice(0, 4).map((row, index) => ({ id: `a${index}`, label: row.position, playerId: row.playerId, x: [25, 50, 75, 50][index] ?? 50, y: [24, 16, 24, 32][index] ?? 24 })),
+    ...byGroup('Mediocampo').slice(0, 5).map((row, index) => ({ id: `m${index}`, label: row.position, playerId: row.playerId, x: [18, 36, 50, 64, 82][index] ?? 50, y: [50, 55, 47, 55, 50][index] ?? 52 })),
+    ...byGroup('Defensa').slice(0, 4).map((row, index) => ({ id: `d${index}`, label: row.position, playerId: row.playerId, x: [18, 39, 61, 82][index] ?? 50, y: [72, 76, 76, 72][index] ?? 74 })),
+    ...byGroup('Arquero').slice(0, 1).map((row) => ({ id: 'gk', label: row.position, playerId: row.playerId, x: 50, y: 91 })),
   ];
+  return base;
+};
+
+function LineupPitch({ report }: { report: CompetitionReportData }) {
+  const configured = report.match.lineupSlots?.length ? report.match.lineupSlots : fallbackPitchSlots(report.rows);
+  const playerName = (playerId?: string) => report.rows.find((row) => row.playerId === playerId)?.name ?? '';
   return (
-    <div className="fd-pitch">
-      <div className="fd-pitch-title">P-4-2-3-1</div>
-      {lines.map((line) => (
-        <div className="fd-pitch-line" key={line.label}>
-          {line.rows.length ? line.rows.map((row) => <span key={row.id}>{truncateName(row.name)}</span>) : <span className="muted">-</span>}
-        </div>
-      ))}
+    <div className="fd-pitch orso-lineup-pitch">
+      <div className="fd-pitch-title">{report.match.lineupFormation || 'Alineación'}</div>
+      <div className="orso-pitch-lines"><i /><i /><i /><i /></div>
+      {configured.map((slot) => {
+        const name = playerName(slot.playerId);
+        return (
+          <div key={slot.id} className={`orso-pitch-player ${name ? '' : 'empty'}`} style={{ left: `${slot.x}%`, top: `${slot.y}%` }}>
+            <strong>{name ? truncateName(name) : slot.label}</strong>
+            <span>{slot.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function LineupSection({ report }: { report: CompetitionReportData }) {
+  const positioned = report.match.lineupSlots?.filter((slot) => slot.playerId).length ?? 0;
   return (
-    <ReportSection icon={Users} eyebrow="Informe partido" title="Alineación del partido" subtitle="Planilla oficial del partido con minutos, producción, disciplina y estado médico.">
-      <div className="fd-lineup-grid">
-        <LineupPitch rows={report.rows} />
+    <ReportSection icon={Users} eyebrow="Informe partido" title="Alineación del partido" subtitle={`${report.match.lineupFormation || 'Formación'} · ${positioned || report.starters.length} jugadores ubicados`}>
+      <div className="fd-lineup-grid orso-lineup-grid">
+        <LineupPitch report={report} />
         <PlayerTable rows={report.rows} />
       </div>
     </ReportSection>
@@ -410,20 +424,50 @@ function EyeballSectionCards({ stats }: { stats?: EyeballMatchStats | null }) {
   );
 }
 
-function IntegratedReading({ report, eyeballStats }: { report: CompetitionReportData; eyeballStats?: EyeballMatchStats | null }) {
-  const result = report.resultType;
-  const passPrecision = eyeballStats ? numberFmt(eyeballStats.passPrecision) : '-';
-  const possession = eyeballStats ? numberFmt(eyeballStats.possession) : '-';
-  const conversion = eyeballStats ? numberFmt(eyeballStats.conversionRate) : '-';
+function IntegratedPlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] }) {
+  if (!rows.length) return <EmptyReportState text="Sin planilla para tabla integrada." />;
   return (
-    <ReportSection icon={ShieldCheck} eyebrow="Lectura integrada" title="Conclusión competitiva" subtitle="Síntesis ejecutiva del rendimiento post partido con base en los datos Eyeball disponibles.">
-      <div className="competition-integrated-grid fd-conclusion-grid">
-        <div><span>Resultado</span><strong>{result}</strong><p>Marcador oficial del partido: {report.score}.</p></div>
-        <div><span>Control</span><strong>{possession}%</strong><p>Posesión registrada por Eyeball para Orsomarso.</p></div>
-        <div><span>Eficiencia</span><strong>{passPrecision}%</strong><p>Precisión de pase colectiva del equipo.</p></div>
-        <div><span>Finalización</span><strong>{conversion}%</strong><p>Tasa de conversión reportada en el CSV.</p></div>
-        <div><span>Planilla</span><strong>{report.stats.players}</strong><p>Jugadores registrados en la competencia.</p></div>
-        <div><span>Seguimiento</span><strong>{report.stats.medical ? 'Médico' : 'Normal'}</strong><p>{report.stats.medical ? `${report.stats.medical} incidencia(s) médica(s).` : 'Sin incidencias médicas registradas.'}</p></div>
+    <div className="fd-table-wrap">
+      <table className="pdf-report-table competition-report-table-modern competition-report-heat-table fd-roster-table orso-integrated-table">
+        <thead>
+          <tr><th>Jugador</th><th>Pos.</th><th>Rol</th><th>MIN</th><th>G/A</th><th>TA/TR</th><th>Dist.</th><th>m/min</th><th>HSR</th><th>Sprint</th><th>ACC</th><th>DCC</th><th>Vmax</th><th>PL</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td><strong>{row.name}</strong></td><td>{row.position}</td><td>{row.role}</td><td>{row.minutes || '-'}</td><td>{row.production}</td><td>{row.discipline}</td><td>{row.totalDistance ? numberFmt(row.totalDistance) : '-'}</td><td>{row.metersPerMinute || '-'}</td><td>{row.highSpeedDistance ? numberFmt(row.highSpeedDistance) : '-'}</td><td>{row.sprintDistance ? numberFmt(row.sprintDistance) : '-'}</td><td>{row.acc || '-'}</td><td>{row.dcc || '-'}</td><td>{row.maxVelocity ? numberFmt(row.maxVelocity, 1) : '-'}</td><td>{row.playerLoad ? numberFmt(row.playerLoad) : '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function GpsPhysicalSection({ report }: { report: CompetitionReportData }) {
+  const rows = report.rows.filter((row) => !row.isGoalkeeper && (row.totalDistance > 0 || row.minutes > 0));
+  if (!rows.length) return null;
+  const distance = rows.slice().sort((a, b) => b.totalDistance - a.totalDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.totalDistance, sub: `${row.minutes || 0} min` }));
+  const hsr = rows.slice().sort((a, b) => b.highSpeedDistance - a.highSpeedDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.highSpeedDistance, sub: `${row.metersPerMinute || 0} m/min` }));
+  const sprint = rows.slice().sort((a, b) => b.sprintDistance - a.sprintDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.sprintDistance, sub: `${row.sprints || 0} sprints` }));
+  const vmax = rows.slice().sort((a, b) => b.maxVelocity - a.maxVelocity).slice(0, 10).map((row) => ({ name: row.name, value: row.maxVelocity, sub: `PL ${numberFmt(row.playerLoad)}` }));
+  return (
+    <ReportSection icon={Zap} eyebrow="GPS" title="Carga física del partido" subtitle="Métricas físicas integradas desde el CSV GPS de competencia.">
+      <div className="pdf-report-kpi-grid competition-kpi-grid competition-kpi-grid-clean fd-stat-kpis">
+        <ReportKpi icon={BarChart3} label="Distancia total" value={`${numberFmt(report.stats.totalDistance)} m`} note="GPS campo" tone="blue" />
+        <ReportKpi icon={Zap} label="M/min promedio" value={report.stats.avgMetersPerMinute || '-'} note="Intensidad" tone="green" />
+        <ReportKpi icon={Target} label="HSR" value={`${numberFmt(report.stats.highSpeedDistance)} m`} note="Alta intensidad" tone="amber" />
+        <ReportKpi icon={Trophy} label="Sprint dist." value={`${numberFmt(report.stats.sprintDistance)} m`} note="Sprint" tone="red" />
+        <ReportKpi icon={Repeat2} label="ACC / DCC" value={`${numberFmt(report.stats.acc)} / ${numberFmt(report.stats.dcc)}`} note=">3 m/s²" tone="dark" />
+        <ReportKpi icon={Medal} label="Vmax" value={`${numberFmt(report.stats.maxVelocity, 1)} km/h`} note="Máxima" tone="blue" />
+        <ReportKpi icon={ShieldCheck} label="Player Load" value={numberFmt(report.stats.playerLoad)} note="Carga total" tone="green" />
+        <ReportKpi icon={Users} label="Jugadores GPS" value={rows.length} note="Campo" tone="neutral" />
+      </div>
+      <div className="competition-gps-chart-grid">
+        <BarPanel title="Distancia total" subtitle="Top jugadores" items={distance} color={C.blueDark} formatter={(v) => `${numberFmt(v)} m`} />
+        <BarPanel title="HSR" subtitle="Alta intensidad" items={hsr} color={C.amber} formatter={(v) => `${numberFmt(v)} m`} />
+        <BarPanel title="Sprint distance" subtitle="Sprint" items={sprint} color={C.red} formatter={(v) => `${numberFmt(v)} m`} />
+        <BarPanel title="Velocidad máxima" subtitle="km/h" items={vmax} color={C.green} formatter={(v) => `${numberFmt(v, 1)}`} />
       </div>
     </ReportSection>
   );
@@ -447,9 +491,9 @@ export function CompetitionReportTemplate({ report, category, className = '', co
 
   return (
     <article className={`pdf-report-document competition-report-document competition-report-premium-v2 fd-competition-report ${compact ? 'pdf-report-compact' : ''} ${className}`}>
-      {!compact ? <CompetitionAnalyticsCover report={report} category={category} eyeballStats={eyeballStats} /> : null}
+      {!compact ? <CompetitionPerformanceCover report={report} category={category} eyeballStats={eyeballStats} /> : null}
       <header className="pdf-report-header competition-report-topline fd-report-topline">
-        <div className="pdf-report-brand"><img src="/orsomarso-crest.jpg" alt="Orsomarso SC" /><div><span>Orsomarso SC Performance</span><h1>Informe estadístico partido</h1><p>{categoryLabel(category)} · {report.generatedAt}</p></div></div>
+        <div className="pdf-report-brand"><img src="/orsomarso-crest.jpg" alt="Orsomarso SC" /><div><span>Departamento de Rendimiento</span><h1>Informe estadístico de competencia</h1><p>{categoryLabel(category)} · {report.generatedAt}</p></div></div>
         <div className="pdf-report-header-meta"><strong>{formatDate(match.date)}</strong><span>{match.venue ?? 'Local'} · {microcycleLabel}</span></div>
       </header>
       <section className="pdf-report-hero competition-report-hero-premium competition-report-hero-clean fd-match-hero">
@@ -458,7 +502,6 @@ export function CompetitionReportTemplate({ report, category, className = '', co
         <div className="pdf-report-team-block right"><span>Rival</span><strong>{match.opponent}</strong></div>
         <div className="pdf-report-hero-meta"><span><CalendarDays size={13} /> {formatDate(match.date)}</span><span><VenueIcon size={13} /> {match.venue ?? 'Local'}</span><span><ShieldCheck size={13} /> {microcycleLabel}</span><span><Users size={13} /> {categoryLabel(category)}</span></div>
       </section>
-      <ReportSection icon={FileText} eyebrow="Informe partido" title="Resumen ejecutivo"><p className="pdf-report-summary fd-summary-text">{eyeballStats ? `Informe post partido basado en datos Eyeball importados. Orsomarso SC registra ${report.score} frente a ${match.opponent}, con posesión ${numberFmt(eyeballStats.possession)}%, precisión de pases ${numberFmt(eyeballStats.passPrecision)}% y conversión ${numberFmt(eyeballStats.conversionRate)}%.` : report.executiveSummary}</p></ReportSection>
       <LineupSection report={report} />
       <MatchDynamicsSection stats={eyeballStats} />
       <GeneralStatsSection stats={eyeballStats} />
@@ -468,7 +511,8 @@ export function CompetitionReportTemplate({ report, category, className = '', co
       <TacticalBlock icon={ShieldCheck} eyebrow="Defensivo" title="Recuperaciones, duelos y acciones defensivas" subtitle="Comportamiento defensivo disponible en el CSV Eyeball." stats={eyeballStats} patterns={defensivePatterns} empty="Sin datos defensivos." />
       <TacticalBlock icon={Flag} eyebrow="Pelota quieta" title="Acciones de pelota quieta" subtitle="Centros, tiros libres, tiros de esquina, saques de banda y reinicios." stats={eyeballStats} patterns={setPiecePatterns} empty="Sin datos de pelota quieta." />
       <EyeballSectionCards stats={eyeballStats} />
-      <IntegratedReading report={report} eyeballStats={eyeballStats} />
+      <GpsPhysicalSection report={report} />
+      <ReportSection icon={ClipboardList} eyebrow="Planilla + GPS" title="Tabla individual integrada" subtitle="Planilla, producción, disciplina y carga física por jugador."><IntegratedPlayerTable rows={report.rows} /></ReportSection>
       <div className="pdf-report-two-columns compact-blocks competition-report-bottom-grid fd-report-bottom">
         <ReportSection icon={Shield} eyebrow="Portería" title="Porteros">{report.goalkeepers.length ? <PlayerTable rows={report.goalkeepers} /> : <EmptyReportState text="Sin registros de portería." />}</ReportSection>
         <ReportSection icon={HeartPulse} eyebrow="Área médica" title="Incidencias médicas">{report.medicalRows.length ? (<table className="pdf-report-table compact"><thead><tr><th>Jugador</th><th>Estado</th><th>Observación</th></tr></thead><tbody>{report.medicalRows.map((row) => <tr key={row.id}><td>{row.name}</td><td>{row.medicalStatus}</td><td>{row.medicalObservation || '-'}</td></tr>)}</tbody></table>) : <EmptyReportState text="Sin incidencias." />}</ReportSection>
@@ -478,7 +522,7 @@ export function CompetitionReportTemplate({ report, category, className = '', co
         <ReportSection icon={CalendarDays} eyebrow="Historial" title="Historial reciente">{compactHistory.length ? (<table className="pdf-report-table compact"><thead><tr><th>Fecha</th><th>Rival</th><th>Marcador</th><th>Resultado</th></tr></thead><tbody>{compactHistory.map((item) => <tr key={item.id}><td>{item.date}</td><td>{item.opponent}</td><td>{formatMatchScore(item)}</td><td>{item.resultType ?? '-'}</td></tr>)}</tbody></table>) : <EmptyReportState text="Sin historial." />}</ReportSection>
       </div>
       {match.observation?.trim() ? (<ReportSection icon={FileText} eyebrow="Observación" title="Observación general"><p className="pdf-report-summary">{match.observation}</p></ReportSection>) : null}
-      <footer className="pdf-report-footer"><span>Orsomarso SC Performance</span><span>{categoryLabel(category)} · Informe estadístico partido</span></footer>
+      <footer className="pdf-report-footer"><span>Departamento de Rendimiento</span><span>{categoryLabel(category)} · Informe estadístico de competencia</span></footer>
     </article>
   );
 }

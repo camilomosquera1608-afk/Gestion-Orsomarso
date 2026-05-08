@@ -13,7 +13,7 @@ import { calculateMatchResult, formatMatchScore, isGoalkeeper } from '@/lib/perf
 import { buildMatchCenterStats } from '@/lib/operational-helpers';
 import { buildCompetitionReportData } from '@/lib/competition-report';
 import { findDuplicateMatch } from '@/lib/operational-validation';
-import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue, type DailyExternalLoadRecord } from '@/lib/types';
+import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue, type CompetitionLineupSlot, type DailyExternalLoadRecord } from '@/lib/types';
 import { type ChangeEvent, type DragEvent } from 'react';
 import { Upload as UploadIcon, FileText, X as XIcon } from 'lucide-react';
 import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
@@ -94,6 +94,47 @@ const toNumber = (value: string) => {
 const isNegative = (value: string) => value.trim() !== '' && toNumber(value) < 0;
 const displayNumber = (value?: number) => (value && value > 0 ? String(value) : '');
 const displayOptionalNumber = (value?: number) => (typeof value === 'number' ? String(value) : '');
+
+type FormationKey = '4-2-3-1' | '4-3-3' | '4-4-2' | '3-5-2' | '4-1-4-1';
+const formationOptions: FormationKey[] = ['4-2-3-1', '4-3-3', '4-4-2', '3-5-2', '4-1-4-1'];
+const formationTemplates: Record<FormationKey, Omit<CompetitionLineupSlot, 'playerId'>[]> = {
+  '4-2-3-1': [
+    { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
+    { id: 'lb', label: 'LI', line: 'Defensa', x: 18, y: 72 }, { id: 'lcb', label: 'DFC', line: 'Defensa', x: 39, y: 76 }, { id: 'rcb', label: 'DFC', line: 'Defensa', x: 61, y: 76 }, { id: 'rb', label: 'LD', line: 'Defensa', x: 82, y: 72 },
+    { id: 'dm1', label: 'MCD', line: 'Mediocampo', x: 42, y: 55 }, { id: 'dm2', label: 'MCD', line: 'Mediocampo', x: 58, y: 55 },
+    { id: 'lw', label: 'EI', line: 'Ataque', x: 20, y: 36 }, { id: 'am', label: 'MCO', line: 'Ataque', x: 50, y: 32 }, { id: 'rw', label: 'ED', line: 'Ataque', x: 80, y: 36 },
+    { id: 'st', label: 'DC', line: 'Ataque', x: 50, y: 15 },
+  ],
+  '4-3-3': [
+    { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
+    { id: 'lb', label: 'LI', line: 'Defensa', x: 18, y: 72 }, { id: 'lcb', label: 'DFC', line: 'Defensa', x: 39, y: 76 }, { id: 'rcb', label: 'DFC', line: 'Defensa', x: 61, y: 76 }, { id: 'rb', label: 'LD', line: 'Defensa', x: 82, y: 72 },
+    { id: 'cm1', label: 'MC', line: 'Mediocampo', x: 30, y: 51 }, { id: 'cm2', label: 'MC', line: 'Mediocampo', x: 50, y: 56 }, { id: 'cm3', label: 'MC', line: 'Mediocampo', x: 70, y: 51 },
+    { id: 'lw', label: 'EI', line: 'Ataque', x: 22, y: 25 }, { id: 'st', label: 'DC', line: 'Ataque', x: 50, y: 16 }, { id: 'rw', label: 'ED', line: 'Ataque', x: 78, y: 25 },
+  ],
+  '4-4-2': [
+    { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
+    { id: 'lb', label: 'LI', line: 'Defensa', x: 18, y: 72 }, { id: 'lcb', label: 'DFC', line: 'Defensa', x: 39, y: 76 }, { id: 'rcb', label: 'DFC', line: 'Defensa', x: 61, y: 76 }, { id: 'rb', label: 'LD', line: 'Defensa', x: 82, y: 72 },
+    { id: 'lm', label: 'MI', line: 'Mediocampo', x: 18, y: 50 }, { id: 'cm1', label: 'MC', line: 'Mediocampo', x: 40, y: 54 }, { id: 'cm2', label: 'MC', line: 'Mediocampo', x: 60, y: 54 }, { id: 'rm', label: 'MD', line: 'Mediocampo', x: 82, y: 50 },
+    { id: 'st1', label: 'DC', line: 'Ataque', x: 40, y: 18 }, { id: 'st2', label: 'DC', line: 'Ataque', x: 60, y: 18 },
+  ],
+  '3-5-2': [
+    { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
+    { id: 'lcb', label: 'DFC', line: 'Defensa', x: 30, y: 75 }, { id: 'cb', label: 'DFC', line: 'Defensa', x: 50, y: 78 }, { id: 'rcb', label: 'DFC', line: 'Defensa', x: 70, y: 75 },
+    { id: 'lwb', label: 'CAI', line: 'Mediocampo', x: 13, y: 52 }, { id: 'cm1', label: 'MC', line: 'Mediocampo', x: 35, y: 56 }, { id: 'cm2', label: 'MC', line: 'Mediocampo', x: 50, y: 48 }, { id: 'cm3', label: 'MC', line: 'Mediocampo', x: 65, y: 56 }, { id: 'rwb', label: 'CAD', line: 'Mediocampo', x: 87, y: 52 },
+    { id: 'st1', label: 'DC', line: 'Ataque', x: 40, y: 18 }, { id: 'st2', label: 'DC', line: 'Ataque', x: 60, y: 18 },
+  ],
+  '4-1-4-1': [
+    { id: 'gk', label: 'POR', line: 'Arquero', x: 50, y: 91 },
+    { id: 'lb', label: 'LI', line: 'Defensa', x: 18, y: 72 }, { id: 'lcb', label: 'DFC', line: 'Defensa', x: 39, y: 76 }, { id: 'rcb', label: 'DFC', line: 'Defensa', x: 61, y: 76 }, { id: 'rb', label: 'LD', line: 'Defensa', x: 82, y: 72 },
+    { id: 'dm', label: 'MCD', line: 'Mediocampo', x: 50, y: 60 },
+    { id: 'lm', label: 'MI', line: 'Mediocampo', x: 18, y: 43 }, { id: 'cm1', label: 'MC', line: 'Mediocampo', x: 40, y: 45 }, { id: 'cm2', label: 'MC', line: 'Mediocampo', x: 60, y: 45 }, { id: 'rm', label: 'MD', line: 'Mediocampo', x: 82, y: 43 },
+    { id: 'st', label: 'DC', line: 'Ataque', x: 50, y: 16 },
+  ],
+};
+const buildFormationSlots = (formation: FormationKey, existing: CompetitionLineupSlot[] = []): CompetitionLineupSlot[] => {
+  const existingById = new Map(existing.map((slot) => [slot.id, slot.playerId]));
+  return formationTemplates[formation].map((slot) => ({ ...slot, playerId: existingById.get(slot.id) || '' }));
+};
 
 
 // ── Helpers para EyeballReport ────────────────────────────────────────────────
@@ -253,6 +294,45 @@ export default function CompetenciaPage() {
       .sort((a, b) => (data.players.find((player) => player.id === a.playerId)?.name ?? '').localeCompare(data.players.find((player) => player.id === b.playerId)?.name ?? '')),
     [data.competitionRecords, data.players, selectedMatch],
   );
+
+  const selectedFormation = ((selectedMatch?.lineupFormation || '4-2-3-1') as FormationKey);
+  const selectedLineupSlots = useMemo(
+    () => buildFormationSlots(selectedFormation, selectedMatch?.lineupSlots ?? []),
+    [selectedFormation, selectedMatch?.lineupSlots],
+  );
+  const lineupPlayerOptions = useMemo(() => {
+    const records = matchRecords.length ? matchRecords : data.competitionRecords.filter((record) => selectedMatch && record.matchId === selectedMatch.id);
+    return records
+      .map((record) => ({ record, player: data.players.find((player) => player.id === record.playerId) }))
+      .filter((item) => item.player)
+      .sort((a, b) => (a.player?.name ?? '').localeCompare(b.player?.name ?? ''));
+  }, [matchRecords, data.competitionRecords, data.players, selectedMatch]);
+  const saveLineup = (formation: FormationKey, slots: CompetitionLineupSlot[]) => {
+    if (!selectedMatch) return;
+    upsertCompetitionMatchSummary({ ...selectedMatch, lineupFormation: formation, lineupSlots: slots });
+    setMessage('Alineación actualizada.');
+  };
+  const changeLineupFormation = (formation: FormationKey) => {
+    const nextSlots = buildFormationSlots(formation, selectedLineupSlots);
+    saveLineup(formation, nextSlots);
+  };
+  const assignLineupPlayer = (slotId: string, playerId: string) => {
+    const nextSlots = selectedLineupSlots.map((slot) => ({
+      ...slot,
+      playerId: slot.id === slotId ? playerId : slot.playerId === playerId && playerId ? '' : slot.playerId,
+    }));
+    saveLineup(selectedFormation, nextSlots);
+  };
+  const exportCleanPdf = () => {
+    if (!selectedMatch) return window.print();
+    const previousTitle = document.title;
+    const rival = selectedMatch.opponent.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+    document.title = `Informe-Competencia-Orsomarso-vs-${rival}-${selectedMatch.date}-${categoryLabel(activeCategory)}`;
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => { document.title = previousTitle; }, 600);
+    }, 50);
+  };
 
   const handleCompetitionGpsImport = (records: Omit<DailyExternalLoadRecord, 'id'>[]) => {
     if (!selectedMatch) {
@@ -572,6 +652,8 @@ export default function CompetenciaPage() {
       result: `${goalsFor}-${goalsAgainst}`,
       observation: matchDraft.observation.trim(),
       status: selectedMatch?.id === id ? selectedMatch.status ?? 'Borrador' : 'Borrador',
+      lineupFormation: selectedMatch?.id === id ? selectedMatch.lineupFormation : '4-2-3-1',
+      lineupSlots: selectedMatch?.id === id ? selectedMatch.lineupSlots : buildFormationSlots('4-2-3-1'),
     });
     setSelectedMatchId(id);
     setIsSavingMatch(false);
@@ -950,6 +1032,26 @@ export default function CompetenciaPage() {
       ) : null}
 
       {selectedMatch ? (
+        <div className="card no-print">
+          <SectionHeader eyebrow="Alineación" title="Configurar alineación visual" subtitle="Elige la formación y ubica los jugadores que aparecerán en el informe premium." />
+          <div className="competition-lineup-editor">
+            <div className="field"><label>Formación</label><select className="select" value={selectedFormation} onChange={(event) => changeLineupFormation(event.target.value as FormationKey)}>{formationOptions.map((formation) => <option key={formation} value={formation}>{formation}</option>)}</select></div>
+            <div className="lineup-slot-grid">
+              {selectedLineupSlots.map((slot) => (
+                <div className="lineup-slot-field" key={slot.id}>
+                  <label>{slot.label} · {slot.line}</label>
+                  <select className="select" value={slot.playerId ?? ''} onChange={(event) => assignLineupPlayer(slot.id, event.target.value)}>
+                    <option value="">Sin asignar</option>
+                    {lineupPlayerOptions.map(({ record, player }) => <option key={`${slot.id}-${record.id}`} value={record.playerId}>{player?.name ?? 'Jugador'} · {player?.position ?? '-'}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedMatch ? (
         <div className="card">
           <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div>
@@ -959,13 +1061,13 @@ export default function CompetenciaPage() {
             <div className="btn-row">
               <button type="button" className="btn secondary" onClick={() => updateMatchStatus(selectedMatch.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>{selectedMatch.status === 'Cerrada' ? 'Reabrir partido' : 'Cerrar partido'}</button>
               {supportsGps(activeCategory) ? <button type="button" className="btn secondary" onClick={() => setShowGpsCsv(true)}>Importar CSV GPS</button> : null}
-              <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver informe GPS'}</button>
-              <button type="button" className="btn" onClick={() => window.print()}>Exportar PDF</button>
+              <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver informe completo'}</button>
+              <button type="button" className="btn" onClick={exportCleanPdf}>Generar PDF limpio</button>
             </div>
           </div>
           {showGroupReport && competitionReport ? (
             <div style={{ marginTop: 16 }}>
-              <CompetitionReportTemplate report={competitionReport} category={activeCategory} compact eyeballStats={eyeballStats} />
+              <CompetitionReportTemplate report={competitionReport} category={activeCategory} eyeballStats={eyeballStats} />
             </div>
           ) : null}
         </div>
@@ -976,9 +1078,9 @@ export default function CompetenciaPage() {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
             <div>
-              <span className="section-eyebrow">Análisis táctico</span>
-              <h3 style={{ margin: '4px 0 0' }}>Estadísticas Eyeball del partido</h3>
-              <div className="muted-line" style={{ marginTop: 4 }}>Importa el CSV de Eyeball para ver el análisis comparativo junto al informe GPS.</div>
+              <span className="section-eyebrow">Eyeball</span>
+              <h3 style={{ margin: '4px 0 0' }}>CSV Eyeball del partido</h3>
+              <div className="muted-line" style={{ marginTop: 4 }}>Importa el CSV de Eyeball para integrarlo al informe estadístico de competencia.</div>
             </div>
             {eyeballStats && (
               <div className="btn-row">
@@ -1008,7 +1110,7 @@ export default function CompetenciaPage() {
               {eyeballError && <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13, fontWeight: 700 }}>⚠ {eyeballError}</div>}
             </div>
           ) : (
-            <EyeballReport stats={eyeballStats} />
+            <div className="pdf-report-empty" style={{ borderStyle: 'solid', background: '#f0fdf4', color: '#047857', borderColor: '#bbf7d0' }}><FileText size={14} /> CSV Eyeball integrado al informe. Abre la vista previa para revisar el diseño final antes de generar el PDF.</div>
           )}
         </div>
       ) : null}
