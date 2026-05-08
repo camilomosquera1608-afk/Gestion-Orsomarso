@@ -437,7 +437,7 @@ function PeriodComparisonSection({ first, second }: { first?: EyeballMatchStats 
     const values = [a, b].filter((value) => value !== '-' && value !== undefined && value !== null) as Array<string | number>;
     if (!values.length) return 0;
     const isPercent = values.some((value) => String(value).includes('%'));
-    const total = values.reduce((acc, value) => acc + statNumber(value), 0);
+    const total = values.reduce<number>((acc, value) => acc + statNumber(value), 0);
     return isPercent ? Number((total / values.length).toFixed(1)) : total;
   };
   const chartRows = rows.map((row) => ({ stat: row.label, rival: aggregatePeriodValues(row.firstRival, row.secondRival), orso: aggregatePeriodValues(row.first, row.second) }));
