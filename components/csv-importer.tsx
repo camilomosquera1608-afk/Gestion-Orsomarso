@@ -147,8 +147,18 @@ const parseCatapult = (lines: string[]): CsvRow[] => {
   // Si existen columnas separadas, nunca se debe duplicar el mismo valor en ambas.
   const normHeader = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const colAny = (aliases: string[]) => {
-    const normalizedAliases = aliases.map(normHeader);
-    return headers.findIndex((h) => normalizedAliases.includes(normHeader(h)));
+    // Importante: respetar el orden de prioridad de aliases.
+    // Antes se buscaba por orden de columnas del CSV, y Catapult ubica campos
+    // como "Deceleration B3 Efforts (Gen 2)" antes de
+    // "Deceleration B1-3 Total Efforts (Gen 2)". Eso hacía que DCC tomara
+    // solo B3 en vez del total B1-3. Ahora primero intentamos el alias más
+    // específico y luego los respaldos.
+    const normalizedHeaders = headers.map(normHeader);
+    for (const alias of aliases) {
+      const idx = normalizedHeaders.indexOf(normHeader(alias));
+      if (idx >= 0) return idx;
+    }
+    return -1;
   };
   const colContains = (must: string[], mustNot: string[] = []) => headers.findIndex((h) => {
     const n = normHeader(h);
@@ -162,10 +172,16 @@ const parseCatapult = (lines: string[]): CsvRow[] => {
   const colPL      = colAny(['Average Player Load (Session)', 'Player Load', 'PL']);
   const colMaxV    = colAny(['Maximum Velocity', 'Max Velocity', 'Max Speed']);
 
-  // Catapult exporta varios campos con nombres muy parecidos. Para ACC/DCC
-  // priorizamos los esfuerzos Gen 2 separados. No se debe tomar "Accel + Decel"
-  // como ACC ni duplicarlo en DCC: eso produce la falsa simetría ACC=DCC.
+  // Catapult exporta varios campos con nombres muy parecidos.
+  // Para que coincida con el panel ACC Y DCC de OpenField/Catapult, usamos
+  // PRIMERO los esfuerzos B1 Gen 2 separados:
+  //   Acceleration B1 Efforts (Gen 2)
+  //   Deceleration B1 Efforts (Gen 2)
+  // No se debe tomar B3, B2-3, B1-3 Total ni "Accel + Decel" cuando existen
+  // los campos B1 separados, porque eso cambia completamente la lectura.
   const colAcc = colAny([
+    'Acceleration B1 Efforts (Gen 2)',
+    'Acceleration B1 Total Efforts (Gen 2)',
     'Acceleration B1-3 Total Efforts (Gen 2)',
     'Acceleration B1-3 Efforts (Gen 2)',
     'Acceleration B2-3 Total Efforts (Gen 2)',
@@ -177,6 +193,8 @@ const parseCatapult = (lines: string[]): CsvRow[] => {
     'ACC',
   ]);
   const colDcc = colAny([
+    'Deceleration B1 Efforts (Gen 2)',
+    'Deceleration B1 Total Efforts (Gen 2)',
     'Deceleration B1-3 Total Efforts (Gen 2)',
     'Deceleration B1-3 Efforts (Gen 2)',
     'Deceleration B2-3 Total Efforts (Gen 2)',
