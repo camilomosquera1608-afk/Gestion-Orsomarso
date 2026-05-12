@@ -38,54 +38,46 @@ const safeAverage = (values: number[]) => groupAverage(values.filter((value) => 
 const round = (value: number, digits = 0) => (Number.isFinite(value) ? value.toFixed(digits) : (0).toFixed(digits));
 
 export const trainingTypeLabel: Record<TrainingSessionType, string> = {
-  'MD+1': 'MD+1 · Recuperación post partido',
-  'MD+2': 'MD+2 · Recuperación / reinicio',
-  'MD-5': 'MD-5 · Desarrollo base',
-  'MD-4': 'MD-4 · Carga alta controlada',
-  'MD-3': 'MD-3 · Día fuerte / estímulo principal',
-  'MD-2': 'MD-2 · Ajuste táctico',
-  'MD-1': 'MD-1 · Activación prepartido',
-  'MD': 'MD · Partido',
-};
-
-const typeTargets: Record<TrainingSessionType, { min: [number, number]; rpe: [number, number]; load: [number, number]; note: string }> = {
-  'MD+1': { min: [15, 50], rpe: [1, 4], load: [20, 180], note: 'Día de recuperación: evitar estrés mecánico alto y priorizar regeneración.' },
-  'MD+2': { min: [20, 65], rpe: [2, 5], load: [60, 260], note: 'Reinicio progresivo: controlar dolor postpartido, sueño y disponibilidad.' },
-  'MD-5': { min: [40, 90], rpe: [4, 7], load: [180, 520], note: 'Desarrollo base: admite carga moderada-alta si el readiness individual lo permite.' },
-  'MD-4': { min: [45, 100], rpe: [5, 8], load: [260, 700], note: 'Carga alta controlada: vigilar picos, alta velocidad y jugadores con molestias.' },
-  'MD-3': { min: [45, 100], rpe: [5, 8.5], load: [280, 760], note: 'Estímulo principal del microciclo: individualizar por dolor, RPE y carga acumulada.' },
-  'MD-2': { min: [30, 75], rpe: [3, 6.5], load: [120, 420], note: 'Ajuste táctico: evitar fatiga residual y controlar acciones excéntricas.' },
-  'MD-1': { min: [15, 55], rpe: [1.5, 4.5], load: [40, 220], note: 'Activación: cualquier dolor moderado pesa más en la decisión de disponibilidad.' },
-  'MD': { min: [0, 110], rpe: [0, 10], load: [0, 900], note: 'Día de partido: interpretar carga según minutos, rol y restricciones médicas.' },
+  'MD+1': 'MD+1',
+  'MD+2': 'MD+2',
+  'MD-5': 'MD-5',
+  'MD-4': 'MD-4',
+  'MD-3': 'MD-3',
+  'MD-2': 'MD-2',
+  'MD-1': 'MD-1',
+  'MD': 'MD',
 };
 
 export const buildSessionTypeLoadControl = (sessionType: TrainingSessionType, metrics: SessionLoadMetrics): LogicInsight => {
-  const target = typeTargets[sessionType] ?? typeTargets['MD-3'];
   const individualLoads = (metrics.individualLoads ?? []).filter((value) => Number.isFinite(value) && value > 0);
-  const above = individualLoads.filter((value) => value > target.load[1]).length;
-  const below = individualLoads.filter((value) => value > 0 && value < target.load[0]).length;
-  const outside = above + below;
-  const outsidePct = individualLoads.length ? (outside / individualLoads.length) * 100 : 0;
-  const highRpe = metrics.avgRpe > target.rpe[1];
-  const highVolume = metrics.avgMinutes > target.min[1];
-  const wellnessLow = typeof metrics.wellnessReadiness === 'number' && metrics.wellnessReadiness > 0 && metrics.wellnessReadiness < 3;
-  const tone: InsightTone = outsidePct >= 35 || highRpe || (wellnessLow && (metrics.avgRpe >= 6 || metrics.avgInternalLoad >= target.load[1] * 0.85))
+  const avgLoad = metrics.avgInternalLoad;
+  const avgIndividual = safeAverage(individualLoads);
+  const sd = individualLoads.length > 1
+    ? Math.sqrt(individualLoads.reduce((sum, value) => sum + Math.pow(value - avgIndividual, 2), 0) / individualLoads.length)
+    : 0;
+  const highOutliers = sd > 0 ? individualLoads.filter((value) => value > avgIndividual + sd).length : 0;
+  const lowOutliers = sd > 0 ? individualLoads.filter((value) => value < avgIndividual - sd).length : 0;
+  const highRpe = metrics.avgRpe >= 8;
+  const wellnessLow = typeof metrics.wellnessReadiness === 'number' && metrics.wellnessReadiness > 0 && metrics.wellnessReadiness < 3.2;
+  const tone: InsightTone = highRpe || (wellnessLow && avgLoad >= avgIndividual) || highOutliers >= Math.max(2, Math.ceil(individualLoads.length * 0.25))
     ? 'red'
-    : outsidePct >= 15 || highVolume || wellnessLow
+    : wellnessLow || highOutliers > 0 || lowOutliers > 0
       ? 'yellow'
       : 'green';
   const status = tone === 'green'
-    ? 'La carga individual es coherente con el tipo de sesión.'
+    ? 'La sesión no muestra alertas grupales relevantes frente a la propia distribución de los jugadores.'
     : tone === 'yellow'
-      ? 'Hay desviación moderada en la carga individual frente al objetivo.'
-      : 'Alerta: varios jugadores están fuera del rango individual esperado.';
-  const sample = individualLoads.length ? `${outside}/${individualLoads.length} fuera de rango` : 'sin muestra individual';
+      ? 'Hay jugadores alejados de la distribución del grupo o señales subjetivas a revisar.'
+      : 'Alerta: revisar jugadores con RPE alto, wellness bajo o carga individual por encima del grupo.';
+  const sample = individualLoads.length && sd > 0
+    ? `${highOutliers} por encima y ${lowOutliers} por debajo de 1 DE del grupo`
+    : 'sin dispersión suficiente';
   return {
     id: `session-type-${sessionType}`,
     title: `Control de carga · ${trainingTypeLabel[sessionType]}`,
     tone,
     value: `${round(metrics.avgInternalLoad)} UA`,
-    description: `${status} ${sample}. Promedio: MIN ${round(metrics.avgMinutes)} · RPE ${round(metrics.avgRpe, 1)} · objetivo individual ${target.load[0]}-${target.load[1]} UA. ${target.note}`,
+    description: `${status} ${sample}. Promedio real: MIN ${round(metrics.avgMinutes)} · RPE ${round(metrics.avgRpe, 1)} · carga ${round(avgLoad)} UA. No se usan rangos estimados por MD; el MD solo identifica la ubicación de la sesión respecto al partido.`,
   };
 };
 

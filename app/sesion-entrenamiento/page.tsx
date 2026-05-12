@@ -53,14 +53,14 @@ const SESSION_TYPES: {
   label: string;
   color: string;
 }[] = [
-  { value: "MD+1", label: "MD+1 · Recuperación", color: "#059669" },
-  { value: "MD+2", label: "MD+2 · Reinicio", color: "#0f766e" },
-  { value: "MD-5", label: "MD-5 · Desarrollo base", color: "#2563eb" },
-  { value: "MD-4", label: "MD-4 · Carga alta controlada", color: "#d97706" },
-  { value: "MD-3", label: "MD-3 · Estímulo principal", color: "#be123c" },
-  { value: "MD-2", label: "MD-2 · Ajuste táctico", color: "#7c3aed" },
-  { value: "MD-1", label: "MD-1 · Activación", color: "#475569" },
-  { value: "MD", label: "MD · Partido", color: "#111827" },
+  { value: "MD+1", label: "MD+1", color: "#059669" },
+  { value: "MD+2", label: "MD+2", color: "#0f766e" },
+  { value: "MD-5", label: "MD-5", color: "#2563eb" },
+  { value: "MD-4", label: "MD-4", color: "#d97706" },
+  { value: "MD-3", label: "MD-3", color: "#be123c" },
+  { value: "MD-2", label: "MD-2", color: "#7c3aed" },
+  { value: "MD-1", label: "MD-1", color: "#475569" },
+  { value: "MD", label: "MD", color: "#111827" },
 ];
 const normalizeSessionType = (value?: string | null): TrainingSessionType =>
   SESSION_TYPES.some((item) => item.value === value) ? (value as TrainingSessionType) : "MD-3";
@@ -1116,9 +1116,7 @@ export default function SesionEntrenamientoPage() {
                 type="number"
                 min="1"
                 value={sessNumInput}
-                readOnly={!!summaryRecord}
                 onChange={(e) => {
-                  if (summaryRecord) return;
                   setSessNumInput(e.target.value);
                   const nn = Number(e.target.value);
                   if (Number.isFinite(nn) && nn > 0)
@@ -1126,7 +1124,7 @@ export default function SesionEntrenamientoPage() {
                 }}
               />
               <div className="field-help">
-                {summaryRecord ? "Asignado" : "Siguiente sugerido"}
+                {summaryRecord ? "Editable" : "Siguiente sugerido"}
               </div>
             </div>
             <div className="field">

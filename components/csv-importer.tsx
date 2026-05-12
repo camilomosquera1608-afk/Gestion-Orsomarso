@@ -14,6 +14,7 @@ export interface CsvRow {
   highSpeedDistance?: number;
   sprintDistance?: number;
   sprints?: number;
+  rhie?: number;
   acc?: number;
   dcc?: number;
   rpe?: number;
@@ -141,18 +142,35 @@ const parseCatapult = (lines: string[]): CsvRow[] => {
 
   const headers = parseRow(lines[headerIdx]);
 
-  // Mapear columnas por nombre exacto de Catapult
-  const col = (name: string) => headers.findIndex((h) => h.trim() === name);
+  // Mapear columnas Catapult de forma tolerante. Algunos reportes exportan
+  // ACC y DCC separados; otros solo traen "Accel + Decel Efforts".
+  // Si existen columnas separadas, nunca se debe duplicar el mismo valor en ambas.
+  const normHeader = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const colAny = (aliases: string[]) => {
+    const normalizedAliases = aliases.map(normHeader);
+    return headers.findIndex((h) => normalizedAliases.includes(normHeader(h)));
+  };
+  const colContains = (must: string[], mustNot: string[] = []) => headers.findIndex((h) => {
+    const n = normHeader(h);
+    return must.every((token) => n.includes(token)) && !mustNot.some((token) => n.includes(token));
+  });
 
-  const colName    = col('Player Name');
-  const colPeriod  = col('Period Number');
-  const colDur     = col('Average Duration (Session)');
-  const colDist    = col('Average Distance (Session)');
-  const colPL      = col('Average Player Load (Session)');
-  const colMaxV    = col('Maximum Velocity');
-  const colAccDec  = col('Accel + Decel Efforts');
-  const colHSR     = col('HS Distance');
-  const colSprints = col('Sprint Efforts');
+  const colName    = colAny(['Player Name', 'Athlete Name', 'Name']);
+  const colPeriod  = colAny(['Period Number', 'Period']);
+  const colDur     = colAny(['Average Duration (Session)', 'Duration', 'Session Duration']);
+  const colDist    = colAny(['Average Distance (Session)', 'Distance', 'Total Distance']);
+  const colPL      = colAny(['Average Player Load (Session)', 'Player Load', 'PL']);
+  const colMaxV    = colAny(['Maximum Velocity', 'Max Velocity', 'Max Speed']);
+  const colAcc     = colAny(['Acceleration Efforts', 'Accel Efforts', 'Accelerations', 'ACC']) >= 0
+    ? colAny(['Acceleration Efforts', 'Accel Efforts', 'Accelerations', 'ACC'])
+    : colContains(['accel'], ['decel']);
+  const colDcc     = colAny(['Deceleration Efforts', 'Decel Efforts', 'Decelerations', 'DCC']) >= 0
+    ? colAny(['Deceleration Efforts', 'Decel Efforts', 'Decelerations', 'DCC'])
+    : colContains(['decel']);
+  const colAccDec  = colAny(['Accel + Decel Efforts', 'Acceleration + Deceleration Efforts', 'Acc + Dec']);
+  const colHSR     = colAny(['HS Distance', 'High Speed Distance', 'High-Speed Distance', 'HSR']);
+  const colSprints = colAny(['Sprint Efforts', 'Sprints', 'Sprint Count']);
+  const colRhie    = colAny(['RHIE', 'RHIE Bouts', 'RHIE Total Bouts', 'Repeated High Intensity Efforts', 'Repeated High Intensity Effort Bouts']);
 
   const rows: CsvRow[] = [];
 
@@ -171,19 +189,24 @@ const parseCatapult = (lines: string[]): CsvRow[] => {
     if (!rawName) continue;
 
     const min = Math.round(parseDuration(cells[colDur] ?? ''));
-    const accDec = safeFloat(cells[colAccDec] ?? '');
+    const accRaw = colAcc >= 0 ? safeFloat(cells[colAcc] ?? '') : undefined;
+    const dccRaw = colDcc >= 0 ? safeFloat(cells[colDcc] ?? '') : undefined;
+    const accDec = colAccDec >= 0 ? safeFloat(cells[colAccDec] ?? '') : 0;
+    const hasSplitAccDcc = Number.isFinite(accRaw) && Number.isFinite(dccRaw) && (safeFloat(cells[colAcc] ?? '') > 0 || safeFloat(cells[colDcc] ?? '') > 0);
 
     rows.push({
       rawName,
       min,
-      totalDistance: safeFloat(cells[colDist] ?? ''),
-      playerLoad: safeFloat(cells[colPL] ?? ''),
-      maxVelocity: safeFloat(cells[colMaxV] ?? ''),
-      highSpeedDistance: safeFloat(cells[colHSR] ?? ''),
-      sprints: safeFloat(cells[colSprints] ?? ''),
-      // Catapult da Accel+Decel combinados — dividir en mitades iguales
-      acc: Math.round(accDec / 2),
-      dcc: Math.round(accDec / 2),
+      totalDistance: colDist >= 0 ? safeFloat(cells[colDist] ?? '') : undefined,
+      playerLoad: colPL >= 0 ? safeFloat(cells[colPL] ?? '') : undefined,
+      maxVelocity: colMaxV >= 0 ? safeFloat(cells[colMaxV] ?? '') : undefined,
+      highSpeedDistance: colHSR >= 0 ? safeFloat(cells[colHSR] ?? '') : undefined,
+      sprints: colSprints >= 0 ? safeFloat(cells[colSprints] ?? '') : undefined,
+      rhie: colRhie >= 0 ? safeFloat(cells[colRhie] ?? '') : undefined,
+      // Si el CSV trae ACC/DCC separados, se respetan. Si solo trae combinado,
+      // se deja el combinado en ACC y DCC queda 0 para no inventar simetría falsa.
+      acc: hasSplitAccDcc ? Math.round(accRaw ?? 0) : Math.round(accDec),
+      dcc: hasSplitAccDcc ? Math.round(dccRaw ?? 0) : 0,
     });
   }
 
@@ -201,6 +224,7 @@ const GENERIC_ALIASES: Record<string, string> = {
   'player load': 'playerLoad', 'average player load (session)': 'playerLoad', pl: 'playerLoad',
   hsr: 'highSpeedDistance', 'hs distance': 'highSpeedDistance', 'high speed distance': 'highSpeedDistance',
   'sprint distance': 'sprintDistance',
+  rhie: 'rhie', 'rhie bouts': 'rhie', 'rhie total bouts': 'rhie', 'repeated high intensity efforts': 'rhie',
   'max speed': 'maxVelocity', 'maximum velocity': 'maxVelocity', 'max velocity': 'maxVelocity',
   accel: 'acc', acceleration: 'acc', acc: 'acc',
   decel: 'dcc', deceleration: 'dcc', dcc: 'dcc',
@@ -232,6 +256,7 @@ const parseGeneric = (lines: string[]): CsvRow[] => {
       highSpeedDistance: row.highSpeedDistance ? safeFloat(row.highSpeedDistance) : undefined,
       sprintDistance: row.sprintDistance ? safeFloat(row.sprintDistance) : undefined,
       sprints: row.sprints ? safeFloat(row.sprints) : undefined,
+      rhie: row.rhie ? safeFloat(row.rhie) : undefined,
       acc: row.acc ? safeFloat(row.acc) : undefined,
       dcc: row.dcc ? safeFloat(row.dcc) : undefined,
     } as CsvRow;
@@ -320,7 +345,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
         acc: csvRow.acc ?? 0,
         dcc: csvRow.dcc ?? 0,
         sprints: csvRow.sprints ?? 0,
-        rhie: 0,
+        rhie: csvRow.rhie ?? 0,
         ima: 0,
         totalDistance: csvRow.totalDistance,
         playerLoad: csvRow.playerLoad,
@@ -470,7 +495,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
               <table className="csv-preview-table">
                 <thead>
                   <tr>
-                    <th>Jugador</th><th>MIN</th><th>Distancia</th><th>PL</th><th>Vel. máx</th><th>HSR</th><th>Sprints</th>
+                    <th>Jugador</th><th>MIN</th><th>Distancia</th><th>PL</th><th>Vel. máx</th><th>HSR</th><th>Sprints</th><th>RHIE</th><th>ACC</th><th>DCC</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -483,6 +508,9 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
                       <td>{row.csvRow.maxVelocity ? `${row.csvRow.maxVelocity.toFixed(1)} km/h` : '—'}</td>
                       <td>{row.csvRow.highSpeedDistance ? `${row.csvRow.highSpeedDistance.toFixed(0)} m` : '—'}</td>
                       <td>{row.csvRow.sprints ?? '—'}</td>
+                      <td>{row.csvRow.rhie ?? '—'}</td>
+                      <td>{row.csvRow.acc ?? '—'}</td>
+                      <td>{row.csvRow.dcc ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

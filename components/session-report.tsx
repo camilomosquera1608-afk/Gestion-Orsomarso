@@ -38,7 +38,7 @@ const wellnessReadiness = (r?: DailyWellnessRecord) => wellAvg(r);
 const rMin = (a: number[]) => Math.min(...a.filter(v => v > 0), 0);
 const rMax = (a: number[]) => Math.max(...a, 1);
 const sessionLabel = (v: TrainingSessionType) =>
-  ({ 'MD+1': 'MD+1 · Recuperación', 'MD+2': 'MD+2 · Reinicio', 'MD-5': 'MD-5 · Desarrollo base', 'MD-4': 'MD-4 · Carga alta controlada', 'MD-3': 'MD-3 · Estímulo principal', 'MD-2': 'MD-2 · Ajuste táctico', 'MD-1': 'MD-1 · Activación', MD: 'MD · Partido' }[v] ?? v);
+  ({ 'MD+1': 'MD+1', 'MD+2': 'MD+2', 'MD-5': 'MD-5', 'MD-4': 'MD-4', 'MD-3': 'MD-3', 'MD-2': 'MD-2', 'MD-1': 'MD-1', MD: 'MD' }[v] ?? v);
 
 const dateObj = (value: string) => {
   const d = new Date(`${value}T00:00:00`);
@@ -83,16 +83,8 @@ const positionFocus = (position: string) => {
   if (position === 'Delantero') return 'Controlar sprint, finalizaciones, aceleraciones cortas y exposición a máxima velocidad.';
   return 'Controlar minutos, RPE y carga neuromuscular según rol de la sesión.';
 };
-const microcycleContext = (sessionType: TrainingSessionType) => {
-  if (sessionType === 'MD+1') return 'MD+1: priorizar recuperación post partido, movilidad, descarga neuromuscular y control de molestias.';
-  if (sessionType === 'MD+2') return 'MD+2: reinicio progresivo; revisar dolor postpartido, sueño y disponibilidad antes de subir intensidad.';
-  if (sessionType === 'MD-5') return 'MD-5: desarrollo base con carga moderada-alta si el readiness individual lo permite.';
-  if (sessionType === 'MD-4') return 'MD-4: carga alta controlada; vigilar picos de aceleración, desaceleración y alta velocidad.';
-  if (sessionType === 'MD-3') return 'MD-3: estímulo principal del microciclo; individualizar por dolor localizado, RPE y carga acumulada.';
-  if (sessionType === 'MD-2') return 'MD-2: ajuste táctico; evitar generar fatiga residual y controlar acciones excéntricas.';
-  if (sessionType === 'MD-1') return 'MD-1: activación prepartido; cualquier dolor moderado debe impactar la disponibilidad.';
-  return 'MD: decisión competitiva; interpretar disponibilidad según minutos, rol, dolor y restricciones médicas.';
-};
+const microcycleContext = (sessionType: TrainingSessionType) =>
+  `${sessionType}: etiqueta de ubicación respecto al partido. La interpretación de carga se basa en datos reales de la sesión, RPE, wellness, dolor, disponibilidad y carga acumulada; no en una carga estimada por MD.`;
 const loadDecision = (score: number, acwr: number, wellDelta: number, status: Player['status'], hasPain: boolean) => {
   if (status === 'Lesionado' || score < 40 || hasPain) return { label: 'Evaluación / modificado', pct: '0-50%', tone: 'red', text: 'Valorar antes de campo; priorizar fisioterapia, movilidad o sesión modificada.' };
   if (status === 'Readaptación' || score < 55 || acwr > 1.6) return { label: 'Trabajo modificado', pct: '50-65%', tone: 'red', text: 'Reducir volumen e intensidad; evitar sprint, cambios bruscos o desaceleraciones altas.' };
@@ -397,10 +389,10 @@ export function SessionReportTemplate({
 
         {/* Gauges — fila compacta */}
         <div className="sr-gauges-row">
-          <Gauge val={volScore} label="Volumen"
+          <Gauge val={volScore} label="Volumen vs ref."
             sub={gps ? `${formatPdfNumber(totalDist / Math.max(1, reg.length))} m` : `${Math.round(totalLoad / Math.max(1, reg.length))} UA`}
             color={volScore >= 65 ? C.green : volScore >= 40 ? C.amber : C.red} />
-          <Gauge val={intScore} label="Intensidad"
+          <Gauge val={intScore} label="Intensidad vs ref."
             sub={gps ? `${formatPdfNumber(avgMMin, 1)} m/min` : `RPE ${avgRpe.toFixed(1)}`}
             color={intScore >= 65 ? C.green : intScore >= 40 ? C.amber : C.red} />
           <Gauge val={partScore} label="Participación"

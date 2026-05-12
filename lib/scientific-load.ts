@@ -105,16 +105,10 @@ const getLatestBodyMap = (playerId: string, bodyRecords: BodyMapRecord[], refere
     .filter((record) => record.playerId === playerId && record.date <= referenceDate && record.status !== 'Cerrado')
     .sort((a, b) => `${b.date}-${b.createdAt}`.localeCompare(`${a.date}-${a.createdAt}`))[0];
 
-const mdContextAdvice = (sessionType?: TrainingSessionType) => {
-  if (sessionType === 'MD+1') return 'Recuperar titulares y compensar a suplentes según minutos.';
-  if (sessionType === 'MD+2') return 'Reiniciar carga de forma progresiva según dolor y sueño.';
-  if (sessionType === 'MD-5' || sessionType === 'MD-4') return 'Puede tolerar carga alta si no hay alertas de dolor, wellness o picos recientes.';
-  if (sessionType === 'MD-3') return 'Día clave de estímulo: controlar neuromuscular, sprint y respuesta RPE.';
-  if (sessionType === 'MD-2') return 'Reducir fatiga residual; evitar picos si hay molestia localizada.';
-  if (sessionType === 'MD-1') return 'Activación: cualquier dolor moderado debe reducir riesgo y exposición.';
-  if (sessionType === 'MD') return 'Priorizar disponibilidad competitiva, minutos permitidos y restricciones médicas.';
-  return 'Ajustar según objetivo de sesión y respuesta individual.';
-};
+const mdContextAdvice = (sessionType?: TrainingSessionType) =>
+  sessionType
+    ? `${sessionType}: usar solo como contexto calendario; la decisión sale de los datos reales del jugador y no de una carga estimada por MD.`
+    : 'Ajustar según objetivo real de sesión, respuesta individual y datos disponibles.';
 
 const decideFromScore = (score: number): Pick<PlayerScientificLoadDecision, 'state' | 'percent'> => {
   if (score >= 88) return { state: 'Carga completa', percent: '90-100%' };
