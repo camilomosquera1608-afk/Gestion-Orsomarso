@@ -161,16 +161,36 @@ const parseCatapult = (lines: string[]): CsvRow[] => {
   const colDist    = colAny(['Average Distance (Session)', 'Distance', 'Total Distance']);
   const colPL      = colAny(['Average Player Load (Session)', 'Player Load', 'PL']);
   const colMaxV    = colAny(['Maximum Velocity', 'Max Velocity', 'Max Speed']);
-  const colAcc     = colAny(['Acceleration Efforts', 'Accel Efforts', 'Accelerations', 'ACC']) >= 0
-    ? colAny(['Acceleration Efforts', 'Accel Efforts', 'Accelerations', 'ACC'])
-    : colContains(['accel'], ['decel']);
-  const colDcc     = colAny(['Deceleration Efforts', 'Decel Efforts', 'Decelerations', 'DCC']) >= 0
-    ? colAny(['Deceleration Efforts', 'Decel Efforts', 'Decelerations', 'DCC'])
-    : colContains(['decel']);
+
+  // Catapult exporta varios campos con nombres muy parecidos. Para ACC/DCC
+  // priorizamos los esfuerzos Gen 2 separados. No se debe tomar "Accel + Decel"
+  // como ACC ni duplicarlo en DCC: eso produce la falsa simetría ACC=DCC.
+  const colAcc = colAny([
+    'Acceleration B1-3 Total Efforts (Gen 2)',
+    'Acceleration B1-3 Efforts (Gen 2)',
+    'Acceleration B2-3 Total Efforts (Gen 2)',
+    'Acceleration B2-3 Efforts (Gen 2)',
+    'Acceleration B3 Efforts (Gen 2)',
+    'Acceleration Efforts',
+    'Accel Efforts',
+    'Accelerations',
+    'ACC',
+  ]);
+  const colDcc = colAny([
+    'Deceleration B1-3 Total Efforts (Gen 2)',
+    'Deceleration B1-3 Efforts (Gen 2)',
+    'Deceleration B2-3 Total Efforts (Gen 2)',
+    'Deceleration B2-3 Efforts (Gen 2)',
+    'Deceleration B3 Efforts (Gen 2)',
+    'Deceleration Efforts',
+    'Decel Efforts',
+    'Decelerations',
+    'DCC',
+  ]);
   const colAccDec  = colAny(['Accel + Decel Efforts', 'Acceleration + Deceleration Efforts', 'Acc + Dec']);
   const colHSR     = colAny(['HS Distance', 'High Speed Distance', 'High-Speed Distance', 'HSR']);
   const colSprints = colAny(['Sprint Efforts', 'Sprints', 'Sprint Count']);
-  const colRhie    = colAny(['RHIE', 'RHIE Bouts', 'RHIE Total Bouts', 'Repeated High Intensity Efforts', 'Repeated High Intensity Effort Bouts']);
+  const colRhie    = colAny(['RHIE Total Bouts', 'RHIE Bouts', 'RHIE', 'Repeated High Intensity Efforts', 'Repeated High Intensity Effort Bouts']);
 
   const rows: CsvRow[] = [];
 
@@ -192,7 +212,7 @@ const parseCatapult = (lines: string[]): CsvRow[] => {
     const accRaw = colAcc >= 0 ? safeFloat(cells[colAcc] ?? '') : undefined;
     const dccRaw = colDcc >= 0 ? safeFloat(cells[colDcc] ?? '') : undefined;
     const accDec = colAccDec >= 0 ? safeFloat(cells[colAccDec] ?? '') : 0;
-    const hasSplitAccDcc = Number.isFinite(accRaw) && Number.isFinite(dccRaw) && (safeFloat(cells[colAcc] ?? '') > 0 || safeFloat(cells[colDcc] ?? '') > 0);
+    const hasSplitAccDcc = colAcc >= 0 && colDcc >= 0 && Number.isFinite(accRaw) && Number.isFinite(dccRaw);
 
     rows.push({
       rawName,
@@ -331,6 +351,16 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
 
   const readyRows = rows.filter((r) => r.player !== null);
   const unmatchedRows = rows.filter((r) => r.player === null);
+  const gpsWarningFor = (row: CsvRow) => {
+    const distance = row.totalDistance ?? 0;
+    const maxVelocity = row.maxVelocity ?? 0;
+    const playerLoad = row.playerLoad ?? 0;
+    if (row.min >= 20 && distance < 500 && playerLoad < 50) return 'GPS casi sin movimiento';
+    if (row.min >= 20 && maxVelocity > 0 && maxVelocity < 5) return 'Velocidad máxima anormal';
+    if (row.min >= 20 && distance > 0 && distance / Math.max(row.min, 1) < 10) return 'm/min anormalmente bajo';
+    return '';
+  };
+  const gpsWarningRows = readyRows.filter((r) => gpsWarningFor(r.csvRow));
 
   const handleImport = () => {
     const records: Omit<DailyExternalLoadRecord, 'id'>[] = readyRows.map(({ csvRow, player }) => {
@@ -495,7 +525,7 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
               <table className="csv-preview-table">
                 <thead>
                   <tr>
-                    <th>Jugador</th><th>MIN</th><th>Distancia</th><th>PL</th><th>Vel. máx</th><th>HSR</th><th>Sprints</th><th>RHIE</th><th>ACC</th><th>DCC</th>
+                    <th>Jugador</th><th>MIN</th><th>Distancia</th><th>PL</th><th>Vel. máx</th><th>HSR</th><th>Sprints</th><th>RHIE</th><th>ACC</th><th>DCC</th><th>Validación</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -511,11 +541,19 @@ export function CsvImporter({ players, sessionId, date, microcycleId, sessionNum
                       <td>{row.csvRow.rhie ?? '—'}</td>
                       <td>{row.csvRow.acc ?? '—'}</td>
                       <td>{row.csvRow.dcc ?? '—'}</td>
+                      <td>{gpsWarningFor(row.csvRow) ? <span style={{ color: '#b45309', fontWeight: 800 }}>{gpsWarningFor(row.csvRow)}</span> : 'OK'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {gpsWarningRows.length > 0 && (
+              <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: '#fff7ed', border: '1px solid #fde68a', fontSize: 12, color: '#92400e', fontWeight: 700 }}>
+                <AlertTriangle size={13} style={{ display: 'inline', marginRight: 6 }} />
+                Revisar GPS antes de importar: {gpsWarningRows.map((r) => `${r.player!.name} (${gpsWarningFor(r.csvRow)})`).join(', ')}.
+              </div>
+            )}
 
             {unmatchedRows.length > 0 && (
               <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: '#fff7ed', border: '1px solid #fde68a', fontSize: 12, color: '#92400e', fontWeight: 700 }}>

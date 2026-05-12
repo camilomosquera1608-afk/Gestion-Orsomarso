@@ -257,6 +257,9 @@ export function SessionReportTemplate({
   // Sprints and RHIE are shown from GPS params
   const highRpe   = reg.filter(r => r.rpe >= 8);
   const lowWell   = reg.filter(r => { const w = wellAvg(wellMap.get(r.player.id)); return w > 0 && w < 3.2; });
+  const invalidGpsRows = gps
+    ? reg.filter(r => r.min >= 20 && safeN(r.totalDistance) < 500 && safeN(r.playerLoad) < 50)
+    : [];
   const scientificRows = reg.map(r => {
     const p = r.player;
     const todayWell = wellAvg(wellMap.get(p.id));
@@ -662,10 +665,11 @@ export function SessionReportTemplate({
         </div>
         {objective?.trim() && <div className="sr-insight sr-insight-green" style={{ marginTop: 8 }}><strong>Objetivo:</strong> {getPdfSafeText(objective)}</div>}
         {observation?.trim() && <div className="sr-insight sr-insight-neutral" style={{ marginTop: 8 }}><strong>Observación:</strong> {getPdfSafeText(observation)}</div>}
-        {(highRpe.length > 0 || lowWell.length > 0 || absentPlayers.length > 0) && (
+        {(highRpe.length > 0 || lowWell.length > 0 || invalidGpsRows.length > 0 || absentPlayers.length > 0) && (
           <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
             {highRpe.length > 0 && <div className="sr-alert sr-alert-red">⚠ RPE elevado (≥8): {highRpe.map(r => r.player.name).join(', ')}</div>}
             {lowWell.length > 0 && <div className="sr-alert sr-alert-amber">⚠ Wellness bajo: {lowWell.map(r => r.player.name).join(', ')}</div>}
+            {invalidGpsRows.length > 0 && <div className="sr-alert sr-alert-amber">⚠ Revisar GPS: {invalidGpsRows.map(r => r.player.name).join(', ')} presentan minutos altos con distancia/Player Load casi nulos.</div>}
             {absentPlayers.length > 0 && <div className="sr-alert sr-alert-blue">Sin registrar ({absentPlayers.length}): {absentPlayers.map(p => p.name).join(', ')}</div>}
           </div>
         )}
