@@ -55,20 +55,20 @@ const questionMeta: Record<keyof WellnessFormState, { title: string; options: Re
     options: { 0: 'Selecciona', 1: 'Muy malo', 2: 'Malo', 3: 'Normal', 4: 'Bueno', 5: 'Excelente' },
   },
   fatigue: {
-    title: '¿Cuánta energía sientes al despertar?',
-    options: { 0: 'Selecciona', 1: 'Muy poca', 2: 'Poca', 3: 'Normal', 4: 'Buena', 5: 'Mucha' },
+    title: '¿Qué tan descansado y con energía te sientes?',
+    options: { 0: 'Selecciona', 1: 'Muy fatigado', 2: 'Fatigado', 3: 'Normal', 4: 'Con buena energía', 5: 'Muy fresco' },
   },
   stress: {
-    title: '¿Sientes molestia o rigidez en tu cuerpo?',
-    options: { 0: 'Selecciona', 1: 'Demasiado', 2: 'Mucha', 3: 'Poca', 4: 'Leve', 5: 'Nada' },
+    title: '¿Cómo está tu nivel de estrés hoy?',
+    options: { 0: 'Selecciona', 1: 'Muy estresado', 2: 'Estresado', 3: 'Normal', 4: 'Tranquilo', 5: 'Muy tranquilo' },
   },
   musclePain: {
-    title: '¿Cómo te sientes mentalmente hoy?',
-    options: { 0: 'Selecciona', 1: 'Muy mal', 2: 'Mal', 3: 'Normal', 4: 'Bien', 5: 'Muy bien' },
+    title: '¿Cómo está tu estado muscular hoy?',
+    options: { 0: 'Selecciona', 1: 'Dolor fuerte', 2: 'Dolor moderado', 3: 'Molestia leve', 4: 'Casi sin dolor', 5: 'Sin dolor' },
   },
   mood: {
-    title: '¿Cómo te sientes emocionalmente hoy?',
-    options: { 0: 'Selecciona', 1: 'Muy mal', 2: 'Mal', 3: 'Normal', 4: 'Bien', 5: 'Muy bien' },
+    title: '¿Cómo está tu ánimo hoy?',
+    options: { 0: 'Selecciona', 1: 'Muy bajo', 2: 'Bajo', 3: 'Normal', 4: 'Bueno', 5: 'Muy bueno' },
   },
 };
 

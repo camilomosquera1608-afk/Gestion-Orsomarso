@@ -39,8 +39,8 @@ export default function WellnessCenterPage() {
       <div className="grid grid-5">
         <KpiCard label="Wellness" value={center.averages.wellness.toFixed(1)} tone="blue" icon={<HeartPulse size={18} />} trend="Promedio fecha activa" />
         <KpiCard label="Sueño" value={center.averages.sleep.toFixed(1)} tone="green" icon={<Moon size={18} />} trend="Calidad reportada" />
-        <KpiCard label="Fatiga" value={center.averages.fatigue.toFixed(1)} tone="amber" icon={<Brain size={18} />} trend="Control preventivo" />
-        <KpiCard label="Dolor muscular" value={center.averages.musclePain.toFixed(1)} tone="red" icon={<ActivityIcon />} trend="Seguimiento diario" />
+        <KpiCard label="Energía" value={center.averages.fatigue.toFixed(1)} tone="amber" icon={<Brain size={18} />} trend="Disposición reportada" />
+        <KpiCard label="Estado muscular" value={center.averages.musclePain.toFixed(1)} tone="red" icon={<ActivityIcon />} trend="5 = sin dolor" />
         <KpiCard label="Sin registro" value={String(center.missingToday.length)} tone="dark" icon={<Users size={18} />} trend="Pendiente del día" />
       </div>
 
@@ -99,9 +99,9 @@ export default function WellnessCenterPage() {
                 <th>Posición</th>
                 <th>Promedio</th>
                 <th>Sueño</th>
-                <th>Fatiga</th>
+                <th>Energía</th>
                 <th>Estrés</th>
-                <th>Dolor</th>
+                <th>Músculo</th>
                 <th>Ánimo</th>
                 <th>Lectura</th>
               </tr>

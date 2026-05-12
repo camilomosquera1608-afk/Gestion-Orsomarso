@@ -10,16 +10,17 @@ const clampWellnessItem = (value?: number) => {
   return Math.max(1, Math.min(5, numeric));
 };
 
-// Canonical wellness score: 1 = pésimo, 5 = óptimo.
-// sleep and mood are positive; fatigue, stress and musclePain are negative and must be inverted.
+// Canonical wellness/readiness score: 1 = peor estado, 5 = mejor estado.
+// All public-form answers are stored in the same direction: higher means better readiness.
+// fatigue = energy/freshness, stress = calm/low stress, musclePain = muscular state/no pain.
 export const computeWellnessScore = (record?: DailyWellnessRecord) => {
   if (!record) return 0;
   const sleep = clampWellnessItem(record.sleep);
-  const mood = clampWellnessItem(record.mood);
   const fatigue = clampWellnessItem(record.fatigue);
   const stress = clampWellnessItem(record.stress);
   const musclePain = clampWellnessItem(record.musclePain);
-  const values = [sleep, mood, fatigue ? 6 - fatigue : 0, stress ? 6 - stress : 0, musclePain ? 6 - musclePain : 0].filter((value) => value > 0);
+  const mood = clampWellnessItem(record.mood);
+  const values = [sleep, fatigue, stress, musclePain, mood].filter((value) => value > 0);
   if (!values.length) return 0;
   return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1));
 };

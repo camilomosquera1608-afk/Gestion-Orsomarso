@@ -172,7 +172,7 @@ export const mealCompletion = (record?: HouseDailyMealRecord) => {
 
 export const wellnessAverage = (record?: DailyWellnessRecord) => {
   if (!record) return 0;
-  const readiness = [record.sleep, 11 - record.fatigue, 11 - record.stress, 11 - record.musclePain, record.mood];
+  const readiness = [record.sleep, record.fatigue, record.stress, record.musclePain, record.mood];
   return Number(avg(readiness).toFixed(1));
 };
 

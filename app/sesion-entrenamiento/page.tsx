@@ -45,7 +45,7 @@ import {
   getInternalLoadsForSession,
 } from "@/lib/session-derived";
 import { CsvImporter } from "@/components/csv-importer";
-import { buildAbruptLoadAlerts, buildAvailabilityIndex, buildDataInconsistencyAlerts, buildLoadWellnessRelation, buildPlayerReadinessSemaphores, buildPositionComparisonInsights, buildSelfComparisonInsights, buildSessionTypeLoadControl, wellnessReadiness } from "@/lib/logic-insights";
+import { buildAbruptLoadAlerts, buildAvailabilityIndex, buildDataInconsistencyAlerts, buildLoadWellnessRelation, buildPlayerReadinessSemaphores, buildPositionComparisonInsights, buildRoleLoadControl, buildReturnToPlayAlerts, buildSelfComparisonInsights, buildSessionTypeLoadControl, buildWeeklyMonotonyFatigue, wellnessReadiness } from "@/lib/logic-insights";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const SESSION_TYPES: {
@@ -556,6 +556,19 @@ export default function SesionEntrenamientoPage() {
   const dataInconsistencyAlerts = useMemo(
     () => buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: filters.date, category: activeCat, limit: 6 }),
     [data.players, data.internalLoads, data.externalLoads, data.competitionRecords, filters.date, activeCat],
+  );
+
+  const roleLoadInsights = useMemo(
+    () => buildRoleLoadControl({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 4 }),
+    [data.players, data.competitionRecords, data.internalLoads, data.externalLoads, filters.date, activeCat],
+  );
+  const returnToPlayAlerts = useMemo(
+    () => buildReturnToPlayAlerts({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 4 }),
+    [data.players, data.competitionRecords, data.internalLoads, data.externalLoads, filters.date, activeCat],
+  );
+  const weeklyMonotonyInsight = useMemo(
+    () => buildWeeklyMonotonyFatigue({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat }),
+    [data.players, data.internalLoads, data.externalLoads, filters.date, activeCat],
   );
 
   const mcNotice = filters.date
@@ -1215,6 +1228,31 @@ export default function SesionEntrenamientoPage() {
               ))}
               {![...selfComparisonInsights, ...positionComparisonInsights].length ? <div className="empty">Sin desviaciones relevantes frente al historial individual o pares de posición.</div> : null}
             </div>
+          </div>
+        </div>
+
+        <div className="grid grid-2">
+          <div className="card compact-card">
+            <div className="section-eyebrow">Retorno, rol y competencia</div>
+            <h3 style={{ margin: "4px 0 8px" }}>Control individual por contexto</h3>
+            <div className="grid" style={{ gap: 8 }}>
+              {[...returnToPlayAlerts, ...roleLoadInsights].slice(0, 5).map((insight) => (
+                <div key={insight.id} className={`alert-item tone-${insight.tone === "red" ? "red" : insight.tone === "yellow" ? "yellow" : "blue"}`}>
+                  <strong>{insight.title}</strong>{insight.value ? ` · ${insight.value}` : ""}<br />{insight.description}
+                </div>
+              ))}
+              {![...returnToPlayAlerts, ...roleLoadInsights].length ? <div className="empty">Sin alertas de retorno o rol competitivo para la fecha activa.</div> : null}
+            </div>
+          </div>
+          <div className="card compact-card">
+            <div className="section-eyebrow">Microciclo</div>
+            <h3 style={{ margin: "4px 0 8px" }}>Monotonía, strain y decisión semanal</h3>
+            <div className={`alert-item tone-${weeklyMonotonyInsight.tone === "red" ? "red" : weeklyMonotonyInsight.tone === "yellow" ? "yellow" : "green"}`}>
+              <strong>{weeklyMonotonyInsight.title}</strong> · {weeklyMonotonyInsight.value}<br />{weeklyMonotonyInsight.description}
+            </div>
+            <p className="muted-line" style={{ marginTop: 8 }}>
+              Esta lectura ayuda a evitar semanas planas de carga, picos no progresivos y decisiones iguales para jugadores con respuestas distintas.
+            </p>
           </div>
         </div>
 
@@ -2121,6 +2159,10 @@ export default function SesionEntrenamientoPage() {
                 absentPlayers={absentPlayers}
                 dataQualityPercent={ops.dataQualityPercent}
                 wellnessRecords={sessWellness}
+                allWellnessRecords={data.wellness}
+                allInternalLoads={data.internalLoads}
+                allExternalLoads={data.externalLoads}
+                allPlayers={data.players}
                 compact
               />
             </div>
@@ -2331,6 +2373,10 @@ export default function SesionEntrenamientoPage() {
         absentPlayers={absentPlayers}
         dataQualityPercent={ops.dataQualityPercent}
         wellnessRecords={sessWellness}
+        allWellnessRecords={data.wellness}
+        allInternalLoads={data.internalLoads}
+        allExternalLoads={data.externalLoads}
+        allPlayers={data.players}
         className="print-only"
       />
 

@@ -1,10 +1,10 @@
 'use client';
 
 import { categoryLabel } from '@/lib/labels';
-import type { ClubCategory, DailyWellnessRecord, Microcycle, Player, SessionParticipation, TrainingSessionType } from '@/lib/types';
+import type { ClubCategory, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, Microcycle, Player, SessionParticipation, TrainingSessionType } from '@/lib/types';
 import { formatPdfDate, formatPdfNumber, getPdfSafeText, supportsGps } from '@/lib/report-utils';
 import { ReportFooter, ReportHeader } from './report-ui';
-import { groupAverage } from '@/lib/utils';
+import { computeWellnessScore, getPlayerDayLoad, groupAverage } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Row = {
@@ -17,7 +17,12 @@ type Props = {
   date: string; category: ClubCategory; microcycle?: Microcycle;
   sessionNumber?: string | number; sessionType: TrainingSessionType;
   objective?: string; observation?: string; rows: Row[]; absentPlayers: Player[];
-  wellnessRecords?: DailyWellnessRecord[]; dataQualityPercent?: number;
+  wellnessRecords?: DailyWellnessRecord[];
+  allWellnessRecords?: DailyWellnessRecord[];
+  allInternalLoads?: DailyInternalLoadRecord[];
+  allExternalLoads?: DailyExternalLoadRecord[];
+  allPlayers?: Player[];
+  dataQualityPercent?: number;
   generatedAt?: string; className?: string; compact?: boolean;
 };
 
@@ -28,25 +33,70 @@ const sumN = (a: Array<number | undefined>) => a.reduce<number>((s, v) => s + sa
 const maxN = (a: Array<number | undefined>) => a.reduce<number>((s, v) => Math.max(s, safeN(v)), 0);
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 const pct = (v: number, ref: number) => ref > 0 ? clamp(Math.round(v / ref * 100)) : 0;
-const wellAvg = (r?: DailyWellnessRecord) => {
-  if (!r) return 0;
-  const vs = [r.sleep, r.fatigue, r.stress, r.musclePain, r.mood].filter(v => Number.isFinite(v) && v > 0);
-  return vs.length ? vs.reduce((a, v) => a + v, 0) / vs.length : 0;
-};
-const wellnessReadiness = (r?: DailyWellnessRecord) => {
-  if (!r) return 0;
-  const sleep = safeN(r.sleep);
-  const mood = safeN(r.mood);
-  const fatigue = r.fatigue > 0 ? 6 - r.fatigue : 0;
-  const stress = r.stress > 0 ? 6 - r.stress : 0;
-  const pain = r.musclePain > 0 ? 6 - r.musclePain : 0;
-  const vs = [sleep, fatigue, stress, pain, mood].filter(v => Number.isFinite(v) && v > 0);
-  return vs.length ? vs.reduce((a, v) => a + v, 0) / vs.length : 0;
-};
+const wellAvg = (r?: DailyWellnessRecord) => computeWellnessScore(r);
+const wellnessReadiness = (r?: DailyWellnessRecord) => wellAvg(r);
 const rMin = (a: number[]) => Math.min(...a.filter(v => v > 0), 0);
 const rMax = (a: number[]) => Math.max(...a, 1);
 const sessionLabel = (v: TrainingSessionType) =>
   ({ cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación', deci: 'Decisión' }[v] ?? v);
+
+const dateObj = (value: string) => {
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+};
+const dayDiff = (date: string, reference: string) => {
+  const a = dateObj(date); const b = dateObj(reference);
+  if (!a || !b) return 9999;
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+};
+const meanClean = (values: number[]) => {
+  const clean = values.filter(v => Number.isFinite(v) && v > 0);
+  return clean.length ? clean.reduce((a, v) => a + v, 0) / clean.length : 0;
+};
+const stdClean = (values: number[]) => {
+  const clean = values.filter(v => Number.isFinite(v) && v > 0);
+  if (clean.length < 2) return 0;
+  const m = meanClean(clean);
+  return Math.sqrt(clean.reduce((s, v) => s + Math.pow(v - m, 2), 0) / clean.length);
+};
+const sumWindowLoad = (playerId: string, referenceDate: string, minDays: number, maxDays: number, internalLoads: DailyInternalLoadRecord[], externalLoads: DailyExternalLoadRecord[]) => {
+  const dates = Array.from(new Set([
+    ...internalLoads.filter(r => r.playerId === playerId).map(r => r.date),
+    ...externalLoads.filter(r => r.playerId === playerId).map(r => r.date),
+  ])).filter(d => {
+    const diff = dayDiff(d, referenceDate);
+    return diff >= minDays && diff <= maxDays;
+  });
+  return dates.reduce((total, d) => total + getPlayerDayLoad(playerId, d, { internalLoads, externalLoads }), 0);
+};
+const acwrLabel = (ratio: number) => {
+  if (!ratio) return { label: 's/d', tone: 'neutral', note: 'sin crónico suficiente' };
+  if (ratio < 0.8) return { label: ratio.toFixed(2), tone: 'yellow', note: 'baja exposición reciente' };
+  if (ratio <= 1.3) return { label: ratio.toFixed(2), tone: 'green', note: 'rango estable' };
+  if (ratio <= 1.6) return { label: ratio.toFixed(2), tone: 'yellow', note: 'incremento moderado' };
+  return { label: ratio.toFixed(2), tone: 'red', note: 'pico de carga' };
+};
+const positionFocus = (position: string) => {
+  if (position === 'Lateral' || position === 'Extremo') return 'Controlar sprint, alta velocidad, aceleraciones y desaceleraciones.';
+  if (position === 'Mediocampista') return 'Controlar distancia total, m/min, carga acumulada y recuperación metabólica.';
+  if (position === 'Defensa central') return 'Controlar acciones neuromusculares, desaceleraciones, duelos, saltos y cambios de dirección.';
+  if (position === 'Delantero') return 'Controlar sprint, finalizaciones, aceleraciones cortas y exposición a máxima velocidad.';
+  return 'Controlar minutos, RPE y carga neuromuscular según rol de la sesión.';
+};
+const microcycleContext = (sessionType: TrainingSessionType) => {
+  if (sessionType === 'cdef') return 'Día de recuperación: priorizar baja intensidad, movilidad, regeneración y reducción de estrés mecánico.';
+  if (sessionType === 'cdeF') return 'Día físico: tolera mayor estímulo, pero exige control individual de picos, wellness y carga acumulada.';
+  if (sessionType === 'cdEf') return 'Día de ejecución: mantener calidad técnico-táctica con carga moderada y evitar excesos no planificados.';
+  if (sessionType === 'Cdef') return 'Día comunicativo/táctico: evitar que el componente físico desplace el objetivo principal.';
+  return 'Día decisional: vigilar fatiga cognitiva, RPE y jugadores con baja recuperación.';
+};
+const loadDecision = (score: number, acwr: number, wellDelta: number, status: Player['status'], hasPain: boolean) => {
+  if (status === 'Lesionado' || score < 40 || hasPain) return { label: 'Evaluación / modificado', pct: '0-50%', tone: 'red', text: 'Valorar antes de campo; priorizar fisioterapia, movilidad o sesión modificada.' };
+  if (status === 'Readaptación' || score < 55 || acwr > 1.6) return { label: 'Trabajo modificado', pct: '50-65%', tone: 'red', text: 'Reducir volumen e intensidad; evitar sprint, cambios bruscos o desaceleraciones altas.' };
+  if (status === 'Molestia' || score < 70 || acwr > 1.3 || wellDelta <= -1) return { label: 'Carga controlada', pct: '65-80%', tone: 'yellow', text: 'Mantener participación parcial, controlar RPE y limitar el componente de mayor riesgo posicional.' };
+  if (score < 85 || wellDelta <= -0.5) return { label: 'Control preventivo', pct: '80-90%', tone: 'yellow', text: 'Puede entrenar, con seguimiento de respuesta durante y después de la sesión.' };
+  return { label: 'Carga completa', pct: '90-100%', tone: 'green', text: 'Disponible para la carga planificada si la evaluación de campo es normal.' };
+};
 
 // Shorten name but keep enough to be identifiable
 const fmt = (name: string) => {
@@ -153,7 +203,12 @@ function BarCol({ title, color, items, maxVal, f }: {
 export function SessionReportTemplate({
   date, category, microcycle, sessionNumber, sessionType,
   objective, observation, rows, absentPlayers,
-  wellnessRecords = [], dataQualityPercent = 0,
+  wellnessRecords = [],
+  allWellnessRecords = wellnessRecords,
+  allInternalLoads = [],
+  allExternalLoads = [],
+  allPlayers = [],
+  dataQualityPercent = 0,
   generatedAt = new Date().toLocaleString('es-CO'),
   className = '', compact = false,
 }: Props) {
@@ -207,6 +262,51 @@ export function SessionReportTemplate({
   // Sprints and RHIE are shown from GPS params
   const highRpe   = reg.filter(r => r.rpe >= 8);
   const lowWell   = reg.filter(r => { const w = wellAvg(wellMap.get(r.player.id)); return w > 0 && w < 3.2; });
+  const scientificRows = reg.map(r => {
+    const p = r.player;
+    const todayWell = wellAvg(wellMap.get(p.id));
+    const baselineValues = allWellnessRecords
+      .filter(w => w.playerId === p.id)
+      .filter(w => { const diff = dayDiff(w.date, date); return diff >= 1 && diff <= 28; })
+      .map(wellAvg)
+      .filter(v => v > 0);
+    const wellnessBaseline = meanClean(baselineValues);
+    const wellnessSd = stdClean(baselineValues);
+    const wellnessDelta = todayWell && wellnessBaseline ? todayWell - wellnessBaseline : 0;
+    const z = wellnessSd > 0 && todayWell ? wellnessDelta / wellnessSd : 0;
+    const loadToday = r.min * r.rpe;
+    const load7 = sumWindowLoad(p.id, date, 0, 6, allInternalLoads, allExternalLoads) || loadToday;
+    const chronicBlocks = [
+      sumWindowLoad(p.id, date, 7, 13, allInternalLoads, allExternalLoads),
+      sumWindowLoad(p.id, date, 14, 20, allInternalLoads, allExternalLoads),
+      sumWindowLoad(p.id, date, 21, 27, allInternalLoads, allExternalLoads),
+    ].filter(v => v > 0);
+    const chronic = chronicBlocks.length ? chronicBlocks.reduce((a, v) => a + v, 0) / chronicBlocks.length : 0;
+    const acwr = chronic > 0 ? load7 / chronic : 0;
+    const mmin = r.min > 0 && r.totalDistance ? r.totalDistance / r.min : 0;
+    const neuromuscular = r.acc + r.dcc + r.sprints + r.rhie;
+    const injuryFlag = p.status !== 'Disponible' || Boolean(p.injuryArea || p.injuryType || (p.injuryHistory ?? []).some(i => i.status === 'activa'));
+    const hasPain = Boolean(wellMap.get(p.id)?.musclePain && (wellMap.get(p.id)?.musclePain ?? 0) <= 2) || injuryFlag;
+    const acwrPenalty = acwr === 0 ? 8 : acwr > 1.6 ? 30 : acwr > 1.3 ? 18 : acwr < 0.8 ? 10 : 0;
+    const wellnessPenalty = todayWell === 0 ? 10 : todayWell < 3 ? 30 : todayWell < 3.5 ? 18 : wellnessDelta <= -1 ? 20 : wellnessDelta <= -0.5 ? 10 : 0;
+    const statusPenalty = p.status === 'Disponible' ? 0 : p.status === 'Molestia' ? 18 : p.status === 'Readaptación' ? 30 : 45;
+    const rpePenalty = r.rpe >= 9 ? 15 : r.rpe >= 8 ? 9 : 0;
+    const score = clamp(100 - acwrPenalty - wellnessPenalty - statusPenalty - rpePenalty, 0, 100);
+    const decision = loadDecision(score, acwr, wellnessDelta, p.status, hasPain);
+    const reasons = [
+      todayWell && todayWell < 3.2 ? `wellness bajo ${todayWell.toFixed(1)}` : '',
+      wellnessDelta <= -0.5 ? `caída ${wellnessDelta.toFixed(1)} vs línea base` : '',
+      acwr > 1.3 ? `ACWR ${acwr.toFixed(2)}` : '',
+      r.rpe >= 8 ? `RPE ${r.rpe}` : '',
+      injuryFlag ? `estado ${p.status}${p.injuryArea ? ` · ${p.injuryArea}` : ''}` : '',
+    ].filter(Boolean);
+    return { row: r, player: p, todayWell, wellnessBaseline, wellnessDelta, z, loadToday, load7, chronic, acwr, mmin, neuromuscular, score, decision, reasons };
+  }).sort((a, b) => a.score - b.score);
+  const priorityRows = scientificRows.filter(r => r.score < 70 || r.reasons.length > 0).slice(0, 6);
+  const avgAcwr = meanClean(scientificRows.map(r => r.acwr));
+  const avgNeuromuscular = meanClean(scientificRows.map(r => r.neuromuscular));
+  const lowReadinessCount = scientificRows.filter(r => r.score < 70).length;
+  const fullLoadCount = scientificRows.filter(r => r.decision.label === 'Carga completa').length;
 
   return (
     <article className={`pdf-report-document session-report-document ${className}`} style={{ fontFamily: "'Inter','Helvetica Neue',sans-serif" }}>
@@ -321,13 +421,13 @@ export function SessionReportTemplate({
             <KTile label="Player Load" value={formatPdfNumber(totalPL / Math.max(1, reg.length))} note="Prom. jugador" accent={C.navy} />
             <KTile label="ACC / DCC" value={`${Math.round(avgAcc)} / ${Math.round(avgDcc)}`} note="Promedios" accent={C.navy} />
             <KTile label="IMA prom." value={formatPdfNumber(avgIma, 1)} note="Cambios de intensidad" accent={C.blue2} />
-            <KTile label="Wellness readiness" value={avgReadiness ? avgReadiness.toFixed(1) : '—'} note="Sueño/ánimo vs fatiga/dolor" accent={avgReadiness >= 3.7 ? C.green : C.amber} />
+            <KTile label="Wellness readiness" value={avgReadiness ? avgReadiness.toFixed(1) : '—'} note="Promedio 1–5; mayor = mejor" accent={avgReadiness >= 3.7 ? C.green : C.amber} />
             <KTile label="Carga/Wellness" value={loadWellnessRatio ? formatPdfNumber(loadWellnessRatio, 0) : '—'} note="UA por punto wellness" accent={loadWellnessRatio > 160 ? C.red : loadWellnessRatio > 115 ? C.amber : C.green} />
           </> : <>
             <KTile label="Carga total" value={`${Math.round(totalLoad)} UA`} note="Equipo" accent={C.blue} />
             <KTile label="Wellness readiness" value={avgReadiness ? avgReadiness.toFixed(1) : '—'} note="/5 ajustado"
               accent={avgReadiness >= 3.7 ? C.green : C.amber} />
-            <KTile label="Fatiga / dolor" value={`${avgFatigue ? avgFatigue.toFixed(1) : '—'} / ${avgPain ? avgPain.toFixed(1) : '—'}`} note="Prom. wellness" accent={(avgFatigue > 3.5 || avgPain > 3.5) ? C.red : C.amber} />
+            <KTile label="Energía / músculo" value={`${avgFatigue ? avgFatigue.toFixed(1) : '—'} / ${avgPain ? avgPain.toFixed(1) : '—'}`} note="Mayor = mejor estado" accent={(avgFatigue >= 3.7 && avgPain >= 3.7) ? C.green : (avgFatigue >= 3.0 && avgPain >= 3.0) ? C.amber : C.red} />
             <KTile label="Completitud" value={`${dataQualityPercent}%`} note="Planilla" accent={C.green} />
             <KTile label="Participación" value={`${partScore}%`} note={`${reg.length}/${reg.length + absentPlayers.length}`}
               accent={partScore >= 70 ? C.green : C.amber} />
@@ -444,7 +544,7 @@ export function SessionReportTemplate({
               <table className="sr-heat-table" style={{ fontSize: 10 }}>
                 <thead><tr>
                   <th className="sr-th-name">Jugador</th>
-                  <th>Sueño</th><th>Fatiga</th><th>Estrés</th><th>Muscular</th><th>Ánimo</th><th>Prom.</th>
+                  <th>Sueño</th><th>Energía</th><th>Tranquilidad</th><th>Músculo</th><th>Ánimo</th><th>Prom.</th>
                 </tr></thead>
                 <tbody>
                   {reg.map(r => {
@@ -456,8 +556,8 @@ export function SessionReportTemplate({
                         {w ? <>
                           <HC v={w.sleep}      lo={1} hi={5} f={v => v.toFixed(0)} />
                           <HC v={w.fatigue}    lo={1} hi={5} f={v => v.toFixed(0)} />
-                          <HC v={w.stress}     lo={1} hi={5} f={v => v.toFixed(0)} inv />
-                          <HC v={w.musclePain} lo={1} hi={5} f={v => v.toFixed(0)} inv />
+                          <HC v={w.stress}     lo={1} hi={5} f={v => v.toFixed(0)} />
+                          <HC v={w.musclePain} lo={1} hi={5} f={v => v.toFixed(0)} />
                           <HC v={w.mood}       lo={1} hi={5} f={v => v.toFixed(0)} />
                           <HC v={wa}           lo={1} hi={5} f={v => v.toFixed(1)} />
                         </> : <td colSpan={6} style={{ textAlign: 'center', color: C.muted, fontSize: 10 }}>Sin registro</td>}
@@ -477,18 +577,83 @@ export function SessionReportTemplate({
           <Sec eyebrow="Control integrado" title="Relación carga externa/interna vs wellness"
             sub="Cruce operativo para detectar jugadores con alta carga y baja disposición subjetiva." />
           <div className="sr-kpi-grid" style={{ marginBottom: 10 }}>
-            <KTile label="Readiness grupal" value={avgReadiness ? avgReadiness.toFixed(1) : '—'} note="Sueño + ánimo - fatiga/dolor/estrés" accent={avgReadiness >= 3.7 ? C.green : avgReadiness >= 3.2 ? C.amber : C.red} />
-            <KTile label="Fatiga prom." value={avgFatigue ? avgFatigue.toFixed(1) : '—'} note="Más alto = mayor alerta" accent={avgFatigue >= 3.5 ? C.red : avgFatigue >= 2.8 ? C.amber : C.green} />
-            <KTile label="Dolor muscular" value={avgPain ? avgPain.toFixed(1) : '—'} note="Más alto = mayor alerta" accent={avgPain >= 3.5 ? C.red : avgPain >= 2.8 ? C.amber : C.green} />
-            <KTile label="Estrés prom." value={avgStress ? avgStress.toFixed(1) : '—'} note="Más alto = mayor alerta" accent={avgStress >= 3.5 ? C.red : avgStress >= 2.8 ? C.amber : C.green} />
+            <KTile label="Readiness grupal" value={avgReadiness ? avgReadiness.toFixed(1) : '—'} note="Promedio 1–5; mayor = mejor" accent={avgReadiness >= 3.7 ? C.green : avgReadiness >= 3.2 ? C.amber : C.red} />
+            <KTile label="Energía prom." value={avgFatigue ? avgFatigue.toFixed(1) : '—'} note="Mayor = más fresco" accent={avgFatigue >= 3.7 ? C.green : avgFatigue >= 3.0 ? C.amber : C.red} />
+            <KTile label="Estado muscular" value={avgPain ? avgPain.toFixed(1) : '—'} note="Mayor = sin dolor" accent={avgPain >= 3.7 ? C.green : avgPain >= 3.0 ? C.amber : C.red} />
+            <KTile label="Tranquilidad" value={avgStress ? avgStress.toFixed(1) : '—'} note="Mayor = menos estrés" accent={avgStress >= 3.7 ? C.green : avgStress >= 3.0 ? C.amber : C.red} />
           </div>
           <div className="sr-insight sr-insight-neutral">
             {avgReadiness
-              ? `Lectura: carga interna promedio ${Math.round(avgLoad)} UA con readiness ${avgReadiness.toFixed(1)}/5. ${loadWellnessRatio > 160 ? 'Relación alta: conviene revisar recuperación, fatiga y dolor antes de aumentar volumen.' : loadWellnessRatio > 115 ? 'Relación moderada: mantener control individual y observar jugadores con RPE elevado.' : 'Relación estable: la carga parece coherente con el estado subjetivo del grupo.'}`
+              ? `Lectura: carga interna promedio ${Math.round(avgLoad)} UA con readiness ${avgReadiness.toFixed(1)}/5. ${loadWellnessRatio > 160 ? 'Relación alta: conviene revisar recuperación, energía y estado muscular antes de aumentar volumen.' : loadWellnessRatio > 115 ? 'Relación moderada: mantener control individual y observar jugadores con RPE elevado.' : 'Relación estable: la carga parece coherente con el estado subjetivo del grupo.'}`
               : 'No hay suficientes registros wellness para calcular la relación carga-bienestar.'}
           </div>
         </section>
       )}
+
+      {/* ══ INDIVIDUALIZACIÓN CIENTÍFICA ═════════════════════════════════════ */}
+      {reg.length > 0 && (
+        <section className="sr-section" style={{ pageBreakBefore: gps ? 'always' : undefined }}>
+          <Sec eyebrow="Individualización" title="Matriz científica para ajustar la próxima carga"
+            sub="Integra línea base individual, carga aguda/crónica, wellness, estado médico, posición y respuesta de la sesión." />
+          <div className="sr-kpi-grid" style={{ marginBottom: 10 }}>
+            <KTile label="Readiness medio" value={`${Math.round(meanClean(scientificRows.map(r => r.score)))}%`} note={`${lowReadinessCount} jugador(es) <70%`} accent={lowReadinessCount >= 3 ? C.red : lowReadinessCount >= 1 ? C.amber : C.green} />
+            <KTile label="ACWR medio" value={avgAcwr ? avgAcwr.toFixed(2) : 's/d'} note="Carga 7d vs promedio 3 semanas" accent={avgAcwr > 1.6 ? C.red : avgAcwr > 1.3 || avgAcwr < 0.8 ? C.amber : C.green} />
+            <KTile label="Carga completa" value={`${fullLoadCount}/${scientificRows.length}`} note="Jugadores con 90-100% sugerido" accent={fullLoadCount >= scientificRows.length * .7 ? C.green : C.amber} />
+            <KTile label="Neuromuscular prom." value={avgNeuromuscular ? Math.round(avgNeuromuscular) : '—'} note="ACC+DCC+sprints+RHIE" accent={C.blue2} />
+          </div>
+          <table className="sr-heat-table" style={{ fontSize: 9.5 }}>
+            <thead><tr>
+              <th className="sr-th-name">Jugador</th><th>Pos.</th><th>Readiness</th><th>Wellness</th><th>Δ base</th><th>Carga hoy</th><th>7d</th><th>ACWR</th><th>Decisión próxima carga</th><th>Motivo principal</th>
+            </tr></thead>
+            <tbody>
+              {scientificRows.map(item => {
+                const ac = acwrLabel(item.acwr);
+                return (
+                  <tr key={`sci-${item.player.id}`}>
+                    <td className="sr-td-name">{item.player.name}</td>
+                    <td className="sr-td-pos">{item.player.position}</td>
+                    <td style={{ textAlign:'center', fontWeight:900, color: item.score >= 85 ? '#065f46' : item.score >= 70 ? '#713f12' : '#7f1d1d', background: item.score >= 85 ? '#d1fae5' : item.score >= 70 ? '#fef9c3' : '#fee2e2' }}>{Math.round(item.score)}%</td>
+                    <td style={{ textAlign:'center', fontWeight:900 }}>{item.todayWell ? item.todayWell.toFixed(1) : '—'}</td>
+                    <td style={{ textAlign:'center', fontWeight:900, color: item.wellnessDelta <= -1 ? C.red : item.wellnessDelta <= -0.5 ? C.amber : C.green }}>{item.wellnessBaseline ? `${item.wellnessDelta >= 0 ? '+' : ''}${item.wellnessDelta.toFixed(1)}` : 's/d'}</td>
+                    <td style={{ textAlign:'center', fontWeight:900 }}>{Math.round(item.loadToday)}</td>
+                    <td style={{ textAlign:'center', fontWeight:900 }}>{Math.round(item.load7)}</td>
+                    <td style={{ textAlign:'center', fontWeight:900, color: ac.tone === 'red' ? C.red : ac.tone === 'yellow' ? C.amber : C.green }}>{ac.label}</td>
+                    <td style={{ fontWeight:900 }}>{item.decision.label} · {item.decision.pct}</td>
+                    <td style={{ color:C.muted }}>{item.reasons[0] ?? positionFocus(item.player.position)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="sr-insight sr-insight-neutral" style={{ marginTop: 8 }}>
+            Lectura científica: la recomendación no usa un umbral único para todo el plantel; compara cada jugador contra su propia línea base de 28 días, su relación aguda/crónica, su posición, el RPE de la sesión, el estado médico y el wellness del día. La decisión final debe confirmarse con observación de campo y criterio médico/deportivo.
+          </div>
+        </section>
+      )}
+
+      {priorityRows.length > 0 && (
+        <section className="sr-section">
+          <Sec eyebrow="Decisiones" title="Prioridades individuales para el cuerpo técnico"
+            sub="Acciones sugeridas para convertir el informe en ajustes concretos de carga." />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {priorityRows.map(item => (
+              <div key={`prio-${item.player.id}`} className={`sr-alert ${item.decision.tone === 'red' ? 'sr-alert-red' : item.decision.tone === 'yellow' ? 'sr-alert-amber' : 'sr-alert-blue'}`}>
+                <strong>{item.player.name} · {item.decision.label} ({item.decision.pct})</strong><br />
+                {item.decision.text}<br />
+                <span style={{ color: C.muted }}>Base wellness {item.wellnessBaseline ? item.wellnessBaseline.toFixed(1) : 's/d'} · hoy {item.todayWell ? item.todayWell.toFixed(1) : 's/d'} · 7d {Math.round(item.load7)} UA · {positionFocus(item.player.position)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="sr-section">
+        <Sec eyebrow="Marco de interpretación" title="Cómo leer la carga de esta sesión" />
+        <div className="sr-insight sr-insight-green"><strong>Contexto del día:</strong> {microcycleContext(sessionType)}</div>
+        <div className="sr-insight sr-insight-neutral" style={{ marginTop: 8 }}>
+          <strong>Volumen:</strong> {gps ? `${formatPdfNumber(totalDist)} m totales y ${formatPdfNumber(avgMMin, 1)} m/min.` : `${Math.round(totalLoad)} UA internas.`} <strong> Intensidad:</strong> RPE {avgRpe.toFixed(1)} y {gps ? `velocidad máxima ${formatPdfNumber(maxVel, 1)} km/h.` : `tiempo medio ${Math.round(avgMin)} min.`} <strong> Neuromuscular:</strong> {gps ? `${Math.round(avgAcc)} ACC, ${Math.round(avgDcc)} DCC y ${formatPdfNumber(totalSpr)} sprints.` : 'sin GPS; interpretar con RPE, minutos y estado muscular.'}
+        </div>
+      </section>
 
       {/* ══ ANÁLISIS + ALERTAS ════════════════════════════════════════════════ */}
       <section className="sr-section">
