@@ -19,6 +19,52 @@ export type DominantFoot = 'Derecha' | 'Izquierda' | 'Ambidiestro';
 export type CompetitiveRole = 'Titular habitual' | 'Rotación' | 'Suplente' | 'Proyección' | 'Retorno a competencia';
 export type LoadTolerance = 'Alta' | 'Media' | 'Baja' | 'En construcción';
 
+export type StrengthSessionType = 'Concéntrica' | 'Excéntrica' | 'Reactiva' | 'Hipertrofia recuperación';
+export type StrengthGroup = 'Todo el plantel' | 'Titulares' | 'Suplentes' | 'No convocados' | 'Retorno/readaptación';
+export type StrengthZone = 'Tren inferior' | 'Isquios' | 'Aductor' | 'Cuádriceps' | 'Glúteo' | 'Gemelo/Sóleo' | 'Tobillo/Aquiles' | 'Core/Lumbar' | 'Tren superior';
+export type StrengthCompletion = 'Completa' | 'Parcial' | 'No completó';
+
+export interface StrengthPlayerAdjustment {
+  playerId: string;
+  note: string;
+  expectedRpe?: number;
+  restriction?: string;
+}
+
+export interface StrengthPlayerResponse {
+  id: string;
+  sessionId: string;
+  playerId: string;
+  rpe: number;
+  completed: StrengthCompletion;
+  pain: boolean;
+  painRegion?: string;
+  painIntensity?: number;
+  painType?: 'Fatiga' | 'Molestia' | 'Dolor';
+  createdAt: string;
+}
+
+export interface StrengthSession {
+  id: string;
+  date: string;
+  category?: ClubCategory;
+  group: StrengthGroup;
+  type: StrengthSessionType;
+  zone: StrengthZone;
+  duration: number;
+  expectedRpe: number;
+  objective?: string;
+  restrictions?: string;
+  playerIds: string[];
+  excludedPlayerIds?: string[];
+  adjustments?: StrengthPlayerAdjustment[];
+  responses?: StrengthPlayerResponse[];
+  createdBy?: string;
+  createdAt: string;
+  status?: 'Planificada' | 'En respuestas' | 'Cerrada';
+}
+
+
 export interface CompetitionLineupSlot {
   id: string;
   label: string;
@@ -306,6 +352,7 @@ export interface AppData {
   competitionMatchSummaries: CompetitionMatchSummary[];
   trainingSessionSummaries: TrainingSessionSummary[];
   microcycles: Microcycle[];
+  strengthSessions: StrengthSession[];
 }
 
 export interface GlobalFilters {

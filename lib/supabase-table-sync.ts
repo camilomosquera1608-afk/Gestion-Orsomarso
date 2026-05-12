@@ -15,6 +15,7 @@ import type {
   NutritionRecord,
   Player,
   TrainingSessionSummary,
+  StrengthSession,
 } from "@/lib/types";
 import { supportsGps } from "@/lib/report-utils";
 
@@ -250,6 +251,19 @@ export const fetchSupabaseTablesAppData = async (
       fmsRes,
     ]) {
       if (result.error) throw result.error;
+    }
+
+
+    let strengthRows: DbRow[] = [];
+    try {
+      const strengthRes = await supabase
+        .from("strength_sessions")
+        .select("*")
+        .order("date", { ascending: false });
+      if (!strengthRes.error) strengthRows = (strengthRes.data ?? []) as DbRow[];
+    } catch {
+      // Tabla opcional. Si aún no existe, el resto de la app sigue funcionando en cache local.
+      strengthRows = [];
     }
 
     const matchUuidToLegacy = Object.fromEntries(
@@ -623,6 +637,26 @@ export const fetchSupabaseTablesAppData = async (
       };
     });
 
+    const strengthSessions: StrengthSession[] = strengthRows.map((row) => ({
+      id: String(row.legacy_id ?? row.id),
+      date: String(row.date ?? ''),
+      category: category(row.category),
+      group: String(row.group_name ?? 'Todo el plantel') as StrengthSession['group'],
+      type: String(row.strength_type ?? 'Concéntrica') as StrengthSession['type'],
+      zone: String(row.zone ?? 'Tren inferior') as StrengthSession['zone'],
+      duration: num(row.duration_min, 0),
+      expectedRpe: num(row.expected_rpe, 0),
+      objective: text(row.objective),
+      restrictions: text(row.restrictions),
+      playerIds: parseJsonArray<string>(row.player_ids),
+      excludedPlayerIds: parseJsonArray<string>(row.excluded_player_ids),
+      adjustments: parseJsonArray(row.adjustments),
+      responses: parseJsonArray(row.responses),
+      createdBy: text(row.created_by),
+      createdAt: text(row.created_at, new Date().toISOString()),
+      status: (text(row.status, 'Planificada') || 'Planificada') as StrengthSession['status'],
+    }));
+
     const nutritionRecords: NutritionRecord[] = (
       (nutritionRes.data ?? []) as DbRow[]
     ).map((row) => ({
@@ -699,6 +733,7 @@ export const fetchSupabaseTablesAppData = async (
         internalLoads: mergedInternalLoads,
         externalLoads,
         trainingSessionSummaries,
+        strengthSessions,
         competitionMatchSummaries,
         competitionRecords,
         nutritionRecords,
@@ -1479,6 +1514,35 @@ export const saveSupabaseTablesAppData = async (
         })),
     );
 
+
+
+    try {
+      await upsertRows(
+        supabase,
+        "strength_sessions",
+        (data.strengthSessions ?? []).map((record) => ({
+          legacy_id: record.id,
+          date: isoDate(record.date),
+          category: category(record.category),
+          group_name: record.group,
+          strength_type: record.type,
+          zone: record.zone,
+          duration_min: record.duration ?? null,
+          expected_rpe: record.expectedRpe ?? null,
+          objective: record.objective ?? null,
+          restrictions: record.restrictions ?? null,
+          player_ids: JSON.stringify(record.playerIds ?? []),
+          excluded_player_ids: JSON.stringify(record.excludedPlayerIds ?? []),
+          adjustments: JSON.stringify(record.adjustments ?? []),
+          responses: JSON.stringify(record.responses ?? []),
+          created_by: record.createdBy ?? null,
+          created_at: record.createdAt ?? new Date().toISOString(),
+          status: record.status ?? 'Planificada',
+        })),
+      );
+    } catch (error) {
+      console.warn('[Supabase] strength_sessions no disponible. Ejecuta SUPABASE_V112_STRENGTH_SESSIONS.sql para sincronizar fuerza.', error);
+    }
     return { ok: true };
   } catch (error) {
     return {

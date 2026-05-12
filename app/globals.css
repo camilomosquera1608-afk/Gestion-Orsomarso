@@ -7003,3 +7003,17 @@ img[loading="lazy"] { background: var(--line-soft); }
   line-height: 1.35;
 }
 .compact-list li::marker { color: #1557d6; }
+
+/* Fuerza: planificación + respuesta post gimnasio */
+.fuerza-page .span-2 { grid-column: span 2; }
+.fuerza-page .inset-card { background: rgba(248,250,252,.9); border: 1px solid var(--border, #e2e8f0); margin-top: 12px; }
+.fuerza-page .stack-list { display: grid; gap: 10px; margin-bottom: 12px; }
+.fuerza-page .list-card { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; padding: 12px; border-radius: 16px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; }
+.fuerza-page .list-card.selected { border-color: #1557d6; box-shadow: 0 0 0 3px rgba(21,87,214,.10); }
+.fuerza-page .tag-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.fuerza-page .tag { display: inline-flex; align-items: center; border-radius: 999px; background: #eef2ff; color: #1e3a8a; font-size: 12px; font-weight: 800; padding: 6px 10px; }
+.fuerza-page .inline-check { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; font-weight: 700; }
+.fuerza-page .input.small, .fuerza-page .select.small { min-width: 72px; max-width: 110px; padding: 7px 8px; }
+.fuerza-page .btn.tiny { min-height: 30px; padding: 5px 10px; font-size: 12px; }
+.fuerza-page .danger-row { border-left: 4px solid #dc2626; padding-left: 10px; }
+@media (max-width: 760px) { .fuerza-page .span-2 { grid-column: span 1; } }

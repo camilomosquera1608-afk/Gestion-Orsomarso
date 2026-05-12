@@ -88,7 +88,8 @@ const recordsCount = (payload: Partial<AppData> | null | undefined) =>
   asArray(payload?.fmsRecords).length +
   asArray(payload?.competitionRecords).length +
   asArray(payload?.competitionMatchSummaries).length +
-  asArray(payload?.trainingSessionSummaries).length;
+  asArray(payload?.trainingSessionSummaries).length +
+  asArray(payload?.strengthSessions).length;
 
 const makeBackup = (payload: Partial<AppData>, label: string, kind: LocalBackupKind): LocalBackup => {
   // Strip derived fields from backup too — saves significant space
@@ -210,6 +211,7 @@ const compactForLocal = (data: AppData): Partial<AppData> => {
     players: data.players,
     microcycles: data.microcycles,
     trainingSessionSummaries: data.trainingSessionSummaries,
+    strengthSessions: data.strengthSessions,
     competitionMatchSummaries: data.competitionMatchSummaries,
     competitionRecords: data.competitionRecords
       .map(r => stripRecord(r as unknown as Record<string, unknown>) as unknown as typeof r),

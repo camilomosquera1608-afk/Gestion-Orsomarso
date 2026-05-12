@@ -235,6 +235,13 @@ export const filterAppDataForSession = (data: AppData, session: StaffSession): A
     competitionMatchSummaries: matches,
     competitionRecords: byPlayerCategory(data.competitionRecords, playerCategoryById, session).filter((item) => allowedPlayerIds.has(item.playerId) && (!item.matchId || allowedMatchIds.has(item.matchId))),
     trainingSessionSummaries: byCategory(data.trainingSessionSummaries, session),
+    strengthSessions: byCategory(data.strengthSessions ?? [], session).map((strength) => ({
+      ...strength,
+      playerIds: strength.playerIds.filter((id) => allowedPlayerIds.has(id)),
+      excludedPlayerIds: strength.excludedPlayerIds?.filter((id) => allowedPlayerIds.has(id)),
+      adjustments: strength.adjustments?.filter((item) => allowedPlayerIds.has(item.playerId)),
+      responses: strength.responses?.filter((item) => allowedPlayerIds.has(item.playerId)),
+    })),
     microcycles: data.microcycles,
   };
 };

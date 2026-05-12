@@ -11,7 +11,7 @@ import { canDeletePlayer, canWrite, filterAppDataForSession } from '@/lib/access
 import { findMicrocycleByDate, getMicrocyclesForCategory, microcycleBelongsToCategory } from '@/lib/utils';
 import { findOverlappingMicrocycle } from '@/lib/operational-validation';
 import { normalizeAppData } from '@/lib/performance-helpers';
-import { AppData, CMJRecord, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary } from '@/lib/types';
+import { AppData, CMJRecord, CompetitionMatchSummary, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, GlobalFilters, Microcycle, NeuromuscularRecord, NutritionRecord, Player, TrainingSessionSummary, StrengthSession, StrengthPlayerResponse } from '@/lib/types';
 
 interface AppContextValue {
   data: AppData;
@@ -51,6 +51,9 @@ interface AppContextValue {
   upsertTrainingSessionSummary: (record: TrainingSessionSummary) => void;
   saveTrainingSessionBundle: (record: TrainingSessionSummary, externalLoads: DailyExternalLoadRecord[], internalLoads: DailyInternalLoadRecord[]) => void;
   deleteTrainingSessionSummary: (sessionId: string) => void;
+  upsertStrengthSession: (record: StrengthSession) => void;
+  updateStrengthResponse: (sessionId: string, response: StrengthPlayerResponse) => void;
+  deleteStrengthSession: (sessionId: string) => void;
   updateMicrocycle: (record: Microcycle) => void;
   deleteMicrocycle: (microcycleId: string) => void;
   backendMode: 'supabase' | 'local';
@@ -175,6 +178,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     // Merge wellness
     const remoteWellIds = new Set(remoteHydrated.wellness.map((r: { id: string }) => r.id));
     const localOnlyWell = current.wellness.filter((r) => !remoteWellIds.has(r.id));
+    const remoteStrengthIds = new Set((remoteHydrated.strengthSessions ?? []).map((r: { id: string }) => r.id));
+    const localOnlyStrength = (current.strengthSessions ?? []).filter((r) => !remoteStrengthIds.has(r.id));
 
     const next: AppData = {
       ...remoteHydrated,
@@ -186,6 +191,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       competitionRecords: [...remoteHydrated.competitionRecords, ...localOnlyComp],
       competitionMatchSummaries: [...remoteHydrated.competitionMatchSummaries, ...localOnlyMatches],
       wellness: [...remoteHydrated.wellness, ...localOnlyWell],
+      strengthSessions: [...(remoteHydrated.strengthSessions ?? []), ...localOnlyStrength],
       // Players: use remote if it has data, otherwise keep local
       players: remoteHydrated.players.length > 0 ? remoteHydrated.players : current.players,
     };
@@ -374,6 +380,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               return [...remoteData.competitionMatchSummaries, ...localData.competitionMatchSummaries.filter((r) => !remoteIds.has(r.id) && !remoteKeys.has(key(r)))];
             })(),
             wellness: mergeArrays(remoteData.wellness, localData?.wellness),
+            strengthSessions: mergeArrays(remoteData.strengthSessions ?? [], localData?.strengthSessions),
             // Players: remote is source of truth if it has data
             players: remoteData.players.length > 0 ? remoteData.players : (localData?.players ?? remoteData.players),
           };
@@ -491,6 +498,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       'neuromuscular_records',
       'fms_records',
       'medical_notes',
+      'strength_sessions',
     ];
 
     let channel = supabaseClient.channel('orsomarso-v99-live-sync');
@@ -747,6 +755,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         neuromuscularRecords: prev.neuromuscularRecords.filter((x) => x.playerId !== playerId),
         fmsRecords: prev.fmsRecords.filter((x) => x.playerId !== playerId),
         competitionRecords: prev.competitionRecords.filter((x) => x.playerId !== playerId),
+        strengthSessions: (prev.strengthSessions ?? []).map((session) => ({ ...session, playerIds: session.playerIds.filter((id) => id !== playerId), excludedPlayerIds: session.excludedPlayerIds?.filter((id) => id !== playerId), adjustments: session.adjustments?.filter((item) => item.playerId !== playerId), responses: session.responses?.filter((item) => item.playerId !== playerId) })),
       }));
       // FIX #4: Borrar también los registros hijo del jugador en Supabase.
       // Antes solo se borraba el jugador, dejando registros huérfanos en la BD.
@@ -981,6 +990,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         current.internalLoads.filter((item) => matchesSession(item)).forEach((item) => { void deleteRemoteLegacy('daily_internal_loads', item.id); });
       }
     },
+    upsertStrengthSession: (record) => applyMutation((prev) => ({
+      ...prev,
+      strengthSessions: [record, ...(prev.strengthSessions ?? []).filter((item) => item.id !== record.id)],
+    })),
+    updateStrengthResponse: (sessionId, response) => applyMutation((prev) => ({
+      ...prev,
+      strengthSessions: (prev.strengthSessions ?? []).map((session) => session.id === sessionId ? {
+        ...session,
+        status: 'En respuestas',
+        responses: [response, ...(session.responses ?? []).filter((item) => item.playerId !== response.playerId)],
+      } : session),
+    })),
+    deleteStrengthSession: (sessionId) => applyMutation((prev) => ({
+      ...prev,
+      strengthSessions: (prev.strengthSessions ?? []).filter((item) => item.id !== sessionId),
+    })),
     updateMicrocycle: (record) => {
       const normalizedRecord = { ...record, category: record.category ?? (filters.category === 'all' ? 'Sub20' : filters.category as any) };
       applyMutation((prev) => {

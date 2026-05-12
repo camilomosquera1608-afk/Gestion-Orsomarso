@@ -14,6 +14,7 @@ import { AppData } from './types';
 
 export const initialData: AppData = {
   trainingSessionSummaries: [],
+  strengthSessions: [],
   microcycles: [
     { id: 'mc-52', name: 'Microciclo 52', startDate: '', endDate: '' },
     { id: 'mc-51', name: 'Microciclo 51', startDate: '', endDate: '' },

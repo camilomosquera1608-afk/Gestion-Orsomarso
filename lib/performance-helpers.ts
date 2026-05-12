@@ -14,6 +14,7 @@ import {
   NutritionRecord,
   Player,
   TrainingSessionSummary,
+  StrengthSession,
 } from './types';
 
 export const asArray = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
@@ -188,6 +189,15 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
     trainingSessionSummaries: pickArray<TrainingSessionSummary, 'trainingSessionSummaries'>(stored, fallback, 'trainingSessionSummaries').map((record) => ({
       ...record,
       microcycleId: record.microcycleId ?? microcycleFor(record.date, record.category),
+    })),
+    strengthSessions: pickArray<StrengthSession, 'strengthSessions'>(stored, fallback, 'strengthSessions').map((record) => ({
+      ...record,
+      playerIds: Array.isArray(record.playerIds) ? record.playerIds : [],
+      excludedPlayerIds: Array.isArray(record.excludedPlayerIds) ? record.excludedPlayerIds : [],
+      adjustments: Array.isArray(record.adjustments) ? record.adjustments : [],
+      responses: Array.isArray(record.responses) ? record.responses : [],
+      status: record.status ?? 'Planificada',
+      category: record.category ?? 'Sub20',
     })),
     microcycles,
   };
