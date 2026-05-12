@@ -93,6 +93,30 @@ const loadDecision = (score: number, acwr: number, wellDelta: number, status: Pl
   return { label: 'Carga completa', pct: '90-100%', tone: 'green', text: 'Disponible para la carga planificada si la evaluación de campo es normal.' };
 };
 
+const isSpeedRole = (position: string) => ['Extremo', 'Lateral', 'Delantero'].includes(position);
+const loadComponentFocus = (r: Row) => {
+  const parts: string[] = [];
+  if (r.sprints >= 4) parts.push('sprint');
+  if (r.dcc >= 55) parts.push('desaceleraciones');
+  if (r.acc >= 65) parts.push('aceleraciones');
+  if (r.rhie >= 15) parts.push('RHIE/intermitencia');
+  return parts.length ? parts.join(', ') : 'el componente dominante de su posición';
+};
+const concreteNextAction = (item: { row: Row; player: Player; decision: { label: string; pct: string }; reasons: string[]; score: number }, invalidGps = false) => {
+  const r = item.row;
+  if (invalidGps) return 'Validar GPS antes de usar métricas externas; decidir con RPE, wellness y criterio del staff.';
+  if (item.decision.label.includes('Evaluación')) return 'No iniciar campo sin valoración; priorizar fisioterapia o sesión modificada.';
+  if (item.decision.label === 'Trabajo modificado') return `Reducir volumen e intensidad; evitar ${loadComponentFocus(r)} y controlar respuesta post-sesión.`;
+  if (item.decision.label === 'Carga controlada') return `Participación parcial; limitar ${loadComponentFocus(r)} y revisar RPE/wellness antes de aumentar carga.`;
+  if (item.decision.label === 'Control preventivo') return `Mantener carga planificada con seguimiento; no repetir picos de ${loadComponentFocus(r)} si persiste fatiga.`;
+  return 'Puede realizar la carga planificada si no hay dolor ni restricción de staff.';
+};
+const stimulationAction = (r: Row) => {
+  if (r.min < 60) return 'Considerar complemento de minutos si no hay restricción.';
+  if (isSpeedRole(r.player.position) && r.sprints === 0) return 'Considerar exposición progresiva a alta velocidad/sprint si el objetivo lo permite.';
+  return 'Considerar complemento individual para acercarlo a la demanda del grupo.';
+};
+
 // Shorten name but keep enough to be identifiable
 const fmt = (name: string) => {
   const p = getPdfSafeText(name, '').split(' ').filter(Boolean);
@@ -300,11 +324,38 @@ export function SessionReportTemplate({
     ].filter(Boolean);
     return { row: r, player: p, todayWell, wellnessBaseline, wellnessDelta, z, loadToday, load7, chronic, acwr, mmin, neuromuscular, score, decision, reasons };
   }).sort((a, b) => a.score - b.score);
+  const invalidGpsIds = new Set(invalidGpsRows.map(r => r.player.id));
   const priorityRows = scientificRows.filter(r => r.score < 70 || r.reasons.length > 0).slice(0, 6);
   const avgAcwr = meanClean(scientificRows.map(r => r.acwr));
   const avgNeuromuscular = meanClean(scientificRows.map(r => r.neuromuscular));
   const lowReadinessCount = scientificRows.filter(r => r.score < 70).length;
   const fullLoadCount = scientificRows.filter(r => r.decision.label === 'Carga completa').length;
+  const neuromuscularRows = gps ? [...reg]
+    .filter(r => !invalidGpsIds.has(r.player.id))
+    .map(r => ({ row: r, value: r.acc + r.dcc + r.sprints + r.rhie, focus: loadComponentFocus(r) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8) : [];
+  const nextSessionRows = scientificRows
+    .filter(item => item.decision.label !== 'Carga completa' || item.reasons.length > 0 || invalidGpsIds.has(item.player.id))
+    .slice(0, 8);
+  const avgDistPlayer = gps ? totalDist / Math.max(1, reg.length) : 0;
+  const avgPlayerLoad = gps ? totalPL / Math.max(1, reg.length) : 0;
+  const subStimRows = gps ? reg
+    .filter(r => !invalidGpsIds.has(r.player.id))
+    .map(r => {
+      const well = wellAvg(wellMap.get(r.player.id));
+      const reasons = [
+        safeN(r.totalDistance) > 0 && avgDistPlayer > 0 && safeN(r.totalDistance) < avgDistPlayer * 0.8 ? `distancia ${Math.round((safeN(r.totalDistance) / Math.max(1, avgDistPlayer)) * 100)}% del promedio` : '',
+        safeN(r.playerLoad) > 0 && avgPlayerLoad > 0 && safeN(r.playerLoad) < avgPlayerLoad * 0.8 ? `Player Load bajo (${Math.round((safeN(r.playerLoad) / Math.max(1, avgPlayerLoad)) * 100)}% del promedio)` : '',
+        isSpeedRole(r.player.position) && r.sprints === 0 && safeN(r.maxVelocity) < maxVel * 0.88 ? 'sin exposición relevante a sprint/velocidad' : '',
+        r.min > 0 && r.min < avgMin * 0.85 ? `menos minutos que el grupo (${Math.round(r.min)} min)` : '',
+      ].filter(Boolean);
+      const readyForExtra = r.rpe < 8 && (!well || well >= 3.2) && r.player.status === 'Disponible';
+      return { row: r, player: r.player, reasons, readyForExtra };
+    })
+    .filter(item => item.reasons.length > 0)
+    .sort((a, b) => (b.readyForExtra ? 1 : 0) - (a.readyForExtra ? 1 : 0) || a.row.rpe - b.row.rpe)
+    .slice(0, 8) : [];
 
   return (
     <article className={`pdf-report-document session-report-document ${className}`} style={{ fontFamily: "'Inter','Helvetica Neue',sans-serif" }}>
@@ -520,6 +571,35 @@ export function SessionReportTemplate({
         </section>
       )}
 
+      {gps && neuromuscularRows.length > 0 && (
+        <section className="sr-section">
+          <Sec eyebrow="Carga neuromuscular" title="Ranking de demanda neuromuscular"
+            sub="Ordena a los jugadores por ACC + DCC + sprints + RHIE para identificar quién concentró más acciones de alta exigencia." />
+          <table className="sr-heat-table" style={{ fontSize: 9.5 }}>
+            <thead><tr>
+              <th className="sr-th-name">Jugador</th><th>Pos.</th><th>ACC</th><th>DCC</th><th>Sprints</th><th>RHIE</th><th>Total neuro</th><th>Lectura</th>
+            </tr></thead>
+            <tbody>
+              {neuromuscularRows.map(item => (
+                <tr key={`neuro-${item.row.player.id}`}>
+                  <td className="sr-td-name">{item.row.player.name}</td>
+                  <td className="sr-td-pos">{item.row.player.position}</td>
+                  <td style={{ textAlign:'center', fontWeight:900 }}>{item.row.acc}</td>
+                  <td style={{ textAlign:'center', fontWeight:900 }}>{item.row.dcc}</td>
+                  <td style={{ textAlign:'center', fontWeight:900 }}>{item.row.sprints}</td>
+                  <td style={{ textAlign:'center', fontWeight:900 }}>{item.row.rhie}</td>
+                  <td style={{ textAlign:'center', fontWeight:900, color: item.value >= avgNeuromuscular * 1.25 ? C.red : item.value >= avgNeuromuscular ? C.amber : C.green }}>{item.value}</td>
+                  <td style={{ color:C.muted }}>Alta vigilancia sobre {item.focus}; evitar repetir el mismo pico si el RPE o wellness quedan comprometidos.</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="sr-insight sr-insight-neutral" style={{ marginTop: 8 }}>
+            Uso práctico: esta tabla no reemplaza la decisión médica; sirve para definir qué componente conviene descargar o no repetir en la siguiente sesión.
+          </div>
+        </section>
+      )}
+
       {/* ══ SECCIÓN YOUTH (U17/U15): CARGA + WELLNESS ═══════════════════════ */}
       {!gps && reg.length > 0 && (
         <section className="sr-section">
@@ -642,6 +722,53 @@ export function SessionReportTemplate({
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {nextSessionRows.length > 0 && (
+        <section className="sr-section">
+          <Sec eyebrow="Próxima sesión" title="Recomendación concreta por jugador"
+            sub="Convierte la decisión porcentual en restricciones y focos prácticos para la siguiente sesión." />
+          <table className="sr-heat-table" style={{ fontSize: 9.5 }}>
+            <thead><tr>
+              <th className="sr-th-name">Jugador</th><th>Decisión</th><th>Motivo</th><th>Acción concreta</th>
+            </tr></thead>
+            <tbody>
+              {nextSessionRows.map(item => (
+                <tr key={`next-${item.player.id}`}>
+                  <td className="sr-td-name">{item.player.name}</td>
+                  <td style={{ fontWeight:900 }}>{item.decision.label} · {item.decision.pct}</td>
+                  <td style={{ color:C.muted }}>{item.reasons.slice(0, 2).join(' · ') || positionFocus(item.player.position)}</td>
+                  <td style={{ color:C.text }}>{concreteNextAction(item, invalidGpsIds.has(item.player.id))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {subStimRows.length > 0 && (
+        <section className="sr-section">
+          <Sec eyebrow="Subestimulación" title="Jugadores con posible necesidad de complemento"
+            sub="Detecta baja exposición relativa dentro de la sesión. Solo debe convertirse en compensatorio si no hay dolor, restricción o fatiga elevada." />
+          <table className="sr-heat-table" style={{ fontSize: 9.5 }}>
+            <thead><tr>
+              <th className="sr-th-name">Jugador</th><th>Pos.</th><th>RPE</th><th>Señal</th><th>Recomendación</th>
+            </tr></thead>
+            <tbody>
+              {subStimRows.map(item => (
+                <tr key={`stim-${item.player.id}`}>
+                  <td className="sr-td-name">{item.player.name}</td>
+                  <td className="sr-td-pos">{item.player.position}</td>
+                  <td style={{ textAlign:'center', fontWeight:900 }}>{item.row.rpe || '—'}</td>
+                  <td style={{ color:C.muted }}>{item.reasons.join(' · ')}</td>
+                  <td style={{ color: item.readyForExtra ? C.green : C.amber, fontWeight:800 }}>
+                    {item.readyForExtra ? stimulationAction(item.row) : 'No compensar automáticamente; revisar wellness, RPE o disponibilidad primero.'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       )}
 
