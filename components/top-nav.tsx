@@ -5,9 +5,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Activity, BarChart3, Bell, BedDouble, Briefcase, ChevronDown,
+  Activity, BarChart3, Bell, Briefcase, ChevronDown, ClipboardPlus,
   Dumbbell, FileText, Gauge, HeartPulse, Medal,
-  Settings, ShieldCheck, TimerReset, Trophy, TrendingUp,
+  Settings, ShieldCheck, TimerReset, Trophy, TrendingUp, Utensils,
   UserRoundPlus, Users, LogOut, Menu, Home, type LucideIcon } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import { hasAdministrationAccess } from '@/lib/access-control';
@@ -36,7 +36,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/microciclo', label: 'Microciclo', icon: Activity },
         { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
         { href: '/competencia', label: 'Competencia', icon: Trophy },
-        { href: '/casa-hogar', label: 'Casa Hogar', icon: BedDouble },
+        { href: '/alimentacion', label: 'Alimentación', icon: Utensils },
       ] },
     {
       label: 'Rendimiento',
@@ -45,6 +45,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/carga', label: 'Centro de carga', icon: Dumbbell },
         { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
         { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
+        { href: '/dolor-lesiones', label: 'Dolor y lesiones', icon: ClipboardPlus },
         { href: '/riesgo', label: 'Riesgo', icon: TrendingUp },
         { href: '/alertas', label: 'Alertas', icon: Bell },
       ] },
