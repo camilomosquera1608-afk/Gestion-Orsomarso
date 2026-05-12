@@ -194,6 +194,7 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
       ...record,
       playerIds: Array.isArray(record.playerIds) ? record.playerIds : [],
       excludedPlayerIds: Array.isArray(record.excludedPlayerIds) ? record.excludedPlayerIds : [],
+      exercises: Array.isArray(record.exercises) ? record.exercises : [],
       adjustments: Array.isArray(record.adjustments) ? record.adjustments : [],
       responses: Array.isArray(record.responses) ? record.responses : [],
       status: record.status ?? 'Planificada',

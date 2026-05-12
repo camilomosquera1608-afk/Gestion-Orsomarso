@@ -1,4 +1,4 @@
-import type { Player, StrengthGroup, StrengthSession, StrengthSessionType, StrengthZone } from './types';
+import type { Player, StrengthExerciseDesign, StrengthGroup, StrengthSession, StrengthSessionType, StrengthZone } from './types';
 
 export const STRENGTH_TYPES: StrengthSessionType[] = ['Concéntrica', 'Excéntrica', 'Reactiva', 'Hipertrofia recuperación'];
 export const STRENGTH_GROUPS: StrengthGroup[] = ['Todo el plantel', 'Titulares', 'Suplentes', 'No convocados', 'Retorno/readaptación'];
@@ -17,6 +17,32 @@ export const strengthFactor = (type: StrengthSessionType) => {
 
 export const strengthLoad = (duration: number, rpe: number, type: StrengthSessionType) =>
   Math.round(Math.max(0, Number(duration) || 0) * Math.max(0, Number(rpe) || 0) * strengthFactor(type));
+
+
+export const strengthExerciseId = () => `strength-exercise-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+export const STRENGTH_EXERCISE_PRESETS: Record<StrengthSessionType, Array<Omit<StrengthExerciseDesign, 'id'>>> = {
+  'Concéntrica': [
+    { name: 'Sentadilla / prensa', zone: 'Cadena anterior', sets: 4, reps: '5-6', load: 'RPE objetivo', note: 'Producción de fuerza controlada' },
+    { name: 'Hip thrust', zone: 'Cadena posterior', sets: 3, reps: '6-8', load: 'RPE objetivo', note: 'Extensión de cadera' },
+    { name: 'Core antirotación', zone: 'Zona lumbo-pélvica', sets: 3, reps: '8-10', load: 'Controlado', note: 'Estabilidad' },
+  ],
+  'Excéntrica': [
+    { name: 'Nórdico / curl excéntrico', zone: 'Cadena posterior', sets: 3, reps: '4-6', load: 'Controlado', note: 'Isquios' },
+    { name: 'Copenhagen', zone: 'Cadena posterior', sets: 3, reps: '6-8', load: 'Controlado', note: 'Aductor' },
+    { name: 'Split squat tempo', zone: 'Cadena anterior', sets: 3, reps: '6', load: '3-4 s bajada', note: 'Cuádriceps' },
+  ],
+  'Reactiva': [
+    { name: 'Pogos / contactos rápidos', zone: 'Cadena posterior', sets: 3, reps: '10-15', load: 'Bajo', note: 'Tobillo y rigidez' },
+    { name: 'Saltos horizontales', zone: 'Cadena anterior', sets: 3, reps: '4-6', load: 'Calidad', note: 'Potencia y control' },
+    { name: 'Drop jump bajo', zone: 'Cadena anterior', sets: 3, reps: '4-5', load: 'Calidad', note: 'CEA' },
+  ],
+  'Hipertrofia recuperación': [
+    { name: 'Circuito tren inferior liviano', zone: 'Hipertrofia', sets: 2, reps: '10-12', load: 'Bajo-moderado', note: 'Recuperación activa' },
+    { name: 'Tren superior soporte', zone: 'Hipertrofia', sets: 3, reps: '8-12', load: 'Moderado', note: 'Mantenimiento' },
+    { name: 'Core / movilidad lumbo-pélvica', zone: 'Zona lumbo-pélvica', sets: 2, reps: '8-10', load: 'Controlado', note: 'Recuperación y control' },
+  ],
+};
 
 export const strengthId = () => `strength-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 export const strengthResponseId = () => `strength-response-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

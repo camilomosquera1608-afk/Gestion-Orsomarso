@@ -24,6 +24,16 @@ export type StrengthGroup = 'Todo el plantel' | 'Titulares' | 'Suplentes' | 'No 
 export type StrengthZone = 'Cadena posterior' | 'Cadena anterior' | 'Hipertrofia' | 'Zona lumbo-pélvica';
 export type StrengthCompletion = 'Completa' | 'Parcial' | 'No completó';
 
+export interface StrengthExerciseDesign {
+  id: string;
+  name: string;
+  zone?: StrengthZone;
+  sets?: number;
+  reps?: string;
+  load?: string;
+  note?: string;
+}
+
 export interface StrengthPlayerAdjustment {
   playerId: string;
   note: string;
@@ -57,6 +67,7 @@ export interface StrengthSession {
   restrictions?: string;
   playerIds: string[];
   excludedPlayerIds?: string[];
+  exercises?: StrengthExerciseDesign[];
   adjustments?: StrengthPlayerAdjustment[];
   responses?: StrengthPlayerResponse[];
   createdBy?: string;

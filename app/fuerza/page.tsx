@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Dumbbell, Save, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Dumbbell, Plus, Save, Trash2, Users } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
@@ -10,8 +10,8 @@ import { BodyMapSelector } from '@/components/body-map-selector';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import type { ClubCategory, Player, StrengthCompletion, StrengthGroup, StrengthPlayerAdjustment, StrengthPlayerResponse, StrengthSession, StrengthSessionType, StrengthZone } from '@/lib/types';
-import { getPlannedPlayerIds, groupPlayerHint, rpeDiffLabel, strengthDecision, strengthId, strengthLoad, strengthResponseId, STRENGTH_GROUPS, STRENGTH_TYPES, STRENGTH_ZONE_GROUPS } from '@/lib/strength';
+import type { ClubCategory, Player, StrengthCompletion, StrengthExerciseDesign, StrengthGroup, StrengthPlayerAdjustment, StrengthPlayerResponse, StrengthSession, StrengthSessionType, StrengthZone } from '@/lib/types';
+import { getPlannedPlayerIds, groupPlayerHint, rpeDiffLabel, strengthDecision, strengthExerciseId, strengthId, strengthLoad, strengthResponseId, STRENGTH_EXERCISE_PRESETS, STRENGTH_GROUPS, STRENGTH_TYPES, STRENGTH_ZONE_GROUPS } from '@/lib/strength';
 
 const categories: Array<ClubCategory | 'all'> = ['all', 'Sub20', 'Sub17', 'Sub15'];
 const todayInput = () => new Date().toISOString().slice(0, 10);
@@ -45,6 +45,8 @@ export default function FuerzaPage() {
   const [adjustRpe, setAdjustRpe] = useState('');
   const [adjustRestriction, setAdjustRestriction] = useState('');
   const [adjustments, setAdjustments] = useState<StrengthPlayerAdjustment[]>([]);
+  const [exerciseDraft, setExerciseDraft] = useState({ name: '', zone: 'Cadena posterior' as StrengthZone, sets: 3, reps: '', load: '', note: '' });
+  const [exercises, setExercises] = useState<StrengthExerciseDesign[]>([]);
   const [responsesDraft, setResponsesDraft] = useState<Record<string, Partial<StrengthPlayerResponse>>>({});
 
   const visiblePlayers = useMemo(() => data.players.filter((p) => category === 'all' || p.category === category).sort((a, b) => a.name.localeCompare(b.name)), [data.players, category]);
@@ -71,6 +73,7 @@ export default function FuerzaPage() {
       restrictions: form.restrictions,
       playerIds,
       excludedPlayerIds: [],
+      exercises,
       adjustments,
       responses: [],
       createdBy: staff.email ?? staff.displayName ?? 'Staff',
@@ -80,6 +83,7 @@ export default function FuerzaPage() {
     upsertStrengthSession(record);
     setSelectedSessionId(record.id);
     setAdjustments([]);
+    setExercises([]);
     showToast('Sesión de fuerza planificada.', 'green');
   };
 
@@ -87,6 +91,28 @@ export default function FuerzaPage() {
     if (!adjustPlayerId || (!adjustNote && !adjustRestriction && !adjustRpe)) return;
     setAdjustments((prev) => [{ playerId: adjustPlayerId, note: adjustNote, expectedRpe: adjustRpe ? Number(adjustRpe) : undefined, restriction: adjustRestriction }, ...prev.filter((a) => a.playerId !== adjustPlayerId)]);
     setAdjustPlayerId(''); setAdjustNote(''); setAdjustRpe(''); setAdjustRestriction('');
+  };
+
+
+
+  const addExercise = () => {
+    if (!exerciseDraft.name.trim()) return;
+    setExercises((prev) => [{
+      id: strengthExerciseId(),
+      name: exerciseDraft.name.trim(),
+      zone: exerciseDraft.zone,
+      sets: Number(exerciseDraft.sets) || undefined,
+      reps: exerciseDraft.reps.trim(),
+      load: exerciseDraft.load.trim(),
+      note: exerciseDraft.note.trim(),
+    }, ...prev]);
+    setExerciseDraft({ name: '', zone: exerciseDraft.zone, sets: 3, reps: '', load: '', note: '' });
+  };
+
+  const loadExercisePreset = () => {
+    const preset = STRENGTH_EXERCISE_PRESETS[form.type] ?? [];
+    setExercises(preset.map((item) => ({ ...item, id: strengthExerciseId() })));
+    showToast(`Plantilla ${form.type.toLowerCase()} cargada. Puedes editarla antes de guardar.`, 'green');
   };
 
   const saveResponse = (playerId: string) => {
@@ -160,6 +186,25 @@ export default function FuerzaPage() {
             <label>Objetivo<input className="input" value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })} placeholder="Ej. compensatorio suplentes, recuperación titulares" /></label>
             <label className="span-2">Restricciones<textarea className="textarea" value={form.restrictions} onChange={(e) => setForm({ ...form, restrictions: e.target.value })} placeholder="Ej. sin reactiva, sin excéntrico isquio, no carga unilateral alta" /></label>
           </div>
+          <div className="card inset-card">
+            <SectionHeader eyebrow="Diseño de sesión" title="Ejercicios planificados" subtitle="El PF puede dejar la sesión diseñada antes de entrar al gimnasio: ejercicios, series, reps, carga y observaciones." />
+            <div className="action-row">
+              <button className="btn secondary" onClick={loadExercisePreset}>Cargar plantilla {form.type}</button>
+              <span className="muted">{exercises.length} ejercicio(s) en el diseño</span>
+            </div>
+            <div className="grid form-grid">
+              <label className="span-2">Ejercicio<input className="input" value={exerciseDraft.name} onChange={(e) => setExerciseDraft({ ...exerciseDraft, name: e.target.value })} placeholder="Ej. nórdico, sentadilla, pogos, core antirotación" /></label>
+              <label>Zona<select className="select" value={exerciseDraft.zone} onChange={(e) => setExerciseDraft({ ...exerciseDraft, zone: e.target.value as StrengthZone })}>{STRENGTH_ZONE_GROUPS.flatMap((g) => g.options).map((z) => <option key={z}>{z}</option>)}</select></label>
+              <label>Series<input className="input" type="number" value={exerciseDraft.sets} onChange={(e) => setExerciseDraft({ ...exerciseDraft, sets: Number(e.target.value) })} /></label>
+              <label>Reps / tiempo<input className="input" value={exerciseDraft.reps} onChange={(e) => setExerciseDraft({ ...exerciseDraft, reps: e.target.value })} placeholder="Ej. 4-6, 30s" /></label>
+              <label>Carga<input className="input" value={exerciseDraft.load} onChange={(e) => setExerciseDraft({ ...exerciseDraft, load: e.target.value })} placeholder="Ej. 70%, RPE 6, bajo" /></label>
+              <label className="span-2">Nota<input className="input" value={exerciseDraft.note} onChange={(e) => setExerciseDraft({ ...exerciseDraft, note: e.target.value })} placeholder="Criterio técnico, restricción o foco de ejecución" /></label>
+            </div>
+            <button className="btn secondary" onClick={addExercise}><Plus size={16} /> Agregar ejercicio</button>
+            {exercises.length ? <div className="table-scroll"><table className="pro-table"><thead><tr><th>Ejercicio</th><th>Zona</th><th>Series</th><th>Reps</th><th>Carga</th><th>Nota</th><th></th></tr></thead><tbody>
+              {exercises.map((exercise) => <tr key={exercise.id}><td><strong>{exercise.name}</strong></td><td>{exercise.zone}</td><td>{exercise.sets ?? '—'}</td><td>{exercise.reps || '—'}</td><td>{exercise.load || '—'}</td><td>{exercise.note || '—'}</td><td><button className="btn tiny ghost" onClick={() => setExercises((prev) => prev.filter((item) => item.id !== exercise.id))}>Quitar</button></td></tr>)}
+            </tbody></table></div> : <div className="soft-alert">Aún no has agregado ejercicios. Puedes guardar solo la intención general o cargar una plantilla rápida.</div>}
+          </div>
           <div className="soft-alert"><Users size={16} /> Se incluirán {playersForGroup(form.group, visiblePlayers).length} jugadores visibles. Puedes agregar ajustes individuales antes de guardar.</div>
           <div className="card inset-card">
             <SectionHeader eyebrow="Individualización" title="Ajustes puntuales" subtitle="Opcional: excepciones dentro del grupo." />
@@ -183,7 +228,7 @@ export default function FuerzaPage() {
               const planned = getPlannedPlayerIds(s, visiblePlayers).length;
               const resp = s.responses?.length ?? 0;
               return <button key={s.id} className={`list-card ${selectedSession?.id === s.id ? 'selected' : ''}`} onClick={() => setSelectedSessionId(s.id)}>
-                <div><strong>{s.group}</strong><br /><small>{s.type} · {s.zone} · {s.duration} min · RPE esp. {s.expectedRpe}</small></div>
+                <div><strong>{s.group}</strong><br /><small>{s.type} · {s.zone} · {s.duration} min · RPE esp. {s.expectedRpe} · {(s.exercises ?? []).length} ej.</small></div>
                 <StatusBadge text={`${resp}/${planned}`} tone={resp >= planned && planned ? 'green' : 'amber'} />
               </button>;
             })}
@@ -199,6 +244,12 @@ export default function FuerzaPage() {
             title={`Respuesta rápida · ${selectedSession.group}`}
             subtitle={`Planificado: ${selectedSession.type} · ${selectedSession.zone} · ${selectedSession.duration} min · RPE esperado ${selectedSession.expectedRpe} · carga planificada ${plannedLoad} UA`}
           />
+          {(selectedSession.exercises ?? []).length ? <div className="card inset-card">
+            <SectionHeader eyebrow="Diseño ejecutado" title="Ejercicios planificados por el PF" subtitle="Referencia para que el staff compare lo planeado con la percepción post fuerza." />
+            <div className="table-scroll"><table className="pro-table"><thead><tr><th>Ejercicio</th><th>Zona</th><th>Series</th><th>Reps</th><th>Carga</th><th>Nota</th></tr></thead><tbody>
+              {(selectedSession.exercises ?? []).map((exercise) => <tr key={exercise.id}><td><strong>{exercise.name}</strong></td><td>{exercise.zone}</td><td>{exercise.sets ?? '—'}</td><td>{exercise.reps || '—'}</td><td>{exercise.load || '—'}</td><td>{exercise.note || '—'}</td></tr>)}
+            </tbody></table></div>
+          </div> : null}
           <div className="table-scroll"><table className="pro-table"><thead><tr><th>Jugador</th><th>RPE fuerza</th><th>Completó</th><th>Dolor</th><th>Dif.</th><th>Carga percibida</th><th>Decisión</th><th></th></tr></thead><tbody>
             {plannedIds.map((playerId) => {
               const existing = selectedSession.responses?.find((r) => r.playerId === playerId);

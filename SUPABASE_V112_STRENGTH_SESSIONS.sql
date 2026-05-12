@@ -15,6 +15,7 @@ create table if not exists public.strength_sessions (
   restrictions text,
   player_ids jsonb default '[]'::jsonb,
   excluded_player_ids jsonb default '[]'::jsonb,
+  exercises jsonb default '[]'::jsonb,
   adjustments jsonb default '[]'::jsonb,
   responses jsonb default '[]'::jsonb,
   created_by text,
@@ -45,3 +46,8 @@ drop trigger if exists trg_strength_sessions_updated_at on public.strength_sessi
 create trigger trg_strength_sessions_updated_at
 before update on public.strength_sessions
 for each row execute function public.set_strength_sessions_updated_at();
+
+
+-- Compatibilidad para proyectos que ya ejecutaron V112 antes de agregar diseño de ejercicios
+alter table public.strength_sessions
+  add column if not exists exercises jsonb default '[]'::jsonb;
