@@ -10,7 +10,7 @@ import type {
   Player,
   TrainingSessionType,
 } from './types';
-import { averageWellness, calculateInternalLoad, groupAverage } from './utils';
+import { averageWellness, calculateInternalLoad, computeWellnessScore, getPlayerDayLoad, groupAverage } from './utils';
 
 export type InsightTone = 'green' | 'yellow' | 'red' | 'blue' | 'neutral';
 
@@ -31,6 +31,7 @@ export interface SessionLoadMetrics {
   avgDcc?: number;
   avgPlayerLoad?: number;
   wellnessReadiness?: number;
+  individualLoads?: number[];
 }
 
 const safeAverage = (values: number[]) => groupAverage(values.filter((value) => Number.isFinite(value) && value > 0));
@@ -54,19 +55,31 @@ const typeTargets: Record<TrainingSessionType, { min: [number, number]; rpe: [nu
 
 export const buildSessionTypeLoadControl = (sessionType: TrainingSessionType, metrics: SessionLoadMetrics): LogicInsight => {
   const target = typeTargets[sessionType];
-  const highLoad = metrics.avgInternalLoad > target.load[1];
-  const lowLoad = metrics.avgInternalLoad > 0 && metrics.avgInternalLoad < target.load[0];
+  const individualLoads = (metrics.individualLoads ?? []).filter((value) => Number.isFinite(value) && value > 0);
+  const above = individualLoads.filter((value) => value > target.load[1]).length;
+  const below = individualLoads.filter((value) => value > 0 && value < target.load[0]).length;
+  const outside = above + below;
+  const outsidePct = individualLoads.length ? (outside / individualLoads.length) * 100 : 0;
   const highRpe = metrics.avgRpe > target.rpe[1];
   const highVolume = metrics.avgMinutes > target.min[1];
-  const wellnessLow = typeof metrics.wellnessReadiness === 'number' && metrics.wellnessReadiness > 0 && metrics.wellnessReadiness < 3.2;
-  const tone: InsightTone = highLoad || highRpe || (wellnessLow && (metrics.avgRpe >= 6 || metrics.avgInternalLoad >= target.load[1] * 0.85)) ? 'red' : lowLoad || highVolume || wellnessLow ? 'yellow' : 'green';
-  const status = tone === 'green' ? 'La carga es coherente con el tipo de sesión.' : tone === 'yellow' ? 'Carga con desviación moderada frente al objetivo.' : 'Alerta: la carga supera lo esperado para el objetivo.';
+  const wellnessLow = typeof metrics.wellnessReadiness === 'number' && metrics.wellnessReadiness > 0 && metrics.wellnessReadiness < 3;
+  const tone: InsightTone = outsidePct >= 35 || highRpe || (wellnessLow && (metrics.avgRpe >= 6 || metrics.avgInternalLoad >= target.load[1] * 0.85))
+    ? 'red'
+    : outsidePct >= 15 || highVolume || wellnessLow
+      ? 'yellow'
+      : 'green';
+  const status = tone === 'green'
+    ? 'La carga individual es coherente con el tipo de sesión.'
+    : tone === 'yellow'
+      ? 'Hay desviación moderada en la carga individual frente al objetivo.'
+      : 'Alerta: varios jugadores están fuera del rango individual esperado.';
+  const sample = individualLoads.length ? `${outside}/${individualLoads.length} fuera de rango` : 'sin muestra individual';
   return {
     id: `session-type-${sessionType}`,
     title: `Control de carga · ${trainingTypeLabel[sessionType]}`,
     tone,
     value: `${round(metrics.avgInternalLoad)} UA`,
-    description: `${status} MIN ${round(metrics.avgMinutes)} · RPE ${round(metrics.avgRpe, 1)} · objetivo ${target.load[0]}-${target.load[1]} UA. ${target.note}`,
+    description: `${status} ${sample}. Promedio: MIN ${round(metrics.avgMinutes)} · RPE ${round(metrics.avgRpe, 1)} · objetivo individual ${target.load[0]}-${target.load[1]} UA. ${target.note}`,
   };
 };
 
@@ -82,13 +95,8 @@ const daysBetween = (a: string, b: string) => {
   return Math.round((db.getTime() - da.getTime()) / 86400000);
 };
 
-export const getPlayerDailyInternalLoad = (playerId: string, date: string, internalLoads: DailyInternalLoadRecord[], externalLoads: DailyExternalLoadRecord[]) => {
-  const internal = internalLoads.filter((load) => load.playerId === playerId && load.date === date);
-  if (internal.length) return internal.reduce((sum, load) => sum + calculateInternalLoad(load), 0);
-  return externalLoads
-    .filter((load) => load.playerId === playerId && load.date === date)
-    .reduce((sum, load) => sum + ((load.min ?? 0) * (load.rpe ?? 0)), 0);
-};
+export const getPlayerDailyInternalLoad = (playerId: string, date: string, internalLoads: DailyInternalLoadRecord[], externalLoads: DailyExternalLoadRecord[]) =>
+  getPlayerDayLoad(playerId, date, { internalLoads, externalLoads });
 
 export const buildAbruptLoadAlerts = (params: {
   players: Player[];
@@ -133,15 +141,7 @@ export const buildAbruptLoadAlerts = (params: {
     }));
 };
 
-export const wellnessReadiness = (record?: DailyWellnessRecord) => {
-  if (!record) return 0;
-  const sleep = record.sleep || 0;
-  const mood = record.mood || 0;
-  const fatigue = 6 - (record.fatigue || 0);
-  const stress = 6 - (record.stress || 0);
-  const musclePain = 6 - (record.musclePain || 0);
-  return (sleep + mood + fatigue + stress + musclePain) / 5;
-};
+export const wellnessReadiness = (record?: DailyWellnessRecord) => computeWellnessScore(record);
 
 export const buildLoadWellnessRelation = (params: {
   players: Player[];
@@ -160,11 +160,11 @@ export const buildLoadWellnessRelation = (params: {
       const load = getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads);
       return { player, ready, load };
     })
-    .filter((row) => row.load >= 300 || (row.ready > 0 && row.ready < 3.2))
+    .filter((row) => row.load >= 300 || (row.ready > 0 && row.ready < 3))
     .sort((a, b) => (b.load * (b.ready ? 6 - b.ready : 1)) - (a.load * (a.ready ? 6 - a.ready : 1)))
     .slice(0, limit)
     .map((row) => {
-      const red = row.load >= 450 && row.ready > 0 && row.ready < 3.2;
+      const red = row.load >= 450 && row.ready > 0 && row.ready < 3;
       return {
         id: `wellness-load-${row.player.id}`,
         title: `${row.player.name}: carga vs wellness`,
@@ -242,35 +242,39 @@ export const buildPlayerReadinessSemaphores = (params: {
   limit?: number;
 }): PlayerReadinessRow[] => {
   const { players, wellness, internalLoads, externalLoads, referenceDate, category = 'all', limit = 12 } = params;
+  const acwrFactor = (ratio: number) => {
+    if (!ratio) return 0.6;
+    if (ratio >= 0.8 && ratio <= 1.3) return 1;
+    if (ratio < 0.8) return Math.max(0.35, ratio / 0.8);
+    if (ratio >= 2) return 0;
+    return Math.max(0, 1 - ((ratio - 1.3) / 0.7));
+  };
+  const statusFactor = (status: Player['status']) => status === 'Disponible' ? 1 : status === 'Molestia' ? 0.5 : status === 'Readaptación' ? 0.25 : 0;
   return players
     .filter((player) => category === 'all' || !category || player.category === category)
     .map((player) => {
       const latestWellness = latestByDate(wellness.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate)));
       const ready = wellnessReadiness(latestWellness);
       const currentLoad = getPlayerLoadWindow(player.id, referenceDate, 0, 6, internalLoads, externalLoads);
-      const previousLoad = getPlayerLoadWindow(player.id, referenceDate, 7, 13, internalLoads, externalLoads);
-      const increase = previousLoad > 0 ? ((currentLoad - previousLoad) / previousLoad) * 100 : currentLoad > 0 ? 100 : 0;
-      let score = 100;
-      if (ready > 0) score += (ready - 3.5) * 12;
-      else score -= 10;
-      if (currentLoad >= 900) score -= 22;
-      else if (currentLoad >= 650) score -= 12;
-      if (increase >= 60) score -= 18;
-      else if (increase >= 35) score -= 10;
-      if (player.status === 'Lesionado') score -= 55;
-      if (player.status === 'Readaptación') score -= 25;
-      if (player.status === 'Molestia') score -= 18;
-      score = Math.max(0, Math.min(100, score));
-      const tone: ReadinessTone = score >= 76 ? 'green' : score >= 56 ? 'yellow' : 'red';
+      const previousLoads = [
+        getPlayerLoadWindow(player.id, referenceDate, 7, 13, internalLoads, externalLoads),
+        getPlayerLoadWindow(player.id, referenceDate, 14, 20, internalLoads, externalLoads),
+        getPlayerLoadWindow(player.id, referenceDate, 21, 27, internalLoads, externalLoads),
+      ].filter((value) => value > 0);
+      const chronic = previousLoads.length ? previousLoads.reduce((sum, value) => sum + value, 0) / previousLoads.length : 0;
+      const ratio = chronic > 0 ? currentLoad / chronic : 0;
+      const wellnessFactor = ready > 0 ? ready / 5 : 0.6;
+      const score = Math.max(0, Math.min(100, ((wellnessFactor * 0.40) + (acwrFactor(ratio) * 0.35) + (statusFactor(player.status) * 0.25)) * 100));
+      const tone: ReadinessTone = score >= 75 ? 'green' : score >= 50 ? 'yellow' : 'red';
       const label = tone === 'green' ? 'Disponible' : tone === 'yellow' ? 'Precaución' : 'Riesgo';
       return {
         playerId: player.id,
         name: player.name,
         position: player.position,
-        score,
+        score: Number(score.toFixed(0)),
         tone,
         label,
-        detail: `Wellness ${ready ? round(ready, 1) : 's/d'} · carga 7d ${round(currentLoad)} UA · cambio ${round(increase)}% · estado ${player.status}`,
+        detail: `Wellness ${ready ? round(ready, 1) : 'neutro'} · carga 7d ${round(currentLoad)} UA · ACWR ${ratio ? round(ratio, 2) : 's/d'} · estado ${player.status}`,
       };
     })
     .sort((a, b) => a.score - b.score)
@@ -315,9 +319,12 @@ export const buildRoleLoadControl = (params: {
         .filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate))
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 5);
+      const currentLoad = getPlayerLoadWindow(player.id, referenceDate, 0, 6, internalLoads, externalLoads);
+      if (recentMatches.length < 5) {
+        return { player, role: 'Muestra insuficiente', currentLoad, avgMinutes: 0, tone: 'blue' as InsightTone, description: `Solo hay ${recentMatches.length}/5 partidos de referencia. No se aplican umbrales por rol hasta completar muestra mínima.` };
+      }
       const avgMinutes = mean(recentMatches.map((record) => record.minutesPlayed ?? 0));
       const starts = recentMatches.filter((record) => record.startingRole === 'Titular' || (record.minutesPlayed ?? 0) >= 45).length;
-      const currentLoad = getPlayerLoadWindow(player.id, referenceDate, 0, 6, internalLoads, externalLoads);
       const role = player.status === 'Readaptación' || player.status === 'Molestia'
         ? 'Seguimiento/retorno'
         : starts >= 3 || avgMinutes >= 55
@@ -364,6 +371,11 @@ export const buildReturnToPlayAlerts = (params: {
   limit?: number;
 }): LogicInsight[] => {
   const { players, competitionRecords, internalLoads, externalLoads, referenceDate, category = 'all', limit = 8 } = params;
+  const recentlyReturned = (player: Player) => (player.injuryHistory ?? []).some((injury) => {
+    const returnDate = player.returnDate ?? injury.expectedReturnDate ?? injury.date;
+    const days = daysBetween(returnDate, referenceDate);
+    return injury.status === 'activa' || (days >= 0 && days <= 21);
+  });
   return players
     .filter((player) => category === 'all' || !category || player.category === category)
     .map((player) => {
@@ -371,7 +383,7 @@ export const buildReturnToPlayAlerts = (params: {
       const previousLoad = getPlayerLoadWindow(player.id, referenceDate, 7, 13, internalLoads, externalLoads);
       const lastMatch = latestByDate(competitionRecords.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate)));
       const increase = previousLoad > 0 ? ((currentLoad - previousLoad) / previousLoad) * 100 : currentLoad > 0 ? 100 : 0;
-      const hasRtpStatus = player.status === 'Readaptación' || player.status === 'Molestia' || player.status === 'Lesionado' || lastMatch?.medicalStatus === 'Lesionado';
+      const hasRtpStatus = player.status === 'Readaptación' || player.status === 'Molestia' || player.status === 'Lesionado' || lastMatch?.medicalStatus === 'Lesionado' || recentlyReturned(player);
       const riskyReturn = hasRtpStatus && (currentLoad >= 350 || (lastMatch?.minutesPlayed ?? 0) >= 30 || increase >= 45);
       return { player, currentLoad, previousLoad, lastMatch, increase, hasRtpStatus, riskyReturn };
     })
@@ -400,17 +412,23 @@ export const buildWeeklyMonotonyFatigue = (params: {
     const date = dateMinusDays(referenceDate, 6 - index);
     return scoped.reduce((sum, player) => sum + getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads), 0);
   });
-  const avg = mean(dailyLoads);
-  const sd = stdDev(dailyLoads);
+  const totalLoad = dailyLoads.reduce((sum, value) => sum + value, 0);
+  const avg = dailyLoads.reduce((sum, value) => sum + value, 0) / dailyLoads.length;
+  const sd = (() => {
+    const variance = dailyLoads.reduce((sum, value) => sum + Math.pow(value - avg, 2), 0) / dailyLoads.length;
+    return Math.sqrt(variance);
+  })();
   const monotony = sd > 0 ? avg / sd : avg > 0 ? 9.99 : 0;
-  const strain = avg * 7 * monotony;
-  const tone: InsightTone = monotony >= 2.2 || strain >= 9000 ? 'red' : monotony >= 1.5 || strain >= 5500 ? 'yellow' : 'green';
+  const playersWithData = scoped.filter((player) => dailyLoads.some((_, index) => getPlayerDailyInternalLoad(player.id, dateMinusDays(referenceDate, 6 - index), internalLoads, externalLoads) > 0)).length || 1;
+  const strain = totalLoad * monotony;
+  const strainPerCapita = strain / playersWithData;
+  const tone: InsightTone = monotony >= 2.2 || strainPerCapita >= 6000 ? 'red' : monotony >= 1.5 || strainPerCapita >= 4000 ? 'yellow' : 'green';
   return {
     id: 'weekly-monotony-fatigue',
     title: 'Monotonía y fatiga semanal',
     tone,
     value: `${round(monotony, 2)}`,
-    description: `Carga semanal ${round(avg * 7)} UA · strain ${round(strain)}. Una monotonía alta indica poca variación entre días y posible acumulación de fatiga.`,
+    description: `Carga semanal ${round(totalLoad)} UA · strain per cápita ${round(strainPerCapita)}. Una monotonía alta indica poca variación entre días y posible acumulación de fatiga.`,
   };
 };
 
@@ -427,14 +445,18 @@ export const buildSelfComparisonInsights = (params: {
     .filter((player) => category === 'all' || !category || player.category === category)
     .map((player) => {
       const todayLoad = getPlayerDailyInternalLoad(player.id, referenceDate, internalLoads, externalLoads);
-      const historyDates = getPlayerDatesUntil(player.id, referenceDate, internalLoads, externalLoads).filter((date) => date < referenceDate).slice(-12);
-      const personalAvg = mean(historyDates.map((date) => getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads)));
+      const historyDates = getPlayerDatesUntil(player.id, referenceDate, internalLoads, externalLoads).filter((date) => date < referenceDate).slice(-28);
+      const rawBaseline = historyDates.map((date) => getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads)).filter((value) => value > 0);
+      const avg = rawBaseline.length ? rawBaseline.reduce((sum, value) => sum + value, 0) / rawBaseline.length : 0;
+      const sd = rawBaseline.length > 1 ? Math.sqrt(rawBaseline.reduce((sum, value) => sum + Math.pow(value - avg, 2), 0) / rawBaseline.length) : 0;
+      const baselineValues = rawBaseline.filter((value) => sd === 0 || value <= avg + (2 * sd));
+      const personalAvg = mean(baselineValues);
       const delta = personalAvg > 0 ? ((todayLoad - personalAvg) / personalAvg) * 100 : todayLoad > 0 ? 100 : 0;
       const latestExternal = latestByDate(externalLoads.filter((record) => record.playerId === player.id && record.date === referenceDate));
       const mmin = latestExternal?.totalDistance && latestExternal?.min ? latestExternal.totalDistance / latestExternal.min : 0;
       return { player, todayLoad, personalAvg, delta, mmin };
     })
-    .filter((row) => row.todayLoad > 0 && Math.abs(row.delta) >= 30)
+    .filter((row) => row.todayLoad > 0 && row.personalAvg > 0 && Math.abs(row.delta) >= 30)
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
     .slice(0, limit)
     .map((row) => ({
@@ -490,11 +512,12 @@ export const buildDataInconsistencyAlerts = (params: {
   internalLoads: DailyInternalLoadRecord[];
   externalLoads: DailyExternalLoadRecord[];
   competitionRecords: CompetitionRecord[];
+  competitionMatchSummaries?: CompetitionMatchSummary[];
   referenceDate?: string;
   category?: ClubCategory | 'all';
   limit?: number;
 }): LogicInsight[] => {
-  const { players, internalLoads, externalLoads, competitionRecords, referenceDate = '', category = 'all', limit = 12 } = params;
+  const { players, internalLoads, externalLoads, competitionRecords, competitionMatchSummaries = [], referenceDate = '', category = 'all', limit = 12 } = params;
   const playerById = new Map(players.map((player) => [player.id, player]));
   const inScopePlayer = (playerId: string) => {
     const player = playerById.get(playerId);
@@ -528,6 +551,39 @@ export const buildDataInconsistencyAlerts = (params: {
       if ((record.minutesPlayed ?? 0) > 120) alerts.push({ id: `inc-comp-time-${record.id}`, title: `${label}: minutos de partido inválidos`, tone: 'red', value: `${record.minutesPlayed} min`, description: 'Los minutos de competencia no deben superar 120.' });
       if ((record.maxVelocity ?? 0) > 42) alerts.push({ id: `inc-comp-vmax-${record.id}`, title: `${label}: velocidad de partido improbable`, tone: 'yellow', value: `${record.maxVelocity} km/h`, description: 'Confirmar unidades del GPS o dato importado.' });
     });
+
+  players
+    .filter((player) => category === 'all' || !category || player.category === category)
+    .forEach((player) => {
+      const dayInternal = internalLoads.filter((record) => record.playerId === player.id && (!referenceDate || record.date === referenceDate));
+      const dayExternal = externalLoads.filter((record) => record.playerId === player.id && (!referenceDate || record.date === referenceDate));
+      const hasLoad = dayInternal.some((record) => record.rpe >= 6 || record.duration > 0) || dayExternal.some((record) => (record.rpe ?? 0) >= 6 || record.participation === 'Completa' || (record.min ?? 0) >= 45);
+      if ((player.status === 'Lesionado' || player.status === 'Readaptación') && hasLoad) {
+        alerts.push({
+          id: `inc-status-load-${player.id}-${referenceDate || 'all'}`,
+          title: `${player.name}: estado médico vs carga`,
+          tone: 'red',
+          value: player.status,
+          description: 'El jugador figura como lesionado/readaptación pero tiene carga relevante o participación completa. Revisar estado médico y registro de sesión.',
+        });
+      }
+    });
+  competitionMatchSummaries
+    .filter((match) => (!referenceDate || match.date === referenceDate) && (category === 'all' || !category || match.category === category))
+    .forEach((match) => {
+      const matchRecords = competitionRecords.filter((record) => (record.matchId && record.matchId === match.id) || (record.date === match.date && record.opponent === match.opponent));
+      const individualGoals = matchRecords.reduce((sum, record) => sum + (record.goals ?? 0), 0);
+      const teamGoals = match.goalsFor ?? 0;
+      if (matchRecords.length && individualGoals !== teamGoals) {
+        alerts.push({
+          id: `inc-goals-${match.id}`,
+          title: `Goles de equipo vs jugadores`,
+          tone: 'yellow',
+          value: `${individualGoals}/${teamGoals}`,
+          description: `La suma de goles individuales (${individualGoals}) no coincide con los goles del resumen (${teamGoals}) frente a ${match.opponent}.`,
+        });
+      }
+    });
   return alerts.slice(0, limit);
 };
 
@@ -541,7 +597,9 @@ export const buildCompetitionLogic = (params: {
   const fieldRecords = records.filter((record) => (record.minutesPlayed ?? 0) > 0);
   const avgMinutes = safeAverage(fieldRecords.map((record) => record.minutesPlayed ?? 0));
   const avgDistance = safeAverage(fieldRecords.map((record) => record.totalDistance ?? 0));
-  const avgMmin = safeAverage(fieldRecords.map((record) => record.totalDistance && record.minutesPlayed ? record.totalDistance / record.minutesPlayed : 0));
+  const totalMinutes = fieldRecords.reduce((sum, record) => sum + (record.minutesPlayed ?? 0), 0);
+  const totalDistanceForMmin = fieldRecords.reduce((sum, record) => sum + (record.totalDistance ?? 0), 0);
+  const avgMmin = totalMinutes > 0 ? totalDistanceForMmin / totalMinutes : 0;
   const gpsCompleteness = fieldRecords.length ? Math.round((fieldRecords.filter((record) => (record.totalDistance ?? 0) > 0 || (record.playerLoad ?? 0) > 0).length / fieldRecords.length) * 100) : 0;
   const starters = fieldRecords.filter((record) => record.startingRole === 'Titular');
   const substitutes = fieldRecords.filter((record) => record.startingRole === 'Suplente');
@@ -588,15 +646,30 @@ export const buildEvaluationLogic = (params: { data: AppData; players: Player[];
   const insights: LogicInsight[] = [];
   scopedPlayers.forEach((player) => {
     const cmj = data.cmjRecords.filter((record) => record.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date));
+    const neuroSameDay = cmj[0] ? data.neuromuscularRecords.find((record) => record.playerId === player.id && record.date === cmj[0].date) : undefined;
+    if (cmj[0] && neuroSameDay && Math.abs((neuroSameDay.cmj ?? 0) - cmj[0].value) >= 0.5) {
+      insights.push({
+        id: `eval-cmj-duplicate-${player.id}`,
+        title: `${player.name}: CMJ duplicado`,
+        tone: 'yellow',
+        value: cmj[0].date,
+        description: `Existe CMJ formal (${round(cmj[0].value, 1)} cm) y neuromuscular (${round(neuroSameDay.cmj, 1)} cm) en la misma fecha. Se prioriza CMJRecord.value.`,
+      });
+    }
     if (cmj[0] && cmj[1]) {
       const delta = cmj[0].value - cmj[1].value;
+      const prev5Load = Array.from({ length: 5 }, (_, index) => getPlayerDailyInternalLoad(player.id, dateMinusDays(cmj[0].date, index + 1), data.internalLoads, data.externalLoads)).reduce((sum, value) => sum + value, 0);
       if (Math.abs(delta) >= 2) {
         insights.push({
           id: `eval-cmj-${player.id}`,
           title: `${player.name}: cambio CMJ`,
-          tone: delta >= 0 ? 'green' : 'red',
+          tone: delta >= 0 ? 'green' : prev5Load > 1500 ? 'yellow' : 'red',
           value: `${delta >= 0 ? '+' : ''}${round(delta, 1)} cm`,
-          description: delta >= 0 ? 'Mejora neuromuscular frente a la medición anterior.' : 'Descenso relevante en CMJ. Revisar fatiga, recuperación o carga previa.',
+          description: delta >= 0
+            ? `Mejora neuromuscular frente a la medición anterior. Carga previa 5 días: ${round(prev5Load)} UA.`
+            : prev5Load > 1500
+              ? `Descenso CMJ con carga previa alta (${round(prev5Load)} UA en 5 días): fatiga esperada, controlar recuperación.`
+              : `Descenso CMJ con carga previa baja (${round(prev5Load)} UA): revisar fatiga no explicada o posible deterioro.`,
         });
       }
     }
@@ -622,8 +695,10 @@ export const buildIntelligentRanking = (params: { data: AppData; players: Player
   const scopedPlayers = players.filter((player) => category === 'all' || !category || player.category === category);
   return scopedPlayers
     .map((player) => {
-      const loads = data.internalLoads.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate));
-      const recentLoad = loads.slice(-6).reduce((sum, record) => sum + calculateInternalLoad(record), 0);
+      const loads = data.internalLoads
+        .filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate))
+        .sort((a, b) => b.date.localeCompare(a.date));
+      const recentLoad = loads.slice(0, 6).reduce((sum, record) => sum + calculateInternalLoad(record), 0);
       const wellness = averageWellness(data.wellness.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate)).sort((a, b) => b.date.localeCompare(a.date))[0]);
       const cmj = data.cmjRecords.filter((record) => record.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0]?.value ?? 0;
       const fms = data.fmsRecords.filter((record) => record.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -653,11 +728,18 @@ export const buildMicrocycleLogic = (params: {
 }) => {
   const { data, microcycle, players, category } = params;
   const playerIds = new Set(players.map((player) => player.id));
-  const inRange = (date: string) => Boolean(microcycle.startDate && microcycle.endDate && date >= microcycle.startDate && date <= microcycle.endDate);
-  const sessions = data.trainingSessionSummaries.filter((session) => session.category === category && (session.microcycleId === microcycle.id || inRange(session.date)));
-  const external = data.externalLoads.filter((record) => (record.category === category || playerIds.has(record.playerId)) && (record.microcycleId === microcycle.id || inRange(record.date)));
-  const internal = data.internalLoads.filter((record) => (record.category === category || playerIds.has(record.playerId)) && (record.microcycleId === microcycle.id || inRange(record.date)));
-  const loads = internal.reduce((sum, record) => sum + calculateInternalLoad(record), 0) || external.reduce((sum, record) => sum + ((record.min ?? 0) * (record.rpe ?? 0)), 0);
+  const hasRange = Boolean(microcycle.startDate && microcycle.endDate);
+  const inRange = (date: string) => !hasRange || (date >= microcycle.startDate && date <= microcycle.endDate);
+  const belongs = (recordMicrocycleId?: string, date?: string) => {
+    if (recordMicrocycleId && recordMicrocycleId !== microcycle.id) return false;
+    if (recordMicrocycleId === microcycle.id) return date ? inRange(date) : true;
+    return false;
+  };
+  const sessions = data.trainingSessionSummaries.filter((session) => session.category === category && belongs(session.microcycleId, session.date));
+  const external = data.externalLoads.filter((record) => (record.category === category || playerIds.has(record.playerId)) && belongs(record.microcycleId, record.date));
+  const internal = data.internalLoads.filter((record) => (record.category === category || playerIds.has(record.playerId)) && belongs(record.microcycleId, record.date));
+  const dates = Array.from(new Set([...internal.map((record) => record.date), ...external.map((record) => record.date)])).sort();
+  const loads = dates.reduce((sum, date) => sum + players.reduce((acc, player) => acc + getPlayerDailyInternalLoad(player.id, date, internal, external), 0), 0);
   const typeCount = sessions.reduce<Record<string, number>>((acc, session) => {
     const label = trainingTypeLabel[session.sessionType] ?? 'Sin tipo';
     acc[label] = (acc[label] ?? 0) + 1;

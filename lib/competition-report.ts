@@ -170,7 +170,9 @@ export const buildCompetitionReportData = ({
     redCards: rows.reduce((acc, row) => acc + row.redCards, 0),
     medical: medicalRows.length,
     totalDistance: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.totalDistance), 0),
-    avgMetersPerMinute: fieldRecords.length ? Math.round(fieldRecords.reduce((acc, record) => acc + (toSafeNumber(record.minutesPlayed) > 0 ? toSafeNumber(record.totalDistance) / Math.max(1, toSafeNumber(record.minutesPlayed)) : 0), 0) / fieldRecords.length) : 0,
+    avgMetersPerMinute: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.minutesPlayed), 0) > 0
+      ? Math.round(fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.totalDistance), 0) / fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.minutesPlayed), 0))
+      : 0,
     acc: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.acc), 0),
     dcc: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.dcc), 0),
     sprints: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.sprints), 0),

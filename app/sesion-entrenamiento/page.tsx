@@ -519,7 +519,7 @@ export default function SesionEntrenamientoPage() {
     const avgDcc = groupAverage(selectedRows.map((r) => r.dcc));
     const avgPlayerLoad = groupAverage(selectedRows.map((r) => r.playerLoad));
     const wellnessReadinessAvg = groupAverage(sessWellness.map((record) => wellnessReadiness(record)));
-    return { avgMinutes, avgRpe, avgInternalLoad, avgDistance, avgAcc, avgDcc, avgPlayerLoad, wellnessReadiness: wellnessReadinessAvg };
+    return { avgMinutes, avgRpe, avgInternalLoad, avgDistance, avgAcc, avgDcc, avgPlayerLoad, wellnessReadiness: wellnessReadinessAvg, individualLoads: selectedRows.map((r) => r.min * r.rpe) };
   }, [selectedRows, sessWellness]);
 
   const sessionTypeLoadControl = useMemo(
@@ -667,6 +667,7 @@ export default function SesionEntrenamientoPage() {
       id: summaryRecord?.id ?? editingId ?? undefined,
       date: filters.date,
       category: activeCat,
+      sessionNumber: Number(sessNumInput || filters.sessionNumber || 0),
     });
     if (dup && dup.id !== summaryRecord?.id) {
       setEditingId(dup.id);

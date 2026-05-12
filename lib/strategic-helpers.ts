@@ -1,5 +1,5 @@
 import type { AppData, ClubCategory, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, GlobalFilters, Player, PlayerStatus } from './types';
-import { averageWellness, calculateInternalLoad, groupAverage } from './utils';
+import { averageWellness, calculateInternalLoad, computeWellnessScore, getPlayerDayLoad, groupAverage } from './utils';
 import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performance-helpers';
 import { addDays, buildDailyOperations, eachDateInRange, formatDateShort, getVisiblePlayers, isSameCategory, type OperationalAlert } from './operational-helpers';
 import { supportsGps } from './report-utils';
@@ -19,6 +19,14 @@ export const activeCategoryLabel = (category: string) => category === 'all' ? 'T
 const byDateDesc = <T extends { date: string }>(records: T[]) => records.slice().sort((a, b) => b.date.localeCompare(a.date));
 
 const dateInRange = (date: string, dates: string[]) => dates.includes(date);
+
+const daysDiff = (from?: string, to?: string) => {
+  if (!from || !to) return 999;
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 999;
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+};
 
 const playerIds = (players: Player[]) => new Set(players.map((player) => player.id));
 
@@ -52,14 +60,14 @@ export const buildAvailabilityCenter = (data: AppData, filters: GlobalFilters, a
     const weeklyExternal = gpsEnabled ? data.externalLoads.filter((item) => item.playerId === player.id && dateInRange(item.date, dates)) : [];
     const latestMedical = byDateDesc(data.competitionRecords.filter((item) => item.playerId === player.id && (item.medicalObservation || item.medicalStatus === 'Lesionado' || item.postCompetitionStatus === 'Lesionado')))[0];
     const latestCompetition = byDateDesc(data.competitionRecords.filter((item) => item.playerId === player.id))[0];
-    const latestWellness = averageWellness(wellnessToday);
+    const latestWellness = computeWellnessScore(wellnessToday);
     const recommendation = player.status === 'Lesionado'
       ? 'No disponible - seguimiento médico'
       : player.status === 'Readaptación'
         ? 'Trabajo controlado y progresivo'
         : player.status === 'Molestia'
           ? 'Controlar antes de competir'
-          : latestWellness > 0 && latestWellness < 3.2
+          : latestWellness > 0 && latestWellness < 3
             ? 'Revisar wellness y recuperación'
             : 'Disponible para planificación';
     return {
@@ -126,15 +134,13 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
 
   // Sesión es la fuente operativa principal de carga: MIN, RPE y GPS viven en externalLoads.
   // internalLoads queda como respaldo para datos antiguos, pero las vistas calculan primero desde sesión.
-  const external = data.externalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
+  const external = data.externalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates) && item.movementModule !== 'competencia');
   const internalFallback = data.internalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
 
   const rows: LoadPlayerRow[] = players.map((player) => {
     const playerExternal = external.filter((item) => item.playerId === player.id);
     const playerInternalFallback = internalFallback.filter((item) => item.playerId === player.id);
-    const sessionInternalLoad = playerExternal.reduce((acc, item) => acc + ((item.min ?? 0) * (item.rpe ?? 0)), 0);
-    const fallbackInternalLoad = playerInternalFallback.reduce((acc, item) => acc + calculateInternalLoad(item), 0);
-    const internalLoad = playerExternal.length ? sessionInternalLoad : fallbackInternalLoad;
+    const internalLoad = dates.reduce((sum, date) => sum + getPlayerDayLoad(player.id, date, { internalLoads: playerInternalFallback, externalLoads: playerExternal }), 0);
     const minutes = playerExternal.reduce((acc, item) => acc + (item.min ?? 0), 0);
     const status = exposure(minutes, internalLoad);
     const totalDistance = playerExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0);
@@ -162,8 +168,8 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
   const dailyTrend = dates.map((date) => {
     const dayExternal = external.filter((item) => item.date === date);
     const dayInternalFallback = internalFallback.filter((item) => item.date === date);
-    const derivedInternalLoad = dayExternal.reduce((acc, item) => acc + ((item.min ?? 0) * (item.rpe ?? 0)), 0);
-    const fallbackInternalLoad = dayInternalFallback.reduce((acc, item) => acc + calculateInternalLoad(item), 0);
+    const derivedInternalLoad = players.reduce((sum, player) => sum + getPlayerDayLoad(player.id, date, { internalLoads: dayInternalFallback, externalLoads: dayExternal }), 0);
+    const fallbackInternalLoad = derivedInternalLoad;
     return {
       date: formatDateShort(date),
       min: dayExternal.reduce((acc, item) => acc + (item.min ?? 0), 0),
@@ -229,7 +235,9 @@ export const buildWellnessCenter = (data: AppData, filters: GlobalFilters, activ
     const playerRecords = records.filter((item) => item.playerId === player.id);
     const latest = byDateDesc(playerRecords)[0];
     const average = groupAverage(playerRecords.map(averageWellness).filter((value) => value > 0));
-    const tone = wellnessTone(latest ? averageWellness(latest) : average);
+    const latestAgeDays = latest ? daysDiff(latest.date, filters.date) : 999;
+    const latestIsStale = latestAgeDays > 1;
+    const tone = latestIsStale ? 'neutral' : wellnessTone(latest ? averageWellness(latest) : average);
     return {
       player,
       records: playerRecords,
@@ -241,7 +249,7 @@ export const buildWellnessCenter = (data: AppData, filters: GlobalFilters, activ
       musclePain: groupAverage(playerRecords.map((item) => item.musclePain)),
       mood: groupAverage(playerRecords.map((item) => item.mood)),
       tone,
-      recommendation: tone === 'red' ? 'Atención prioritaria' : tone === 'amber' ? 'Control preventivo' : tone === 'green' ? 'Estado favorable' : 'Sin registro reciente',
+      recommendation: latestIsStale ? `Último registro: hace ${latestAgeDays} días` : tone === 'red' ? 'Atención prioritaria' : tone === 'amber' ? 'Control preventivo' : tone === 'green' ? 'Estado favorable' : 'Sin registro reciente',
     };
   }).sort((a, b) => (a.average || 99) - (b.average || 99));
   return {
@@ -378,14 +386,24 @@ export interface AcwrRow {
   weeklyLoads: number[]; // Carga por semana [w4_antiguo, w3, w2, w1_reciente]
 }
 
-const getWeekLoad = (loads: AppData['internalLoads'], playerId: string, endDate: string, days: number): number => {
-  const end = new Date(endDate);
-  const start = new Date(end);
-  start.setDate(start.getDate() - days + 1);
-  const startStr = start.toISOString().slice(0, 10);
-  return loads
-    .filter((item) => item.playerId === playerId && item.date >= startStr && item.date <= endDate)
-    .reduce((acc, item) => acc + item.rpe * item.duration, 0);
+const getCompetitionDayLoad = (data: AppData, playerId: string, date: string) => {
+  const externalCompetition = data.externalLoads
+    .filter((item) => item.playerId === playerId && item.date === date && item.movementModule === 'competencia')
+    .reduce((sum, item) => sum + ((item.min ?? 0) * (item.rpe ?? 8)), 0);
+  if (externalCompetition > 0) return externalCompetition;
+  return data.competitionRecords
+    .filter((item) => item.playerId === playerId && item.date === date)
+    .reduce((sum, item) => sum + ((item.minutesPlayed ?? 0) * 8), 0);
+};
+
+const getWeekLoad = (data: AppData, playerId: string, endDate: string, days: number): number => {
+  const dailyLoads = Array.from({ length: days }, (_, index) => {
+    const date = addDays(endDate, -(days - 1 - index));
+    const trainingLoad = getPlayerDayLoad(playerId, date, data);
+    const competitionLoad = getCompetitionDayLoad(data, playerId, date);
+    return trainingLoad + competitionLoad;
+  });
+  return dailyLoads.reduce((sum, value) => sum + value, 0);
 };
 
 export const buildAcwrData = (data: AppData, activeCategory: string, referenceDate?: string): AcwrRow[] => {
@@ -395,13 +413,13 @@ export const buildAcwrData = (data: AppData, activeCategory: string, referenceDa
   );
 
   return players.map((player) => {
-    const acute = getWeekLoad(data.internalLoads, player.id, today, 7);
-    const w1 = getWeekLoad(data.internalLoads, player.id, today, 7);
-    const w2 = getWeekLoad(data.internalLoads, player.id, addDays(today, -7), 7);
-    const w3 = getWeekLoad(data.internalLoads, player.id, addDays(today, -14), 7);
-    const w4 = getWeekLoad(data.internalLoads, player.id, addDays(today, -21), 7);
+    const w1 = getWeekLoad(data, player.id, today, 7);
+    const w2 = getWeekLoad(data, player.id, addDays(today, -7), 7);
+    const w3 = getWeekLoad(data, player.id, addDays(today, -14), 7);
+    const w4 = getWeekLoad(data, player.id, addDays(today, -21), 7);
+    const acute = w1;
     const weeksWithData = [w4, w3, w2, w1].filter((w) => w > 0);
-    const chronic = weeksWithData.length >= 2 ? weeksWithData.reduce((a, b) => a + b, 0) / 4 : 0;
+    const chronic = weeksWithData.length >= 2 ? weeksWithData.reduce((a, b) => a + b, 0) / weeksWithData.length : 0;
     const ratio = chronic > 0 ? Number((acute / chronic).toFixed(2)) : 0;
     const zone: AcwrZone = chronic === 0 || acute === 0
       ? 'no_data'
@@ -443,15 +461,11 @@ export const buildWellnessTrends = (data: AppData, activeCategory: string, days 
       return;
     }
 
-    const values = records.map((record) => {
-      const sum = record.sleep + record.fatigue + record.stress + record.musclePain + record.mood;
-      return Number((sum / 5).toFixed(1));
-    });
-
+    const values = records.map(computeWellnessScore);
     const lastValue = values.at(-1) ?? 0;
     const avgValue = Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1));
     const last3 = values.slice(-3);
-    const alert = last3.length >= 3 && last3.every((v) => v < 3.2);
+    const alert = last3.length >= 3 && last3.every((v) => v < 3);
 
     let trend: WellnessTrend['trend'] = 'stable';
     if (values.length >= 3) {
@@ -486,29 +500,22 @@ export interface MonotonyStrain {
 }
 
 export const buildMonotonyStrain = (data: AppData, microcycleId: string, activeCategory: string): MonotonyStrain => {
-  const sessions = data.trainingSessionSummaries.filter((session) =>
-    session.microcycleId === microcycleId &&
-    (activeCategory === 'all' || session.category === activeCategory),
-  );
+  const microcycle = data.microcycles.find((item) => item.id === microcycleId);
+  const dates = microcycle?.startDate && microcycle?.endDate
+    ? eachDateInRange(microcycle.startDate, microcycle.endDate)
+    : [...new Set(data.trainingSessionSummaries.filter((session) => session.microcycleId === microcycleId).map((session) => session.date))].sort();
+  const players = data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory);
 
-  const uniqueDates = [...new Set(sessions.map((session) => session.date))].sort();
+  const dailyLoads = dates.map((date) => players.reduce((sum, player) => sum + getPlayerDayLoad(player.id, date, data), 0));
 
-  const dailyLoads = uniqueDates.map((date) => {
-    const dayLoads = data.internalLoads.filter((load) =>
-      load.date === date &&
-      (activeCategory === 'all' || load.category === activeCategory || load.actingCategory === activeCategory),
-    );
-    return dayLoads.reduce((acc, load) => acc + load.rpe * load.duration, 0);
-  }).filter((load) => load > 0);
-
-  if (dailyLoads.length === 0) {
-    return { dailyLoads: [], mean: 0, stdDev: 0, monotony: 0, strain: 0, totalLoad: 0, verdict: 'optimal', verdictLabel: 'Sin datos' };
+  if (dailyLoads.length === 0 || dailyLoads.every((load) => load === 0)) {
+    return { dailyLoads, mean: 0, stdDev: 0, monotony: 0, strain: 0, totalLoad: 0, verdict: 'optimal', verdictLabel: 'Sin datos' };
   }
 
   const mean = dailyLoads.reduce((a, b) => a + b, 0) / dailyLoads.length;
   const variance = dailyLoads.reduce((acc, load) => acc + Math.pow(load - mean, 2), 0) / dailyLoads.length;
   const stdDev = Math.sqrt(variance);
-  const monotony = mean > 0 ? Number((stdDev / mean).toFixed(2)) : 0;
+  const monotony = stdDev > 0 ? Number((mean / stdDev).toFixed(2)) : 9.99;
   const totalLoad = dailyLoads.reduce((a, b) => a + b, 0);
   const strain = Number((totalLoad * monotony).toFixed(0));
 

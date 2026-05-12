@@ -1,4 +1,4 @@
-import type { AppData, ClubCategory, DailyExternalLoadRecord, DailyInternalLoadRecord, Microcycle, TrainingSessionSummary } from './types';
+import type { AppData, ClubCategory, DailyExternalLoadRecord, DailyInternalLoadRecord, Microcycle, Player, TrainingSessionSummary } from './types';
 import { groupAverage } from './utils';
 import { findMicrocycleByDate } from './performance-helpers';
 
@@ -120,9 +120,10 @@ export const getInternalLoadsForSession = (
   });
 };
 
-export const getSessionCompleteness = (registeredPlayers: number, totalPlayers: number) => {
-  if (!totalPlayers) return 0;
-  return Math.round((Math.max(0, registeredPlayers) / totalPlayers) * 100);
+export const getSessionCompleteness = (registeredPlayers: number, totalPlayers: number, players?: Player[]) => {
+  const eligibleTotal = players?.filter((player) => player.status === 'Disponible' || player.status === 'Molestia').length ?? totalPlayers;
+  if (!eligibleTotal) return 0;
+  return Math.round((Math.max(0, registeredPlayers) / eligibleTotal) * 100);
 };
 
 export const getSessionStatusForDate = (
@@ -134,7 +135,7 @@ export const getSessionStatusForDate = (
   const players = data.players.filter((player) => sameCategory(category, player.category));
   const records = getSessionPlayersForSession(data, session, date, category);
   const registeredPlayers = records.filter((record) => (record.min ?? 0) > 0 || (record.rpe ?? 0) > 0 || record.participation).length;
-  const completeness = getSessionCompleteness(registeredPlayers, players.length);
+  const completeness = getSessionCompleteness(registeredPlayers, players.length, players);
   const status: DerivedSessionStatus = !session && !registeredPlayers
     ? 'sin_actividad'
     : session && !registeredPlayers

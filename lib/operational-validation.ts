@@ -7,8 +7,13 @@ export const datesOverlap = (startA?: string, endA?: string, startB?: string, en
 
 export const findDuplicateTrainingSession = (
   sessions: TrainingSessionSummary[],
-  params: { id?: string; date: string; category?: ClubCategory },
-) => sessions.find((item) => item.id !== params.id && item.date === params.date && item.category === params.category);
+  params: { id?: string; date: string; category?: ClubCategory; sessionNumber?: number },
+) => sessions.find((item) =>
+  item.id !== params.id
+  && item.date === params.date
+  && item.category === params.category
+  && (params.sessionNumber === undefined || item.sessionNumber === params.sessionNumber)
+);
 
 export const findDuplicateMatch = (
   matches: CompetitionMatchSummary[],
