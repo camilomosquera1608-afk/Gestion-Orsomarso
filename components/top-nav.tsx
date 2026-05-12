@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Activity, BarChart3, Bell, Briefcase, ChevronDown,
+  Activity, BarChart3, Bell, Briefcase, CalendarDays, ChevronDown,
   Dumbbell, FileText, Gauge, HeartPulse, Medal,
   Settings, ShieldCheck, TimerReset, Trophy, TrendingUp, Utensils,
   UserRoundPlus, Users, LogOut, Menu, Home, type LucideIcon } from 'lucide-react';
@@ -33,6 +33,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
       label: 'Planificación',
       icon: TimerReset,
       items: [
+        { href: '/plan-diario', label: 'Plan diario', icon: CalendarDays },
         { href: '/microciclo', label: 'Microciclo', icon: Activity },
         { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
         { href: '/fuerza', label: 'Fuerza', icon: Dumbbell },

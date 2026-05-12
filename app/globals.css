@@ -7243,3 +7243,22 @@ img[loading="lazy"] { background: var(--line-soft); }
     padding-top: 10px;
   }
 }
+
+/* Plan diario unificado */
+.daily-plan-page .compact-table th,
+.daily-plan-page .compact-table td {
+  font-size: 12px;
+  vertical-align: top;
+}
+.small-row {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+.mini-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--muted, #64748b);
+  font-size: 12px;
+}
+.mini-list li + li { margin-top: 4px; }

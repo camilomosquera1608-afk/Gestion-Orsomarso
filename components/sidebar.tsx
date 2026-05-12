@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Activity,
+  CalendarDays,
   BarChart3,
   Bell,
   Briefcase,
@@ -49,8 +50,10 @@ const staffGroups = [
   {
     title: 'Planificación',
     items: [
+      { href: '/plan-diario', label: 'Plan diario', icon: CalendarDays },
       { href: '/microciclo', label: 'Microciclo', icon: Activity },
-      { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
+      { href: '/plan-diario', label: 'Plan', icon: CalendarDays },
+    { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
       { href: '/fuerza', label: 'Fuerza', icon: Dumbbell },
       { href: '/competencia', label: 'Competencia', icon: Trophy },
       { href: '/alimentacion', label: 'Alimentación', icon: Utensils },
@@ -217,6 +220,7 @@ export const MobileNavigation = () => {
     { href: '/', label: 'Inicio', icon: Home },
     { href: '/jugadores', label: 'Jugadores', icon: Users },
     { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
+    { href: '/plan-diario', label: 'Plan', icon: CalendarDays },
     { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
   ];
 
