@@ -23,6 +23,8 @@ export type StrengthSessionType = 'Concéntrica' | 'Excéntrica' | 'Reactiva' | 
 export type StrengthGroup = 'Todo el plantel' | 'Titulares' | 'Suplentes' | 'No convocados' | 'Retorno/readaptación';
 export type StrengthZone = 'Cadena posterior' | 'Cadena anterior' | 'Hipertrofia' | 'Zona lumbo-pélvica';
 export type StrengthCompletion = 'Completa' | 'Parcial' | 'No completó';
+export type StrengthMicrodoseIntent = 'Activación' | 'Potenciación' | 'Mantenimiento' | 'Preventivo' | 'Readaptación' | 'Recuperación';
+export type StrengthMovementPattern = 'Aceleración' | 'Desaceleración' | 'Cambio de dirección' | 'Sprint / alta velocidad' | 'Salto / aterrizaje' | 'Duelo / contacto' | 'Golpeo' | 'Estabilidad lumbo-pélvica';
 
 export interface StrengthExerciseDesign {
   id: string;
@@ -31,6 +33,8 @@ export interface StrengthExerciseDesign {
   sets?: number;
   reps?: string;
   load?: string;
+  movementPattern?: StrengthMovementPattern;
+  rest?: string;
   note?: string;
 }
 
@@ -61,6 +65,8 @@ export interface StrengthSession {
   group: StrengthGroup;
   type: StrengthSessionType;
   zone: StrengthZone;
+  intent?: StrengthMicrodoseIntent;
+  movementPattern?: StrengthMovementPattern;
   duration: number;
   expectedRpe: number;
   objective?: string;

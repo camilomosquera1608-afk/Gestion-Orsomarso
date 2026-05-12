@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Dumbbell, Plus, Save, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Dumbbell, Plus, Printer, Save, Trash2, Users } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
@@ -10,8 +10,8 @@ import { BodyMapSelector } from '@/components/body-map-selector';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import type { ClubCategory, Player, StrengthCompletion, StrengthExerciseDesign, StrengthGroup, StrengthPlayerAdjustment, StrengthPlayerResponse, StrengthSession, StrengthSessionType, StrengthZone } from '@/lib/types';
-import { getPlannedPlayerIds, groupPlayerHint, rpeDiffLabel, strengthDecision, strengthExerciseId, strengthId, strengthLoad, strengthResponseId, STRENGTH_EXERCISE_PRESETS, STRENGTH_GROUPS, STRENGTH_TYPES, STRENGTH_ZONE_GROUPS } from '@/lib/strength';
+import type { ClubCategory, Player, StrengthCompletion, StrengthExerciseDesign, StrengthGroup, StrengthPlayerAdjustment, StrengthPlayerResponse, StrengthMicrodoseIntent, StrengthMovementPattern, StrengthSession, StrengthSessionType, StrengthZone } from '@/lib/types';
+import { getPlannedPlayerIds, groupPlayerHint, rpeDiffLabel, plannedStrengthReps, plannedStrengthSeries, strengthDecision, strengthExerciseId, strengthId, strengthLoad, strengthResponseId, microdoseIntentHint, movementPatternHint, STRENGTH_EXERCISE_PRESETS, STRENGTH_GROUPS, STRENGTH_MICRODOSE_INTENTS, STRENGTH_MOVEMENT_PATTERNS, STRENGTH_TYPES, STRENGTH_ZONE_GROUPS } from '@/lib/strength';
 
 const categories: Array<ClubCategory | 'all'> = ['all', 'Sub20', 'Sub17', 'Sub15'];
 const todayInput = () => new Date().toISOString().slice(0, 10);
@@ -35,6 +35,8 @@ export default function FuerzaPage() {
     group: 'Todo el plantel' as StrengthGroup,
     type: 'Concéntrica' as StrengthSessionType,
     zone: 'Cadena posterior' as StrengthZone,
+    intent: 'Activación' as StrengthMicrodoseIntent,
+    movementPattern: 'Aceleración' as StrengthMovementPattern,
     duration: 30,
     expectedRpe: 5,
     objective: '',
@@ -45,7 +47,7 @@ export default function FuerzaPage() {
   const [adjustRpe, setAdjustRpe] = useState('');
   const [adjustRestriction, setAdjustRestriction] = useState('');
   const [adjustments, setAdjustments] = useState<StrengthPlayerAdjustment[]>([]);
-  const [exerciseDraft, setExerciseDraft] = useState({ name: '', zone: 'Cadena posterior' as StrengthZone, sets: 3, reps: '', load: '', note: '' });
+  const [exerciseDraft, setExerciseDraft] = useState({ name: '', zone: 'Cadena posterior' as StrengthZone, movementPattern: 'Aceleración' as StrengthMovementPattern, sets: 3, reps: '', load: '', rest: '', note: '' });
   const [exercises, setExercises] = useState<StrengthExerciseDesign[]>([]);
   const [responsesDraft, setResponsesDraft] = useState<Record<string, Partial<StrengthPlayerResponse>>>({});
 
@@ -67,6 +69,8 @@ export default function FuerzaPage() {
       group: form.group,
       type: form.type,
       zone: form.zone,
+      intent: form.intent,
+      movementPattern: form.movementPattern,
       duration: Number(form.duration) || 0,
       expectedRpe: Number(form.expectedRpe) || 0,
       objective: form.objective,
@@ -87,6 +91,11 @@ export default function FuerzaPage() {
     showToast('Sesión de fuerza planificada.', 'green');
   };
 
+  const printSelectedSession = () => {
+    if (!selectedSession) return;
+    if (typeof window !== 'undefined') window.print();
+  };
+
   const addAdjustment = () => {
     if (!adjustPlayerId || (!adjustNote && !adjustRestriction && !adjustRpe)) return;
     setAdjustments((prev) => [{ playerId: adjustPlayerId, note: adjustNote, expectedRpe: adjustRpe ? Number(adjustRpe) : undefined, restriction: adjustRestriction }, ...prev.filter((a) => a.playerId !== adjustPlayerId)]);
@@ -104,9 +113,11 @@ export default function FuerzaPage() {
       sets: Number(exerciseDraft.sets) || undefined,
       reps: exerciseDraft.reps.trim(),
       load: exerciseDraft.load.trim(),
+      movementPattern: exerciseDraft.movementPattern,
+      rest: exerciseDraft.rest.trim(),
       note: exerciseDraft.note.trim(),
     }, ...prev]);
-    setExerciseDraft({ name: '', zone: exerciseDraft.zone, sets: 3, reps: '', load: '', note: '' });
+    setExerciseDraft({ name: '', zone: exerciseDraft.zone, movementPattern: exerciseDraft.movementPattern, sets: 3, reps: '', load: '', rest: '', note: '' });
   };
 
   const loadExercisePreset = () => {
@@ -137,7 +148,9 @@ export default function FuerzaPage() {
 
   const setDraft = (playerId: string, patch: Partial<StrengthPlayerResponse>) => setResponsesDraft((prev) => ({ ...prev, [playerId]: { ...(prev[playerId] ?? {}), ...patch } }));
   const plannedLoad = selectedSession ? strengthLoad(selectedSession.duration, selectedSession.expectedRpe, selectedSession.type) : 0;
-
+  const plannedSeries = selectedSession ? plannedStrengthSeries(selectedSession.exercises ?? []) : 0;
+  const plannedReps = selectedSession ? plannedStrengthReps(selectedSession.exercises ?? []) : 0;
+  
   return (
     <div className="grid fuerza-page">
       <AppHero heroClass="hero-carga" title="Fuerza" subtitle="Planificación por staff, respuesta rápida post gimnasio y comparación entre carga esperada y percibida." />
@@ -181,6 +194,24 @@ export default function FuerzaPage() {
                 ))}
               </div>
             </div>
+            <div className="span-2">
+              <div className="field-label">Intención de la microdosis</div>
+              <div className="choice-grid compact-choice-grid">
+                {STRENGTH_MICRODOSE_INTENTS.map((intent) => (
+                  <button key={intent} type="button" className={`choice-pill ${form.intent === intent ? 'active' : ''}`} onClick={() => setForm({ ...form, intent })}>{intent}</button>
+                ))}
+              </div>
+              <small className="muted">{microdoseIntentHint(form.intent)}</small>
+            </div>
+            <div className="span-2">
+              <div className="field-label">Movimiento que prepara</div>
+              <div className="choice-grid compact-choice-grid">
+                {STRENGTH_MOVEMENT_PATTERNS.map((pattern) => (
+                  <button key={pattern} type="button" className={`choice-pill ${form.movementPattern === pattern ? 'active' : ''}`} onClick={() => setForm({ ...form, movementPattern: pattern })}>{pattern}</button>
+                ))}
+              </div>
+              <small className="muted">{movementPatternHint(form.movementPattern)}</small>
+            </div>
             <label>Duración estimada<input className="input" type="number" value={form.duration} onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })} /></label>
             <label>RPE esperado<input className="input" type="number" min={1} max={10} value={form.expectedRpe} onChange={(e) => setForm({ ...form, expectedRpe: Number(e.target.value) })} /></label>
             <label>Objetivo<input className="input" value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })} placeholder="Ej. compensatorio suplentes, recuperación titulares" /></label>
@@ -190,19 +221,21 @@ export default function FuerzaPage() {
             <SectionHeader eyebrow="Diseño de sesión" title="Ejercicios planificados" subtitle="El PF puede dejar la sesión diseñada antes de entrar al gimnasio: ejercicios, series, reps, carga y observaciones." />
             <div className="action-row">
               <button className="btn secondary" onClick={loadExercisePreset}>Cargar plantilla {form.type}</button>
-              <span className="muted">{exercises.length} ejercicio(s) en el diseño</span>
+              <span className="muted">{exercises.length} ejercicio(s) · {plannedStrengthSeries(exercises)} series · {plannedStrengthReps(exercises)} reps estimadas · {plannedStrengthSeries(exercises)} series planificadas</span>
             </div>
             <div className="grid form-grid">
               <label className="span-2">Ejercicio<input className="input" value={exerciseDraft.name} onChange={(e) => setExerciseDraft({ ...exerciseDraft, name: e.target.value })} placeholder="Ej. nórdico, sentadilla, pogos, core antirotación" /></label>
               <label>Zona<select className="select" value={exerciseDraft.zone} onChange={(e) => setExerciseDraft({ ...exerciseDraft, zone: e.target.value as StrengthZone })}>{STRENGTH_ZONE_GROUPS.flatMap((g) => g.options).map((z) => <option key={z}>{z}</option>)}</select></label>
+              <label>Patrón<select className="select" value={exerciseDraft.movementPattern} onChange={(e) => setExerciseDraft({ ...exerciseDraft, movementPattern: e.target.value as StrengthMovementPattern })}>{STRENGTH_MOVEMENT_PATTERNS.map((pattern) => <option key={pattern}>{pattern}</option>)}</select></label>
               <label>Series<input className="input" type="number" value={exerciseDraft.sets} onChange={(e) => setExerciseDraft({ ...exerciseDraft, sets: Number(e.target.value) })} /></label>
               <label>Reps / tiempo<input className="input" value={exerciseDraft.reps} onChange={(e) => setExerciseDraft({ ...exerciseDraft, reps: e.target.value })} placeholder="Ej. 4-6, 30s" /></label>
               <label>Carga<input className="input" value={exerciseDraft.load} onChange={(e) => setExerciseDraft({ ...exerciseDraft, load: e.target.value })} placeholder="Ej. 70%, RPE 6, bajo" /></label>
+              <label>Descanso<input className="input" value={exerciseDraft.rest} onChange={(e) => setExerciseDraft({ ...exerciseDraft, rest: e.target.value })} placeholder="Ej. 60-90s" /></label>
               <label className="span-2">Nota<input className="input" value={exerciseDraft.note} onChange={(e) => setExerciseDraft({ ...exerciseDraft, note: e.target.value })} placeholder="Criterio técnico, restricción o foco de ejecución" /></label>
             </div>
             <button className="btn secondary" onClick={addExercise}><Plus size={16} /> Agregar ejercicio</button>
-            {exercises.length ? <div className="table-scroll"><table className="pro-table"><thead><tr><th>Ejercicio</th><th>Zona</th><th>Series</th><th>Reps</th><th>Carga</th><th>Nota</th><th></th></tr></thead><tbody>
-              {exercises.map((exercise) => <tr key={exercise.id}><td><strong>{exercise.name}</strong></td><td>{exercise.zone}</td><td>{exercise.sets ?? '—'}</td><td>{exercise.reps || '—'}</td><td>{exercise.load || '—'}</td><td>{exercise.note || '—'}</td><td><button className="btn tiny ghost" onClick={() => setExercises((prev) => prev.filter((item) => item.id !== exercise.id))}>Quitar</button></td></tr>)}
+            {exercises.length ? <div className="table-scroll"><table className="pro-table"><thead><tr><th>Ejercicio</th><th>Zona</th><th>Series</th><th>Reps</th><th>Carga</th><th>Patrón</th><th>Descanso</th><th>Nota</th><th></th></tr></thead><tbody>
+              {exercises.map((exercise) => <tr key={exercise.id}><td><strong>{exercise.name}</strong></td><td>{exercise.zone}</td><td>{exercise.sets ?? '—'}</td><td>{exercise.reps || '—'}</td><td>{exercise.load || '—'}</td><td>{exercise.movementPattern || '—'}</td><td>{exercise.rest || '—'}</td><td>{exercise.note || '—'}</td><td><button className="btn tiny ghost" onClick={() => setExercises((prev) => prev.filter((item) => item.id !== exercise.id))}>Quitar</button></td></tr>)}
             </tbody></table></div> : <div className="soft-alert">Aún no has agregado ejercicios. Puedes guardar solo la intención general o cargar una plantilla rápida.</div>}
           </div>
           <div className="soft-alert"><Users size={16} /> Se incluirán {playersForGroup(form.group, visiblePlayers).length} jugadores visibles. Puedes agregar ajustes individuales antes de guardar.</div>
@@ -228,12 +261,12 @@ export default function FuerzaPage() {
               const planned = getPlannedPlayerIds(s, visiblePlayers).length;
               const resp = s.responses?.length ?? 0;
               return <button key={s.id} className={`list-card ${selectedSession?.id === s.id ? 'selected' : ''}`} onClick={() => setSelectedSessionId(s.id)}>
-                <div><strong>{s.group}</strong><br /><small>{s.type} · {s.zone} · {s.duration} min · RPE esp. {s.expectedRpe} · {(s.exercises ?? []).length} ej.</small></div>
+                <div><strong>{s.group}</strong><br /><small>{s.type} · {s.intent ?? 'Microdosis'} · {s.movementPattern ?? s.zone} · {s.duration} min · RPE esp. {s.expectedRpe} · {(s.exercises ?? []).length} ej.</small></div>
                 <StatusBadge text={`${resp}/${planned}`} tone={resp >= planned && planned ? 'green' : 'amber'} />
               </button>;
             })}
           </div>
-          {selectedSession ? <button className="btn danger ghost" onClick={() => { deleteStrengthSession(selectedSession.id); showToast('Sesión de fuerza eliminada.', 'amber'); }}><Trash2 size={16} /> Eliminar seleccionada</button> : null}
+          {selectedSession ? <div className="action-row no-print"><button className="btn secondary" onClick={printSelectedSession}><Printer size={16} /> Imprimir sesión</button><button className="btn danger ghost" onClick={() => { const id = selectedSession.id; deleteStrengthSession(id); setSelectedSessionId(''); setResponsesDraft({}); showToast('Sesión de fuerza eliminada también de Supabase.', 'amber'); }}><Trash2 size={16} /> Eliminar seleccionada</button></div> : null}
         </div>
       </div>
 
@@ -242,14 +275,37 @@ export default function FuerzaPage() {
           <SectionHeader
             eyebrow="Después del gimnasio"
             title={`Respuesta rápida · ${selectedSession.group}`}
-            subtitle={`Planificado: ${selectedSession.type} · ${selectedSession.zone} · ${selectedSession.duration} min · RPE esperado ${selectedSession.expectedRpe} · carga planificada ${plannedLoad} UA`}
+            subtitle={`Planificado: ${selectedSession.type} · ${selectedSession.intent ?? 'Microdosis'} · ${selectedSession.movementPattern ?? selectedSession.zone} · ${selectedSession.duration} min · RPE esperado ${selectedSession.expectedRpe} · carga planificada ${plannedLoad} UA · ${plannedSeries} series · ${plannedReps} reps est.`}
           />
           {(selectedSession.exercises ?? []).length ? <div className="card inset-card">
             <SectionHeader eyebrow="Diseño ejecutado" title="Ejercicios planificados por el PF" subtitle="Referencia para que el staff compare lo planeado con la percepción post fuerza." />
-            <div className="table-scroll"><table className="pro-table"><thead><tr><th>Ejercicio</th><th>Zona</th><th>Series</th><th>Reps</th><th>Carga</th><th>Nota</th></tr></thead><tbody>
-              {(selectedSession.exercises ?? []).map((exercise) => <tr key={exercise.id}><td><strong>{exercise.name}</strong></td><td>{exercise.zone}</td><td>{exercise.sets ?? '—'}</td><td>{exercise.reps || '—'}</td><td>{exercise.load || '—'}</td><td>{exercise.note || '—'}</td></tr>)}
+            <div className="table-scroll"><table className="pro-table"><thead><tr><th>Ejercicio</th><th>Zona</th><th>Series</th><th>Reps</th><th>Carga</th><th>Patrón</th><th>Descanso</th><th>Nota</th></tr></thead><tbody>
+              {(selectedSession.exercises ?? []).map((exercise) => <tr key={exercise.id}><td><strong>{exercise.name}</strong></td><td>{exercise.zone}</td><td>{exercise.sets ?? '—'}</td><td>{exercise.reps || '—'}</td><td>{exercise.load || '—'}</td><td>{exercise.movementPattern || '—'}</td><td>{exercise.rest || '—'}</td><td>{exercise.note || '—'}</td></tr>)}
             </tbody></table></div>
           </div> : null}
+          <div className="print-strength-sheet card inset-card">
+            <div className="print-header">
+              <div>
+                <h1>Sesión de fuerza</h1>
+                <p>{selectedSession.date} · {selectedSession.category ?? categoryLabel(category === 'all' ? 'Sub20' : category)} · {selectedSession.group}</p>
+              </div>
+              <div className="print-meta"><strong>{selectedSession.type}</strong><br />{selectedSession.intent ?? 'Microdosis'} · {selectedSession.movementPattern ?? selectedSession.zone}</div>
+            </div>
+            <div className="print-grid">
+              <div><strong>Zona:</strong> {selectedSession.zone}</div>
+              <div><strong>Duración:</strong> {selectedSession.duration} min</div>
+              <div><strong>RPE esperado:</strong> {selectedSession.expectedRpe}</div>
+              <div><strong>Carga planificada:</strong> {plannedLoad} UA</div>
+            </div>
+            <p><strong>Objetivo:</strong> {selectedSession.objective || '—'}</p>
+            <p><strong>Restricciones:</strong> {selectedSession.restrictions || '—'}</p>
+            <table className="print-table"><thead><tr><th>Ejercicio</th><th>Zona</th><th>Patrón</th><th>Series</th><th>Reps/tiempo</th><th>Carga</th><th>Descanso</th><th>Nota técnica</th></tr></thead><tbody>
+              {(selectedSession.exercises ?? []).map((exercise) => <tr key={exercise.id}><td>{exercise.name}</td><td>{exercise.zone || '—'}</td><td>{exercise.movementPattern || '—'}</td><td>{exercise.sets ?? '—'}</td><td>{exercise.reps || '—'}</td><td>{exercise.load || '—'}</td><td>{exercise.rest || '—'}</td><td>{exercise.note || '—'}</td></tr>)}
+              {!(selectedSession.exercises ?? []).length ? <tr><td colSpan={8}>Sesión sin ejercicios detallados.</td></tr> : null}
+            </tbody></table>
+            {(selectedSession.adjustments ?? []).length ? <><h2>Ajustes individuales</h2><table className="print-table"><thead><tr><th>Jugador</th><th>RPE ind.</th><th>Restricción</th><th>Nota</th></tr></thead><tbody>{(selectedSession.adjustments ?? []).map((a) => <tr key={a.playerId}><td>{getName(visiblePlayers, a.playerId)}</td><td>{a.expectedRpe ?? '—'}</td><td>{a.restriction || '—'}</td><td>{a.note || '—'}</td></tr>)}</tbody></table></> : null}
+            <p className="print-note">Uso: ejecutar la microdosis según calidad técnica, intención del movimiento y respuesta del jugador. Al terminar, registrar RPE post fuerza.</p>
+          </div>
           <div className="table-scroll"><table className="pro-table"><thead><tr><th>Jugador</th><th>RPE fuerza</th><th>Completó</th><th>Dolor</th><th>Dif.</th><th>Carga percibida</th><th>Decisión</th><th></th></tr></thead><tbody>
             {plannedIds.map((playerId) => {
               const existing = selectedSession.responses?.find((r) => r.playerId === playerId);
@@ -291,12 +347,17 @@ export default function FuerzaPage() {
 
       <div className="card">
         <SectionHeader eyebrow="Análisis" title="Planificado vs percibido" subtitle="La app compara intención del staff con respuesta real para ajustar carga de campo o próxima fuerza." />
-        {selectedSession ? <div className="insight-list compact">
+        {selectedSession ? <><div className="grid grid-4 strength-load-summary">
+          <KpiCard label="Carga planificada" value={`${plannedLoad} UA`} tone="blue" trend="Duración × RPE esp. × factor" />
+          <KpiCard label="Series" value={String(plannedSeries)} tone={plannedSeries ? 'green' : 'amber'} trend="Volumen de microdosis" />
+          <KpiCard label="Reps estimadas" value={String(plannedReps)} tone={plannedReps ? 'green' : 'amber'} trend="Primer valor de reps por ejercicio" />
+          <KpiCard label="Movimiento" value={selectedSession.movementPattern ?? selectedSession.zone} tone="blue" trend={selectedSession.intent ?? 'Microdosis'} />
+        </div><div className="insight-list compact">
           {plannedResponses.length ? plannedResponses.map((r) => {
             const diff = rpeDiffLabel(selectedSession.expectedRpe, r.rpe);
             return <div key={r.id} className={diff.tone === 'red' ? 'danger-row' : ''}><strong>{getName(visiblePlayers, r.playerId)}:</strong> RPE esperado {selectedSession.expectedRpe}, real {r.rpe}, carga percibida {strengthLoad(selectedSession.duration, r.rpe, selectedSession.type)} UA. {diff.text} {r.pain ? `Dolor: ${r.painRegion ?? 'sin zona'} ${r.painIntensity ?? ''}/10.` : ''}</div>;
           }) : <div className="soft-alert warning"><AlertTriangle size={16} /> Aún no hay respuestas post fuerza.</div>}
-        </div> : <div className="soft-alert"><CheckCircle2 size={16} /> Selecciona una sesión para ver análisis.</div>}
+        </div></> : <div className="soft-alert"><CheckCircle2 size={16} /> Selecciona una sesión para ver análisis.</div>}
       </div>
     </div>
   );

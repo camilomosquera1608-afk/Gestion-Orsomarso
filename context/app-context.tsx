@@ -1002,10 +1002,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         responses: [response, ...(session.responses ?? []).filter((item) => item.playerId !== response.playerId)],
       } : session),
     })),
-    deleteStrengthSession: (sessionId) => applyMutation((prev) => ({
-      ...prev,
-      strengthSessions: (prev.strengthSessions ?? []).filter((item) => item.id !== sessionId),
-    })),
+    deleteStrengthSession: (sessionId) => {
+      const current = dataRef.current;
+      const target = (current.strengthSessions ?? []).find((item) => item.id === sessionId);
+      applyMutation((prev) => ({
+        ...prev,
+        strengthSessions: (prev.strengthSessions ?? []).filter((item) => item.id !== sessionId),
+      }));
+      if (target) {
+        void deleteRemoteLegacy('strength_sessions', sessionId);
+      }
+    },
     updateMicrocycle: (record) => {
       const normalizedRecord = { ...record, category: record.category ?? (filters.category === 'all' ? 'Sub20' : filters.category as any) };
       applyMutation((prev) => {

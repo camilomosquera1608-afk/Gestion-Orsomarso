@@ -9,6 +9,8 @@ create table if not exists public.strength_sessions (
   group_name text not null default 'Todo el plantel',
   strength_type text not null default 'Concéntrica',
   zone text not null default 'Cadena posterior',
+  intent text default 'Activación',
+  movement_pattern text default 'Aceleración',
   duration_min numeric default 0,
   expected_rpe numeric default 0,
   objective text,
@@ -51,3 +53,8 @@ for each row execute function public.set_strength_sessions_updated_at();
 -- Compatibilidad para proyectos que ya ejecutaron V112 antes de agregar diseño de ejercicios
 alter table public.strength_sessions
   add column if not exists exercises jsonb default '[]'::jsonb;
+
+-- V112.2 · Microdosis de fuerza y patrón de movimiento
+alter table public.strength_sessions
+  add column if not exists intent text default 'Activación',
+  add column if not exists movement_pattern text default 'Aceleración';
