@@ -2,7 +2,11 @@ import type { Player, StrengthGroup, StrengthSession, StrengthSessionType, Stren
 
 export const STRENGTH_TYPES: StrengthSessionType[] = ['Concéntrica', 'Excéntrica', 'Reactiva', 'Hipertrofia recuperación'];
 export const STRENGTH_GROUPS: StrengthGroup[] = ['Todo el plantel', 'Titulares', 'Suplentes', 'No convocados', 'Retorno/readaptación'];
-export const STRENGTH_ZONES: StrengthZone[] = ['Tren inferior', 'Isquios', 'Aductor', 'Cuádriceps', 'Glúteo', 'Gemelo/Sóleo', 'Tobillo/Aquiles', 'Core/Lumbar', 'Tren superior'];
+export const STRENGTH_ZONES: StrengthZone[] = ['Cadena posterior', 'Cadena anterior', 'Hipertrofia', 'Zona lumbo-pélvica'];
+export const STRENGTH_ZONE_GROUPS: Array<{ label: string; options: StrengthZone[]; hint: string }> = [
+  { label: 'Tren inferior', options: ['Cadena posterior', 'Cadena anterior'], hint: 'Posterior: isquios, glúteo, gemelo/sóleo. Anterior: cuádriceps, cadera, rodilla.' },
+  { label: 'Tren superior / soporte', options: ['Hipertrofia', 'Zona lumbo-pélvica'], hint: 'Hipertrofia: soporte/recuperación. Lumbo-pélvica: core, pelvis, estabilidad.' },
+];
 
 export const strengthFactor = (type: StrengthSessionType) => {
   if (type === 'Excéntrica') return 1.3;

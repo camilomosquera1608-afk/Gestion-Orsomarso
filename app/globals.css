@@ -7017,3 +7017,87 @@ img[loading="lazy"] { background: var(--line-soft); }
 .fuerza-page .btn.tiny { min-height: 30px; padding: 5px 10px; font-size: 12px; }
 .fuerza-page .danger-row { border-left: 4px solid #dc2626; padding-left: 10px; }
 @media (max-width: 760px) { .fuerza-page .span-2 { grid-column: span 1; } }
+
+/* Fuerza — selección rápida de zonas y RPE post sesión */
+.fuerza-page .field-label {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.fuerza-page .zone-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.fuerza-page .zone-choice-group {
+  border: 1.5px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  padding: 12px;
+}
+.fuerza-page .zone-choice-title {
+  font-weight: 900;
+  color: var(--navy-2);
+  margin-bottom: 8px;
+}
+.fuerza-page .zone-choice-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.fuerza-page .choice-pill,
+.fuerza-page .rpe-pill {
+  border: 1.5px solid var(--line);
+  background: #fff;
+  color: var(--navy-2);
+  border-radius: 999px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background .14s, border-color .14s, color .14s, transform .14s;
+}
+.fuerza-page .choice-pill {
+  padding: 9px 12px;
+  font-size: 13px;
+}
+.fuerza-page .choice-pill.active,
+.fuerza-page .rpe-pill.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(37, 87, 214, .16);
+}
+.fuerza-page .choice-pill:hover,
+.fuerza-page .rpe-pill:hover {
+  transform: translateY(-1px);
+  border-color: var(--blue-mid);
+  background: var(--blue-soft);
+  color: var(--blue-dark);
+}
+.fuerza-page .choice-pill.active:hover,
+.fuerza-page .rpe-pill.active:hover {
+  background: var(--blue);
+  color: #fff;
+}
+.fuerza-page .rpe-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 30px);
+  gap: 5px;
+  min-width: 170px;
+}
+.fuerza-page .rpe-pill {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .fuerza-page .zone-choice-grid { grid-template-columns: 1fr; }
+  .fuerza-page .rpe-quick-grid { grid-template-columns: repeat(5, 28px); min-width: 150px; }
+  .fuerza-page .rpe-pill { width: 28px; height: 28px; }
+}

@@ -21,7 +21,7 @@ export type LoadTolerance = 'Alta' | 'Media' | 'Baja' | 'En construcción';
 
 export type StrengthSessionType = 'Concéntrica' | 'Excéntrica' | 'Reactiva' | 'Hipertrofia recuperación';
 export type StrengthGroup = 'Todo el plantel' | 'Titulares' | 'Suplentes' | 'No convocados' | 'Retorno/readaptación';
-export type StrengthZone = 'Tren inferior' | 'Isquios' | 'Aductor' | 'Cuádriceps' | 'Glúteo' | 'Gemelo/Sóleo' | 'Tobillo/Aquiles' | 'Core/Lumbar' | 'Tren superior';
+export type StrengthZone = 'Cadena posterior' | 'Cadena anterior' | 'Hipertrofia' | 'Zona lumbo-pélvica';
 export type StrengthCompletion = 'Completa' | 'Parcial' | 'No completó';
 
 export interface StrengthPlayerAdjustment {

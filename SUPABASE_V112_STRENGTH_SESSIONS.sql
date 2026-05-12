@@ -8,7 +8,7 @@ create table if not exists public.strength_sessions (
   category text default 'Sub20',
   group_name text not null default 'Todo el plantel',
   strength_type text not null default 'Concéntrica',
-  zone text not null default 'Tren inferior',
+  zone text not null default 'Cadena posterior',
   duration_min numeric default 0,
   expected_rpe numeric default 0,
   objective text,

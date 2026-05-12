@@ -11,7 +11,7 @@ import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory, Player, StrengthCompletion, StrengthGroup, StrengthPlayerAdjustment, StrengthPlayerResponse, StrengthSession, StrengthSessionType, StrengthZone } from '@/lib/types';
-import { getPlannedPlayerIds, groupPlayerHint, rpeDiffLabel, strengthDecision, strengthId, strengthLoad, strengthResponseId, STRENGTH_GROUPS, STRENGTH_TYPES, STRENGTH_ZONES } from '@/lib/strength';
+import { getPlannedPlayerIds, groupPlayerHint, rpeDiffLabel, strengthDecision, strengthId, strengthLoad, strengthResponseId, STRENGTH_GROUPS, STRENGTH_TYPES, STRENGTH_ZONE_GROUPS } from '@/lib/strength';
 
 const categories: Array<ClubCategory | 'all'> = ['all', 'Sub20', 'Sub17', 'Sub15'];
 const todayInput = () => new Date().toISOString().slice(0, 10);
@@ -34,7 +34,7 @@ export default function FuerzaPage() {
   const [form, setForm] = useState({
     group: 'Todo el plantel' as StrengthGroup,
     type: 'Concéntrica' as StrengthSessionType,
-    zone: 'Tren inferior' as StrengthZone,
+    zone: 'Cadena posterior' as StrengthZone,
     duration: 30,
     expectedRpe: 5,
     objective: '',
@@ -137,7 +137,24 @@ export default function FuerzaPage() {
           <div className="grid form-grid">
             <label>Grupo<select className="select" value={form.group} onChange={(e) => setForm({ ...form, group: e.target.value as StrengthGroup })}>{STRENGTH_GROUPS.map((g) => <option key={g}>{g}</option>)}</select><small>{groupPlayerHint(form.group)}</small></label>
             <label>Tipo<select className="select" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as StrengthSessionType })}>{STRENGTH_TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
-            <label>Zona principal<select className="select" value={form.zone} onChange={(e) => setForm({ ...form, zone: e.target.value as StrengthZone })}>{STRENGTH_ZONES.map((z) => <option key={z}>{z}</option>)}</select></label>
+            <div className="span-2">
+              <div className="field-label">Zona principal</div>
+              <div className="zone-choice-grid">
+                {STRENGTH_ZONE_GROUPS.map((group) => (
+                  <div key={group.label} className="zone-choice-group">
+                    <div className="zone-choice-title">{group.label}</div>
+                    <div className="zone-choice-options">
+                      {group.options.map((z) => (
+                        <button key={z} type="button" className={`choice-pill ${form.zone === z ? 'active' : ''}`} onClick={() => setForm({ ...form, zone: z })}>
+                          {z}
+                        </button>
+                      ))}
+                    </div>
+                    <small>{group.hint}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
             <label>Duración estimada<input className="input" type="number" value={form.duration} onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })} /></label>
             <label>RPE esperado<input className="input" type="number" min={1} max={10} value={form.expectedRpe} onChange={(e) => setForm({ ...form, expectedRpe: Number(e.target.value) })} /></label>
             <label>Objetivo<input className="input" value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })} placeholder="Ej. compensatorio suplentes, recuperación titulares" /></label>
@@ -194,7 +211,13 @@ export default function FuerzaPage() {
               const decision = strengthDecision(selectedSession, rpe, completed, pain);
               return <tr key={playerId}>
                 <td><strong>{getName(visiblePlayers, playerId)}</strong></td>
-                <td><input className="input small" type="number" min={1} max={10} value={rpe} onChange={(e) => setDraft(playerId, { rpe: Number(e.target.value) })} /></td>
+                <td>
+                  <div className="rpe-quick-grid" aria-label="RPE fuerza rápido">
+                    {[1,2,3,4,5,6,7,8,9,10].map((score) => (
+                      <button key={score} type="button" className={`rpe-pill ${rpe === score ? 'active' : ''}`} onClick={() => setDraft(playerId, { rpe: score })}>{score}</button>
+                    ))}
+                  </div>
+                </td>
                 <td><select className="select small" value={completed} onChange={(e) => setDraft(playerId, { completed: e.target.value as StrengthCompletion })}><option>Completa</option><option>Parcial</option><option>No completó</option></select></td>
                 <td><label className="inline-check"><input type="checkbox" checked={pain} onChange={(e) => { setDraft(playerId, { pain: e.target.checked }); if (e.target.checked) setShowBodyMapFor(playerId); }} /> Sí</label>{pain ? <button className="btn tiny secondary" onClick={() => setShowBodyMapFor(showBodyMapFor === playerId ? '' : playerId)}>Zona</button> : null}</td>
                 <td><StatusBadge text={diff.label} tone={diff.tone} /></td>

@@ -643,7 +643,7 @@ export const fetchSupabaseTablesAppData = async (
       category: category(row.category),
       group: String(row.group_name ?? 'Todo el plantel') as StrengthSession['group'],
       type: String(row.strength_type ?? 'Concéntrica') as StrengthSession['type'],
-      zone: String(row.zone ?? 'Tren inferior') as StrengthSession['zone'],
+      zone: String(row.zone ?? 'Cadena posterior') as StrengthSession['zone'],
       duration: num(row.duration_min, 0),
       expectedRpe: num(row.expected_rpe, 0),
       objective: text(row.objective),
