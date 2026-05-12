@@ -53,12 +53,17 @@ const SESSION_TYPES: {
   label: string;
   color: string;
 }[] = [
-  { value: "cdef", label: "Recuperación", color: "#059669" },
-  { value: "cdEf", label: "Ejecución", color: "#1557d6" },
-  { value: "cdeF", label: "Condición física", color: "#d97706" },
-  { value: "Cdef", label: "Comunicación", color: "#7c3aed" },
-  { value: "deci", label: "Decisión", color: "#be123c" },
+  { value: "MD+1", label: "MD+1 · Recuperación", color: "#059669" },
+  { value: "MD+2", label: "MD+2 · Reinicio", color: "#0f766e" },
+  { value: "MD-5", label: "MD-5 · Desarrollo base", color: "#2563eb" },
+  { value: "MD-4", label: "MD-4 · Carga alta controlada", color: "#d97706" },
+  { value: "MD-3", label: "MD-3 · Estímulo principal", color: "#be123c" },
+  { value: "MD-2", label: "MD-2 · Ajuste táctico", color: "#7c3aed" },
+  { value: "MD-1", label: "MD-1 · Activación", color: "#475569" },
+  { value: "MD", label: "MD · Partido", color: "#111827" },
 ];
+const normalizeSessionType = (value?: string | null): TrainingSessionType =>
+  SESSION_TYPES.some((item) => item.value === value) ? (value as TrainingSessionType) : "MD-3";
 const PARTICIPATION_OPTIONS: SessionParticipation[] = [
   "Completa",
   "Parcial",
@@ -233,7 +238,7 @@ export default function SesionEntrenamientoPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showCsv, setShowCsv] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [sessType, setSessType] = useState<TrainingSessionType>("cdEf");
+  const [sessType, setSessType] = useState<TrainingSessionType>("MD-3");
   const [objective, setObjective] = useState("");
   const [observation, setObservation] = useState("");
   const [search, setSearch] = useState("");
@@ -293,7 +298,7 @@ export default function SesionEntrenamientoPage() {
     if (dateSummary && editingId !== dateSummary.id) {
       setEditingId(dateSummary.id);
       setSessNumInput(String(dateSummary.sessionNumber || 1));
-      setSessType(dateSummary.sessionType ?? "cdEf");
+      setSessType(normalizeSessionType(dateSummary.sessionType));
       setObjective(dateSummary.objective ?? "");
       setObservation(dateSummary.observation ?? "");
       return;
@@ -312,7 +317,7 @@ export default function SesionEntrenamientoPage() {
   ]); // eslint-disable-line
 
   useEffect(() => {
-    setSessType(summaryRecord?.sessionType ?? "cdEf");
+    setSessType(normalizeSessionType(summaryRecord?.sessionType));
     setObjective(summaryRecord?.objective ?? "");
     setObservation(summaryRecord?.observation ?? "");
   }, [
@@ -828,7 +833,7 @@ export default function SesionEntrenamientoPage() {
       sessionNumber: t.sessionNumber,
       category: t.category ?? activeCat,
     });
-    setSessType(t.sessionType ?? "cdEf");
+    setSessType(normalizeSessionType(t.sessionType));
     setObjective(t.objective ?? "");
     setObservation(t.observation ?? "");
     setEditingId(t.id);

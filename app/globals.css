@@ -6926,3 +6926,68 @@ img[loading="lazy"] { background: var(--line-soft); }
 .checkline { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .full-width { grid-column: 1 / -1; }
 @media (max-width: 900px) { .body-map-widget { grid-template-columns: 1fr; } }
+
+/* Mejoras mapa corporal integrado a wellness y disponibilidad */
+.body-map-widget.advanced {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) minmax(160px, 240px) 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.body-map-view-title {
+  font-weight: 900;
+  color: #334155;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.body-map-widget.advanced .body-map-svg-card svg {
+  width: 100%;
+  max-height: 460px;
+}
+.body-map-region {
+  fill: rgba(148, 163, 184, .28);
+  stroke: rgba(71, 85, 105, .72);
+  stroke-width: 2;
+  cursor: pointer;
+  transition: fill .16s ease, stroke .16s ease, stroke-width .16s ease;
+}
+.body-map-region:hover {
+  fill: rgba(59, 130, 246, .30);
+  stroke: rgba(37, 99, 235, .95);
+}
+.body-map-region.selected {
+  fill: rgba(239, 68, 68, .58);
+  stroke: rgba(185, 28, 28, .95);
+  stroke-width: 3;
+}
+.wellness-body-map-card {
+  border: 1px solid rgba(239, 68, 68, .20);
+  background: linear-gradient(180deg, rgba(255, 247, 247, .92), rgba(255,255,255,.96));
+}
+.wellness-body-map-card h3 { margin: 4px 0 4px; }
+.wellness-body-map-fields { margin: 14px 0; }
+.body-map-checks {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  font-weight: 700;
+  color: #334155;
+  font-size: .88rem;
+}
+.body-map-checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.availability-body-map-card {
+  border: 1px solid rgba(14, 165, 233, .22);
+  background: linear-gradient(180deg, rgba(240,249,255,.88), rgba(255,255,255,.96));
+}
+.body-map-staff-layout { align-items: start; }
+.full-width { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  .body-map-widget.advanced { grid-template-columns: 1fr; }
+}

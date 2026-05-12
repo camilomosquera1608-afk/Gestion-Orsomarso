@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Activity, BarChart3, Bell, Briefcase, ChevronDown, ClipboardPlus,
+  Activity, BarChart3, Bell, Briefcase, ChevronDown,
   Dumbbell, FileText, Gauge, HeartPulse, Medal,
   Settings, ShieldCheck, TimerReset, Trophy, TrendingUp, Utensils,
   UserRoundPlus, Users, LogOut, Menu, Home, type LucideIcon } from 'lucide-react';
@@ -45,8 +45,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/carga', label: 'Centro de carga', icon: Dumbbell },
         { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
         { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
-        { href: '/dolor-lesiones', label: 'Dolor y lesiones', icon: ClipboardPlus },
-        { href: '/riesgo', label: 'Riesgo', icon: TrendingUp },
+          { href: '/riesgo', label: 'Riesgo', icon: TrendingUp },
         { href: '/alertas', label: 'Alertas', icon: Bell },
       ] },
     {

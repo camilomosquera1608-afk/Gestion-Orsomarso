@@ -793,7 +793,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       applyMutation((prev) => ({ ...prev, internalLoads: prev.internalLoads.filter((item) => item.id !== recordId) }));
       void deleteRemoteLegacy('daily_internal_loads', recordId);
     },
-    addExternalLoad: (record) => applyMutation((prev) => ({ ...prev, externalLoads: [{ ...record, microcycleId: record.microcycleId ?? filters.microcycleId, sessionNumber: record.sessionNumber ?? filters.sessionNumber, sessionType: record.sessionType ?? 'cdEf', participation: record.participation ?? 'Completa' }, ...prev.externalLoads] })),
+    addExternalLoad: (record) => applyMutation((prev) => ({ ...prev, externalLoads: [{ ...record, microcycleId: record.microcycleId ?? filters.microcycleId, sessionNumber: record.sessionNumber ?? filters.sessionNumber, sessionType: record.sessionType ?? 'MD-3', participation: record.participation ?? 'Completa' }, ...prev.externalLoads] })),
     updateExternalLoad: (record) => applyMutation((prev) => ({ ...prev, externalLoads: prev.externalLoads.map((item) => item.id === record.id ? record : item) })),
     deleteExternalLoad: (recordId) => {
       applyMutation((prev) => ({ ...prev, externalLoads: prev.externalLoads.filter((item) => item.id !== recordId) }));

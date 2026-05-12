@@ -247,7 +247,7 @@ export const parseGpsCsv = (raw: string): { rows: CsvRow[]; format: string } => 
 };
 
 // ─── Componente ───────────────────────────────────────────────────────────────
-export function CsvImporter({ players, sessionId, date, microcycleId, sessionNumber, category, actingCategory, sessionType = 'cdEf', movementModule = 'sesion', title, description, dropzoneTitle, importLabel, onImport, onClose }: Props) {
+export function CsvImporter({ players, sessionId, date, microcycleId, sessionNumber, category, actingCategory, sessionType = 'MD-3', movementModule = 'sesion', title, description, dropzoneTitle, importLabel, onImport, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<'upload' | 'map' | 'preview'>('upload');
   const [dragOver, setDragOver] = useState(false);

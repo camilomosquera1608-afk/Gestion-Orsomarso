@@ -139,7 +139,7 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
       microcycleId: record.microcycleId ?? microcycleFor(record.date, record.category ?? getPlayer(record.playerId)?.category),
       sessionNumber: record.sessionNumber ?? 1,
       category: record.category ?? getPlayer(record.playerId)?.category ?? 'Sub20',
-      sessionType: record.sessionType ?? 'cdEf',
+      sessionType: record.sessionType ?? 'MD-3',
       participation: record.participation ?? 'Completa',
       sprints: record.sprints ?? 0,
       ima: record.ima ?? 0,

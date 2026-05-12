@@ -38,23 +38,29 @@ const safeAverage = (values: number[]) => groupAverage(values.filter((value) => 
 const round = (value: number, digits = 0) => (Number.isFinite(value) ? value.toFixed(digits) : (0).toFixed(digits));
 
 export const trainingTypeLabel: Record<TrainingSessionType, string> = {
-  cdef: 'Recuperación',
-  cdEf: 'Ejecución',
-  cdeF: 'Condición física',
-  Cdef: 'Comunicación',
-  deci: 'Decisión',
+  'MD+1': 'MD+1 · Recuperación post partido',
+  'MD+2': 'MD+2 · Recuperación / reinicio',
+  'MD-5': 'MD-5 · Desarrollo base',
+  'MD-4': 'MD-4 · Carga alta controlada',
+  'MD-3': 'MD-3 · Día fuerte / estímulo principal',
+  'MD-2': 'MD-2 · Ajuste táctico',
+  'MD-1': 'MD-1 · Activación prepartido',
+  'MD': 'MD · Partido',
 };
 
 const typeTargets: Record<TrainingSessionType, { min: [number, number]; rpe: [number, number]; load: [number, number]; note: string }> = {
-  cdef: { min: [15, 55], rpe: [1, 4.5], load: [20, 220], note: 'Debe favorecer recuperación, baja carga interna y control de fatiga.' },
-  cdEf: { min: [35, 85], rpe: [3.5, 7], load: [160, 480], note: 'Debe permitir ejecución técnica/táctica con carga moderada y controlada.' },
-  cdeF: { min: [45, 100], rpe: [5, 8.5], load: [280, 720], note: 'Acepta mayor volumen e intensidad, pero requiere control de wellness y recuperación.' },
-  Cdef: { min: [25, 70], rpe: [2.5, 6], load: [100, 360], note: 'Debe priorizar organización y comunicación con carga física baja-media.' },
-  deci: { min: [35, 85], rpe: [4, 7.5], load: [180, 560], note: 'Debe combinar exigencia cognitiva, toma de decisión e intensidad física moderada.' },
+  'MD+1': { min: [15, 50], rpe: [1, 4], load: [20, 180], note: 'Día de recuperación: evitar estrés mecánico alto y priorizar regeneración.' },
+  'MD+2': { min: [20, 65], rpe: [2, 5], load: [60, 260], note: 'Reinicio progresivo: controlar dolor postpartido, sueño y disponibilidad.' },
+  'MD-5': { min: [40, 90], rpe: [4, 7], load: [180, 520], note: 'Desarrollo base: admite carga moderada-alta si el readiness individual lo permite.' },
+  'MD-4': { min: [45, 100], rpe: [5, 8], load: [260, 700], note: 'Carga alta controlada: vigilar picos, alta velocidad y jugadores con molestias.' },
+  'MD-3': { min: [45, 100], rpe: [5, 8.5], load: [280, 760], note: 'Estímulo principal del microciclo: individualizar por dolor, RPE y carga acumulada.' },
+  'MD-2': { min: [30, 75], rpe: [3, 6.5], load: [120, 420], note: 'Ajuste táctico: evitar fatiga residual y controlar acciones excéntricas.' },
+  'MD-1': { min: [15, 55], rpe: [1.5, 4.5], load: [40, 220], note: 'Activación: cualquier dolor moderado pesa más en la decisión de disponibilidad.' },
+  'MD': { min: [0, 110], rpe: [0, 10], load: [0, 900], note: 'Día de partido: interpretar carga según minutos, rol y restricciones médicas.' },
 };
 
 export const buildSessionTypeLoadControl = (sessionType: TrainingSessionType, metrics: SessionLoadMetrics): LogicInsight => {
-  const target = typeTargets[sessionType];
+  const target = typeTargets[sessionType] ?? typeTargets['MD-3'];
   const individualLoads = (metrics.individualLoads ?? []).filter((value) => Number.isFinite(value) && value > 0);
   const above = individualLoads.filter((value) => value > target.load[1]).length;
   const below = individualLoads.filter((value) => value > 0 && value < target.load[0]).length;
@@ -745,9 +751,9 @@ export const buildMicrocycleLogic = (params: {
     acc[label] = (acc[label] ?? 0) + 1;
     return acc;
   }, {});
-  const physicalSessions = sessions.filter((session) => session.sessionType === 'cdeF').length;
-  const recoverySessions = sessions.filter((session) => session.sessionType === 'cdef').length;
-  const decisionSessions = sessions.filter((session) => session.sessionType === 'deci').length;
+  const physicalSessions = sessions.filter((session) => session.sessionType === 'MD-3' || session.sessionType === 'MD-4').length;
+  const recoverySessions = sessions.filter((session) => session.sessionType === 'MD+1' || session.sessionType === 'MD+2').length;
+  const decisionSessions = sessions.filter((session) => session.sessionType === 'MD-2').length;
   const insights: LogicInsight[] = [
     {
       id: 'microcycle-load-plan',
@@ -760,8 +766,8 @@ export const buildMicrocycleLogic = (params: {
       id: 'microcycle-type-balance',
       title: 'Balance de contenidos',
       tone: physicalSessions > 2 && recoverySessions === 0 ? 'yellow' : 'blue',
-      value: `${physicalSessions} CF · ${decisionSessions} Dec`,
-      description: physicalSessions > 2 && recoverySessions === 0 ? 'Microciclo con alta presencia física y sin recuperación registrada.' : 'Distribución de contenidos apta para seguimiento técnico.',
+      value: `${physicalSessions} días fuertes · ${decisionSessions} MD-2`,
+      description: physicalSessions > 2 && recoverySessions === 0 ? 'Microciclo con alta presencia de días fuertes y sin recuperación registrada.' : 'Distribución de contenidos apta para seguimiento técnico.',
     },
   ];
   return { sessions, loads, typeCount, insights };

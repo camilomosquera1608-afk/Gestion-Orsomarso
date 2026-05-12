@@ -15,7 +15,7 @@ import { findOverlappingMicrocycle } from '@/lib/operational-validation';
 import { buildAbruptLoadAlerts, buildDataInconsistencyAlerts, buildMicrocycleLogic, buildPlayerReadinessSemaphores, buildReturnToPlayAlerts, buildRoleLoadControl, buildSelfComparisonInsights, buildWeeklyMonotonyFatigue } from '@/lib/logic-insights';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-const sessionLabels: Record<string, string> = { cdef: 'Recuperación', cdEf: 'Ejecución', cdeF: 'Condición física', Cdef: 'Comunicación', deci: 'Decisión' };
+const sessionLabels: Record<string, string> = { 'MD+1': 'Recuperación post partido', 'MD+2': 'Recuperación/reinicio', 'MD-5': 'Desarrollo base', 'MD-4': 'Carga alta controlada', 'MD-3': 'Estímulo principal', 'MD-2': 'Ajuste táctico', 'MD-1': 'Activación', MD: 'Partido' };
 
 export default function MicrocicloPage() {
   const { data, filters, setFilters, updateMicrocycle, deleteMicrocycle, deleteTrainingSessionSummary } = useApp();

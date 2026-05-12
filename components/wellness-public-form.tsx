@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { BodyMapSelector } from '@/components/body-map-selector';
 import { ToneBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
 import { categoryLabel } from '@/lib/labels';
 import { getTrafficLight } from '@/lib/rules';
 import { supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
+import { appendBodyMapRecord, getBodyMapDecision, newBodyMapId, type BodyMapRecordType, type BodyMapSide } from '@/lib/body-map';
 import type { ClubCategory } from '@/lib/types';
 
 type WellnessFormState = {
@@ -89,6 +91,13 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [values, setValues] = useState<WellnessFormState>(defaultState);
+  const [bodyRegion, setBodyRegion] = useState('Isquiotibial');
+  const [bodySide, setBodySide] = useState<BodyMapSide>('Derecha');
+  const [bodyType, setBodyType] = useState<BodyMapRecordType>('Molestia');
+  const [bodyIntensity, setBodyIntensity] = useState(0);
+  const [bodyLimitation, setBodyLimitation] = useState(false);
+  const [bodySprint, setBodySprint] = useState(false);
+  const [bodyCod, setBodyCod] = useState(false);
 
   const localPlayers = useMemo<WellnessPublicPlayer[]>(() => data.players
     .filter((player) => !forcedCategory || player.category === forcedCategory)
@@ -153,6 +162,17 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
     const total = values.sleep + values.fatigue + values.stress + values.musclePain + values.mood;
     return (total / 5).toFixed(1);
   }, [values]);
+
+  const showBodyMap = (values.musclePain > 0 && values.musclePain <= 3) || (values.fatigue > 0 && values.fatigue <= 2);
+  const bodyDecision = getBodyMapDecision({
+    region: bodyRegion,
+    type: bodyType,
+    intensity: bodyIntensity,
+    limitation: bodyLimitation,
+    increasesWithSprint: bodySprint,
+    increasesWithChangeOfDirection: bodyCod,
+    status: 'Abierto',
+  });
 
   const handleSubmit = async (formData: FormData) => {
     if (submitState === 'saving') return;
@@ -234,9 +254,34 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
         upsertWellness(payload);
       }
 
+      if (showBodyMap && bodyIntensity > 0) {
+        appendBodyMapRecord({
+          id: newBodyMapId(),
+          playerId,
+          date: recordDate,
+          category: payload.category,
+          source: 'Jugador',
+          type: bodyType,
+          region: bodyRegion,
+          side: bodySide,
+          intensity: bodyIntensity,
+          limitation: bodyLimitation,
+          increasesWithSprint: bodySprint,
+          increasesWithChangeOfDirection: bodyCod,
+          status: 'Abierto',
+          action: `${bodyDecision.decision} · ${bodyDecision.pct}`,
+          restriction: bodyDecision.restriction,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
       setSelectedPlayerId(playerId);
       setDate(recordDate);
       setValues(defaultState);
+      setBodyIntensity(0);
+      setBodyLimitation(false);
+      setBodySprint(false);
+      setBodyCod(false);
       setSubmitState('success');
       setMessage(`Wellness enviado correctamente por ${player.name} · ${recordDate}. Puedes cerrar esta pantalla.`);
     } catch (error) {
@@ -318,6 +363,36 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
               );
             })}
           </div>
+
+          {showBodyMap ? (
+            <div className="card wellness-body-map-card">
+              <div className="section-eyebrow">Mapa corporal</div>
+              <h3>Ubica la fatiga, molestia o dolor muscular</h3>
+              <p className="muted-line">No diagnostica lesión. Sirve para que el cuerpo técnico y fisioterapia ajusten la carga con mejor información.</p>
+              <div className="grid grid-2 wellness-body-map-fields">
+                <label>Tipo
+                  <select className="select" value={bodyType} onChange={(event) => setBodyType(event.target.value as BodyMapRecordType)}>
+                    {['Fatiga muscular', 'Molestia', 'Dolor muscular'].map((item) => <option key={item}>{item}</option>)}
+                  </select>
+                </label>
+                <label>Lado
+                  <select className="select" value={bodySide} onChange={(event) => setBodySide(event.target.value as BodyMapSide)}>
+                    {['Derecha', 'Izquierda', 'Bilateral', 'Central'].map((item) => <option key={item}>{item}</option>)}
+                  </select>
+                </label>
+                <label>Intensidad 0 a 10
+                  <input className="input" type="number" min="0" max="10" value={bodyIntensity} onChange={(event) => setBodyIntensity(Number(event.target.value))} />
+                </label>
+                <div className="body-map-checks">
+                  <label><input type="checkbox" checked={bodyLimitation} onChange={(event) => setBodyLimitation(event.target.checked)} /> Me limita para entrenar</label>
+                  <label><input type="checkbox" checked={bodySprint} onChange={(event) => setBodySprint(event.target.checked)} /> Aumenta al correr/sprintar</label>
+                  <label><input type="checkbox" checked={bodyCod} onChange={(event) => setBodyCod(event.target.checked)} /> Aumenta al frenar/girar</label>
+                </div>
+              </div>
+              <BodyMapSelector value={bodyRegion} onChange={setBodyRegion} />
+              <div className="soft-alert warning"><strong>{bodyDecision.decision} · {bodyDecision.pct}</strong> {bodyDecision.restriction}</div>
+            </div>
+          ) : null}
 
           <button className="btn wellness-submit-button" type="submit" disabled={!players.length || submitState === 'saving'}>
             {submitState === 'saving' ? 'Enviando...' : 'Enviar wellness'}

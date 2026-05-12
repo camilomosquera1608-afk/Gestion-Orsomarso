@@ -215,12 +215,12 @@ export const buildHouseAlerts = (data: HouseHomeData, roster: Player[], wellness
     const recentWellness = wellness.filter((item) => item.playerId === house.playerId).sort((a, b) => b.date.localeCompare(a.date))[0];
     const wellnessScore = wellnessAverage(recentWellness);
 
-    if (!house.room) alerts.push({ id: `room-${house.playerId}`, level: 'warning', title: 'Jugador sin habitación', detail: `${name} pertenece a Casa Hogar y no tiene habitación asignada.`, playerId: house.playerId });
+    if (!house.room) alerts.push({ id: `room-${house.playerId}`, level: 'warning', title: 'Jugador sin habitación', detail: `${name} no tiene información institucional complementaria registrada.`, playerId: house.playerId });
     if (eaten <= 1) alerts.push({ id: `meal-critical-${house.playerId}`, level: 'critical', title: 'Alimentación incompleta', detail: `${name} tiene dos o más comidas sin registrar en la fecha seleccionada.`, playerId: house.playerId });
     else if (eaten < 3) alerts.push({ id: `meal-warning-${house.playerId}`, level: 'warning', title: 'Comida pendiente', detail: `${name} tiene alimentación incompleta en el día.`, playerId: house.playerId });
     if (!evaluation) alerts.push({ id: `eval-missing-${house.playerId}`, level: 'warning', title: 'Evaluación mensual pendiente', detail: `${name} no tiene evaluación del mes seleccionado.`, playerId: house.playerId });
     else if (evaluation.generalScore < 3) alerts.push({ id: `eval-red-${house.playerId}`, level: 'critical', title: 'Evaluación mensual baja', detail: `${name} registra promedio ${evaluation.generalScore.toFixed(1)}. Requiere intervención.`, playerId: house.playerId });
-    if (wellnessScore && wellnessScore < 5.5) alerts.push({ id: `wellness-${house.playerId}`, level: 'warning', title: 'Wellness bajo en Casa Hogar', detail: `${name} tiene readiness ${wellnessScore}. Revisar sueño, fatiga, estrés o dolor.`, playerId: house.playerId });
+    if (wellnessScore && wellnessScore < 5.5) alerts.push({ id: `wellness-${house.playerId}`, level: 'warning', title: 'Wellness bajo', detail: `${name} tiene readiness ${wellnessScore}. Revisar sueño, fatiga, estrés o dolor.`, playerId: house.playerId });
   });
 
   data.rooms.forEach((room) => {
@@ -384,7 +384,7 @@ export async function fetchHouseHomeData(): Promise<HouseHomeData> {
     saveLocalHouseHome(payload);
     return payload;
   } catch (error) {
-    console.warn('[Casa Hogar] Usando respaldo local:', error);
+    console.warn('[Alimentación] Usando respaldo local:', error);
     return readLocalHouseHome();
   }
 }

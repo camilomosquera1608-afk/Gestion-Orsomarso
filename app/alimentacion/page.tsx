@@ -153,11 +153,11 @@ export default function AlimentacionPage() {
         <SectionHeader
           eyebrow="Registro diario"
           title="Desayuno · Almuerzo · Cena"
-          subtitle="Marca solo lo confirmado. La observación sirve para explicar baja energía, mareo, mala recuperación o RPE alto."
+          subtitle="Marca solo lo confirmado: desayuno, almuerzo y cena. Variable de apoyo para interpretar energía, RPE y recuperación."
           action={<div className="btn-row"><button className="btn secondary" onClick={() => void markAllMeal('breakfast')}>Todos desayunaron</button><button className="btn secondary" onClick={() => void markAllMeal('lunch')}>Todos almorzaron</button><button className="btn secondary" onClick={() => void markAllMeal('dinner')}>Todos cenaron</button><button className="btn" onClick={() => window.print()}><Download size={16} /> PDF</button></div>}
         />
         {!visiblePlayers.length ? <EmptyState title="Sin jugadores" text="Ajusta la categoría o registra jugadores para iniciar el control de alimentación." /> : null}
-        <div className="table-scroll"><table className="pro-table house-table"><thead><tr><th>Jugador</th><th>Categoría</th><th>Desayunó</th><th>Almorzó</th><th>Cenó</th><th>Estado</th><th>Decisión de carga</th><th>Observación</th><th>Responsable</th></tr></thead><tbody>
+        <div className="table-scroll"><table className="pro-table house-table"><thead><tr><th>Jugador</th><th>Categoría</th><th>Desayunó</th><th>Almorzó</th><th>Cenó</th><th>Estado</th><th>Decisión de carga</th></tr></thead><tbody>
           {todayMeals.map(({ player, meal, decision }) => <tr key={player.id}>
             <td>{getPlayerName(data.players, player.id)}</td>
             <td>{categoryLabel(player.category ?? 'Sub20')}</td>
@@ -166,8 +166,6 @@ export default function AlimentacionPage() {
             <td><input type="checkbox" checked={meal.dinner} onChange={(event) => void upsertMeal(player.id, { dinner: event.target.checked })} /></td>
             <td><StatusBadge text={decision.label} tone={decision.tone} /></td>
             <td><strong>{decision.decision}</strong><br /><small>{decision.detail}</small></td>
-            <td><input className="input" value={meal.notes ?? ''} onChange={(event) => void upsertMeal(player.id, { notes: event.target.value })} placeholder="Ej: no desayunó, baja energía, mareo" /></td>
-            <td><input className="input" value={meal.responsible ?? ''} onChange={(event) => void upsertMeal(player.id, { responsible: event.target.value })} placeholder="Responsable" /></td>
           </tr>)}
         </tbody></table></div>
       </div>

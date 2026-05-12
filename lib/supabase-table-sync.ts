@@ -516,7 +516,7 @@ export const fetchSupabaseTablesAppData = async (
         ? microcycleUuidToLegacy[String(row.microcycle_id)]
         : "",
       sessionNumber: num(row.session_number, 1),
-      sessionType: row.session_type ?? "cdEf",
+      sessionType: row.session_type ?? "MD-3",
       sessionRpe: row.session_rpe ?? undefined,
       objective: row.objective ?? undefined,
       observation: row.observation ?? undefined,
