@@ -125,10 +125,10 @@ export default function FuerzaPage() {
       </div>
 
       <div className="grid grid-4">
-        <KpiCard label="Sesiones planificadas" value={sessions.length} tone={sessions.length ? 'green' : 'amber'} trend="Fuerza del día" icon={<Dumbbell size={18} />} />
+        <KpiCard label="Sesiones planificadas" value={String(sessions.length)} tone={sessions.length ? 'green' : 'amber'} trend="Fuerza del día" icon={<Dumbbell size={18} />} />
         <KpiCard label="Respuestas" value={`${responsePct}%`} tone={responsePct >= 80 ? 'green' : responsePct >= 50 ? 'amber' : 'red'} trend={`${plannedResponses.length}/${plannedIds.length || 0} jugadores`} />
-        <KpiCard label="RPE +2 o más" value={highDiff} tone={highDiff ? 'amber' : 'green'} trend="Más exigente de lo esperado" />
-        <KpiCard label="Dolor post fuerza" value={painCount} tone={painCount ? 'red' : 'green'} trend="Reportado en respuesta rápida" />
+        <KpiCard label="RPE +2 o más" value={String(highDiff)} tone={highDiff ? 'amber' : 'green'} trend="Más exigente de lo esperado" />
+        <KpiCard label="Dolor post fuerza" value={String(painCount)} tone={painCount ? 'red' : 'green'} trend="Reportado en respuesta rápida" />
       </div>
 
       <div className="grid grid-2">
