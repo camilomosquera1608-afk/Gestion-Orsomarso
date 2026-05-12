@@ -76,7 +76,7 @@ export default function JugadoresPage() {
                 <img src={player.photo || "/orsomarso-crest.jpg"} alt={player.name} loading="lazy" className="player-photo" />
                 <div>
                   <h3 style={{ margin: 0 }}>{player.name}</h3>
-                  <div className="muted-line">{player.position} · {categoryLabel(player.category)} · {calcAge(player.birthDate) ?? player.age} años</div>
+                  <div className="muted-line">{player.jerseyNumber ? `#${player.jerseyNumber} · ` : ''}{player.position} · {categoryLabel(player.category)} · {calcAge(player.birthDate) ?? player.age} años</div>
                   <div className="btn-row" style={{ marginTop: 10, alignItems: 'center' }}>
                     <PlayerStatusBadge status={player.status} />
                     {wellnessValue ? <WellnessBadge value={wellnessValue} /> : <span className="status-badge ui-tone-neutral">Sin wellness</span>}
@@ -90,6 +90,9 @@ export default function JugadoresPage() {
                   {player.status !== 'Disponible' ? <div className="muted-line" style={{ marginTop: 8 }}>{player.injuryArea || 'Zona sin definir'} · {player.injuryType || 'Sin detalle médico'}</div> : null}
                   <div style={{ marginTop: 12 }}>
                     <CompactInfoList items={[
+                      { label: 'Rol competitivo', value: player.competitiveRole ?? 'Sin definir' },
+                      { label: 'Pie dominante', value: player.dominantFoot ?? 'Sin definir' },
+                      { label: 'Tolerancia carga', value: player.loadTolerance ?? 'Sin definir' },
                       { label: 'Último wellness', value: latestWellness?.date ?? 'Sin registro' },
                       { label: 'Última sesión', value: latestExternal?.date ?? 'Sin registro' },
                       { label: 'Último partido', value: recentCompetition?.date ?? 'Sin registro' },

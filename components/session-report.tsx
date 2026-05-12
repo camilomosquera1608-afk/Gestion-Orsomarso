@@ -299,7 +299,7 @@ export function SessionReportTemplate({
     const reasons = [
       todayWell && todayWell < 3.2 ? `wellness bajo ${todayWell.toFixed(1)}` : '',
       wellnessDelta <= -0.5 ? `caída ${wellnessDelta.toFixed(1)} vs línea base` : '',
-      acwr > 1.3 ? `ACWR ${acwr.toFixed(2)}` : '',
+      acwr > 1.3 ? `ACR ${acwr.toFixed(2)}` : '',
       r.rpe >= 8 ? `RPE ${r.rpe}` : '',
       injuryFlag ? `estado ${p.status}${p.injuryArea ? ` · ${p.injuryArea}` : ''}` : '',
     ].filter(Boolean);
@@ -597,16 +597,16 @@ export function SessionReportTemplate({
       {reg.length > 0 && (
         <section className="sr-section" style={{ pageBreakBefore: gps ? 'always' : undefined }}>
           <Sec eyebrow="Individualización" title="Matriz científica para ajustar la próxima carga"
-            sub="Integra línea base individual, carga aguda/crónica, wellness, estado médico, posición y respuesta de la sesión." />
+            sub="Integra línea base individual, carga 7d vs habitual, wellness, estado médico, posición y respuesta de la sesión." />
           <div className="sr-kpi-grid" style={{ marginBottom: 10 }}>
             <KTile label="Readiness medio" value={`${Math.round(meanClean(scientificRows.map(r => r.score)))}%`} note={`${lowReadinessCount} jugador(es) <70%`} accent={lowReadinessCount >= 3 ? C.red : lowReadinessCount >= 1 ? C.amber : C.green} />
-            <KTile label="ACWR medio" value={avgAcwr ? avgAcwr.toFixed(2) : 's/d'} note="Carga 7d vs promedio 3 semanas" accent={avgAcwr > 1.6 ? C.red : avgAcwr > 1.3 || avgAcwr < 0.8 ? C.amber : C.green} />
+            <KTile label="ACR medio" value={avgAcwr ? avgAcwr.toFixed(2) : 's/d'} note="Carga 7d vs carga habitual semanal" accent={avgAcwr > 1.6 ? C.red : avgAcwr > 1.3 || avgAcwr < 0.8 ? C.amber : C.green} />
             <KTile label="Carga completa" value={`${fullLoadCount}/${scientificRows.length}`} note="Jugadores con 90-100% sugerido" accent={fullLoadCount >= scientificRows.length * .7 ? C.green : C.amber} />
             <KTile label="Neuromuscular prom." value={avgNeuromuscular ? Math.round(avgNeuromuscular) : '—'} note="ACC+DCC+sprints+RHIE" accent={C.blue2} />
           </div>
           <table className="sr-heat-table" style={{ fontSize: 9.5 }}>
             <thead><tr>
-              <th className="sr-th-name">Jugador</th><th>Pos.</th><th>Readiness</th><th>Wellness</th><th>Δ base</th><th>Carga hoy</th><th>7d</th><th>ACWR</th><th>Decisión próxima carga</th><th>Motivo principal</th>
+              <th className="sr-th-name">Jugador</th><th>Pos.</th><th>Readiness</th><th>Wellness</th><th>Δ línea base</th><th>Carga hoy</th><th>7d</th><th>ACR</th><th>Decisión próxima carga</th><th>Motivo principal</th>
             </tr></thead>
             <tbody>
               {scientificRows.map(item => {
@@ -629,7 +629,7 @@ export function SessionReportTemplate({
             </tbody>
           </table>
           <div className="sr-insight sr-insight-neutral" style={{ marginTop: 8 }}>
-            Lectura científica: la recomendación no usa un umbral único para todo el plantel; compara cada jugador contra su propia línea base de 28 días, su relación aguda/crónica, su posición, el RPE de la sesión, el estado médico y el wellness del día. La decisión final debe confirmarse con observación de campo y criterio médico/deportivo.
+            Lectura científica: la recomendación no usa un umbral único para todo el plantel; compara cada jugador contra su línea base individual de 28 días, su relación 7d/habitual, su posición, el RPE de la sesión, el estado médico y el wellness del día. La decisión final debe confirmarse con observación de campo y criterio médico/deportivo.
           </div>
         </section>
       )}
@@ -643,7 +643,7 @@ export function SessionReportTemplate({
               <div key={`prio-${item.player.id}`} className={`sr-alert ${item.decision.tone === 'red' ? 'sr-alert-red' : item.decision.tone === 'yellow' ? 'sr-alert-amber' : 'sr-alert-blue'}`}>
                 <strong>{item.player.name} · {item.decision.label} ({item.decision.pct})</strong><br />
                 {item.decision.text}<br />
-                <span style={{ color: C.muted }}>Base wellness {item.wellnessBaseline ? item.wellnessBaseline.toFixed(1) : 's/d'} · hoy {item.todayWell ? item.todayWell.toFixed(1) : 's/d'} · 7d {Math.round(item.load7)} UA · {positionFocus(item.player.position)}</span>
+                <span style={{ color: C.muted }}>Línea base wellness {item.wellnessBaseline ? item.wellnessBaseline.toFixed(1) : 's/d'} · hoy {item.todayWell ? item.todayWell.toFixed(1) : 's/d'} · 7d {Math.round(item.load7)} UA · {positionFocus(item.player.position)}</span>
               </div>
             ))}
           </div>

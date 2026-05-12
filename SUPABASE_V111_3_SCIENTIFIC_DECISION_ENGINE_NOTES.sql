@@ -1,0 +1,5 @@
+-- V111.3 Scientific decision engine
+-- No requiere columnas nuevas obligatorias.
+-- La lógica usa campos ya existentes en players, wellness, internal_loads, external_loads,
+-- competition_records y los registros locales del mapa corporal.
+-- Ejecuta SUPABASE_V111_2_PLAYER_PROFILE_COMPLETE.sql primero si aún no tienes los campos extendidos de players.
