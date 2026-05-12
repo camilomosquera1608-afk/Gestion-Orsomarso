@@ -35,6 +35,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
       items: [
         { href: '/microciclo', label: 'Microciclo', icon: Activity },
         { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
+        { href: '/fuerza', label: 'Fuerza', icon: Dumbbell },
         { href: '/competencia', label: 'Competencia', icon: Trophy },
         { href: '/alimentacion', label: 'Alimentación', icon: Utensils },
       ] },

@@ -31,6 +31,7 @@ const groups: NavGroup[] = [
     items: [
       { href: '/microciclo', label: 'Microciclo', icon: Activity },
       { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
+      { href: '/fuerza', label: 'Fuerza', icon: Dumbbell },
       { href: '/competencia', label: 'Competencia', icon: Trophy },
       { href: '/competencia/analisis-tactico', label: 'Análisis táctico', icon: TrendingUp },
     ] },
