@@ -22,6 +22,8 @@ import {
   deleteSupabaseTableRowByLegacyId,
   deleteSupabaseTrainingSessionCascade,
   fetchSupabaseTablesAppData,
+  saveSupabaseEvaluationsAppData,
+  saveSupabasePlayersAppData,
   saveSupabaseTablesAppData,
 } from "@/lib/supabase-table-sync";
 import {
@@ -384,15 +386,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         remoteHydrated.wellness,
         current.wellness,
       ),
+      nutritionRecords: mergeByIdWithLocalFallback(
+        remoteHydrated.nutritionRecords,
+        current.nutritionRecords,
+      ),
+      cmjRecords: mergeByIdWithLocalFallback(
+        remoteHydrated.cmjRecords,
+        current.cmjRecords,
+      ),
+      neuromuscularRecords: mergeByIdWithLocalFallback(
+        remoteHydrated.neuromuscularRecords,
+        current.neuromuscularRecords,
+      ),
+      fmsRecords: mergeByIdWithLocalFallback(
+        remoteHydrated.fmsRecords,
+        current.fmsRecords,
+      ),
       strengthSessions: mergeByIdWithLocalFallback(
         remoteHydrated.strengthSessions ?? [],
         current.strengthSessions ?? [],
       ),
-      // Players: use remote if it has data, otherwise keep local
-      players:
-        remoteHydrated.players.length > 0
-          ? remoteHydrated.players
-          : current.players,
+      // Players: merge remote + local to avoid losing ficha edits if Supabase
+      // has not persisted a newer column yet. Remote fields stay primary,
+      // local fills gaps and preserves local-only players.
+      players: mergeByIdWithLocalFallback(
+        remoteHydrated.players,
+        current.players,
+      ),
     };
 
     const currentSnapshot = JSON.stringify(dataRef.current);
@@ -418,7 +438,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const persistData = async (nextData: AppData) => {
+  const persistData = async (
+    nextData: AppData,
+    scope: "all" | "players" | "evaluations" = "all",
+  ) => {
     saveLocalAppData(nextData);
     setLocalBackups(listLocalBackups());
     if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
@@ -440,11 +463,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setSyncStatus("syncing");
       const session = getStaffSession();
       const scopedData = filterAppDataForSession(nextData, session);
-      // Add 30s timeout so syncStatus never gets stuck on 'syncing'
+      const saveOperation =
+        scope === "players"
+          ? saveSupabasePlayersAppData(supabase, scopedData)
+          : scope === "evaluations"
+            ? saveSupabaseEvaluationsAppData(supabase, scopedData)
+            : saveSupabaseTablesAppData(supabase, scopedData);
+      // Los guardados pequeños (ficha / valoraciones) no deben quedar bloqueados
+      // por el guardado completo de entrenamientos y competencia.
+      const timeoutMs = scope === "all" ? 30000 : 12000;
       const saveWithTimeout = Promise.race([
-        saveSupabaseTablesAppData(supabase, scopedData),
+        saveOperation,
         new Promise<{ ok: false; reason: string }>((resolve) =>
-          setTimeout(() => resolve({ ok: false, reason: "timeout" }), 30000),
+          setTimeout(() => resolve({ ok: false, reason: "timeout" }), timeoutMs),
         ),
       ]);
       const result = await saveWithTimeout;
@@ -464,7 +495,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const applyMutation = (updater: (prev: AppData) => AppData) => {
+  const applyMutation = (
+    updater: (prev: AppData) => AppData,
+    scope: "all" | "players" | "evaluations" = "all",
+  ) => {
     setData((prev) => {
       // FIX #10: Usar el ref cacheado en lugar de llamar getStaffSession() en cada mutación
       const session = sessionRef.current;
@@ -474,7 +508,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
       const next = updater(prev);
       dataRef.current = next;
-      void persistData(next);
+      void persistData(next, scope);
       return next;
     });
   };
@@ -587,15 +621,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               localData?.competitionMatchSummaries,
             ),
             wellness: mergeArrays(remoteData.wellness, localData?.wellness),
+            nutritionRecords: mergeArrays(
+              remoteData.nutritionRecords,
+              localData?.nutritionRecords,
+            ),
+            cmjRecords: mergeArrays(
+              remoteData.cmjRecords,
+              localData?.cmjRecords,
+            ),
+            neuromuscularRecords: mergeArrays(
+              remoteData.neuromuscularRecords,
+              localData?.neuromuscularRecords,
+            ),
+            fmsRecords: mergeArrays(
+              remoteData.fmsRecords,
+              localData?.fmsRecords,
+            ),
             strengthSessions: mergeArrays(
               remoteData.strengthSessions ?? [],
               localData?.strengthSessions,
             ),
-            // Players: remote is source of truth if it has data
-            players:
-              remoteData.players.length > 0
-                ? remoteData.players
-                : (localData?.players ?? remoteData.players),
+            // Players: merge remote + local to avoid wiping ficha edits
+            // while new Supabase columns are being added.
+            players: mergeArrays(remoteData.players, localData?.players),
           };
 
           setData(merged);
@@ -1041,27 +1089,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           };
         }),
       updatePlayer: (player) =>
-        applyMutation((prev) => ({
-          ...prev,
-          players: prev.players
-            .map((item) =>
-              item.id === player.id
-                ? {
-                    ...player,
-                    category:
-                      player.category ?? item.category ?? DEFAULT_CATEGORY,
-                    categoryHistory: Array.from(
-                      new Set([
-                        ...(item.categoryHistory ?? []),
-                        ...(player.categoryHistory ?? []),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            players: prev.players
+              .map((item) =>
+                item.id === player.id
+                  ? {
+                      ...player,
+                      category:
                         player.category ?? item.category ?? DEFAULT_CATEGORY,
-                      ]),
-                    ),
-                  }
-                : item,
-            )
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        })),
+                      categoryHistory: Array.from(
+                        new Set([
+                          ...(item.categoryHistory ?? []),
+                          ...(player.categoryHistory ?? []),
+                          player.category ?? item.category ?? DEFAULT_CATEGORY,
+                        ]),
+                      ),
+                    }
+                  : item,
+              )
+              .sort((a, b) => a.name.localeCompare(b.name)),
+          }),
+          "players",
+        ),
       deletePlayer: (playerId) => {
         const session = sessionRef.current;
         const player = dataRef.current.players.find(
@@ -1258,129 +1309,165 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Antes hacía [record, ...prev] sin filtrar, creando registros repetidos
       // si el usuario guardaba dos veces en el mismo día.
       addCMJRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          cmjRecords: [
-            record,
-            ...prev.cmjRecords.filter(
-              (item) =>
-                !(
-                  item.id !== record.id &&
-                  item.playerId === record.playerId &&
-                  item.date === record.date
-                ),
-            ),
-          ],
-        })),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            cmjRecords: [
+              record,
+              ...prev.cmjRecords.filter(
+                (item) =>
+                  !(
+                    item.id !== record.id &&
+                    item.playerId === record.playerId &&
+                    item.date === record.date
+                  ),
+              ),
+            ],
+          }),
+          "evaluations",
+        ),
       updateCMJRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          cmjRecords: prev.cmjRecords.map((item) =>
-            item.id === record.id ? record : item,
-          ),
-        })),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            cmjRecords: prev.cmjRecords.map((item) =>
+              item.id === record.id ? record : item,
+            ),
+          }),
+          "evaluations",
+        ),
       deleteCMJRecord: (recordId) => {
-        applyMutation((prev) => ({
-          ...prev,
-          cmjRecords: prev.cmjRecords.filter((item) => item.id !== recordId),
-        }));
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            cmjRecords: prev.cmjRecords.filter((item) => item.id !== recordId),
+          }),
+          "evaluations",
+        );
         void deleteRemoteLegacy("cmj_records", recordId);
       },
 
       // FIX #1: addNutritionRecord ahora es un upsert — evita duplicados por jugador+fecha.
       addNutritionRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          nutritionRecords: [
-            record,
-            ...prev.nutritionRecords.filter(
-              (item) =>
-                !(
-                  item.id !== record.id &&
-                  item.playerId === record.playerId &&
-                  item.date === record.date
-                ),
-            ),
-          ],
-        })),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            nutritionRecords: [
+              record,
+              ...prev.nutritionRecords.filter(
+                (item) =>
+                  !(
+                    item.id !== record.id &&
+                    item.playerId === record.playerId &&
+                    item.date === record.date
+                  ),
+              ),
+            ],
+          }),
+          "evaluations",
+        ),
       updateNutritionRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          nutritionRecords: prev.nutritionRecords.map((item) =>
-            item.id === record.id ? record : item,
-          ),
-        })),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            nutritionRecords: prev.nutritionRecords.map((item) =>
+              item.id === record.id ? record : item,
+            ),
+          }),
+          "evaluations",
+        ),
       deleteNutritionRecord: (recordId) => {
-        applyMutation((prev) => ({
-          ...prev,
-          nutritionRecords: prev.nutritionRecords.filter(
-            (item) => item.id !== recordId,
-          ),
-        }));
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            nutritionRecords: prev.nutritionRecords.filter(
+              (item) => item.id !== recordId,
+            ),
+          }),
+          "evaluations",
+        );
         void deleteRemoteLegacy("nutrition_records", recordId);
       },
 
       // FIX #1: addNeuromuscularRecord ahora es un upsert — evita duplicados por jugador+fecha.
       addNeuromuscularRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          neuromuscularRecords: [
-            record,
-            ...prev.neuromuscularRecords.filter(
-              (item) =>
-                !(
-                  item.id !== record.id &&
-                  item.playerId === record.playerId &&
-                  item.date === record.date
-                ),
-            ),
-          ],
-        })),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            neuromuscularRecords: [
+              record,
+              ...prev.neuromuscularRecords.filter(
+                (item) =>
+                  !(
+                    item.id !== record.id &&
+                    item.playerId === record.playerId &&
+                    item.date === record.date
+                  ),
+              ),
+            ],
+          }),
+          "evaluations",
+        ),
       updateNeuromuscularRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          neuromuscularRecords: prev.neuromuscularRecords.map((item) =>
-            item.id === record.id ? record : item,
-          ),
-        })),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            neuromuscularRecords: prev.neuromuscularRecords.map((item) =>
+              item.id === record.id ? record : item,
+            ),
+          }),
+          "evaluations",
+        ),
       deleteNeuromuscularRecord: (recordId) => {
-        applyMutation((prev) => ({
-          ...prev,
-          neuromuscularRecords: prev.neuromuscularRecords.filter(
-            (item) => item.id !== recordId,
-          ),
-        }));
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            neuromuscularRecords: prev.neuromuscularRecords.filter(
+              (item) => item.id !== recordId,
+            ),
+          }),
+          "evaluations",
+        );
         void deleteRemoteLegacy("neuromuscular_records", recordId);
       },
 
       // FIX #1: addFMSRecord ahora es un upsert — evita duplicados por jugador+fecha.
       addFMSRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          fmsRecords: [
-            record,
-            ...prev.fmsRecords.filter(
-              (item) =>
-                !(
-                  item.id !== record.id &&
-                  item.playerId === record.playerId &&
-                  item.date === record.date
-                ),
-            ),
-          ],
-        })),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            fmsRecords: [
+              record,
+              ...prev.fmsRecords.filter(
+                (item) =>
+                  !(
+                    item.id !== record.id &&
+                    item.playerId === record.playerId &&
+                    item.date === record.date
+                  ),
+              ),
+            ],
+          }),
+          "evaluations",
+        ),
       updateFMSRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          fmsRecords: prev.fmsRecords.map((item) =>
-            item.id === record.id ? record : item,
-          ),
-        })),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            fmsRecords: prev.fmsRecords.map((item) =>
+              item.id === record.id ? record : item,
+            ),
+          }),
+          "evaluations",
+        ),
       deleteFMSRecord: (recordId) => {
-        applyMutation((prev) => ({
-          ...prev,
-          fmsRecords: prev.fmsRecords.filter((item) => item.id !== recordId),
-        }));
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            fmsRecords: prev.fmsRecords.filter((item) => item.id !== recordId),
+          }),
+          "evaluations",
+        );
         void deleteRemoteLegacy("fms_records", recordId);
       },
       addCompetitionRecord: (record) =>

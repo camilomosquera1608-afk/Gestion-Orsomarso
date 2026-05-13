@@ -53,6 +53,16 @@ export default function PlayerProfilePage() {
     setProfileMessage('');
   }, [player?.id]);
 
+  useEffect(() => {
+    if (!profileMessage.includes('Guardando en Supabase')) return;
+    if (syncStatus === 'ready') {
+      setProfileMessage('Información actualizada y respaldada.');
+    }
+    if (syncStatus === 'error') {
+      setProfileMessage('Guardado local aplicado. Ejecuta el SQL V116 en Supabase para completar la sincronización.');
+    }
+  }, [profileMessage, syncStatus]);
+
   if (!player) return <div className="empty">Jugador no encontrado o eliminado.</div>;
 
   const editablePlayer = profileDraft ?? player;
@@ -309,7 +319,7 @@ export default function PlayerProfilePage() {
           <SectionHeader eyebrow="Edición" title="Editar ficha completa del jugador" subtitle="Estos campos alimentan la lectura de disponibilidad y control individual de carga." />
           <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div className="muted-line">{profileMessage || (profileDirty ? 'Cambios pendientes.' : 'Sin cambios pendientes.')}</div>
-            <button type="button" className="btn" onClick={savePlayerInformation} disabled={syncStatus === 'syncing'}>{syncStatus === 'syncing' ? 'Actualizando...' : 'Actualizar información'}</button>
+            <button type="button" className="btn" onClick={savePlayerInformation} disabled={!canEditPlayer}>{syncStatus === 'syncing' ? 'Actualizando...' : 'Actualizar información'}</button>
           </div>
           <div className="grid grid-3">
             <div className="field"><label>Nombre</label><input className="input" value={editablePlayer.name} onChange={(e) => patchPlayer({ name: e.target.value })} /></div>
@@ -372,7 +382,7 @@ export default function PlayerProfilePage() {
             <div className="field"><label>Teléfono emergencia</label><input className="input" value={editablePlayer.emergencyContactPhone ?? ''} onChange={(e) => patchPlayer({ emergencyContactPhone: e.target.value })} /></div>
           </div>
           <div className="btn-row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
-            <button type="button" className="btn" onClick={savePlayerInformation} disabled={syncStatus === 'syncing'}>{syncStatus === 'syncing' ? 'Actualizando...' : 'Actualizar información'}</button>
+            <button type="button" className="btn" onClick={savePlayerInformation} disabled={!canEditPlayer}>{syncStatus === 'syncing' ? 'Actualizando...' : 'Actualizar información'}</button>
           </div>
         </div>
       ) : null}

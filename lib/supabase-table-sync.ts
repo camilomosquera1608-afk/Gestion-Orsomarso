@@ -963,6 +963,193 @@ export const deleteSupabaseTrainingSessionCascade = async (
   }
 };
 
+
+const toPlayerRows = (players: Player[]): DbRow[] =>
+  players.map((player) => ({
+    legacy_id: player.id,
+    name: player.name,
+    birth_date: isoDate(player.birthDate) ?? null,
+    age: Number.isFinite(player.age) && player.age >= 0 ? player.age : null,
+    position: player.position,
+    category: category(player.category),
+    jersey_number: player.jerseyNumber ?? null,
+    document_id: player.documentId ?? null,
+    nationality: player.nationality ?? null,
+    birthplace: player.birthplace ?? null,
+    phone: player.phone ?? null,
+    guardian_name: player.guardianName ?? null,
+    guardian_phone: player.guardianPhone ?? null,
+    emergency_contact_name: player.emergencyContactName ?? null,
+    emergency_contact_phone: player.emergencyContactPhone ?? null,
+    height: num(player.height, 0),
+    weight: num(player.weight, 0),
+    dominant_foot: player.dominantFoot ?? null,
+    secondary_position: player.secondaryPosition ?? null,
+    competitive_role: player.competitiveRole ?? null,
+    date_joined: isoDate(player.dateJoined),
+    load_tolerance: player.loadTolerance ?? null,
+    max_velocity_reference: player.maxVelocityReference ?? null,
+    baseline_wellness: player.baselineWellness ?? null,
+    baseline_rpe: player.baselineRpe ?? null,
+    target_weekly_load: player.targetWeeklyLoad ?? null,
+    target_weekly_hsr: player.targetWeeklyHsr ?? null,
+    target_weekly_sprint_distance: player.targetWeeklySprintDistance ?? null,
+    target_minutes_7d: player.targetMinutes7d ?? null,
+    max_training_percent: player.maxTrainingPercent ?? null,
+    max_competition_minutes: player.maxCompetitionMinutes ?? null,
+    return_to_play_phase: player.returnToPlayPhase ?? null,
+    restrictions: JSON.stringify(
+      Array.isArray(player.restrictions) ? player.restrictions : [],
+    ),
+    medical_notes: player.medicalNotes ?? null,
+    allergies: player.allergies ?? null,
+    chronic_conditions: player.chronicConditions ?? null,
+    risk_areas: player.riskAreas ?? null,
+    status: player.status,
+    photo: player.photo ?? "",
+    injury_area: player.injuryArea ?? null,
+    injury_type: player.injuryType ?? null,
+    injury_severity: player.injurySeverity ?? null,
+    return_date: isoDate(player.returnDate),
+    category_history: JSON.stringify(
+      Array.isArray(player.categoryHistory) && player.categoryHistory.length > 0
+        ? player.categoryHistory
+        : [category(player.category)],
+    ),
+    injury_history: JSON.stringify(
+      Array.isArray(player.injuryHistory) ? player.injuryHistory : [],
+    ),
+  }));
+
+const upsertEvaluationTables = async (
+  supabase: SupabaseClient,
+  data: AppData,
+): Promise<void> => {
+  // Asegura que existan los jugadores para resolver las FK de valoraciones.
+  await upsertRows(supabase, "players", toPlayerRows(data.players));
+  const playerMap = await fetchLegacyIdMap(supabase, "players");
+  const playerUuid = (legacyId: string) => playerMap[legacyId] ?? null;
+
+  await upsertRows(
+    supabase,
+    "nutrition_records",
+    data.nutritionRecords
+      .filter((record) => playerUuid(record.playerId) && isoDate(record.date))
+      .map((record) => ({
+        legacy_id: record.id,
+        player_id: playerUuid(record.playerId),
+        date: isoDate(record.date),
+        category: category(record.category),
+        weight: record.weight ?? null,
+        height: record.height ?? null,
+        body_fat: record.bodyFat ?? null,
+        skinfold_sum: record.skinfoldSum ?? null,
+        plan: record.plan ?? null,
+        weight_range: record.weightRange || null,
+        skinfold_range: record.skinfoldRange || null,
+        fat_percentage_range: record.fatPercentageRange || null,
+        muscle_mass_percentage: record.muscleMassPercentage ?? null,
+        muscle_mass_range: record.muscleMassRange || null,
+        imo: record.imo ?? null,
+        diagnosis: record.diagnosis || null,
+      })),
+  );
+
+  await upsertRows(
+    supabase,
+    "cmj_records",
+    data.cmjRecords
+      .filter((record) => playerUuid(record.playerId) && isoDate(record.date))
+      .map((record) => ({
+        legacy_id: record.id,
+        player_id: playerUuid(record.playerId),
+        date: isoDate(record.date),
+        category: category(record.category),
+        value: record.value ?? null,
+      })),
+  );
+
+  await upsertRows(
+    supabase,
+    "neuromuscular_records",
+    data.neuromuscularRecords
+      .filter((record) => playerUuid(record.playerId) && isoDate(record.date))
+      .map((record) => ({
+        legacy_id: record.id,
+        player_id: playerUuid(record.playerId),
+        date: isoDate(record.date),
+        category: category(record.category),
+        cmj: record.cmj ?? null,
+        sj: record.sj ?? null,
+        reactive_jumps: record.reactiveJumps ?? null,
+      })),
+  );
+
+  await upsertRows(
+    supabase,
+    "fms_records",
+    data.fmsRecords
+      .filter((record) => playerUuid(record.playerId) && isoDate(record.date))
+      .map((record) => ({
+        legacy_id: record.id,
+        player_id: playerUuid(record.playerId),
+        date: isoDate(record.date),
+        category: category(record.category),
+        shoulder_mobility: record.shoulderMobility ?? null,
+        squat: record.squat ?? null,
+        leg_raise: record.legRaise ?? null,
+        hurdle_step: record.hurdleStep ?? null,
+        lunge: record.lunge ?? null,
+        trunk_stability: record.trunkStability ?? null,
+        rotary_stability: record.rotaryStability ?? null,
+      })),
+  );
+};
+
+export const saveSupabasePlayersAppData = async (
+  supabase: SupabaseClient,
+  data: AppData,
+): Promise<SyncResult> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) {
+    console.error("[Supabase] saveSupabasePlayersAppData: not authenticated");
+    return { ok: false, reason: "not_authenticated" };
+  }
+
+  try {
+    await upsertRows(supabase, "players", toPlayerRows(data.players));
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: isAuthError(error) ? "not_authorized" : "save_players_failed",
+      error,
+    };
+  }
+};
+
+export const saveSupabaseEvaluationsAppData = async (
+  supabase: SupabaseClient,
+  data: AppData,
+): Promise<SyncResult> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) {
+    console.error("[Supabase] saveSupabaseEvaluationsAppData: not authenticated");
+    return { ok: false, reason: "not_authenticated" };
+  }
+
+  try {
+    await upsertEvaluationTables(supabase, data);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: isAuthError(error) ? "not_authorized" : "save_evaluations_failed",
+      error,
+    };
+  }
+};
+
 export const saveSupabaseTablesAppData = async (
   supabase: SupabaseClient,
   data: AppData,
@@ -983,74 +1170,7 @@ export const saveSupabaseTablesAppData = async (
       competition: data.competitionRecords.length,
     });
 
-    await upsertRows(
-      supabase,
-      "players",
-      data.players.map((player) => ({
-        legacy_id: player.id,
-        name: player.name,
-        birth_date: isoDate(player.birthDate) ?? null,
-        age: Number.isFinite(player.age) && player.age >= 0 ? player.age : null,
-        position: player.position,
-        category: category(player.category),
-        jersey_number: player.jerseyNumber ?? null,
-        document_id: player.documentId ?? null,
-        nationality: player.nationality ?? null,
-        birthplace: player.birthplace ?? null,
-        phone: player.phone ?? null,
-        guardian_name: player.guardianName ?? null,
-        guardian_phone: player.guardianPhone ?? null,
-        emergency_contact_name: player.emergencyContactName ?? null,
-        emergency_contact_phone: player.emergencyContactPhone ?? null,
-        height: num(player.height, 0),
-        weight: num(player.weight, 0),
-        dominant_foot: player.dominantFoot ?? null,
-        secondary_position: player.secondaryPosition ?? null,
-        competitive_role: player.competitiveRole ?? null,
-        date_joined: isoDate(player.dateJoined),
-        load_tolerance: player.loadTolerance ?? null,
-        max_velocity_reference: player.maxVelocityReference ?? null,
-        baseline_wellness: player.baselineWellness ?? null,
-        baseline_rpe: player.baselineRpe ?? null,
-        target_weekly_load: player.targetWeeklyLoad ?? null,
-        target_weekly_hsr: player.targetWeeklyHsr ?? null,
-        target_weekly_sprint_distance:
-          player.targetWeeklySprintDistance ?? null,
-        target_minutes_7d: player.targetMinutes7d ?? null,
-        max_training_percent: player.maxTrainingPercent ?? null,
-        max_competition_minutes: player.maxCompetitionMinutes ?? null,
-        return_to_play_phase: player.returnToPlayPhase ?? null,
-        restrictions: JSON.stringify(
-          Array.isArray(player.restrictions) ? player.restrictions : [],
-        ),
-        medical_notes: player.medicalNotes ?? null,
-        allergies: player.allergies ?? null,
-        chronic_conditions: player.chronicConditions ?? null,
-        risk_areas: player.riskAreas ?? null,
-        status: player.status,
-        photo: player.photo ?? "",
-        injury_area: player.injuryArea ?? null,
-        injury_type: player.injuryType ?? null,
-        injury_severity: player.injurySeverity ?? null,
-        return_date: isoDate(player.returnDate),
-        // FIX #2: Guardar categoryHistory e injuryHistory como JSONB en Supabase.
-        // Estos campos no se guardaban antes, por eso al hacer fetch
-        // siempre aparecían vacíos. Con esto se preservan entre sesiones.
-        // IMPORTANTE: Para que esto funcione, debes agregar estas columnas a tu tabla
-        // 'players' en Supabase si aún no existen. Ejecuta en el SQL Editor de Supabase:
-        //   ALTER TABLE players ADD COLUMN IF NOT EXISTS category_history jsonb DEFAULT '[]';
-        //   ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_history jsonb DEFAULT '[]';
-        category_history: JSON.stringify(
-          Array.isArray(player.categoryHistory) &&
-            player.categoryHistory.length > 0
-            ? player.categoryHistory
-            : [category(player.category)],
-        ),
-        injury_history: JSON.stringify(
-          Array.isArray(player.injuryHistory) ? player.injuryHistory : [],
-        ),
-      })),
-    );
+    await upsertRows(supabase, "players", toPlayerRows(data.players));
 
     await upsertRows(
       supabase,
