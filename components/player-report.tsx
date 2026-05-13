@@ -12,7 +12,7 @@ type PlayerReportProps = {
   wellnessHistory: Array<{ date: string; value: number }>;
   internalHistory: Array<{ date: string; load: number; rpe: number; duration: number }>;
   externalHistory: Array<{ date: string; min: number; acc?: number; dcc?: number; sprints?: number; rhie?: number; ima?: number; rpe?: number }>;
-  competitionHistory: Array<{ date: string; competitionName?: string; opponent: string; minutesPlayed: number; goals: number; assists: number; yellowCards: number; redCards: number; goalsConceded?: number; goalsPrevented?: number }>;
+  competitionHistory: Array<{ date: string; competitionName?: string; opponent: string; minutesPlayed: number; goals: number; assists: number; yellowCards: number; redCards: number; goalsConceded?: number; goalsPrevented?: number; penaltiesSaved?: number; crossesDefended?: number; footworkActions?: number }>;
   nutritionHistory: Array<{ date: string; weight: number; height: number; bodyFat: number; skinfoldSum: number; plan: string; weightRange?: string; skinfoldRange?: string; fatPercentageRange?: string; muscleMassPercentage?: number; muscleMassRange?: string; imo?: number; diagnosis?: string; nutritionPlan?: string }>;
   cmjHistory: Array<{ date: string; value: number }>;
   fmsHistory: Array<{ date: string; total: number }>;
@@ -39,6 +39,9 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
   const reds = competitionHistory.reduce((acc, row) => acc + (row.redCards || 0), 0);
   const ge = competitionHistory.reduce((acc, row) => acc + (row.goalsConceded || 0), 0);
   const ev = competitionHistory.reduce((acc, row) => acc + (row.goalsPrevented || 0), 0);
+  const penaltiesSaved = competitionHistory.reduce((acc, row) => acc + (row.penaltiesSaved || 0), 0);
+  const crossesDefended = competitionHistory.reduce((acc, row) => acc + (row.crossesDefended || 0), 0);
+  const footworkActions = competitionHistory.reduce((acc, row) => acc + (row.footworkActions || 0), 0);
   const initials = player.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   const ageLabel = calculateAgeSafe(player.birthDate, player.age);
   const wellnessAvg = groupAverage(wellnessHistory.map((row) => row.value).filter((value) => value > 0));
@@ -100,6 +103,9 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
             <div><span>TR</span><strong>{reds}</strong></div>
             {player.position === 'Portero' ? <div><span>GE</span><strong>{ge}</strong></div> : null}
             {player.position === 'Portero' ? <div><span>EV</span><strong>{ev}</strong></div> : null}
+            {player.position === 'Portero' ? <div><span>Penaltis atajados</span><strong>{penaltiesSaved}</strong></div> : null}
+            {player.position === 'Portero' ? <div><span>Centros defendidos</span><strong>{crossesDefended}</strong></div> : null}
+            {player.position === 'Portero' ? <div><span>Juego de pies</span><strong>{footworkActions}</strong></div> : null}
           </div>
         </ReportSection>
         <ReportSection icon={HeartPulse} eyebrow="Área médica" title="Disponibilidad">

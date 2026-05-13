@@ -662,3 +662,13 @@ create unique index if not exists ux_competition_players_legacy_id
   where legacy_id is not null;
 
 commit;
+
+-- v113 - Metricas de portero en competencia + carga GPS de jugador
+begin;
+
+alter table public.competition_players
+  add column if not exists penalties_saved integer default 0,
+  add column if not exists crosses_defended integer default 0,
+  add column if not exists footwork_actions integer default 0;
+
+commit;

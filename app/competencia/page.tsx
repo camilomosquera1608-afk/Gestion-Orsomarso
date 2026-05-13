@@ -53,6 +53,9 @@ type PlayerDraft = {
   assists: string;
   goalsConceded: string;
   goalsPrevented: string;
+  penaltiesSaved: string;
+  crossesDefended: string;
+  footworkActions: string;
   yellowCards: string;
   redCards: string;
   startingRole: CompetitionPlayerRole;
@@ -77,6 +80,9 @@ const emptyPlayerDraft = (playerId = ''): PlayerDraft => ({
   assists: '',
   goalsConceded: '',
   goalsPrevented: '',
+  penaltiesSaved: '',
+  crossesDefended: '',
+  footworkActions: '',
   yellowCards: '',
   redCards: '',
   startingRole: 'Titular',
@@ -515,6 +521,9 @@ export default function CompetenciaPage() {
         assists: displayNumber(record.assists),
         goalsConceded: displayNumber(record.goalsConceded),
         goalsPrevented: displayNumber(record.goalsPrevented),
+        penaltiesSaved: displayNumber(record.penaltiesSaved),
+        crossesDefended: displayNumber(record.crossesDefended),
+        footworkActions: displayNumber(record.footworkActions),
         yellowCards: displayNumber(record.yellowCards),
         redCards: displayNumber(record.redCards),
         startingRole: record.startingRole ?? 'Titular',
@@ -650,7 +659,7 @@ export default function CompetenciaPage() {
         return;
       }
       duplicatedPlayer.add(draft.playerId);
-      const numberFields = [draft.minutesPlayed, draft.yellowCards, draft.redCards, draft.goals, draft.assists, draft.goalsConceded, draft.goalsPrevented];
+      const numberFields = [draft.minutesPlayed, draft.yellowCards, draft.redCards, draft.goals, draft.assists, draft.goalsConceded, draft.goalsPrevented, draft.penaltiesSaved, draft.crossesDefended, draft.footworkActions];
       if (numberFields.some(isNegative)) {
         setMessage('Minutos, goles, asistencias y tarjetas no pueden ser negativos.');
         return;
@@ -683,6 +692,9 @@ export default function CompetenciaPage() {
         assists: recordGoalkeeper ? 0 : toNumber(draft.assists),
         goalsConceded: recordGoalkeeper ? toNumber(draft.goalsConceded) : 0,
         goalsPrevented: recordGoalkeeper ? toNumber(draft.goalsPrevented) : 0,
+        penaltiesSaved: recordGoalkeeper ? toNumber(draft.penaltiesSaved) : 0,
+        crossesDefended: recordGoalkeeper ? toNumber(draft.crossesDefended) : 0,
+        footworkActions: recordGoalkeeper ? toNumber(draft.footworkActions) : 0,
         yellowCards: toNumber(draft.yellowCards),
         redCards: toNumber(draft.redCards),
         startingRole: draft.startingRole,
@@ -775,6 +787,9 @@ export default function CompetenciaPage() {
       assists: displayNumber(record.assists),
       goalsConceded: displayNumber(record.goalsConceded),
       goalsPrevented: displayNumber(record.goalsPrevented),
+      penaltiesSaved: displayNumber(record.penaltiesSaved),
+      crossesDefended: displayNumber(record.crossesDefended),
+      footworkActions: displayNumber(record.footworkActions),
       yellowCards: displayNumber(record.yellowCards),
       redCards: displayNumber(record.redCards),
       startingRole: record.startingRole ?? 'Titular',
@@ -808,7 +823,7 @@ export default function CompetenciaPage() {
       setMessage('Debes seleccionar un jugador válido.');
       return;
     }
-    const numberFields = [playerDraft.minutesPlayed, playerDraft.yellowCards, playerDraft.redCards, playerDraft.goals, playerDraft.assists, playerDraft.goalsConceded, playerDraft.goalsPrevented];
+    const numberFields = [playerDraft.minutesPlayed, playerDraft.yellowCards, playerDraft.redCards, playerDraft.goals, playerDraft.assists, playerDraft.goalsConceded, playerDraft.goalsPrevented, playerDraft.penaltiesSaved, playerDraft.crossesDefended, playerDraft.footworkActions];
     if (numberFields.some(isNegative)) {
       setMessage('Minutos, goles, asistencias y tarjetas no pueden ser negativos.');
       return;
@@ -871,8 +886,26 @@ export default function CompetenciaPage() {
       }),
     };
     const record: CompetitionRecord = goalkeeperRecord
-      ? { ...baseRecord, goals: 0, assists: 0, goalsConceded: toNumber(playerDraft.goalsConceded), goalsPrevented: toNumber(playerDraft.goalsPrevented) }
-      : { ...baseRecord, goals: toNumber(playerDraft.goals), assists: toNumber(playerDraft.assists), goalsConceded: undefined, goalsPrevented: undefined };
+      ? {
+        ...baseRecord,
+        goals: 0,
+        assists: 0,
+        goalsConceded: toNumber(playerDraft.goalsConceded),
+        goalsPrevented: toNumber(playerDraft.goalsPrevented),
+        penaltiesSaved: toNumber(playerDraft.penaltiesSaved),
+        crossesDefended: toNumber(playerDraft.crossesDefended),
+        footworkActions: toNumber(playerDraft.footworkActions),
+      }
+      : {
+        ...baseRecord,
+        goals: toNumber(playerDraft.goals),
+        assists: toNumber(playerDraft.assists),
+        goalsConceded: undefined,
+        goalsPrevented: undefined,
+        penaltiesSaved: undefined,
+        crossesDefended: undefined,
+        footworkActions: undefined,
+      };
 
     const nextRecords = editingRecord
       ? matchRecords.map((item) => item.id === record.id ? record : item)
@@ -1091,9 +1124,12 @@ export default function CompetenciaPage() {
           </div>
 
           {goalkeeper ? (
-            <div className="grid grid-2">
+            <div className="grid grid-4">
               <div className="field"><label>Goles encajados</label><input className="input" min="0" type="number" value={playerDraft.goalsConceded} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, goalsConceded: event.target.value }))} /></div>
               <div className="field"><label>Goles evitados</label><input className="input" min="0" type="number" value={playerDraft.goalsPrevented} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, goalsPrevented: event.target.value }))} /></div>
+              <div className="field"><label>Penaltis atajados</label><input className="input" min="0" type="number" value={playerDraft.penaltiesSaved} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, penaltiesSaved: event.target.value }))} /></div>
+              <div className="field"><label>Centros defendidos</label><input className="input" min="0" type="number" value={playerDraft.crossesDefended} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, crossesDefended: event.target.value }))} /></div>
+              <div className="field"><label>Juego de pies</label><input className="input" min="0" type="number" value={playerDraft.footworkActions} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, footworkActions: event.target.value }))} /></div>
             </div>
           ) : (
             <div className="grid grid-2">
@@ -1276,7 +1312,7 @@ export default function CompetenciaPage() {
                     <td>{player?.position ?? '-'}</td>
                     <td>{editingMatchPlayers ? <select className="select compact-input" value={draft.startingRole} onChange={(event) => updateMatchPlayerDraft(record.id, { startingRole: event.target.value as CompetitionPlayerRole })}>{starterOptions.map((option) => <option key={option}>{option}</option>)}</select> : record.startingRole ?? '-'}</td>
                     <td>{editingMatchPlayers ? <input className="input compact-input" type="number" min="0" max="120" value={draft.minutesPlayed} onChange={(event) => updateMatchPlayerDraft(record.id, { minutesPlayed: event.target.value })} /> : record.minutesPlayed}</td>
-                    <td>{editingMatchPlayers ? (recordGoalkeeper ? <div className="btn-row"><input className="input compact-input" type="number" min="0" placeholder="GE" value={draft.goalsConceded} onChange={(event) => updateMatchPlayerDraft(record.id, { goalsConceded: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="EV" value={draft.goalsPrevented} onChange={(event) => updateMatchPlayerDraft(record.id, { goalsPrevented: event.target.value })} /></div> : <div className="btn-row"><input className="input compact-input" type="number" min="0" placeholder="G" value={draft.goals} onChange={(event) => updateMatchPlayerDraft(record.id, { goals: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="A" value={draft.assists} onChange={(event) => updateMatchPlayerDraft(record.id, { assists: event.target.value })} /></div>) : recordGoalkeeper ? `GE ${record.goalsConceded ?? 0} · EV ${record.goalsPrevented ?? 0}` : `G ${record.goals ?? 0} · A ${record.assists ?? 0}`}</td>
+                    <td>{editingMatchPlayers ? (recordGoalkeeper ? <div className="btn-row" style={{ flexWrap: 'wrap' }}><input className="input compact-input" type="number" min="0" placeholder="GE" value={draft.goalsConceded} onChange={(event) => updateMatchPlayerDraft(record.id, { goalsConceded: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="EV" value={draft.goalsPrevented} onChange={(event) => updateMatchPlayerDraft(record.id, { goalsPrevented: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="PEN" value={draft.penaltiesSaved} onChange={(event) => updateMatchPlayerDraft(record.id, { penaltiesSaved: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="CEN" value={draft.crossesDefended} onChange={(event) => updateMatchPlayerDraft(record.id, { crossesDefended: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="PIE" value={draft.footworkActions} onChange={(event) => updateMatchPlayerDraft(record.id, { footworkActions: event.target.value })} /></div> : <div className="btn-row"><input className="input compact-input" type="number" min="0" placeholder="G" value={draft.goals} onChange={(event) => updateMatchPlayerDraft(record.id, { goals: event.target.value })} /><input className="input compact-input" type="number" min="0" placeholder="A" value={draft.assists} onChange={(event) => updateMatchPlayerDraft(record.id, { assists: event.target.value })} /></div>) : recordGoalkeeper ? `GE ${record.goalsConceded ?? 0} · EV ${record.goalsPrevented ?? 0} · PEN ${record.penaltiesSaved ?? 0} · CEN ${record.crossesDefended ?? 0} · PIE ${record.footworkActions ?? 0}` : `G ${record.goals ?? 0} · A ${record.assists ?? 0}`}</td>
                     <td>{editingMatchPlayers ? <div className="btn-row"><input className="input compact-input" type="number" min="0" value={draft.yellowCards} onChange={(event) => updateMatchPlayerDraft(record.id, { yellowCards: event.target.value })} /><input className="input compact-input" type="number" min="0" max="1" value={draft.redCards} onChange={(event) => updateMatchPlayerDraft(record.id, { redCards: event.target.value })} /></div> : <>TA {record.yellowCards ?? 0} · TR {record.redCards ?? 0}</>}</td>
                     <td>{recordGoalkeeper ? '—' : `${Math.round(record.totalDistance ?? 0)} m · PL ${Math.round(record.playerLoad ?? 0)}`}</td>
                     <td>{editingMatchPlayers ? <select className="select compact-input" value={draft.medicalStatus} onChange={(event) => updateMatchPlayerDraft(record.id, { medicalStatus: event.target.value as CompetitionMedicalStatus })}>{medicalOptions.map((option) => <option key={option}>{option}</option>)}</select> : medicalStatus}</td>

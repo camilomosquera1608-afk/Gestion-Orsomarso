@@ -59,7 +59,7 @@ export default function InformesPage() {
     ...wellnessHistory.map((row) => ({ seccion: 'Wellness', fecha: row.date, promedio: row.value.toFixed(1) })),
     ...internalHistory.map((row) => ({ seccion: 'Carga interna', fecha: row.date, carga: row.load.toFixed(0), rpe: row.rpe, duracion: row.duration })),
     ...(gpsEnabled ? externalHistory.map((row) => ({ seccion: 'GPS', fecha: row.date, minutos: row.min, acc: row.acc ?? 0, dcc: row.dcc ?? 0, sprints: row.sprints ?? 0, rhie: row.rhie ?? 0, ima: row.ima ?? 0 })) : []),
-    ...competitionHistory.map((row) => ({ seccion: 'Competencia', fecha: row.date, rival: row.opponent, minutos: row.minutesPlayed, goles: row.goals, asistencias: row.assists, amarillas: row.yellowCards, rojas: row.redCards })),
+    ...competitionHistory.map((row) => ({ seccion: 'Competencia', fecha: row.date, rival: row.opponent, minutos: row.minutesPlayed, goles: row.goals, asistencias: row.assists, amarillas: row.yellowCards, rojas: row.redCards, goles_encajados: row.goalsConceded ?? '', goles_evitados: row.goalsPrevented ?? '', penaltis_atajados: row.penaltiesSaved ?? '', centros_defendidos: row.crossesDefended ?? '', juego_de_pies: row.footworkActions ?? '' })),
   ];
 
   return (

@@ -38,6 +38,8 @@ export default function LoadCenterPage() {
     Distancia: row.totalDistance,
     PL: Number(row.playerLoad.toFixed(0)),
     HSR: row.highSpeedDistance,
+    DCC: row.dcc,
+    RHIE: row.rhie,
   }));
 
   const hasAnyLoad = rowsWithData.length > 0;
@@ -65,7 +67,7 @@ export default function LoadCenterPage() {
             <KpiCard label="Distancia total" value={`${center.totals.totalDistance.toFixed(0)} m`} tone="dark" trend="Catapult" />
             <KpiCard label="Player Load" value={center.totals.playerLoad.toFixed(0)} tone="blue" trend="Acumulado" />
             <KpiCard label="Alta velocidad" value={`${center.totals.highSpeedDistance.toFixed(0)} m`} tone="green" trend="HSR" />
-            <KpiCard label="Vel. máxima" value={`${center.totals.maxVelocity.toFixed(1)} km/h`} tone="amber" trend="Pico" />
+            <KpiCard label="DCC / RHIE" value={`${center.totals.dcc.toFixed(0)} / ${center.totals.rhie.toFixed(0)}`} tone="amber" trend="Competencia + sesión" />
           </div>
           {gpsChart.length > 0 && (
             <div style={{ width: '100%', height: 300, marginTop: 16 }}>
@@ -171,6 +173,8 @@ export default function LoadCenterPage() {
                     <th>Vel. máx.</th>
                     <th>HSR</th>
                     <th>Sprints</th>
+                    <th>DCC</th>
+                    <th>RHIE</th>
                   </> : null}
                   <th>Estado</th>
                 </tr>
@@ -190,6 +194,8 @@ export default function LoadCenterPage() {
                       <td>{row.maxVelocity.toFixed(1)}</td>
                       <td>{row.highSpeedDistance.toFixed(0)} m</td>
                       <td>{row.sprints}</td>
+                      <td>{row.dcc}</td>
+                      <td>{row.rhie}</td>
                     </> : null}
                     <td><StatusBadge text={row.exposure} tone={row.tone} /></td>
                   </tr>
@@ -202,6 +208,8 @@ export default function LoadCenterPage() {
                     <td style={{ color: '#94a3b8' }}>—</td>
                     <td style={{ color: '#94a3b8' }}>—</td>
                     {gpsEnabled ? <>
+                      <td style={{ color: '#94a3b8' }}>—</td>
+                      <td style={{ color: '#94a3b8' }}>—</td>
                       <td style={{ color: '#94a3b8' }}>—</td>
                       <td style={{ color: '#94a3b8' }}>—</td>
                       <td style={{ color: '#94a3b8' }}>—</td>

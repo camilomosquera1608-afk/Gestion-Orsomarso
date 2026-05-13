@@ -179,36 +179,60 @@ const parseCatapult = (lines: string[]): CsvRow[] => {
   //   Deceleration B1 Efforts (Gen 2)
   // No se debe tomar B3, B2-3, B1-3 Total ni "Accel + Decel" cuando existen
   // los campos B1 separados, porque eso cambia completamente la lectura.
-  const colAcc = colAny([
+  const colAccExact = colAny([
     'Acceleration B1 Efforts (Gen 2)',
     'Acceleration B1 Total Efforts (Gen 2)',
+    'Acceleration B1 Average Efforts (Session) (Gen 2)',
+    'Acceleration B1-3 Average Efforts (Session) (Gen 2)',
     'Acceleration B1-3 Total Efforts (Gen 2)',
     'Acceleration B1-3 Efforts (Gen 2)',
+    'Acceleration B2-3 Average Efforts (Session) (Gen 2)',
     'Acceleration B2-3 Total Efforts (Gen 2)',
     'Acceleration B2-3 Efforts (Gen 2)',
+    'Acceleration B3 Average Efforts (Session) (Gen 2)',
     'Acceleration B3 Efforts (Gen 2)',
     'Acceleration Efforts',
     'Accel Efforts',
     'Accelerations',
     'ACC',
   ]);
-  const colDcc = colAny([
+  const colDccExact = colAny([
     'Deceleration B1 Efforts (Gen 2)',
     'Deceleration B1 Total Efforts (Gen 2)',
+    'Deceleration B1 Average Efforts (Session) (Gen 2)',
+    'Deceleration B1-3 Average Efforts (Session) (Gen 2)',
     'Deceleration B1-3 Total Efforts (Gen 2)',
     'Deceleration B1-3 Efforts (Gen 2)',
+    'Deceleration B2-3 Average Efforts (Session) (Gen 2)',
     'Deceleration B2-3 Total Efforts (Gen 2)',
     'Deceleration B2-3 Efforts (Gen 2)',
+    'Deceleration B3 Average Efforts (Session) (Gen 2)',
     'Deceleration B3 Efforts (Gen 2)',
     'Deceleration Efforts',
     'Decel Efforts',
     'Decelerations',
     'DCC',
   ]);
+  const colAcc = colAccExact >= 0 ? colAccExact : colContains(['acceleration', 'efforts'], ['deceleration', 'per', 'minute', 'max']);
+  const colDcc = colDccExact >= 0 ? colDccExact : colContains(['deceleration', 'efforts'], ['acceleration', 'per', 'minute', 'max']);
   const colAccDec  = colAny(['Accel + Decel Efforts', 'Acceleration + Deceleration Efforts', 'Acc + Dec']);
   const colHSR     = colAny(['HS Distance', 'High Speed Distance', 'High-Speed Distance', 'HSR']);
+  const colHsEfforts = colAny(['HS Efforts', 'High Speed Efforts', 'High-Speed Efforts']);
   const colSprints = colAny(['Sprint Efforts', 'Sprints', 'Sprint Count']);
-  const colRhie    = colAny(['RHIE Total Bouts', 'RHIE Bouts', 'RHIE', 'Repeated High Intensity Efforts', 'Repeated High Intensity Effort Bouts']);
+  const colRhieExact = colAny([
+    'RHIE Total Bouts',
+    'RHIE Total Average Bouts (Session)',
+    'RHIE Bouts',
+    'RHIE Average Bouts (Session)',
+    'RHIE',
+    'Repeated High Intensity Efforts',
+    'Repeated High Intensity Effort Bouts',
+    'Repeated High Intensity Efforts Bouts',
+  ]);
+  // Algunos CTR Report de Catapult no exportan RHIE real; en ese caso
+  // dejamos HS Efforts como respaldo operativo para no perder la métrica de
+  // esfuerzos de alta intensidad en el informe.
+  const colRhie    = colRhieExact >= 0 ? colRhieExact : colHsEfforts;
 
   const rows: CsvRow[] = [];
 

@@ -481,12 +481,17 @@ export default function ValoracionesPage() {
                 {nutritionError ? <div className="nutrition-error">{nutritionError}</div> : null}
 
                 <div className="nutrition-form-section">
-                  <div className="nutrition-section-title"><strong>Datos antropométricos</strong><span>Talla, peso e IMO.</span></div>
+                  <div className="nutrition-section-title"><strong>Información de valoración</strong><span>Fecha de la medición.</span></div>
                   <div className="nutrition-field-grid">
                     <label className="field"><span>Fecha</span><input className="input" type="date" name="date" defaultValue={editingNutrition?.date ?? filters.date} key={`nutrition-date-${editingNutritionId || 'new'}`} disabled={!canEdit} required /></label>
-                    <label className="field"><span>Talla</span><div className="input-unit"><input className="input" type="number" min="0" step="0.01" name="height" placeholder="Talla" defaultValue={editingNutrition?.height ?? selectedPlayer?.height} key={`nutrition-height-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>cm</em></div></label>
+                  </div>
+                </div>
+
+                <div className="nutrition-form-section">
+                  <div className="nutrition-section-title"><strong>Datos antropométricos</strong><span>Peso, talla e IMO.</span></div>
+                  <div className="nutrition-field-grid">
                     <label className="field"><span>Peso</span><div className="input-unit"><input className="input" type="number" min="0" step="0.01" name="weight" placeholder="Peso" defaultValue={editingNutrition?.weight ?? selectedPlayer?.weight} key={`nutrition-weight-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>kg</em></div></label>
-                    <label className="field"><span>Rango de peso</span><input className="input" name="weightRange" placeholder="Ej. objetivo" defaultValue={editingNutrition?.weightRange ?? ''} key={`nutrition-weight-range-${editingNutritionId || 'new'}`} disabled={!canEdit} /></label>
+                    <label className="field"><span>Talla</span><div className="input-unit"><input className="input" type="number" min="0" step="0.01" name="height" placeholder="Talla" defaultValue={editingNutrition?.height ?? selectedPlayer?.height} key={`nutrition-height-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>cm</em></div></label>
                     <label className="field"><span>IMO</span><input className="input" type="number" min="0" step="0.01" name="imo" placeholder="IMO" defaultValue={editingNutrition?.imo ?? ''} key={`nutrition-imo-${editingNutritionId || 'new'}`} disabled={!canEdit} /></label>
                   </div>
                 </div>
@@ -495,10 +500,17 @@ export default function ValoracionesPage() {
                   <div className="nutrition-section-title"><strong>Composición corporal</strong><span>Grasa, pliegues y masa muscular.</span></div>
                   <div className="nutrition-field-grid">
                     <label className="field"><span>Sumatoria grasa</span><input className="input" type="number" min="0" step="0.01" name="skinfoldSum" placeholder="Sumatoria" defaultValue={editingNutrition?.skinfoldSum ?? ''} key={`nutrition-skin-${editingNutritionId || 'new'}`} disabled={!canEdit} required /></label>
-                    <label className="field"><span>Rango sumatoria grasa</span><select className="select" name="skinfoldRange" defaultValue={editingNutrition?.skinfoldRange ?? ''} key={`nutrition-skin-range-${editingNutritionId || 'new'}`} disabled={!canEdit} required><option value="">Selecciona</option>{SKINFOLD_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}</select></label>
                     <label className="field"><span>% grasa</span><div className="input-unit"><input className="input" type="number" min="0" max="100" step="0.01" name="bodyFat" placeholder="% grasa" defaultValue={editingNutrition?.bodyFat ?? ''} key={`nutrition-fat-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>%</em></div></label>
-                    <label className="field"><span>Rango % grasa</span><select className="select" name="fatPercentageRange" defaultValue={editingNutrition?.fatPercentageRange ?? ''} key={`nutrition-fat-range-${editingNutritionId || 'new'}`} disabled={!canEdit}><option value="">Sin rango</option>{FAT_PERCENTAGE_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}</select></label>
                     <label className="field"><span>% masa muscular</span><div className="input-unit"><input className="input" type="number" min="0" max="100" step="0.01" name="muscleMassPercentage" placeholder="% masa" defaultValue={editingNutrition?.muscleMassPercentage ?? ''} key={`nutrition-muscle-${editingNutritionId || 'new'}`} disabled={!canEdit} required /><em>%</em></div></label>
+                  </div>
+                </div>
+
+                <div className="nutrition-form-section">
+                  <div className="nutrition-section-title"><strong>Rangos</strong><span>Clasificación de peso, grasa y masa muscular.</span></div>
+                  <div className="nutrition-field-grid">
+                    <label className="field"><span>Rango de peso</span><input className="input" name="weightRange" placeholder="Ej. objetivo" defaultValue={editingNutrition?.weightRange ?? ''} key={`nutrition-weight-range-${editingNutritionId || 'new'}`} disabled={!canEdit} /></label>
+                    <label className="field"><span>Rango sumatoria grasa</span><select className="select" name="skinfoldRange" defaultValue={editingNutrition?.skinfoldRange ?? ''} key={`nutrition-skin-range-${editingNutritionId || 'new'}`} disabled={!canEdit} required><option value="">Selecciona</option>{SKINFOLD_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}</select></label>
+                    <label className="field"><span>Rango % grasa</span><select className="select" name="fatPercentageRange" defaultValue={editingNutrition?.fatPercentageRange ?? ''} key={`nutrition-fat-range-${editingNutritionId || 'new'}`} disabled={!canEdit}><option value="">Sin rango</option>{FAT_PERCENTAGE_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}</select></label>
                     <label className="field"><span>Rango % masa muscular</span><select className="select" name="muscleMassRange" defaultValue={editingNutrition?.muscleMassRange ?? ''} key={`nutrition-muscle-range-${editingNutritionId || 'new'}`} disabled={!canEdit} required><option value="">Selecciona</option>{MUSCLE_MASS_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}</select></label>
                   </div>
                 </div>

@@ -101,6 +101,7 @@ export interface LoadPlayerRow {
   avgRpe: number;
   acc: number;
   dcc: number;
+  rhie: number;
   sprints: number;
   totalDistance: number;
   highSpeedDistance: number;
@@ -132,15 +133,59 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
   const { microcycle, dates } = getActiveRange(data, filters, activeCategory);
   const gpsEnabled = supportsGps(activeCategory);
 
-  // Sesión es la fuente operativa principal de carga: MIN, RPE y GPS viven en externalLoads.
-  // internalLoads queda como respaldo para datos antiguos, pero las vistas calculan primero desde sesión.
-  const external = data.externalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates) && item.movementModule !== 'competencia');
+  // Carga del jugador = entrenamientos + competencia.
+  // La competencia puede venir como externalLoad (si se sincroniza así) o como
+  // competitionRecord; se convierte a una fila GPS compatible para que el Centro
+  // de carga pueda medir minutos, Player Load, distancia, DCC y RHIE del partido.
+  const storedExternal = data.externalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
+  const storedCompetitionKeys = new Set(storedExternal
+    .filter((item) => item.movementModule === 'competencia')
+    .map((item) => `${item.sessionId ?? ''}-${item.playerId}-${item.date}`));
+  const competitionExternalFromRecords: DailyExternalLoadRecord[] = data.competitionRecords
+    .filter((record) => ids.has(record.playerId) && dateInRange(record.date, dates))
+    .filter((record) => !isGoalkeeper(players.find((player) => player.id === record.playerId)))
+    .filter((record) => !storedCompetitionKeys.has(`${record.matchId ?? ''}-${record.playerId}-${record.date}`))
+    .filter((record) => (record.minutesPlayed ?? 0) > 0 || (record.totalDistance ?? 0) > 0 || (record.playerLoad ?? 0) > 0)
+    .map((record) => ({
+      id: `competition-${record.id}`,
+      sessionId: record.matchId,
+      playerId: record.playerId,
+      date: record.date,
+      min: record.minutesPlayed ?? 0,
+      rpe: 8,
+      acc: record.acc ?? 0,
+      dcc: record.dcc ?? 0,
+      sprints: record.sprints ?? 0,
+      rhie: record.rhie ?? 0,
+      ima: record.ima ?? 0,
+      totalDistance: record.totalDistance,
+      highSpeedDistance: record.highSpeedDistance ?? record.hsr,
+      hsr: record.hsr ?? record.highSpeedDistance,
+      sprintDistance: record.sprintDistance,
+      maxVelocity: record.maxVelocity,
+      playerLoad: record.playerLoad,
+      participation: 'Completa',
+      category: record.category,
+      baseCategory: record.baseCategory,
+      actingCategory: record.actingCategory ?? record.category,
+      movementType: record.movementType ?? 'base',
+      movementModule: 'competencia',
+      loggedBy: record.loggedBy,
+    }));
+  const external = [...storedExternal, ...competitionExternalFromRecords];
   const internalFallback = data.internalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
+  const effectiveRpe = (item: DailyExternalLoadRecord) => (item.rpe && item.rpe > 0 ? item.rpe : item.movementModule === 'competencia' ? 8 : 0);
+  const externalDayLoad = (items: DailyExternalLoadRecord[]) => items.reduce((sum, item) => sum + ((item.min ?? 0) * effectiveRpe(item)), 0);
 
   const rows: LoadPlayerRow[] = players.map((player) => {
     const playerExternal = external.filter((item) => item.playerId === player.id);
     const playerInternalFallback = internalFallback.filter((item) => item.playerId === player.id);
-    const internalLoad = dates.reduce((sum, date) => sum + getPlayerDayLoad(player.id, date, { internalLoads: playerInternalFallback, externalLoads: playerExternal }), 0);
+    const internalLoad = dates.reduce((sum, date) => {
+      const dayExternal = playerExternal.filter((item) => item.date === date);
+      const derivedExternal = externalDayLoad(dayExternal);
+      if (derivedExternal > 0) return sum + derivedExternal;
+      return sum + getPlayerDayLoad(player.id, date, { internalLoads: playerInternalFallback, externalLoads: playerExternal }, { includeCompetitionExternal: true });
+    }, 0);
     const minutes = playerExternal.reduce((acc, item) => acc + (item.min ?? 0), 0);
     const status = exposure(minutes, internalLoad);
     const totalDistance = playerExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0);
@@ -148,9 +193,10 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
       player,
       internalLoad,
       minutes,
-      avgRpe: groupAverage(playerExternal.map((item) => item.rpe ?? 0).filter((value) => value > 0)),
+      avgRpe: groupAverage(playerExternal.map(effectiveRpe).filter((value) => value > 0)),
       acc: playerExternal.reduce((acc, item) => acc + (item.acc ?? 0), 0),
       dcc: playerExternal.reduce((acc, item) => acc + (item.dcc ?? 0), 0),
+      rhie: playerExternal.reduce((acc, item) => acc + (item.rhie ?? 0), 0),
       sprints: playerExternal.reduce((acc, item) => acc + (item.sprints ?? 0), 0),
       totalDistance,
       highSpeedDistance: playerExternal.reduce((acc, item) => acc + (item.highSpeedDistance ?? item.hsr ?? 0), 0),
@@ -168,7 +214,12 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
   const dailyTrend = dates.map((date) => {
     const dayExternal = external.filter((item) => item.date === date);
     const dayInternalFallback = internalFallback.filter((item) => item.date === date);
-    const derivedInternalLoad = players.reduce((sum, player) => sum + getPlayerDayLoad(player.id, date, { internalLoads: dayInternalFallback, externalLoads: dayExternal }), 0);
+    const derivedInternalLoad = players.reduce((sum, player) => {
+      const playerDayExternal = dayExternal.filter((item) => item.playerId === player.id);
+      const externalLoad = externalDayLoad(playerDayExternal);
+      if (externalLoad > 0) return sum + externalLoad;
+      return sum + getPlayerDayLoad(player.id, date, { internalLoads: dayInternalFallback, externalLoads: playerDayExternal }, { includeCompetitionExternal: true });
+    }, 0);
     const fallbackInternalLoad = derivedInternalLoad;
     return {
       date: formatDateShort(date),
@@ -177,7 +228,7 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
       playerLoad: dayExternal.reduce((acc, item) => acc + (item.playerLoad ?? 0), 0),
       hsr: dayExternal.reduce((acc, item) => acc + (item.highSpeedDistance ?? item.hsr ?? 0), 0),
       sprints: dayExternal.reduce((acc, item) => acc + (item.sprints ?? 0), 0),
-      rpe: groupAverage(dayExternal.map((item) => item.rpe ?? 0).filter((value) => value > 0)),
+      rpe: groupAverage(dayExternal.map(effectiveRpe).filter((value) => value > 0)),
       carga: dayExternal.length ? derivedInternalLoad : fallbackInternalLoad,
     };
   });
@@ -192,13 +243,15 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
     totals: {
       internalLoad: rows.reduce((acc, row) => acc + row.internalLoad, 0),
       minutes: rows.reduce((acc, row) => acc + row.minutes, 0),
-      avgRpe: groupAverage(external.map((item) => item.rpe ?? 0).filter((value) => value > 0)),
+      avgRpe: groupAverage(external.map(effectiveRpe).filter((value) => value > 0)),
       playersWithLoad: rows.filter((row) => row.minutes > 0 || row.internalLoad > 0).length,
       totalDistance: rows.reduce((acc, row) => acc + row.totalDistance, 0),
       playerLoad: rows.reduce((acc, row) => acc + row.playerLoad, 0),
       highSpeedDistance: rows.reduce((acc, row) => acc + row.highSpeedDistance, 0),
       sprintDistance: rows.reduce((acc, row) => acc + row.sprintDistance, 0),
       sprints: rows.reduce((acc, row) => acc + row.sprints, 0),
+      dcc: rows.reduce((acc, row) => acc + row.dcc, 0),
+      rhie: rows.reduce((acc, row) => acc + row.rhie, 0),
       maxVelocity: rows.reduce((max, row) => Math.max(max, row.maxVelocity), 0),
     },
   };

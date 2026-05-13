@@ -293,7 +293,9 @@ export interface CompetitionRecord {
   playerLoad?: number;
   goalsConceded?: number;
   goalsPrevented?: number;
+  penaltiesSaved?: number;
   crossesDefended?: number;
+  footworkActions?: number;
   shotsOnTarget?: number;
   category?: ClubCategory;
   baseCategory?: ClubCategory;

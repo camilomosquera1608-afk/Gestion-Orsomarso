@@ -631,12 +631,12 @@ function IntegratedPlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] })
     <div className="fd-table-wrap">
       <table className="pdf-report-table competition-report-table-modern competition-report-heat-table fd-roster-table orso-integrated-table">
         <thead>
-          <tr><th>Jugador</th><th>Pos.</th><th>Rol</th><th>MIN</th><th>G/A</th><th>TA/TR</th><th>Dist.</th><th>m/min</th><th>HSR</th><th>Sprint</th><th>ACC</th><th>DCC</th><th>Vmax</th><th>PL</th></tr>
+          <tr><th>Jugador</th><th>Pos.</th><th>Rol</th><th>MIN</th><th>G/A o portero</th><th>TA/TR</th><th>Dist.</th><th>m/min</th><th>HSR</th><th>Sprint</th><th>ACC</th><th>DCC</th><th>RHIE</th><th>Vmax</th><th>PL</th></tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.id}>
-              <td><strong>{row.name}</strong></td><td>{row.position}</td><td>{row.role}</td><td>{row.minutes || '-'}</td><td>{row.production}</td><td>{row.discipline}</td><td>{row.totalDistance ? numberFmt(row.totalDistance) : '-'}</td><td>{row.metersPerMinute || '-'}</td><td>{row.highSpeedDistance ? numberFmt(row.highSpeedDistance) : '-'}</td><td>{row.sprintDistance ? numberFmt(row.sprintDistance) : '-'}</td><td>{row.acc || '-'}</td><td>{row.dcc || '-'}</td><td>{row.maxVelocity ? numberFmt(row.maxVelocity, 1) : '-'}</td><td>{row.playerLoad ? numberFmt(row.playerLoad) : '-'}</td>
+              <td><strong>{row.name}</strong></td><td>{row.position}</td><td>{row.role}</td><td>{row.minutes || '-'}</td><td>{row.production}</td><td>{row.discipline}</td><td>{row.totalDistance ? numberFmt(row.totalDistance) : '-'}</td><td>{row.metersPerMinute || '-'}</td><td>{row.highSpeedDistance ? numberFmt(row.highSpeedDistance) : '-'}</td><td>{row.sprintDistance ? numberFmt(row.sprintDistance) : '-'}</td><td>{row.acc || '-'}</td><td>{row.dcc || '-'}</td><td>{row.rhie || '-'}</td><td>{row.maxVelocity ? numberFmt(row.maxVelocity, 1) : '-'}</td><td>{row.playerLoad ? numberFmt(row.playerLoad) : '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -645,30 +645,52 @@ function IntegratedPlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] })
   );
 }
 
+function GoalkeeperPerformanceSection({ rows }: { rows: CompetitionReportPlayerRow[] }) {
+  const keepers = rows.filter((row) => row.isGoalkeeper);
+  if (!keepers.length) return null;
+  return (
+    <ReportSection icon={Shield} title="Rendimiento de porteros" subtitle="Goles evitados, penaltis atajados, centros defendidos y juego de pies.">
+      <div className="pdf-report-kpi-grid competition-kpi-grid competition-kpi-grid-clean fd-stat-kpis">
+        <ReportKpi icon={ShieldCheck} label="Goles evitados" value={numberFmt(keepers.reduce((acc, row) => acc + row.goalsPrevented, 0))} note="Total porteros" tone="green" />
+        <ReportKpi icon={Target} label="Penaltis atajados" value={numberFmt(keepers.reduce((acc, row) => acc + row.penaltiesSaved, 0))} note="Competencia" tone="blue" />
+        <ReportKpi icon={Flag} label="Centros defendidos" value={numberFmt(keepers.reduce((acc, row) => acc + row.crossesDefended, 0))} note="Área propia" tone="amber" />
+        <ReportKpi icon={Repeat2} label="Juego de pies" value={numberFmt(keepers.reduce((acc, row) => acc + row.footworkActions, 0))} note="Acciones" tone="dark" />
+      </div>
+      <div className="fd-table-wrap">
+        <table className="pdf-report-table competition-report-table-modern compact">
+          <thead><tr><th>Portero</th><th>MIN</th><th>GE</th><th>Goles evitados</th><th>Penaltis atajados</th><th>Centros defendidos</th><th>Juego de pies</th><th>Disciplina</th></tr></thead>
+          <tbody>{keepers.map((row) => <tr key={row.id}><td><strong>{row.name}</strong></td><td>{row.minutes || '-'}</td><td>{row.goalsConceded || 0}</td><td>{row.goalsPrevented || 0}</td><td>{row.penaltiesSaved || 0}</td><td>{row.crossesDefended || 0}</td><td>{row.footworkActions || 0}</td><td>{row.discipline}</td></tr>)}</tbody>
+        </table>
+      </div>
+    </ReportSection>
+  );
+}
+
 function GpsPhysicalSection({ report }: { report: CompetitionReportData }) {
-  const rows = report.rows.filter((row) => !row.isGoalkeeper && (row.totalDistance > 0 || row.minutes > 0));
+  const rows = report.rows.filter((row) => !row.isGoalkeeper && (row.totalDistance > 0 || row.playerLoad > 0 || row.minutes > 0));
   if (!rows.length) return null;
   const distance = rows.slice().sort((a, b) => b.totalDistance - a.totalDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.totalDistance, sub: `${row.minutes || 0} min` }));
+  const playerLoad = rows.slice().sort((a, b) => b.playerLoad - a.playerLoad).slice(0, 10).map((row) => ({ name: row.name, value: row.playerLoad, sub: `${row.minutes || 0} min` }));
   const hsr = rows.slice().sort((a, b) => b.highSpeedDistance - a.highSpeedDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.highSpeedDistance, sub: `${row.metersPerMinute || 0} m/min` }));
   const sprint = rows.slice().sort((a, b) => b.sprintDistance - a.sprintDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.sprintDistance, sub: `${row.sprints || 0} sprints` }));
-  const vmax = rows.slice().sort((a, b) => b.maxVelocity - a.maxVelocity).slice(0, 10).map((row) => ({ name: row.name, value: row.maxVelocity, sub: `PL ${numberFmt(row.playerLoad)}` }));
+  const neuromuscular = rows.slice().sort((a, b) => (b.acc + b.dcc + b.rhie) - (a.acc + a.dcc + a.rhie)).slice(0, 10).map((row) => ({ name: row.name, value: row.acc + row.dcc + row.rhie, sub: `ACC ${row.acc} · DCC ${row.dcc} · RHIE ${row.rhie}` }));
   return (
-    <ReportSection icon={Zap} title="Carga física del partido">
+    <ReportSection icon={Zap} title="Carga del jugador - GPS del partido" subtitle="Distancia, Player Load, desaceleraciones, RHIE y métricas de alta intensidad.">
       <div className="pdf-report-kpi-grid competition-kpi-grid competition-kpi-grid-clean fd-stat-kpis">
         <ReportKpi icon={BarChart3} label="Distancia total" value={`${numberFmt(report.stats.totalDistance)} m`} note="GPS campo" tone="blue" />
         <ReportKpi icon={Zap} label="M/min promedio" value={report.stats.avgMetersPerMinute || '-'} note="Intensidad" tone="green" />
         <ReportKpi icon={Target} label="HSR" value={`${numberFmt(report.stats.highSpeedDistance)} m`} note="Alta intensidad" tone="amber" />
         <ReportKpi icon={Trophy} label="Sprint dist." value={`${numberFmt(report.stats.sprintDistance)} m`} note="Sprint" tone="red" />
-        <ReportKpi icon={Repeat2} label="ACC / DCC" value={`${numberFmt(report.stats.acc)} / ${numberFmt(report.stats.dcc)}`} note=">3 m/s²" tone="dark" />
-        <ReportKpi icon={Medal} label="Vmax" value={`${numberFmt(report.stats.maxVelocity, 1)} km/h`} note="Máxima" tone="blue" />
+        <ReportKpi icon={Repeat2} label="ACC / DCC" value={`${numberFmt(report.stats.acc)} / ${numberFmt(report.stats.dcc)}`} note="Esfuerzos" tone="dark" />
+        <ReportKpi icon={Target} label="RHIE" value={numberFmt(report.stats.rhie)} note="Esf. repetidos" tone="amber" />
         <ReportKpi icon={ShieldCheck} label="Player Load" value={numberFmt(report.stats.playerLoad)} note="Carga total" tone="green" />
         <ReportKpi icon={Users} label="Jugadores GPS" value={rows.length} note="Campo" tone="neutral" />
       </div>
       <div className="competition-gps-chart-grid">
         <BarPanel title="Distancia total" subtitle="Top jugadores" items={distance} color={C.blueDark} formatter={(v) => `${numberFmt(v)} m`} />
+        <BarPanel title="Player Load" subtitle="Carga del jugador" items={playerLoad} color={C.green} formatter={(v) => numberFmt(v)} />
         <BarPanel title="HSR" subtitle="Alta intensidad" items={hsr} color={C.amber} formatter={(v) => `${numberFmt(v)} m`} />
-        <BarPanel title="Sprint distance" subtitle="Sprint" items={sprint} color={C.red} formatter={(v) => `${numberFmt(v)} m`} />
-        <BarPanel title="Velocidad máxima" subtitle="km/h" items={vmax} color={C.green} formatter={(v) => `${numberFmt(v, 1)}`} />
+        <BarPanel title="Neuromuscular" subtitle="ACC + DCC + RHIE" items={neuromuscular} color={C.red} formatter={(v) => numberFmt(v)} />
       </div>
     </ReportSection>
   );
@@ -699,6 +721,7 @@ export function CompetitionReportTemplate({ report, category, className = '', co
         <div className="pdf-report-hero-meta"><span><CalendarDays size={13} /> {formatDate(match.date)}</span><span><VenueIcon size={13} /> {match.venue ?? 'Local'}</span><span><Trophy size={13} /> {match.competitionName || 'Competencia'}</span><span><Users size={13} /> {categoryLabel(category)}</span></div>
       </section>
       <LineupSection report={report} />
+      <GoalkeeperPerformanceSection rows={report.rows} />
       <MatchDynamicsSection stats={eyeballStats} />
       <PeriodComparisonSection first={eyeballFirstHalfStats} second={eyeballSecondHalfStats} />
       <GeneralStatsSection stats={eyeballStats} />

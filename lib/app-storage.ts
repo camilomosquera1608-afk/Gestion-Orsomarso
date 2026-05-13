@@ -168,7 +168,7 @@ const DERIVED_FIELDS = new Set([
 const KEEP_ZERO = new Set([
   'rpe', 'goals', 'assists', 'yellowCards', 'redCards',
   'minutesPlayed', 'min', 'acc', 'dcc', 'sprints', 'rhie',
-  'goalsConceded', 'goalsPrevented',
+  'goalsConceded', 'goalsPrevented', 'penaltiesSaved', 'crossesDefended', 'footworkActions',
 ]);
 
 const stripRecord = (obj: Record<string, unknown>): Record<string, unknown> => {

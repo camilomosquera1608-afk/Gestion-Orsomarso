@@ -22,10 +22,14 @@ export interface CompetitionReportPlayerRow {
   assists: number;
   goalsConceded: number;
   goalsPrevented: number;
+  penaltiesSaved: number;
+  crossesDefended: number;
+  footworkActions: number;
   totalDistance: number;
   metersPerMinute: number;
   acc: number;
   dcc: number;
+  rhie: number;
   sprints: number;
   highSpeedDistance: number;
   sprintDistance: number;
@@ -43,6 +47,9 @@ export interface CompetitionReportStats {
   assists: number;
   goalsConceded: number;
   goalsPrevented: number;
+  penaltiesSaved: number;
+  crossesDefended: number;
+  footworkActions: number;
   yellowCards: number;
   redCards: number;
   medical: number;
@@ -50,6 +57,7 @@ export interface CompetitionReportStats {
   avgMetersPerMinute: number;
   acc: number;
   dcc: number;
+  rhie: number;
   sprints: number;
   highSpeedDistance: number;
   sprintDistance: number;
@@ -122,7 +130,7 @@ export const buildCompetitionReportData = ({
       minutes: toSafeNumber(record.minutesPlayed),
       isGoalkeeper: goalkeeper,
       production: goalkeeper
-        ? `GE ${toSafeNumber(record.goalsConceded)} · EV ${toSafeNumber(record.goalsPrevented)}`
+        ? `GE ${toSafeNumber(record.goalsConceded)} · EV ${toSafeNumber(record.goalsPrevented)} · PEN ${toSafeNumber(record.penaltiesSaved)} · CEN ${toSafeNumber(record.crossesDefended)} · PIE ${toSafeNumber(record.footworkActions)}`
         : `G ${toSafeNumber(record.goals)} · A ${toSafeNumber(record.assists)}`,
       discipline: `TA ${yellowCards} · TR ${redCards}`,
       yellowCards,
@@ -134,10 +142,14 @@ export const buildCompetitionReportData = ({
       assists: toSafeNumber(record.assists),
       goalsConceded: toSafeNumber(record.goalsConceded),
       goalsPrevented: toSafeNumber(record.goalsPrevented),
+      penaltiesSaved: toSafeNumber(record.penaltiesSaved),
+      crossesDefended: toSafeNumber(record.crossesDefended),
+      footworkActions: toSafeNumber(record.footworkActions),
       totalDistance: toSafeNumber(record.totalDistance),
       metersPerMinute: toSafeNumber(record.minutesPlayed) > 0 ? Math.round(toSafeNumber(record.totalDistance) / Math.max(1, toSafeNumber(record.minutesPlayed))) : 0,
       acc: toSafeNumber(record.acc),
       dcc: toSafeNumber(record.dcc),
+      rhie: toSafeNumber(record.rhie),
       sprints: toSafeNumber(record.sprints),
       highSpeedDistance: toSafeNumber(record.highSpeedDistance ?? record.hsr),
       sprintDistance: toSafeNumber(record.sprintDistance),
@@ -166,6 +178,9 @@ export const buildCompetitionReportData = ({
     assists: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.assists), 0),
     goalsConceded: goalkeeperRecords.reduce((acc, record) => acc + toSafeNumber(record.goalsConceded), 0),
     goalsPrevented: goalkeeperRecords.reduce((acc, record) => acc + toSafeNumber(record.goalsPrevented), 0),
+    penaltiesSaved: goalkeeperRecords.reduce((acc, record) => acc + toSafeNumber(record.penaltiesSaved), 0),
+    crossesDefended: goalkeeperRecords.reduce((acc, record) => acc + toSafeNumber(record.crossesDefended), 0),
+    footworkActions: goalkeeperRecords.reduce((acc, record) => acc + toSafeNumber(record.footworkActions), 0),
     yellowCards: rows.reduce((acc, row) => acc + row.yellowCards, 0),
     redCards: rows.reduce((acc, row) => acc + row.redCards, 0),
     medical: medicalRows.length,
@@ -175,6 +190,7 @@ export const buildCompetitionReportData = ({
       : 0,
     acc: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.acc), 0),
     dcc: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.dcc), 0),
+    rhie: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.rhie), 0),
     sprints: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.sprints), 0),
     highSpeedDistance: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.highSpeedDistance ?? record.hsr), 0),
     sprintDistance: fieldRecords.reduce((acc, record) => acc + toSafeNumber(record.sprintDistance), 0),
