@@ -116,6 +116,47 @@ const stripColumns = (rows: DbRow[], columns: Set<string>): DbRow[] =>
       ) as DbRow,
   );
 
+
+const stripColumnsForConstraint = (
+  table: string,
+  error: unknown,
+): string | null => {
+  const message = String((error as { message?: unknown } | null)?.message ?? '').toLowerCase();
+  if (!message.includes('check constraint')) return null;
+  if (table === 'nutrition_records' && message.includes('fat_percentage_range'))
+    return 'fat_percentage_range';
+  return null;
+};
+
+const directUpdateOrInsertRow = async (
+  supabase: SupabaseClient,
+  table: string,
+  row: DbRow,
+): Promise<{ ok: true } | { ok: false; error: any }> => {
+  if (!row.legacy_id) {
+    const { error } = await supabase.from(table).insert(row);
+    return error ? { ok: false, error } : { ok: true };
+  }
+
+  const existing = await supabase
+    .from(table)
+    .select('id')
+    .eq('legacy_id', row.legacy_id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!existing.error && existing.data?.id) {
+    const { error } = await supabase
+      .from(table)
+      .update(row)
+      .eq('id', existing.data.id);
+    return error ? { ok: false, error } : { ok: true };
+  }
+
+  const { error } = await supabase.from(table).insert(row);
+  return error ? { ok: false, error } : { ok: true };
+};
+
 const upsertRows = async (
   supabase: SupabaseClient,
   table: string,
@@ -145,7 +186,8 @@ const upsertRows = async (
       };
     }
 
-    const missingColumn = missingColumnFromError(error);
+    const constrainedColumn = stripColumnsForConstraint(table, error);
+    const missingColumn = missingColumnFromError(error) ?? constrainedColumn;
     if (missingColumn && !strippedColumns.has(missingColumn)) {
       strippedColumns.add(missingColumn);
       workingRows = stripColumns(rows, strippedColumns);
@@ -173,29 +215,30 @@ const upsertRows = async (
         break;
       }
 
-      const missingColumn = missingColumnFromError(rowError);
+      const rowConstrainedColumn = stripColumnsForConstraint(table, rowError);
+      const missingColumn = missingColumnFromError(rowError) ?? rowConstrainedColumn;
       if (missingColumn && !strippedColumns.has(missingColumn)) {
         strippedColumns.add(missingColumn);
         row = stripColumns([originalRow], strippedColumns)[0];
         continue;
       }
 
-      const { error: plainError } = await supabase
-        .from(table)
-        .upsert(row, { ignoreDuplicates: true });
-      if (!plainError) {
+      const directResult = await directUpdateOrInsertRow(supabase, table, row);
+      if (directResult.ok) {
         savedCount++;
         break;
       }
 
-      const plainMissingColumn = missingColumnFromError(plainError);
-      if (plainMissingColumn && !strippedColumns.has(plainMissingColumn)) {
-        strippedColumns.add(plainMissingColumn);
+      const directMissingColumn =
+        missingColumnFromError(directResult.error) ??
+        stripColumnsForConstraint(table, directResult.error);
+      if (directMissingColumn && !strippedColumns.has(directMissingColumn)) {
+        strippedColumns.add(directMissingColumn);
         row = stripColumns([originalRow], strippedColumns)[0];
         continue;
       }
 
-      errors.push(`${row.legacy_id ?? "?"}: ${plainError.message}`);
+      errors.push(`${row.legacy_id ?? "?"}: ${directResult.error?.message ?? 'error'}`);
       break;
     }
   }
@@ -1025,9 +1068,23 @@ const upsertEvaluationTables = async (
   supabase: SupabaseClient,
   data: AppData,
 ): Promise<void> => {
-  // Asegura que existan los jugadores para resolver las FK de valoraciones.
-  await upsertRows(supabase, "players", toPlayerRows(data.players));
-  const playerMap = await fetchLegacyIdMap(supabase, "players");
+  // Las valoraciones no deben re-guardar toda la ficha de todos los jugadores.
+  // Primero usamos los jugadores ya existentes en Supabase; si falta alguno,
+  // insertamos solo lo necesario para resolver la FK.
+  let playerMap = await fetchLegacyIdMap(supabase, "players");
+  const referencedPlayerIds = new Set([
+    ...data.nutritionRecords.map((record) => record.playerId),
+    ...data.cmjRecords.map((record) => record.playerId),
+    ...data.neuromuscularRecords.map((record) => record.playerId),
+    ...data.fmsRecords.map((record) => record.playerId),
+  ]);
+  const missingPlayers = data.players.filter(
+    (player) => referencedPlayerIds.has(player.id) && !playerMap[player.id],
+  );
+  if (missingPlayers.length) {
+    await upsertRows(supabase, "players", toPlayerRows(missingPlayers));
+    playerMap = await fetchLegacyIdMap(supabase, "players");
+  }
   const playerUuid = (legacyId: string) => playerMap[legacyId] ?? null;
 
   await upsertRows(

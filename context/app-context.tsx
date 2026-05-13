@@ -194,14 +194,19 @@ const normalizedKeyPart = (value: unknown) =>
 const buildMergeKey = (...parts: unknown[]) =>
   parts.map(normalizedKeyPart).join("::");
 
+const isPlainObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
 const mergeByKeys = <T extends Record<string, unknown>>(
-  remote: T[],
+  remote: T[] | undefined,
   local: T[] | undefined,
   keyFns: Array<(item: T) => string | null | undefined>,
 ): T[] => {
-  if (!local?.length) return remote;
+  const remoteRows = (Array.isArray(remote) ? remote : []).filter(isPlainObjectRecord) as T[];
+  const localRows = (Array.isArray(local) ? local : []).filter(isPlainObjectRecord) as T[];
+  if (!localRows.length) return remoteRows;
   const localByKey = new Map<string, T>();
-  local.forEach((item) => {
+  localRows.forEach((item) => {
     keyFns.forEach((fn) => {
       const key = fn(item);
       if (key) localByKey.set(key, item);
@@ -209,7 +214,7 @@ const mergeByKeys = <T extends Record<string, unknown>>(
   });
 
   const usedLocal = new Set<T>();
-  const merged = remote.map((item) => {
+  const merged = remoteRows.map((item) => {
     const match = keyFns
       .map((fn) => fn(item))
       .filter(Boolean)
@@ -219,10 +224,10 @@ const mergeByKeys = <T extends Record<string, unknown>>(
     return mergeObjectWithLocalFallback(item, match);
   });
 
-  local.forEach((item) => {
+  localRows.forEach((item) => {
     if (usedLocal.has(item)) return;
     const itemKeys = keyFns.map((fn) => fn(item)).filter(Boolean);
-    const exists = remote.some((remoteItem) =>
+    const exists = remoteRows.some((remoteItem) =>
       keyFns
         .map((fn) => fn(remoteItem))
         .filter(Boolean)
@@ -235,7 +240,7 @@ const mergeByKeys = <T extends Record<string, unknown>>(
 };
 
 const mergeByIdWithLocalFallback = <T extends { id: string }>(
-  remote: T[],
+  remote: T[] | undefined,
   local: T[] | undefined,
 ): T[] =>
   mergeByKeys(

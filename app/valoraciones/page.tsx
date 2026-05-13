@@ -92,19 +92,37 @@ export default function ValoracionesPage() {
   const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId) ?? categoryPlayers[0];
   if (!selectedPlayer) return <div className="empty">No hay jugadores disponibles en esta categoría.</div>;
 
-  const nutritionHistory = useMemo(() => data.nutritionRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.nutritionRecords, selectedPlayerId]);
-  const neuromuscularHistory = useMemo(() => data.neuromuscularRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.neuromuscularRecords, selectedPlayerId]);
-  const cmjHistory = useMemo(() => data.cmjRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)), [data.cmjRecords, selectedPlayerId]);
-  const fmsHistory = useMemo(() => data.fmsRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => b.date.localeCompare(a.date)).map((record) => ({ ...record, total: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })), [data.fmsRecords, selectedPlayerId]);
+  const safeDateText = (value: unknown) => String(value ?? '');
+  const validPlayerRecord = <T extends { playerId?: string; date?: string }>(record: T | null | undefined, playerId = selectedPlayerId) =>
+    Boolean(record?.playerId && record.playerId === playerId && safeDateText(record.date));
+
+  const nutritionHistory = useMemo(() => data.nutritionRecords
+    .map((record) => normalizeNutritionRecord(record))
+    .filter((record) => validPlayerRecord(record))
+    .sort((a, b) => safeDateText(b.date).localeCompare(safeDateText(a.date))), [data.nutritionRecords, selectedPlayerId]);
+  const neuromuscularHistory = useMemo(() => data.neuromuscularRecords
+    .filter((record) => validPlayerRecord(record))
+    .sort((a, b) => safeDateText(b.date).localeCompare(safeDateText(a.date))), [data.neuromuscularRecords, selectedPlayerId]);
+  const cmjHistory = useMemo(() => data.cmjRecords
+    .filter((record) => validPlayerRecord(record))
+    .sort((a, b) => safeDateText(b.date).localeCompare(safeDateText(a.date))), [data.cmjRecords, selectedPlayerId]);
+  const fmsHistory = useMemo(() => data.fmsRecords
+    .filter((record) => validPlayerRecord(record))
+    .sort((a, b) => safeDateText(b.date).localeCompare(safeDateText(a.date)))
+    .map((record) => ({
+      ...record,
+      total: Number(record.shoulderMobility ?? 0) + Number(record.squat ?? 0) + Number(record.legRaise ?? 0) + Number(record.hurdleStep ?? 0) + Number(record.lunge ?? 0) + Number(record.trunkStability ?? 0) + Number(record.rotaryStability ?? 0),
+    })), [data.fmsRecords, selectedPlayerId]);
 
 
-  const latestByPlayer = <T extends { playerId: string; date: string }>(items: T[]) => Object.values(items.reduce<Record<string, T>>((acc, item) => {
+  const latestByPlayer = <T extends { playerId?: string; date?: string }>(items: T[]) => Object.values(items.reduce<Record<string, T>>((acc, item) => {
+    if (!item?.playerId || !safeDateText(item.date)) return acc;
     const current = acc[item.playerId];
-    if (!current || item.date > current.date) acc[item.playerId] = item;
+    if (!current || safeDateText(item.date) > safeDateText(current.date)) acc[item.playerId] = item;
     return acc;
   }, {}));
   const categoryPlayerIds = new Set(categoryPlayers.map((player) => player.id));
-  const latestNutritionGroup = latestByPlayer(data.nutritionRecords.filter((record) => categoryPlayerIds.has(record.playerId)));
+  const latestNutritionGroup = latestByPlayer(data.nutritionRecords.map((record) => normalizeNutritionRecord(record)).filter((record) => categoryPlayerIds.has(record.playerId) && safeDateText(record.date)));
   const latestNeuromuscularGroup = latestByPlayer(data.neuromuscularRecords.filter((record) => categoryPlayerIds.has(record.playerId)));
   const latestCmjGroup = latestByPlayer(data.cmjRecords.filter((record) => categoryPlayerIds.has(record.playerId)));
   const latestFmsGroup = latestByPlayer(data.fmsRecords.filter((record) => categoryPlayerIds.has(record.playerId)).map((record) => ({ ...record, total: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })));
@@ -287,7 +305,7 @@ export default function ValoracionesPage() {
   const nutritionChartData = [...nutritionHistory].reverse().map((row) => {
     const normalized = normalizeNutritionRecord(row);
     return {
-      fecha: normalized.date.slice(5),
+      fecha: safeDateText(normalized.date).slice(5),
       peso: normalized.weight,
       grasa: normalized.bodyFat,
       pliegues: normalized.skinfoldSum,
@@ -470,7 +488,7 @@ export default function ValoracionesPage() {
             </section>
 
             <div className="nutrition-layout">
-              <form className="card nutrition-form-card" action={submitNutrition}>
+              <form className="card nutrition-form-card" onSubmit={(event) => { event.preventDefault(); submitNutrition(new FormData(event.currentTarget)); }}>
                 <div className="section-header compact-section-header">
                   <div>
                     <span className="section-eyebrow">Carga</span>
@@ -605,7 +623,7 @@ export default function ValoracionesPage() {
 
         {activeTab === 'Perfil neuromuscular' && (
           <div className="grid grid-2">
-            <form className="card grid" action={submitNeuromuscular}>
+            <form className="card grid" onSubmit={(event) => { event.preventDefault(); submitNeuromuscular(new FormData(event.currentTarget)); }}>
               <h3>{editingNeuro ? 'Editar perfil neuromuscular' : 'Cargar perfil neuromuscular'}</h3>
               <input className="input" type="date" name="date" defaultValue={editingNeuro?.date ?? filters.date} key={`neuro-date-${editingNeuroId || 'new'}`} required />
               <div className="grid grid-3">
@@ -619,7 +637,7 @@ export default function ValoracionesPage() {
               <h3>Comparación histórica</h3>
               <div style={{ width: '100%', height: 320 }}>
                 <ResponsiveContainer>
-                  <LineChart data={[...neuromuscularHistory].reverse().map((row) => ({ fecha: row.date.slice(5), cmj: row.cmj, sj: row.sj, reactivos: row.reactiveJumps }))}>
+                  <LineChart data={[...neuromuscularHistory].reverse().map((row) => ({ fecha: safeDateText(row.date).slice(5), cmj: row.cmj, sj: row.sj, reactivos: row.reactiveJumps }))}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="fecha" />
                     <YAxis />
@@ -644,7 +662,7 @@ export default function ValoracionesPage() {
               <h3>Evolución histórica de CMJ</h3>
               <div style={{ width: '100%', height: 320 }}>
                 <ResponsiveContainer>
-                  <LineChart data={[...cmjHistory].reverse().map((row) => ({ fecha: row.date.slice(5), cmj: row.value }))}>
+                  <LineChart data={[...cmjHistory].reverse().map((row) => ({ fecha: safeDateText(row.date).slice(5), cmj: row.value }))}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="fecha" />
                     <YAxis />
@@ -664,7 +682,7 @@ export default function ValoracionesPage() {
 
         {activeTab === 'FMS' && (
           <div className="grid grid-2">
-            <form className="card grid" action={submitFMS}>
+            <form className="card grid" onSubmit={(event) => { event.preventDefault(); submitFMS(new FormData(event.currentTarget)); }}>
               <h3>{editingFms ? 'Editar FMS' : 'Cargar FMS'}</h3>
               <input className="input" type="date" name="date" defaultValue={editingFms?.date ?? filters.date} key={`fms-date-${editingFmsId || 'new'}`} required />
               <div className="grid grid-3">
@@ -682,7 +700,7 @@ export default function ValoracionesPage() {
               <h3>Evolución FMS</h3>
               <div style={{ width: '100%', height: 320 }}>
                 <ResponsiveContainer>
-                  <LineChart data={[...fmsHistory].reverse().map((row) => ({ fecha: row.date.slice(5), total: row.total }))}>
+                  <LineChart data={[...fmsHistory].reverse().map((row) => ({ fecha: safeDateText(row.date).slice(5), total: row.total }))}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="fecha" />
                     <YAxis />

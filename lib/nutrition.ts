@@ -79,27 +79,33 @@ export const normalizeFatPercentageRange = (value: unknown): FatPercentageRange 
 };
 
 export const normalizeNutritionRecord = (record: NutritionRecord): NutritionRecord => {
-  const legacy = record as NutritionRecord & {
+  const safeRecord = (record ?? {}) as Partial<NutritionRecord>;
+  const legacy = safeRecord as Partial<NutritionRecord> & {
     fatSum?: number;
     fatSumRange?: SkinfoldRange;
     fatPercentage?: number;
     nutritionPlan?: NutritionPlan;
   };
+  const rawDate = normalizeText(safeRecord.date);
+  const date = /^\d{4}-\d{2}-\d{2}/.test(rawDate) ? rawDate.slice(0, 10) : rawDate;
 
   return {
-    ...record,
-    weight: safeNutritionNumber(record.weight),
-    height: safeNutritionNumber(record.height),
-    bodyFat: safeNutritionNumber(record.bodyFat ?? legacy.fatPercentage),
-    skinfoldSum: safeNutritionNumber(record.skinfoldSum ?? legacy.fatSum),
-    plan: normalizeNutritionPlan(record.plan ?? legacy.nutritionPlan),
-    weightRange: record.weightRange ?? '',
-    skinfoldRange: normalizeSkinfoldRange(record.skinfoldRange ?? legacy.fatSumRange),
-    fatPercentageRange: normalizeFatPercentageRange(record.fatPercentageRange),
-    muscleMassPercentage: record.muscleMassPercentage === undefined ? undefined : safeNutritionNumber(record.muscleMassPercentage),
-    muscleMassRange: normalizeMuscleMassRange(record.muscleMassRange),
-    imo: record.imo === undefined ? undefined : safeNutritionNumber(record.imo),
-    diagnosis: record.diagnosis ?? '',
+    ...(safeRecord as NutritionRecord),
+    id: normalizeText(safeRecord.id) || `nutrition-${normalizeText(safeRecord.playerId) || 'sin-jugador'}-${date || 'sin-fecha'}`,
+    playerId: normalizeText(safeRecord.playerId),
+    date,
+    weight: safeNutritionNumber(safeRecord.weight),
+    height: safeNutritionNumber(safeRecord.height),
+    bodyFat: safeNutritionNumber(safeRecord.bodyFat ?? legacy.fatPercentage),
+    skinfoldSum: safeNutritionNumber(safeRecord.skinfoldSum ?? legacy.fatSum),
+    plan: normalizeNutritionPlan(safeRecord.plan ?? legacy.nutritionPlan),
+    weightRange: safeRecord.weightRange ?? '',
+    skinfoldRange: normalizeSkinfoldRange(safeRecord.skinfoldRange ?? legacy.fatSumRange),
+    fatPercentageRange: normalizeFatPercentageRange(safeRecord.fatPercentageRange),
+    muscleMassPercentage: safeRecord.muscleMassPercentage === undefined ? undefined : safeNutritionNumber(safeRecord.muscleMassPercentage),
+    muscleMassRange: normalizeMuscleMassRange(safeRecord.muscleMassRange),
+    imo: safeRecord.imo === undefined ? undefined : safeNutritionNumber(safeRecord.imo),
+    diagnosis: safeRecord.diagnosis ?? '',
   };
 };
 

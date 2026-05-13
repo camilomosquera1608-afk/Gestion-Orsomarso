@@ -4,6 +4,8 @@ export const STORAGE_KEY = "orsomarso-performance-hub";
 export const STORAGE_BACKUPS_KEY = "orsomarso-performance-hub-backups-v1";
 export const STORAGE_COMPETITION_SAFETY_KEY =
   "orsomarso-competition-safety-cache-v1";
+export const STORAGE_EVALUATIONS_SAFETY_KEY =
+  "orsomarso-evaluations-safety-cache-v1";
 
 const MAX_BACKUPS = 8;
 const FALLBACK_MAX_BACKUPS = 2;
@@ -262,6 +264,66 @@ const mergeCompetitionPayload = (
   };
 };
 
+
+const mergeEvaluationsPayload = (
+  payload: Partial<AppData> | null,
+  safety: Partial<AppData> | null,
+): Partial<AppData> | null => {
+  if (!payload && !safety) return null;
+  const primary = payload ?? {};
+  const fallback = safety ?? {};
+  return {
+    ...fallback,
+    ...primary,
+    nutritionRecords: mergeByKeys(
+      primary.nutritionRecords as unknown as
+        | Record<string, unknown>[]
+        | undefined,
+      fallback.nutritionRecords as unknown as
+        | Record<string, unknown>[]
+        | undefined,
+      [
+        (item) => (item.id ? String(item.id) : null),
+        (item) =>
+          item.playerId && item.date
+            ? compactKey(item.playerId, item.date, 'nutrition')
+            : null,
+      ],
+    ) as unknown as AppData['nutritionRecords'],
+    cmjRecords: mergeByKeys(
+      primary.cmjRecords as unknown as Record<string, unknown>[] | undefined,
+      fallback.cmjRecords as unknown as Record<string, unknown>[] | undefined,
+      [
+        (item) => (item.id ? String(item.id) : null),
+        (item) =>
+          item.playerId && item.date ? compactKey(item.playerId, item.date, 'cmj') : null,
+      ],
+    ) as unknown as AppData['cmjRecords'],
+    neuromuscularRecords: mergeByKeys(
+      primary.neuromuscularRecords as unknown as
+        | Record<string, unknown>[]
+        | undefined,
+      fallback.neuromuscularRecords as unknown as
+        | Record<string, unknown>[]
+        | undefined,
+      [
+        (item) => (item.id ? String(item.id) : null),
+        (item) =>
+          item.playerId && item.date ? compactKey(item.playerId, item.date, 'neuro') : null,
+      ],
+    ) as unknown as AppData['neuromuscularRecords'],
+    fmsRecords: mergeByKeys(
+      primary.fmsRecords as unknown as Record<string, unknown>[] | undefined,
+      fallback.fmsRecords as unknown as Record<string, unknown>[] | undefined,
+      [
+        (item) => (item.id ? String(item.id) : null),
+        (item) =>
+          item.playerId && item.date ? compactKey(item.playerId, item.date, 'fms') : null,
+      ],
+    ) as unknown as AppData['fmsRecords'],
+  };
+};
+
 const readCompetitionSafetyCache = (): Partial<AppData> | null => {
   if (!isBrowser()) return null;
   return safeJsonParse<Partial<AppData>>(
@@ -294,6 +356,46 @@ const writeCompetitionSafetyCache = (payload: Partial<AppData>) => {
   try {
     localStorage.setItem(
       STORAGE_COMPETITION_SAFETY_KEY,
+      JSON.stringify(safetyPayload),
+    );
+  } catch {
+    // Si el navegador está al límite, no bloqueamos el guardado principal.
+  }
+};
+
+
+const readEvaluationsSafetyCache = (): Partial<AppData> | null => {
+  if (!isBrowser()) return null;
+  return safeJsonParse<Partial<AppData>>(
+    localStorage.getItem(STORAGE_EVALUATIONS_SAFETY_KEY),
+  );
+};
+
+const writeEvaluationsSafetyCache = (payload: Partial<AppData>) => {
+  if (!isBrowser()) return;
+  const nutritionRecords = asArray(payload.nutritionRecords);
+  const cmjRecords = asArray(payload.cmjRecords);
+  const neuromuscularRecords = asArray(payload.neuromuscularRecords);
+  const fmsRecords = asArray(payload.fmsRecords);
+  if (
+    !nutritionRecords.length &&
+    !cmjRecords.length &&
+    !neuromuscularRecords.length &&
+    !fmsRecords.length
+  )
+    return;
+
+  const safetyPayload: Partial<AppData> & { updatedAt: string } = {
+    updatedAt: new Date().toISOString(),
+    nutritionRecords,
+    cmjRecords,
+    neuromuscularRecords,
+    fmsRecords,
+  };
+
+  try {
+    localStorage.setItem(
+      STORAGE_EVALUATIONS_SAFETY_KEY,
       JSON.stringify(safetyPayload),
     );
   } catch {
@@ -360,8 +462,10 @@ export const sanitizeLegacyMockLocalData = (): boolean => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify(
-        mergeCompetitionPayload(sanitized, readCompetitionSafetyCache()) ??
-          sanitized,
+        mergeEvaluationsPayload(
+          mergeCompetitionPayload(sanitized, readCompetitionSafetyCache()),
+          readEvaluationsSafetyCache(),
+        ) ?? sanitized,
       ),
     );
     return true;
@@ -516,13 +620,17 @@ export const readLocalAppData = (): Partial<AppData> | null => {
   const mainPayload = safeJsonParse<Partial<AppData>>(
     localStorage.getItem(STORAGE_KEY),
   );
-  return mergeCompetitionPayload(mainPayload, readCompetitionSafetyCache());
+  return mergeEvaluationsPayload(
+    mergeCompetitionPayload(mainPayload, readCompetitionSafetyCache()),
+    readEvaluationsSafetyCache(),
+  );
 };
 
 export const saveLocalAppData = (nextData: AppData) => {
   if (!isBrowser()) return;
 
   writeCompetitionSafetyCache(nextData);
+  writeEvaluationsSafetyCache(nextData);
 
   const previousRaw = localStorage.getItem(STORAGE_KEY);
   // Use compact representation — strips derived fields and 90-day window
@@ -566,23 +674,29 @@ export const saveLocalAppData = (nextData: AppData) => {
     if (!trySave(nextRaw)) {
       // Attempt 3: save only players, sessions and microcycles (no loads)
       // This is a last resort — data is recoverable from Supabase
-      const safety = readCompetitionSafetyCache();
+      const competitionSafety = readCompetitionSafetyCache();
+      const evaluationsSafety = readEvaluationsSafetyCache();
       const minimal = JSON.stringify(
-        mergeCompetitionPayload(
-          {
-            players: compacted.players ?? [],
-            microcycles: compacted.microcycles ?? [],
-            trainingSessionSummaries: compacted.trainingSessionSummaries ?? [],
-            competitionMatchSummaries:
-              compacted.competitionMatchSummaries ?? [],
-            externalLoads: [],
-            internalLoads: [],
-            wellness: [],
-            nutritionRecords: [],
-            competitionRecords: compacted.competitionRecords ?? [],
-            fmsRecords: [],
-          },
-          safety,
+        mergeEvaluationsPayload(
+          mergeCompetitionPayload(
+            {
+              players: compacted.players ?? [],
+              microcycles: compacted.microcycles ?? [],
+              trainingSessionSummaries: compacted.trainingSessionSummaries ?? [],
+              competitionMatchSummaries:
+                compacted.competitionMatchSummaries ?? [],
+              externalLoads: [],
+              internalLoads: [],
+              wellness: [],
+              nutritionRecords: compacted.nutritionRecords ?? [],
+              cmjRecords: compacted.cmjRecords ?? [],
+              neuromuscularRecords: compacted.neuromuscularRecords ?? [],
+              competitionRecords: compacted.competitionRecords ?? [],
+              fmsRecords: compacted.fmsRecords ?? [],
+            },
+            competitionSafety,
+          ),
+          evaluationsSafety,
         ),
       );
       trySave(minimal);
