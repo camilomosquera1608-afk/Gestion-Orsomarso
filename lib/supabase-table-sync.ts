@@ -93,49 +93,111 @@ const fetchUuidToLegacyIdMap = async (
   );
 };
 
+const missingColumnFromError = (error: unknown): string | null => {
+  const message = String(
+    (error as { message?: unknown } | null)?.message ?? "",
+  );
+  const schemaCacheMatch = message.match(
+    /Could not find the '([^']+)' column/i,
+  );
+  if (schemaCacheMatch?.[1]) return schemaCacheMatch[1];
+  const relationMatch = message.match(/column "([^"]+)" of relation/i);
+  if (relationMatch?.[1]) return relationMatch[1];
+  const genericMatch = message.match(/column "([^"]+)" does not exist/i);
+  if (genericMatch?.[1]) return genericMatch[1];
+  return null;
+};
+
+const stripColumns = (rows: DbRow[], columns: Set<string>): DbRow[] =>
+  rows.map(
+    (row) =>
+      Object.fromEntries(
+        Object.entries(row).filter(([key]) => !columns.has(key)),
+      ) as DbRow,
+  );
+
 const upsertRows = async (
   supabase: SupabaseClient,
   table: string,
   rows: DbRow[],
   onConflict = "legacy_id",
-) => {
-  if (!rows.length) return;
+): Promise<{ savedCount: number; strippedColumns: string[] }> => {
+  if (!rows.length) return { savedCount: 0, strippedColumns: [] };
 
-  // Attempt 1: upsert with the specified conflict resolution
-  const { error } = await supabase
-    .from(table)
-    .upsert(rows, { onConflict, ignoreDuplicates: false });
-  if (!error) return;
+  const strippedColumns = new Set<string>();
+  let workingRows = rows;
 
-  // Log the error for debugging but don't throw yet
-  console.warn(
-    `[Supabase] upsert failed on '${table}' (onConflict='${onConflict}'):`,
-    error.message,
-  );
+  // Attempt 1: upsert in bulk. If Supabase schema cache is missing a newer
+  // optional column, strip only that column and retry so core records still save.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const { error } = await supabase
+      .from(table)
+      .upsert(workingRows, { onConflict, ignoreDuplicates: false });
+    if (!error) {
+      if (strippedColumns.size) {
+        console.warn(
+          `[Supabase] '${table}' guardado sin columnas pendientes de SQL: ${Array.from(strippedColumns).join(", ")}`,
+        );
+      }
+      return {
+        savedCount: workingRows.length,
+        strippedColumns: Array.from(strippedColumns),
+      };
+    }
+
+    const missingColumn = missingColumnFromError(error);
+    if (missingColumn && !strippedColumns.has(missingColumn)) {
+      strippedColumns.add(missingColumn);
+      workingRows = stripColumns(rows, strippedColumns);
+      continue;
+    }
+
+    console.warn(
+      `[Supabase] upsert failed on '${table}' (onConflict='${onConflict}'):`,
+      error.message,
+    );
+    break;
+  }
 
   // Attempt 2: upsert row-by-row (catches individual constraint violations)
   let savedCount = 0;
   const errors: string[] = [];
-  for (const row of rows) {
-    // Try upsert with legacy_id
-    const { error: rowError } = await supabase
-      .from(table)
-      .upsert(row, { onConflict: "legacy_id", ignoreDuplicates: false });
-    if (!rowError) {
-      savedCount++;
-      continue;
-    }
+  for (const originalRow of workingRows) {
+    let row = originalRow;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const { error: rowError } = await supabase
+        .from(table)
+        .upsert(row, { onConflict: "legacy_id", ignoreDuplicates: false });
+      if (!rowError) {
+        savedCount++;
+        break;
+      }
 
-    // If legacy_id conflict fails, try plain upsert (let DB decide)
-    const { error: plainError } = await supabase
-      .from(table)
-      .upsert(row, { ignoreDuplicates: true });
-    if (!plainError) {
-      savedCount++;
-      continue;
-    }
+      const missingColumn = missingColumnFromError(rowError);
+      if (missingColumn && !strippedColumns.has(missingColumn)) {
+        strippedColumns.add(missingColumn);
+        row = stripColumns([originalRow], strippedColumns)[0];
+        continue;
+      }
 
-    errors.push(`${row.legacy_id ?? "?"}: ${plainError.message}`);
+      const { error: plainError } = await supabase
+        .from(table)
+        .upsert(row, { ignoreDuplicates: true });
+      if (!plainError) {
+        savedCount++;
+        break;
+      }
+
+      const plainMissingColumn = missingColumnFromError(plainError);
+      if (plainMissingColumn && !strippedColumns.has(plainMissingColumn)) {
+        strippedColumns.add(plainMissingColumn);
+        row = stripColumns([originalRow], strippedColumns)[0];
+        continue;
+      }
+
+      errors.push(`${row.legacy_id ?? "?"}: ${plainError.message}`);
+      break;
+    }
   }
 
   if (errors.length > 0) {
@@ -144,7 +206,12 @@ const upsertRows = async (
       errors.slice(0, 5),
     );
   }
-  // Don't throw — partial saves are better than no save
+  if (strippedColumns.size) {
+    console.warn(
+      `[Supabase] '${table}' requiere actualizar SQL para persistir: ${Array.from(strippedColumns).join(", ")}`,
+    );
+  }
+  return { savedCount, strippedColumns: Array.from(strippedColumns) };
 };
 
 // FIX #2 (helper): Parsear de forma segura un campo JSONB que viene de Supabase.
@@ -253,14 +320,14 @@ export const fetchSupabaseTablesAppData = async (
       if (result.error) throw result.error;
     }
 
-
     let strengthRows: DbRow[] = [];
     try {
       const strengthRes = await supabase
         .from("strength_sessions")
         .select("*")
         .order("date", { ascending: false });
-      if (!strengthRes.error) strengthRows = (strengthRes.data ?? []) as DbRow[];
+      if (!strengthRes.error)
+        strengthRows = (strengthRes.data ?? []) as DbRow[];
     } catch {
       // Tabla opcional. Si aún no existe, el resto de la app sigue funcionando en cache local.
       strengthRows = [];
@@ -343,7 +410,8 @@ export const fetchSupabaseTablesAppData = async (
         baselineRpe: num(row.baseline_rpe) || undefined,
         targetWeeklyLoad: num(row.target_weekly_load) || undefined,
         targetWeeklyHsr: num(row.target_weekly_hsr) || undefined,
-        targetWeeklySprintDistance: num(row.target_weekly_sprint_distance) || undefined,
+        targetWeeklySprintDistance:
+          num(row.target_weekly_sprint_distance) || undefined,
         targetMinutes7d: num(row.target_minutes_7d) || undefined,
         maxTrainingPercent: num(row.max_training_percent) || undefined,
         maxCompetitionMinutes: num(row.max_competition_minutes) || undefined,
@@ -565,7 +633,9 @@ export const fetchSupabaseTablesAppData = async (
       observation: row.observation ?? undefined,
       status: row.status ?? undefined,
       lineupFormation: row.lineup_formation ?? undefined,
-      lineupSlots: Array.isArray(row.lineup_slots) ? row.lineup_slots : undefined,
+      lineupSlots: Array.isArray(row.lineup_slots)
+        ? row.lineup_slots
+        : undefined,
       eyeballStats: row.eyeball_stats ?? undefined,
       eyeballFirstHalfStats: row.eyeball_first_half_stats ?? undefined,
       eyeballSecondHalfStats: row.eyeball_second_half_stats ?? undefined,
@@ -590,7 +660,9 @@ export const fetchSupabaseTablesAppData = async (
       observation: row.observation ?? undefined,
       status: row.status ?? undefined,
       lineupFormation: row.lineup_formation ?? undefined,
-      lineupSlots: Array.isArray(row.lineup_slots) ? row.lineup_slots : undefined,
+      lineupSlots: Array.isArray(row.lineup_slots)
+        ? row.lineup_slots
+        : undefined,
       opponentLogo: row.opponent_logo ?? undefined,
       eyeballStats: row.eyeball_stats ?? undefined,
       eyeballFirstHalfStats: row.eyeball_first_half_stats ?? undefined,
@@ -642,13 +714,19 @@ export const fetchSupabaseTablesAppData = async (
 
     const strengthSessions: StrengthSession[] = strengthRows.map((row) => ({
       id: String(row.legacy_id ?? row.id),
-      date: String(row.date ?? ''),
+      date: String(row.date ?? ""),
       category: category(row.category),
-      group: String(row.group_name ?? 'Todo el plantel') as StrengthSession['group'],
-      type: String(row.strength_type ?? 'Concéntrica') as StrengthSession['type'],
-      zone: String(row.zone ?? 'Cadena posterior') as StrengthSession['zone'],
-      intent: text(row.intent) as StrengthSession['intent'],
-      movementPattern: text(row.movement_pattern) as StrengthSession['movementPattern'],
+      group: String(
+        row.group_name ?? "Todo el plantel",
+      ) as StrengthSession["group"],
+      type: String(
+        row.strength_type ?? "Concéntrica",
+      ) as StrengthSession["type"],
+      zone: String(row.zone ?? "Cadena posterior") as StrengthSession["zone"],
+      intent: text(row.intent) as StrengthSession["intent"],
+      movementPattern: text(
+        row.movement_pattern,
+      ) as StrengthSession["movementPattern"],
       duration: num(row.duration_min, 0),
       expectedRpe: num(row.expected_rpe, 0),
       objective: text(row.objective),
@@ -660,7 +738,8 @@ export const fetchSupabaseTablesAppData = async (
       responses: parseJsonArray(row.responses),
       createdBy: text(row.created_by),
       createdAt: text(row.created_at, new Date().toISOString()),
-      status: (text(row.status, 'Planificada') || 'Planificada') as StrengthSession['status'],
+      status: (text(row.status, "Planificada") ||
+        "Planificada") as StrengthSession["status"],
     }));
 
     const nutritionRecords: NutritionRecord[] = (
@@ -935,12 +1014,15 @@ export const saveSupabaseTablesAppData = async (
         baseline_rpe: player.baselineRpe ?? null,
         target_weekly_load: player.targetWeeklyLoad ?? null,
         target_weekly_hsr: player.targetWeeklyHsr ?? null,
-        target_weekly_sprint_distance: player.targetWeeklySprintDistance ?? null,
+        target_weekly_sprint_distance:
+          player.targetWeeklySprintDistance ?? null,
         target_minutes_7d: player.targetMinutes7d ?? null,
         max_training_percent: player.maxTrainingPercent ?? null,
         max_competition_minutes: player.maxCompetitionMinutes ?? null,
         return_to_play_phase: player.returnToPlayPhase ?? null,
-        restrictions: JSON.stringify(Array.isArray(player.restrictions) ? player.restrictions : []),
+        restrictions: JSON.stringify(
+          Array.isArray(player.restrictions) ? player.restrictions : [],
+        ),
         medical_notes: player.medicalNotes ?? null,
         allergies: player.allergies ?? null,
         chronic_conditions: player.chronicConditions ?? null,
@@ -1348,28 +1430,44 @@ export const saveSupabaseTablesAppData = async (
       .from("competition_matches")
       .select("id, legacy_id, date, category, opponent");
     if (matchRowsRes.error) throw matchRowsRes.error;
-    const normalizeMatchKey = (date?: string | null, cat?: string | null, opponent?: string | null) =>
-      `${date ?? ""}::${cat ?? ""}::${String(opponent ?? "").trim().toLowerCase()}`;
+    const normalizeMatchKey = (
+      date?: string | null,
+      cat?: string | null,
+      opponent?: string | null,
+    ) =>
+      `${date ?? ""}::${cat ?? ""}::${String(opponent ?? "")
+        .trim()
+        .toLowerCase()}`;
     const matchLegacyMap: LegacyMap = {};
     const matchKeyMap: LegacyMap = {};
     ((matchRowsRes.data ?? []) as DbRow[]).forEach((row) => {
       if (row.legacy_id) matchLegacyMap[String(row.legacy_id)] = String(row.id);
-      matchKeyMap[normalizeMatchKey(row.date, row.category, row.opponent)] = String(row.id);
+      matchKeyMap[normalizeMatchKey(row.date, row.category, row.opponent)] =
+        String(row.id);
     });
-    const localMatchById = Object.fromEntries(data.competitionMatchSummaries.map((match) => [match.id, match]));
+    const localMatchById = Object.fromEntries(
+      data.competitionMatchSummaries.map((match) => [match.id, match]),
+    );
     const matchUuid = (record: CompetitionRecord) => {
-      if (record.matchId && matchLegacyMap[record.matchId]) return matchLegacyMap[record.matchId];
+      if (record.matchId && matchLegacyMap[record.matchId])
+        return matchLegacyMap[record.matchId];
       const local = record.matchId ? localMatchById[record.matchId] : undefined;
-      return matchKeyMap[normalizeMatchKey(local?.date ?? record.date, local?.category ?? record.category, local?.opponent ?? record.opponent)] ?? null;
+      return (
+        matchKeyMap[
+          normalizeMatchKey(
+            local?.date ?? record.date,
+            local?.category ?? record.category,
+            local?.opponent ?? record.opponent,
+          )
+        ] ?? null
+      );
     };
 
     await upsertRows(
       supabase,
       "competition_players",
       data.competitionRecords
-        .filter(
-          (record) => matchUuid(record) && playerUuid(record.playerId),
-        )
+        .filter((record) => matchUuid(record) && playerUuid(record.playerId))
         .map((record) => ({
           legacy_id: record.id,
           match_id: matchUuid(record),
@@ -1523,8 +1621,6 @@ export const saveSupabaseTablesAppData = async (
         })),
     );
 
-
-
     try {
       await upsertRows(
         supabase,
@@ -1549,11 +1645,14 @@ export const saveSupabaseTablesAppData = async (
           responses: JSON.stringify(record.responses ?? []),
           created_by: record.createdBy ?? null,
           created_at: record.createdAt ?? new Date().toISOString(),
-          status: record.status ?? 'Planificada',
+          status: record.status ?? "Planificada",
         })),
       );
     } catch (error) {
-      console.warn('[Supabase] strength_sessions no disponible. Ejecuta SUPABASE_V112_STRENGTH_SESSIONS.sql para sincronizar fuerza.', error);
+      console.warn(
+        "[Supabase] strength_sessions no disponible. Ejecuta SUPABASE_V112_STRENGTH_SESSIONS.sql para sincronizar fuerza.",
+        error,
+      );
     }
     return { ok: true };
   } catch (error) {

@@ -672,3 +672,131 @@ alter table public.competition_players
   add column if not exists footwork_actions integer default 0;
 
 commit;
+-- Orsomarso Performance App
+-- v114 - Persistencia estable de competencia
+-- Seguro: no borra datos. Ejecutar una vez en Supabase SQL Editor.
+
+begin;
+
+alter table if exists public.competition_matches
+  add column if not exists legacy_id text,
+  add column if not exists status text,
+  add column if not exists lineup_formation text,
+  add column if not exists lineup_slots jsonb not null default '[]'::jsonb,
+  add column if not exists opponent_logo text,
+  add column if not exists eyeball_stats jsonb,
+  add column if not exists eyeball_first_half_stats jsonb,
+  add column if not exists eyeball_second_half_stats jsonb;
+
+alter table if exists public.competition_players
+  add column if not exists legacy_id text,
+  add column if not exists starting_role text,
+  add column if not exists goals_conceded integer default 0,
+  add column if not exists goals_prevented integer default 0,
+  add column if not exists penalties_saved integer default 0,
+  add column if not exists crosses_defended integer default 0,
+  add column if not exists footwork_actions integer default 0,
+  add column if not exists medical_status text default 'Sin lesión',
+  add column if not exists injury_kind text,
+  add column if not exists medical_observation text,
+  add column if not exists acc numeric,
+  add column if not exists dcc numeric,
+  add column if not exists sprints numeric,
+  add column if not exists rhie numeric,
+  add column if not exists ima numeric,
+  add column if not exists total_distance numeric,
+  add column if not exists high_speed_distance numeric,
+  add column if not exists sprint_distance numeric,
+  add column if not exists hsr numeric,
+  add column if not exists max_velocity numeric,
+  add column if not exists player_load numeric,
+  add column if not exists logged_by text;
+
+create unique index if not exists ux_competition_matches_legacy_id
+  on public.competition_matches(legacy_id)
+  where legacy_id is not null;
+
+create unique index if not exists ux_competition_players_legacy_id
+  on public.competition_players(legacy_id)
+  where legacy_id is not null;
+
+create unique index if not exists ux_competition_matches_category_date_opponent
+  on public.competition_matches(category, date, lower(trim(opponent)));
+
+create unique index if not exists ux_competition_players_match_player
+  on public.competition_players(match_id, player_id);
+
+create index if not exists idx_competition_matches_lineup_formation
+  on public.competition_matches(lineup_formation);
+
+create index if not exists idx_competition_matches_eyeball_stats
+  on public.competition_matches using gin (eyeball_stats);
+
+create index if not exists idx_competition_matches_eyeball_first_half_stats
+  on public.competition_matches using gin (eyeball_first_half_stats);
+
+create index if not exists idx_competition_matches_eyeball_second_half_stats
+  on public.competition_matches using gin (eyeball_second_half_stats);
+
+comment on column public.competition_matches.opponent_logo is 'Imagen base64 o URL del escudo rival usada en el informe de competencia.';
+
+commit;
+
+-- ------------------------------------------------------------
+-- v115 - Guardado estable de ficha completa del jugador
+-- ------------------------------------------------------------
+
+begin;
+
+alter table if exists public.players
+  add column if not exists jersey_number integer,
+  add column if not exists document_id text,
+  add column if not exists nationality text,
+  add column if not exists birthplace text,
+  add column if not exists phone text,
+  add column if not exists guardian_name text,
+  add column if not exists guardian_phone text,
+  add column if not exists emergency_contact_name text,
+  add column if not exists emergency_contact_phone text,
+  add column if not exists dominant_foot text,
+  add column if not exists secondary_position text,
+  add column if not exists competitive_role text,
+  add column if not exists date_joined date,
+  add column if not exists load_tolerance text,
+  add column if not exists max_velocity_reference numeric,
+  add column if not exists baseline_wellness numeric,
+  add column if not exists baseline_rpe numeric,
+  add column if not exists target_weekly_load numeric,
+  add column if not exists target_weekly_hsr numeric,
+  add column if not exists target_weekly_sprint_distance numeric,
+  add column if not exists target_minutes_7d numeric,
+  add column if not exists max_training_percent numeric,
+  add column if not exists max_competition_minutes numeric,
+  add column if not exists return_to_play_phase text,
+  add column if not exists restrictions jsonb default '[]'::jsonb,
+  add column if not exists medical_notes text,
+  add column if not exists allergies text,
+  add column if not exists chronic_conditions text,
+  add column if not exists risk_areas text,
+  add column if not exists category_history jsonb default '[]'::jsonb,
+  add column if not exists injury_history jsonb default '[]'::jsonb,
+  add column if not exists photo text,
+  add column if not exists injury_area text,
+  add column if not exists injury_type text,
+  add column if not exists injury_severity text,
+  add column if not exists return_date date;
+
+create unique index if not exists ux_players_legacy_id
+  on public.players(legacy_id)
+  where legacy_id is not null;
+
+create index if not exists idx_players_category
+  on public.players(category);
+
+create index if not exists idx_players_category_history
+  on public.players using gin (category_history);
+
+create index if not exists idx_players_injury_history
+  on public.players using gin (injury_history);
+
+commit;

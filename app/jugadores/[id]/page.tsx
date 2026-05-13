@@ -10,7 +10,7 @@ import { useApp } from '@/context/app-context';
 import { getStaffSession } from '@/lib/auth';
 import { canWrite } from '@/lib/access-control';
 import { categoryLabel, calcAge, formatBirthDateForDisplay, normalizeBirthDateInput } from '@/lib/labels';
-import { ClubCategory, CompetitiveRole, DominantFoot, LoadTolerance, PlayerStatus, Position } from '@/lib/types';
+import { ClubCategory, CompetitiveRole, DominantFoot, LoadTolerance, Player, PlayerStatus, Position } from '@/lib/types';
 import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
 import { readBodyMapRecords, type BodyMapRecord } from '@/lib/body-map';
 import { computePlayerScientificLoadDecision } from '@/lib/scientific-load';
@@ -34,8 +34,11 @@ const formatNumber = (value?: number, suffix = '') => (typeof value === 'number'
 
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
-  const { data, updatePlayer } = useApp();
+  const { data, updatePlayer, syncStatus } = useApp();
   const [bodyMapRecords, setBodyMapRecords] = useState<BodyMapRecord[]>([]);
+  const [profileDraft, setProfileDraft] = useState<Player | null>(null);
+  const [profileDirty, setProfileDirty] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
   useEffect(() => {
     setBodyMapRecords(readBodyMapRecords());
   }, []);
@@ -43,7 +46,16 @@ export default function PlayerProfilePage() {
   const canEditPlayer = canWrite(session);
   const player = data.players.find((item) => item.id === params.id);
 
+  useEffect(() => {
+    if (!player) return;
+    setProfileDraft(player);
+    setProfileDirty(false);
+    setProfileMessage('');
+  }, [player?.id]);
+
   if (!player) return <div className="empty">Jugador no encontrado o eliminado.</div>;
+
+  const editablePlayer = profileDraft ?? player;
 
   const latestDate = [...new Set(data.wellness.filter((x) => x.playerId === player.id).map((x) => x.date))].sort().at(-1) ?? new Date().toISOString().slice(0, 10);
   const latestWellness = data.wellness.find((x) => x.playerId === player.id && x.date === latestDate);
@@ -81,7 +93,7 @@ export default function PlayerProfilePage() {
     .reduce((total, item) => total + (item.sprintDistance ?? 0), 0);
 
   const injuryHistory = [
-    ...(player.injuryHistory ?? []),
+    ...(editablePlayer.injuryHistory ?? []),
     ...data.competitionRecords
       .filter((x) => x.playerId === player.id && (x.injuryKind || x.medicalObservation || x.postCompetitionStatus))
       .map((x, index) => ({
@@ -89,10 +101,10 @@ export default function PlayerProfilePage() {
         date: x.date,
         injuryType: x.injuryKind ?? 'Sin lesión',
         area: x.postCompetitionStatus ?? '',
-        severity: player.injurySeverity ?? '',
+        severity: editablePlayer.injurySeverity ?? '',
         status: (x.injuryKind ? 'activa' : 'cerrada') as 'activa' | 'cerrada',
         medicalNote: x.medicalObservation ?? '',
-        expectedReturnDate: player.returnDate ?? '',
+        expectedReturnDate: editablePlayer.returnDate ?? '',
       })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
@@ -127,7 +139,37 @@ export default function PlayerProfilePage() {
     temporaryMovements[0] ? `Último movimiento temporal: ${temporaryMovements[0].movementType} con ${categoryLabel(temporaryMovements[0].actingCategory)}` : null,
   ].filter(Boolean) as string[];
 
-  const patchPlayer = (patch: Partial<typeof player>) => updatePlayer({ ...player, ...patch, age: calcAge((patch.birthDate ?? player.birthDate)) ?? player.age, injuryHistory: patch.injuryHistory ?? player.injuryHistory });
+  const patchPlayer = (patch: Partial<Player>) => {
+    setProfileDraft((current) => {
+      const base = current ?? player;
+      return {
+        ...base,
+        ...patch,
+        age: calcAge(patch.birthDate ?? base.birthDate) ?? base.age,
+        injuryHistory: patch.injuryHistory ?? base.injuryHistory,
+      };
+    });
+    setProfileDirty(true);
+    setProfileMessage('Cambios pendientes. Pulsa Actualizar información para guardar en Supabase.');
+  };
+
+  const savePlayerInformation = () => {
+    if (!canEditPlayer) return;
+    const draft = profileDraft ?? player;
+    const savedCategory = draft.category ?? player.category ?? 'Sub20';
+    const next: Player = {
+      ...player,
+      ...draft,
+      category: savedCategory,
+      age: calcAge(draft.birthDate) ?? draft.age,
+      injuryHistory: draft.injuryHistory ?? player.injuryHistory,
+      categoryHistory: Array.from(new Set([...(player.categoryHistory ?? []), ...(draft.categoryHistory ?? []), savedCategory])),
+    };
+    updatePlayer(next);
+    setProfileDraft(next);
+    setProfileDirty(false);
+    setProfileMessage('Información actualizada. Guardando en Supabase...');
+  };
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -265,65 +307,72 @@ export default function PlayerProfilePage() {
       {canEditPlayer ? (
         <div className="card grid">
           <SectionHeader eyebrow="Edición" title="Editar ficha completa del jugador" subtitle="Estos campos alimentan la lectura de disponibilidad y control individual de carga." />
-          <div className="grid grid-3">
-            <div className="field"><label>Nombre</label><input className="input" value={player.name} onChange={(e) => patchPlayer({ name: e.target.value })} /></div>
-            <div className="field"><label>Documento / ID</label><input className="input" value={player.documentId ?? ''} onChange={(e) => patchPlayer({ documentId: e.target.value })} /></div>
-            <div className="field"><label>Fecha de nacimiento</label><input className="input" type="date" value={normalizeBirthDateInput(player.birthDate)} onChange={(e) => patchPlayer({ birthDate: formatBirthDateForDisplay(e.target.value) })} /></div>
+          <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div className="muted-line">{profileMessage || (profileDirty ? 'Cambios pendientes.' : 'Sin cambios pendientes.')}</div>
+            <button type="button" className="btn" onClick={savePlayerInformation} disabled={syncStatus === 'syncing'}>{syncStatus === 'syncing' ? 'Actualizando...' : 'Actualizar información'}</button>
           </div>
           <div className="grid grid-3">
-            <div className="field"><label>Nacionalidad</label><input className="input" value={player.nationality ?? ''} onChange={(e) => patchPlayer({ nationality: e.target.value })} /></div>
-            <div className="field"><label>Lugar nacimiento</label><input className="input" value={player.birthplace ?? ''} onChange={(e) => patchPlayer({ birthplace: e.target.value })} /></div>
-            <div className="field"><label>Teléfono jugador</label><input className="input" value={player.phone ?? ''} onChange={(e) => patchPlayer({ phone: e.target.value })} /></div>
+            <div className="field"><label>Nombre</label><input className="input" value={editablePlayer.name} onChange={(e) => patchPlayer({ name: e.target.value })} /></div>
+            <div className="field"><label>Documento / ID</label><input className="input" value={editablePlayer.documentId ?? ''} onChange={(e) => patchPlayer({ documentId: e.target.value })} /></div>
+            <div className="field"><label>Fecha de nacimiento</label><input className="input" type="date" value={normalizeBirthDateInput(editablePlayer.birthDate)} onChange={(e) => patchPlayer({ birthDate: formatBirthDateForDisplay(e.target.value) })} /></div>
+          </div>
+          <div className="grid grid-3">
+            <div className="field"><label>Nacionalidad</label><input className="input" value={editablePlayer.nationality ?? ''} onChange={(e) => patchPlayer({ nationality: e.target.value })} /></div>
+            <div className="field"><label>Lugar nacimiento</label><input className="input" value={editablePlayer.birthplace ?? ''} onChange={(e) => patchPlayer({ birthplace: e.target.value })} /></div>
+            <div className="field"><label>Teléfono jugador</label><input className="input" value={editablePlayer.phone ?? ''} onChange={(e) => patchPlayer({ phone: e.target.value })} /></div>
           </div>
           <div className="grid grid-4">
-            <div className="field"><label>Dorsal</label><input className="input" type="number" min="1" max="99" value={player.jerseyNumber ?? ''} onChange={(e) => patchPlayer({ jerseyNumber: toNumberOrUndefined(e.target.value) })} /></div>
-            <div className="field"><label>Posición</label><select className="select" value={player.position} onChange={(e) => patchPlayer({ position: e.target.value as Position })}>{positions.map((position) => <option key={position}>{position}</option>)}</select></div>
-            <div className="field"><label>Posición secundaria</label><select className="select" value={player.secondaryPosition ?? ''} onChange={(e) => patchPlayer({ secondaryPosition: (e.target.value || undefined) as Position | undefined })}><option value="">Sin definir</option>{positions.map((position) => <option key={position}>{position}</option>)}</select></div>
-            <div className="field"><label>Pie dominante</label><select className="select" value={player.dominantFoot ?? ''} onChange={(e) => patchPlayer({ dominantFoot: (e.target.value || undefined) as DominantFoot | undefined })}><option value="">Sin definir</option>{dominantFeet.map((foot) => <option key={foot}>{foot}</option>)}</select></div>
+            <div className="field"><label>Dorsal</label><input className="input" type="number" min="1" max="99" value={editablePlayer.jerseyNumber ?? ''} onChange={(e) => patchPlayer({ jerseyNumber: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>Posición</label><select className="select" value={editablePlayer.position} onChange={(e) => patchPlayer({ position: e.target.value as Position })}>{positions.map((position) => <option key={position}>{position}</option>)}</select></div>
+            <div className="field"><label>Posición secundaria</label><select className="select" value={editablePlayer.secondaryPosition ?? ''} onChange={(e) => patchPlayer({ secondaryPosition: (e.target.value || undefined) as Position | undefined })}><option value="">Sin definir</option>{positions.map((position) => <option key={position}>{position}</option>)}</select></div>
+            <div className="field"><label>Pie dominante</label><select className="select" value={editablePlayer.dominantFoot ?? ''} onChange={(e) => patchPlayer({ dominantFoot: (e.target.value || undefined) as DominantFoot | undefined })}><option value="">Sin definir</option>{dominantFeet.map((foot) => <option key={foot}>{foot}</option>)}</select></div>
           </div>
           <div className="grid grid-4">
-            <div className="field"><label>Categoría de referencia</label><select className="select" value={player.category} onChange={(e) => patchPlayer({ category: e.target.value as ClubCategory })}>{categories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}</select></div>
-            <div className="field"><label>Rol competitivo</label><select className="select" value={player.competitiveRole ?? ''} onChange={(e) => patchPlayer({ competitiveRole: (e.target.value || undefined) as CompetitiveRole | undefined })}><option value="">Sin definir</option>{competitiveRoles.map((role) => <option key={role}>{role}</option>)}</select></div>
-            <div className="field"><label>Fecha ingreso</label><input className="input" type="date" value={player.dateJoined ?? ''} onChange={(e) => patchPlayer({ dateJoined: e.target.value })} /></div>
-            <div className="field"><label>Estado</label><select className="select" value={player.status} onChange={(e) => patchPlayer({ status: e.target.value as PlayerStatus })}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></div>
+            <div className="field"><label>Categoría de referencia</label><select className="select" value={editablePlayer.category} onChange={(e) => patchPlayer({ category: e.target.value as ClubCategory })}>{categories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}</select></div>
+            <div className="field"><label>Rol competitivo</label><select className="select" value={editablePlayer.competitiveRole ?? ''} onChange={(e) => patchPlayer({ competitiveRole: (e.target.value || undefined) as CompetitiveRole | undefined })}><option value="">Sin definir</option>{competitiveRoles.map((role) => <option key={role}>{role}</option>)}</select></div>
+            <div className="field"><label>Fecha ingreso</label><input className="input" type="date" value={editablePlayer.dateJoined ?? ''} onChange={(e) => patchPlayer({ dateJoined: e.target.value })} /></div>
+            <div className="field"><label>Estado</label><select className="select" value={editablePlayer.status} onChange={(e) => patchPlayer({ status: e.target.value as PlayerStatus })}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></div>
           </div>
           <div className="grid grid-3">
-            <div className="field"><label>Estatura (cm)</label><input className="input" type="number" step="0.01" value={player.height} onChange={(e) => patchPlayer({ height: Number.parseFloat(e.target.value) || 0 })} /></div>
-            <div className="field"><label>Peso (kg)</label><input className="input" type="number" step="0.01" value={player.weight} onChange={(e) => patchPlayer({ weight: Number.parseFloat(e.target.value) || 0 })} /></div>
+            <div className="field"><label>Estatura (cm)</label><input className="input" type="number" step="0.01" value={editablePlayer.height} onChange={(e) => patchPlayer({ height: Number.parseFloat(e.target.value) || 0 })} /></div>
+            <div className="field"><label>Peso (kg)</label><input className="input" type="number" step="0.01" value={editablePlayer.weight} onChange={(e) => patchPlayer({ weight: Number.parseFloat(e.target.value) || 0 })} /></div>
             <div className="field"><label>Foto</label><input className="input" type="file" accept=".jpg,.jpeg,.png,image/png,image/jpeg" onChange={handlePhotoChange} /></div>
           </div>
 
           <SectionHeader eyebrow="Carga" title="Editar referencias individuales" subtitle="Úsalas como marco de comparación para decisiones de carga." />
           <div className="grid grid-4">
-            <div className="field"><label>Tolerancia a carga</label><select className="select" value={player.loadTolerance ?? ''} onChange={(e) => patchPlayer({ loadTolerance: (e.target.value || undefined) as LoadTolerance | undefined })}><option value="">Sin definir</option>{loadTolerances.map((item) => <option key={item}>{item}</option>)}</select></div>
-            <div className="field"><label>Vmax referencia</label><input className="input" type="number" step="0.01" value={player.maxVelocityReference ?? ''} onChange={(e) => patchPlayer({ maxVelocityReference: toNumberOrUndefined(e.target.value) })} /></div>
-            <div className="field"><label>Línea base wellness</label><input className="input" type="number" step="0.1" min="1" max="5" value={player.baselineWellness ?? ''} onChange={(e) => patchPlayer({ baselineWellness: toNumberOrUndefined(e.target.value) })} /></div>
-            <div className="field"><label>RPE habitual</label><input className="input" type="number" step="0.1" min="0" max="10" value={player.baselineRpe ?? ''} onChange={(e) => patchPlayer({ baselineRpe: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>Tolerancia a carga</label><select className="select" value={editablePlayer.loadTolerance ?? ''} onChange={(e) => patchPlayer({ loadTolerance: (e.target.value || undefined) as LoadTolerance | undefined })}><option value="">Sin definir</option>{loadTolerances.map((item) => <option key={item}>{item}</option>)}</select></div>
+            <div className="field"><label>Vmax referencia</label><input className="input" type="number" step="0.01" value={editablePlayer.maxVelocityReference ?? ''} onChange={(e) => patchPlayer({ maxVelocityReference: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>Línea base wellness</label><input className="input" type="number" step="0.1" min="1" max="5" value={editablePlayer.baselineWellness ?? ''} onChange={(e) => patchPlayer({ baselineWellness: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>RPE habitual</label><input className="input" type="number" step="0.1" min="0" max="10" value={editablePlayer.baselineRpe ?? ''} onChange={(e) => patchPlayer({ baselineRpe: toNumberOrUndefined(e.target.value) })} /></div>
           </div>
           <div className="grid grid-4">
-            <div className="field"><label>Carga semanal objetivo</label><input className="input" type="number" value={player.targetWeeklyLoad ?? ''} onChange={(e) => patchPlayer({ targetWeeklyLoad: toNumberOrUndefined(e.target.value) })} /></div>
-            <div className="field"><label>HSR objetivo</label><input className="input" type="number" value={player.targetWeeklyHsr ?? ''} onChange={(e) => patchPlayer({ targetWeeklyHsr: toNumberOrUndefined(e.target.value) })} /></div>
-            <div className="field"><label>Sprint objetivo</label><input className="input" type="number" value={player.targetWeeklySprintDistance ?? ''} onChange={(e) => patchPlayer({ targetWeeklySprintDistance: toNumberOrUndefined(e.target.value) })} /></div>
-            <div className="field"><label>Minutos objetivo 7d</label><input className="input" type="number" value={player.targetMinutes7d ?? ''} onChange={(e) => patchPlayer({ targetMinutes7d: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>Carga semanal objetivo</label><input className="input" type="number" value={editablePlayer.targetWeeklyLoad ?? ''} onChange={(e) => patchPlayer({ targetWeeklyLoad: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>HSR objetivo</label><input className="input" type="number" value={editablePlayer.targetWeeklyHsr ?? ''} onChange={(e) => patchPlayer({ targetWeeklyHsr: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>Sprint objetivo</label><input className="input" type="number" value={editablePlayer.targetWeeklySprintDistance ?? ''} onChange={(e) => patchPlayer({ targetWeeklySprintDistance: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>Minutos objetivo 7d</label><input className="input" type="number" value={editablePlayer.targetMinutes7d ?? ''} onChange={(e) => patchPlayer({ targetMinutes7d: toNumberOrUndefined(e.target.value) })} /></div>
           </div>
 
           <SectionHeader eyebrow="Disponibilidad" title="Editar restricciones y antecedentes" />
           <div className="grid grid-4">
-            <div className="field"><label>% máximo sesión</label><input className="input" type="number" min="0" max="100" value={player.maxTrainingPercent ?? ''} onChange={(e) => patchPlayer({ maxTrainingPercent: toNumberOrUndefined(e.target.value) })} /></div>
-            <div className="field"><label>Minutos máximos partido</label><input className="input" type="number" min="0" max="120" value={player.maxCompetitionMinutes ?? ''} onChange={(e) => patchPlayer({ maxCompetitionMinutes: toNumberOrUndefined(e.target.value) })} /></div>
-            <div className="field"><label>Fase retorno</label><input className="input" value={player.returnToPlayPhase ?? ''} onChange={(e) => patchPlayer({ returnToPlayPhase: e.target.value })} /></div>
-            <div className="field"><label>Zonas de riesgo</label><input className="input" value={player.riskAreas ?? ''} onChange={(e) => patchPlayer({ riskAreas: e.target.value })} /></div>
+            <div className="field"><label>% máximo sesión</label><input className="input" type="number" min="0" max="100" value={editablePlayer.maxTrainingPercent ?? ''} onChange={(e) => patchPlayer({ maxTrainingPercent: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>Minutos máximos partido</label><input className="input" type="number" min="0" max="120" value={editablePlayer.maxCompetitionMinutes ?? ''} onChange={(e) => patchPlayer({ maxCompetitionMinutes: toNumberOrUndefined(e.target.value) })} /></div>
+            <div className="field"><label>Fase retorno</label><input className="input" value={editablePlayer.returnToPlayPhase ?? ''} onChange={(e) => patchPlayer({ returnToPlayPhase: e.target.value })} /></div>
+            <div className="field"><label>Zonas de riesgo</label><input className="input" value={editablePlayer.riskAreas ?? ''} onChange={(e) => patchPlayer({ riskAreas: e.target.value })} /></div>
           </div>
-          <div className="field"><label>Restricciones actuales</label><input className="input" value={restrictionsToText(player.restrictions)} onChange={(e) => patchPlayer({ restrictions: textToRestrictions(e.target.value) })} /></div>
+          <div className="field"><label>Restricciones actuales</label><input className="input" value={restrictionsToText(editablePlayer.restrictions)} onChange={(e) => patchPlayer({ restrictions: textToRestrictions(e.target.value) })} /></div>
           <div className="grid grid-3">
-            <div className="field"><label>Alergias</label><input className="input" value={player.allergies ?? ''} onChange={(e) => patchPlayer({ allergies: e.target.value })} /></div>
-            <div className="field"><label>Condiciones crónicas</label><input className="input" value={player.chronicConditions ?? ''} onChange={(e) => patchPlayer({ chronicConditions: e.target.value })} /></div>
-            <div className="field"><label>Nota médica/deportiva</label><input className="input" value={player.medicalNotes ?? ''} onChange={(e) => patchPlayer({ medicalNotes: e.target.value })} /></div>
+            <div className="field"><label>Alergias</label><input className="input" value={editablePlayer.allergies ?? ''} onChange={(e) => patchPlayer({ allergies: e.target.value })} /></div>
+            <div className="field"><label>Condiciones crónicas</label><input className="input" value={editablePlayer.chronicConditions ?? ''} onChange={(e) => patchPlayer({ chronicConditions: e.target.value })} /></div>
+            <div className="field"><label>Nota médica/deportiva</label><input className="input" value={editablePlayer.medicalNotes ?? ''} onChange={(e) => patchPlayer({ medicalNotes: e.target.value })} /></div>
           </div>
           <div className="grid grid-3">
-            <div className="field"><label>Acudiente</label><input className="input" value={player.guardianName ?? ''} onChange={(e) => patchPlayer({ guardianName: e.target.value })} /></div>
-            <div className="field"><label>Teléfono acudiente</label><input className="input" value={player.guardianPhone ?? ''} onChange={(e) => patchPlayer({ guardianPhone: e.target.value })} /></div>
-            <div className="field"><label>Teléfono emergencia</label><input className="input" value={player.emergencyContactPhone ?? ''} onChange={(e) => patchPlayer({ emergencyContactPhone: e.target.value })} /></div>
+            <div className="field"><label>Acudiente</label><input className="input" value={editablePlayer.guardianName ?? ''} onChange={(e) => patchPlayer({ guardianName: e.target.value })} /></div>
+            <div className="field"><label>Teléfono acudiente</label><input className="input" value={editablePlayer.guardianPhone ?? ''} onChange={(e) => patchPlayer({ guardianPhone: e.target.value })} /></div>
+            <div className="field"><label>Teléfono emergencia</label><input className="input" value={editablePlayer.emergencyContactPhone ?? ''} onChange={(e) => patchPlayer({ emergencyContactPhone: e.target.value })} /></div>
+          </div>
+          <div className="btn-row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+            <button type="button" className="btn" onClick={savePlayerInformation} disabled={syncStatus === 'syncing'}>{syncStatus === 'syncing' ? 'Actualizando...' : 'Actualizar información'}</button>
           </div>
         </div>
       ) : null}
@@ -331,29 +380,29 @@ export default function PlayerProfilePage() {
       {canEditPlayer ? <div className="card">
         <h3>Lesión o novedad física</h3>
         <div className="grid grid-4">
-          <input className="input" placeholder="Zona afectada" value={player.injuryArea ?? ''} onChange={(e) => patchPlayer({ injuryArea: e.target.value })} />
-          <input className="input" placeholder="Tipo de lesión/molestia" value={player.injuryType ?? ''} onChange={(e) => patchPlayer({ injuryType: e.target.value })} />
-          <input className="input" placeholder="Severidad" value={player.injurySeverity ?? ''} onChange={(e) => patchPlayer({ injurySeverity: e.target.value })} />
-          <input className="input" type="date" value={player.returnDate ?? ''} onChange={(e) => patchPlayer({ returnDate: e.target.value })} />
+          <input className="input" placeholder="Zona afectada" value={editablePlayer.injuryArea ?? ''} onChange={(e) => patchPlayer({ injuryArea: e.target.value })} />
+          <input className="input" placeholder="Tipo de lesión/molestia" value={editablePlayer.injuryType ?? ''} onChange={(e) => patchPlayer({ injuryType: e.target.value })} />
+          <input className="input" placeholder="Severidad" value={editablePlayer.injurySeverity ?? ''} onChange={(e) => patchPlayer({ injurySeverity: e.target.value })} />
+          <input className="input" type="date" value={editablePlayer.returnDate ?? ''} onChange={(e) => patchPlayer({ returnDate: e.target.value })} />
         </div>
         <div className="btn-row" style={{ marginTop: 12 }}>
           <button
             type="button"
             className="btn secondary"
             onClick={() => {
-              if (!player.injuryType) return;
+              if (!editablePlayer.injuryType) return;
               const next = [
                 {
                   id: crypto.randomUUID(),
                   date: new Date().toISOString().slice(0, 10),
-                  injuryType: player.injuryType ?? 'Sin detalle',
-                  area: player.injuryArea ?? '',
-                  severity: player.injurySeverity ?? '',
-                  status: (player.status === 'Disponible' ? 'cerrada' : 'activa') as 'activa' | 'cerrada',
-                  medicalNote: player.medicalNotes ?? '',
-                  expectedReturnDate: player.returnDate ?? '',
+                  injuryType: editablePlayer.injuryType ?? 'Sin detalle',
+                  area: editablePlayer.injuryArea ?? '',
+                  severity: editablePlayer.injurySeverity ?? '',
+                  status: (editablePlayer.status === 'Disponible' ? 'cerrada' : 'activa') as 'activa' | 'cerrada',
+                  medicalNote: editablePlayer.medicalNotes ?? '',
+                  expectedReturnDate: editablePlayer.returnDate ?? '',
                 },
-                ...(player.injuryHistory ?? []),
+                ...(editablePlayer.injuryHistory ?? []),
               ];
               patchPlayer({ injuryHistory: next });
             }}

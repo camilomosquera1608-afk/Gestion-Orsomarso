@@ -227,6 +227,12 @@ create table if not exists public.competition_matches (
   result_type text check (result_type in ('Victoria', 'Empate', 'Derrota')),
   observation text,
   status text,
+  lineup_formation text,
+  lineup_slots jsonb not null default '[]'::jsonb,
+  opponent_logo text,
+  eyeball_stats jsonb,
+  eyeball_first_half_stats jsonb,
+  eyeball_second_half_stats jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -383,6 +389,10 @@ create index if not exists idx_matches_date_category on public.competition_match
 create unique index if not exists ux_competition_matches_category_date_opponent on public.competition_matches(category, date, lower(trim(opponent)));
 create unique index if not exists ux_microcycles_category_name on public.microcycles(category, lower(trim(name)));
 create index if not exists idx_competition_players_match on public.competition_players(match_id);
+create index if not exists idx_competition_matches_lineup_formation on public.competition_matches(lineup_formation);
+create index if not exists idx_competition_matches_eyeball_stats on public.competition_matches using gin (eyeball_stats);
+create index if not exists idx_competition_matches_eyeball_first_half_stats on public.competition_matches using gin (eyeball_first_half_stats);
+create index if not exists idx_competition_matches_eyeball_second_half_stats on public.competition_matches using gin (eyeball_second_half_stats);
 create index if not exists idx_nutrition_player_date on public.nutrition_records(player_id, date desc);
 create index if not exists idx_cmj_player_date on public.cmj_records(player_id, date desc);
 create index if not exists idx_neuro_player_date on public.neuromuscular_records(player_id, date desc);

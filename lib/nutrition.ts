@@ -3,7 +3,7 @@ import type { FatPercentageRange, MuscleMassRange, NutritionPlan, NutritionRecor
 export const NUTRITION_PLANS: NutritionPlan[] = ['Normocalorico', 'Hipercalorico', 'Hipocalorico'];
 export const SKINFOLD_RANGES: SkinfoldRange[] = ['30 - 35', '35 - 40', '40 - 45', '45 - 50'];
 export const MUSCLE_MASS_RANGES: MuscleMassRange[] = ['50% - 55%', '55% - 60%'];
-export const FAT_PERCENTAGE_RANGES: FatPercentageRange[] = ['Adecuado', 'Seguimiento', 'Alerta'];
+export const FAT_PERCENTAGE_RANGES: FatPercentageRange[] = ['5.7% - 6.2%', '6.2% - 6.8%', '6.8% - 7.3%', '7.3% - 7.8%'];
 
 export type NutritionTone = 'green' | 'yellow' | 'red' | 'neutral';
 
@@ -61,8 +61,20 @@ export const normalizeMuscleMassRange = (value: unknown): MuscleMassRange | unde
   return MUSCLE_MASS_RANGES.find((range) => range === text);
 };
 
+const LEGACY_FAT_PERCENTAGE_RANGE_MAP: Record<string, FatPercentageRange> = {
+  Adecuado: '5.7% - 6.2%',
+  Seguimiento: '6.2% - 6.8%',
+  Alerta: '7.3% - 7.8%',
+};
+
 export const normalizeFatPercentageRange = (value: unknown): FatPercentageRange | undefined => {
-  const text = normalizeText(value);
+  const raw = normalizeText(value);
+  if (!raw) return undefined;
+  if (LEGACY_FAT_PERCENTAGE_RANGE_MAP[raw]) return LEGACY_FAT_PERCENTAGE_RANGE_MAP[raw];
+  const text = raw
+    .replace(',', '.')
+    .replace(/\s*[-–—]\s*/g, ' - ')
+    .replace(/(\d+(?:\.\d+)?)\s*%?\s*-\s*(\d+(?:\.\d+)?)\s*%?/g, '$1% - $2%');
   return FAT_PERCENTAGE_RANGES.find((range) => range === text);
 };
 
@@ -102,9 +114,10 @@ export const getNutritionRangeTone = (kind: 'skinfold' | 'muscle' | 'fat' | 'neu
   }
   if (kind === 'muscle') return value === '55% - 60%' ? 'green' : 'yellow';
   if (kind === 'fat') {
-    if (value === 'Adecuado') return 'green';
-    if (value === 'Alerta') return 'red';
-    return 'yellow';
+    const normalized = normalizeFatPercentageRange(value);
+    if (normalized === '5.7% - 6.2%') return 'green';
+    if (normalized === '7.3% - 7.8%') return 'red';
+    return normalized ? 'yellow' : 'neutral';
   }
   return 'neutral';
 };
