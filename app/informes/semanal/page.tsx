@@ -11,6 +11,7 @@ import { categoryLabel } from '@/lib/labels';
 import { formatDateShort } from '@/lib/operational-helpers';
 import { averageWellness, groupAverage } from '@/lib/utils';
 import { buildAcwrData, buildMonotonyStrain } from '@/lib/strategic-helpers';
+import { buildFosterTable } from '@/lib/sport-science';
 
 
 export default function InformeSemanalPage() {
@@ -79,6 +80,8 @@ export default function InformeSemanalPage() {
 
     // Monotonía
     const monotony = microcycle ? buildMonotonyStrain(data, microcycle.id, activeCategory) : null;
+    const fosterRows = buildFosterTable(data, endDate, activeCategory);
+    const fosterAlerts = fosterRows.filter((row) => row.alert).length;
 
     // Valoraciones en el período
     const cmj = data.cmjRecords.filter((r) => playerIds.has(r.playerId) && r.date >= startDate && r.date <= endDate);
@@ -91,7 +94,7 @@ export default function InformeSemanalPage() {
       molestia, readaptacion, disponibilidadPct, wellnessPromedio,
       cargaTotal, rpePromedio, minPromedio, sesiones, partidos,
       victorias, empates, derrotas, golesFavor, golesContra,
-      acwrData, acwrRiesgo, acwrSincarga, monotony,
+      acwrData, acwrRiesgo, acwrSincarga, monotony, fosterRows, fosterAlerts,
       valoraciones: cmj.length + fms.length + neuro.length + nutri.length,
     };
   }, [data, filters, activeCategory]);
@@ -150,6 +153,36 @@ export default function InformeSemanalPage() {
             <strong>{report.partidos.length}</strong>
             <small>{report.victorias}V {report.empates}E {report.derrotas}D</small>
           </div>
+          <div className="weekly-kpi">
+            <span>Monotonía &gt; 2.0</span>
+            <strong>{report.fosterAlerts}</strong>
+            <small>Foster por jugador</small>
+          </div>
+        </div>
+      </div>
+
+
+      <div className="card">
+        <SectionHeader eyebrow="Foster 1998" title="Monotonía y strain por jugador" subtitle="Alerta cuando la monotonía semanal supera 2.0." />
+        <div className="table-scroll">
+          <table className="pro-table compact-table">
+            <thead>
+              <tr><th>Jugador</th><th>Carga semanal</th><th>Media diaria</th><th>DE</th><th>Monotonía</th><th>Strain</th><th>Alerta</th></tr>
+            </thead>
+            <tbody>
+              {report.fosterRows.slice(0, 12).map((row) => (
+                <tr key={row.playerId}>
+                  <td><strong>{row.name}</strong></td>
+                  <td>{row.totalLoad} UA</td>
+                  <td>{row.meanLoad}</td>
+                  <td>{row.stdDev}</td>
+                  <td>{row.monotony}</td>
+                  <td>{row.strain}</td>
+                  <td><span className={`status-badge ui-tone-${row.tone}`}>{row.label}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

@@ -14,6 +14,7 @@ import { supportsGps } from '@/lib/report-utils';
 import { findOverlappingMicrocycle } from '@/lib/operational-validation';
 import { buildAbruptLoadAlerts, buildDataInconsistencyAlerts, buildMicrocycleLogic, buildPlayerReadinessSemaphores, buildReturnToPlayAlerts, buildRoleLoadControl, buildSelfComparisonInsights, buildWeeklyMonotonyFatigue } from '@/lib/logic-insights';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { buildFosterTable } from '@/lib/sport-science';
 
 const sessionLabels: Record<string, string> = { 'MD+1': 'Recuperación post partido', 'MD+2': 'Recuperación/reinicio', 'MD-5': 'Desarrollo base', 'MD-4': 'Carga alta controlada', 'MD-3': 'Estímulo principal', 'MD-2': 'Ajuste táctico', 'MD-1': 'Activación', MD: 'Partido' };
 
@@ -131,6 +132,9 @@ export default function MicrocicloPage() {
   const microcycleReferenceDate = microcycle.endDate || filters.date;
   const microcycleAbruptAlerts = buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
   const microcycleMonotony = buildWeeklyMonotonyFatigue({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory });
+  const fosterRows = buildFosterTable(data, microcycleReferenceDate, effectiveCategory);
+  const fosterAlerts = fosterRows.filter((row) => row.alert).length;
+  const fosterAvgMonotony = fosterRows.length ? fosterRows.reduce((sum, row) => sum + row.monotony, 0) / fosterRows.length : 0;
   const microcycleReadiness = buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
   const microcycleRoleAlerts = buildRoleLoadControl({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
   const microcycleReturnAlerts = buildReturnToPlayAlerts({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
@@ -198,6 +202,7 @@ export default function MicrocicloPage() {
         <KpiCard label="Wellness promedio" value={groupAverage(dayData.map((d) => d.wellness)).toFixed(1)} tone="green" trend="Promedio del rango" />
         <KpiCard label="MIN acumulados" value={accumulated.reduce((acc, item) => acc + item.minutos, 0).toFixed(0)} tone="dark" trend="Volumen semanal" />
         <KpiCard label={youthSimple ? 'RPE promedio' : 'ACC acumulado'} value={youthSimple ? groupAverage(accumulated.map((x) => x.rpe)).toFixed(1) : accumulated.reduce((acc, item) => acc + item.acc, 0).toFixed(0)} tone="amber" trend="Indicador de carga" />
+        <KpiCard label="Monotonía media" value={fosterAvgMonotony ? fosterAvgMonotony.toFixed(2) : '—'} tone={fosterAlerts ? 'red' : 'green'} trend={`${fosterAlerts} jugador(es) >2.0`} />
       </div>
 
       <div className="grid grid-4">
@@ -205,6 +210,31 @@ export default function MicrocicloPage() {
         <KpiCard label="Molestia" value={String(availabilitySummary.molestia)} />
         <KpiCard label="Readaptación" value={String(availabilitySummary.readaptacion)} />
         <KpiCard label="Lesionados" value={String(availabilitySummary.lesionados)} />
+      </div>
+
+
+      <div className="card">
+        <SectionHeader eyebrow="Foster 1998" title="Monotonía y strain por jugador" subtitle="Monotonía = carga media semanal / desviación estándar. Strain = carga total semanal × monotonía. Alerta si monotonía > 2.0." />
+        <div className="table-scroll">
+          <table className="pro-table compact-table">
+            <thead>
+              <tr><th>Jugador</th><th>Carga 7d</th><th>Media</th><th>DE</th><th>Monotonía</th><th>Strain</th><th>Lectura</th></tr>
+            </thead>
+            <tbody>
+              {fosterRows.slice(0, 12).map((row) => (
+                <tr key={row.playerId}>
+                  <td><strong>{row.name}</strong></td>
+                  <td>{row.totalLoad} UA</td>
+                  <td>{row.meanLoad}</td>
+                  <td>{row.stdDev}</td>
+                  <td><strong>{row.monotony}</strong></td>
+                  <td>{row.strain}</td>
+                  <td><span className={`status-badge ui-tone-${row.tone}`}>{row.label}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="grid grid-2">

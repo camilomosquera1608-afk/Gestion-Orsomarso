@@ -15,6 +15,7 @@ import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/util
 import { readBodyMapRecords, type BodyMapRecord } from '@/lib/body-map';
 import { computePlayerScientificLoadDecision } from '@/lib/scientific-load';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { computeBanisterMetrics, computeDynamicThresholds } from '@/lib/sport-science';
 
 const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Lesionado'];
 const positions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
@@ -112,6 +113,8 @@ export default function PlayerProfilePage() {
     sessionType: sessionTypeForDecision,
     bodyRecords: bodyMapRecords,
   });
+  const dynamicThresholds = computeDynamicThresholds(data, player, latestDate);
+  const banister = computeBanisterMetrics(data, player, latestDate);
 
   const alerts = [
     currentWellness < 3 ? `Wellness bajo (${currentWellness.toFixed(1)})` : null,
@@ -190,14 +193,14 @@ export default function PlayerProfilePage() {
           ]} />
         </div>
         <div className="card">
-          <SectionHeader eyebrow="Carga" title="Referencias individuales" />
+          <SectionHeader eyebrow="Carga" title="Referencias individuales dinámicas" subtitle="Rango normal calculado con las últimas 4-8 semanas del propio jugador." />
           <CompactInfoList items={[
+            { label: 'Wellness normal', value: dynamicThresholds.wellness.p10 !== undefined ? `${dynamicThresholds.wellness.p10} - ${dynamicThresholds.wellness.p90}` : 'Sin historial' },
+            { label: 'RPE normal', value: dynamicThresholds.rpe.p10 !== undefined ? `${dynamicThresholds.rpe.p10} - ${dynamicThresholds.rpe.p90}` : 'Sin historial' },
+            { label: 'Carga normal', value: dynamicThresholds.load.p10 !== undefined ? `${dynamicThresholds.load.p10} - ${dynamicThresholds.load.p90} UA` : 'Sin historial' },
             { label: 'Vmax referencia', value: formatNumber(player.maxVelocityReference, ' km/h') },
             { label: 'Línea base wellness', value: formatNumber(player.baselineWellness) },
-            { label: 'RPE habitual', value: formatNumber(player.baselineRpe) },
             { label: 'Carga objetivo', value: formatNumber(player.targetWeeklyLoad, ' UA') },
-            { label: 'HSR objetivo', value: formatNumber(player.targetWeeklyHsr, ' m') },
-            { label: 'Sprint objetivo', value: formatNumber(player.targetWeeklySprintDistance, ' m') },
           ]} />
         </div>
         <div className="card">
@@ -209,6 +212,43 @@ export default function PlayerProfilePage() {
             { label: 'Zonas de riesgo', value: player.riskAreas ?? 'Sin definir' },
             { label: 'Restricciones', value: player.restrictions?.length ? player.restrictions.join(', ') : 'Sin restricciones' },
             { label: 'Nota médica', value: player.medicalNotes ?? 'Sin nota' },
+          ]} />
+        </div>
+      </div>
+
+
+      <div className="grid grid-3">
+        <div className="card">
+          <SectionHeader eyebrow="Umbrales individuales" title="Percentiles y z-score" subtitle="Alarma real cuando el dato sale de su rango habitual individual." />
+          <CompactInfoList items={[
+            { label: 'Wellness hoy', value: dynamicThresholds.wellness.today ?? 's/d', tone: dynamicThresholds.wellness.tone },
+            { label: 'Wellness z-score', value: dynamicThresholds.wellness.zScore ?? 's/d', tone: dynamicThresholds.wellness.tone },
+            { label: 'RPE hoy', value: dynamicThresholds.rpe.today ?? 's/d', tone: dynamicThresholds.rpe.tone },
+            { label: 'RPE z-score', value: dynamicThresholds.rpe.zScore ?? 's/d', tone: dynamicThresholds.rpe.tone },
+            { label: 'Carga hoy', value: dynamicThresholds.load.today ? `${dynamicThresholds.load.today} UA` : 's/d', tone: dynamicThresholds.load.tone },
+            { label: 'Carga z-score', value: dynamicThresholds.load.zScore ?? 's/d', tone: dynamicThresholds.load.tone },
+          ]} />
+        </div>
+        <div className="card">
+          <SectionHeader eyebrow="Banister" title="Fitness-fatiga" subtitle="CTL τ=42 días · ATL τ=7 días · TSB=CTL-ATL." />
+          <CompactInfoList items={[
+            { label: 'CTL fitness', value: `${banister.ctl} UA`, tone: 'blue' },
+            { label: 'ATL fatiga', value: `${banister.atl} UA`, tone: banister.atl > banister.ctl ? 'amber' : 'green' },
+            { label: 'TSB forma', value: `${banister.tsb} UA`, tone: banister.tsb < 0 ? 'amber' : 'green' },
+            { label: 'Próximo MD', value: banister.projectedMatchDate ?? 'Sin fecha' },
+            { label: 'TSB proyectado', value: banister.projectedTsb !== undefined ? `${banister.projectedTsb} UA` : 's/d', tone: banister.tone },
+            { label: 'Lectura', value: banister.label, tone: banister.tone },
+          ]} />
+        </div>
+        <div className="card">
+          <SectionHeader eyebrow="Interpretación" title="Perfil de confianza" />
+          <CompactInfoList items={[
+            { label: 'Wellness muestras', value: dynamicThresholds.wellness.count },
+            { label: 'RPE muestras', value: dynamicThresholds.rpe.count },
+            { label: 'Carga muestras', value: dynamicThresholds.load.count },
+            { label: 'Wellness', value: dynamicThresholds.wellness.message, tone: dynamicThresholds.wellness.tone },
+            { label: 'RPE', value: dynamicThresholds.rpe.message, tone: dynamicThresholds.rpe.tone },
+            { label: 'Carga', value: dynamicThresholds.load.message, tone: dynamicThresholds.load.tone },
           ]} />
         </div>
       </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, CheckCircle2, ClipboardList, Dumbbell, Gauge, History, ShieldAlert, Target, TimerReset, Users } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, ClipboardList, Dumbbell, Gauge, History, ShieldAlert, Target, TimerReset, Users } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
@@ -12,6 +12,7 @@ import { categoryLabel } from '@/lib/labels';
 import { formatDateShort } from '@/lib/operational-helpers';
 import { readBodyMapRecords, type BodyMapRecord } from '@/lib/body-map';
 import { buildDailyPlan, componentStatusTone, decisionTone } from '@/lib/daily-plan';
+import { riskToneLabel } from '@/lib/predictive-risk';
 import { strengthDecision } from '@/lib/strength';
 
 const pctText = (value?: number) => value === undefined ? 's/d' : `${value > 0 ? '+' : ''}${value}%`;
@@ -33,7 +34,10 @@ export default function DailyPlanPage() {
   const controlled = rows.filter((row) => ['Control preventivo', 'Carga reducida'].includes(row.decision)).length;
   const modified = rows.filter((row) => ['Trabajo modificado', 'No campo'].includes(row.decision)).length;
   const compensatory = rows.filter((row) => row.decision === 'Compensatorio').length;
-  const lowQuality = rows.filter((row) => row.quality === 'Baja').length;
+  const lowQuality = rows.filter((row) => row.quality === 'Baja' || row.dataConfidence.label === 'Baja').length;
+  const adherenceAlerts = rows.filter((row) => row.dataConfidence.adherencePct < 70).length;
+  const redRisk = rows.filter((row) => row.predictiveRisk.tone === 'red').length;
+  const amberRisk = rows.filter((row) => row.predictiveRisk.tone === 'amber').length;
 
   const objectiveText = daySessions.map((item) => item.objective).filter(Boolean).join(' · ') || 'Sin objetivo de campo registrado';
 
@@ -49,7 +53,8 @@ export default function DailyPlanPage() {
         <KpiCard label="Carga completa" value={String(complete)} tone="green" icon={<CheckCircle2 size={18} />} trend="Sin ajuste crítico" />
         <KpiCard label="Control/reducida" value={String(controlled)} tone="amber" icon={<Gauge size={18} />} trend="Seguimiento o ajuste" />
         <KpiCard label="Modificado/no campo" value={String(modified)} tone="red" icon={<ShieldAlert size={18} />} trend="Restricción alta" />
-        <KpiCard label="Compensatorio" value={String(compensatory)} tone="blue" icon={<TimerReset size={18} />} trend="Subestimulación/minutos" />
+        <KpiCard label="Riesgo rojo/ámbar" value={`${redRisk}/${amberRisk}`} tone={redRisk ? 'red' : amberRisk ? 'amber' : 'green'} icon={<AlertTriangle size={18} />} trend="Semáforo predictivo pre-sesión" />
+        <KpiCard label="Confianza baja" value={String(lowQuality)} tone={lowQuality ? 'red' : 'green'} icon={<ClipboardList size={18} />} trend={`${adherenceAlerts} con adherencia <70%`} />
       </div>
 
       <div className="grid grid-2">
@@ -74,6 +79,39 @@ export default function DailyPlanPage() {
         </div>
       </div>
 
+
+      <div className="card">
+        <SectionHeader eyebrow="Riesgo predictivo" title="Semáforo pre-sesión" subtitle="Se muestra antes de diseñar la sesión: ARC, wellness negativo, dolor clave, retorno abrupto a velocidad y readaptación sin progresión." />
+        <div className="table-scroll">
+          <table className="pro-table compact-table">
+            <thead>
+              <tr>
+                <th>Jugador</th>
+                <th>Semáforo</th>
+                <th>Score</th>
+                <th>Factores</th>
+                <th>Alertas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows
+                .filter((row) => row.predictiveRisk.score > 0 || row.player.status === 'Readaptación')
+                .slice(0, 12)
+                .map((row) => (
+                  <tr key={row.player.id}>
+                    <td><strong>{row.player.name}</strong><br /><span className="muted">{row.player.position} · {row.player.status}</span></td>
+                    <td><StatusBadge text={riskToneLabel(row.predictiveRisk.tone)} tone={row.predictiveRisk.tone} /></td>
+                    <td><strong>{row.predictiveRisk.score}/100</strong></td>
+                    <td>{row.predictiveRisk.factors.length ? row.predictiveRisk.factors.map((factor) => factor.label).join(' · ') : 'sin factor crítico'}</td>
+                    <td>{row.predictiveRisk.alerts.length ? row.predictiveRisk.alerts.join(' · ') : 'sin alerta predictiva'}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        {!rows.some((row) => row.predictiveRisk.score > 0 || row.player.status === 'Readaptación') ? <EmptyState title="Sin alertas predictivas" text="No hay jugadores con factores de riesgo multifactorial para la fecha seleccionada." icon="check" /> : null}
+      </div>
+
       <div className="card">
         <SectionHeader eyebrow="Decisión pre/post" title="Decisión diaria por jugador" subtitle="Resume qué hacer hoy o qué ajustar en la próxima sesión." />
         {!rows.length ? <EmptyState title="Sin jugadores" text="Agrega jugadores o cambia la categoría activa." /> : null}
@@ -83,9 +121,12 @@ export default function DailyPlanPage() {
               <tr>
                 <th>Jugador</th>
                 <th>Decisión</th>
+                <th>Riesgo</th>
                 <th>Motivo</th>
                 <th>Acción concreta</th>
                 <th>Calidad</th>
+                <th>Confianza</th>
+                <th>Rango dinámico</th>
                 <th>Compensatorio</th>
               </tr>
             </thead>
@@ -94,9 +135,12 @@ export default function DailyPlanPage() {
                 <tr key={row.player.id}>
                   <td><strong>{row.player.name}</strong><br /><span className="muted">{row.player.position} · {row.player.competitiveRole ?? 'rol s/d'}</span></td>
                   <td><StatusBadge text={row.decision} tone={decisionTone(row.decision)} /></td>
+                  <td><StatusBadge text={`${row.predictiveRisk.score}/100 · ${riskToneLabel(row.predictiveRisk.tone)}`} tone={row.predictiveRisk.tone} /></td>
                   <td>{row.reason}</td>
                   <td>{row.action}</td>
                   <td><StatusBadge text={row.quality} tone={row.quality === 'Alta' ? 'green' : row.quality === 'Media' ? 'amber' : 'red'} /></td>
+                  <td><StatusBadge text={`${row.dataConfidence.label} · ${row.dataConfidence.score}%`} tone={row.dataConfidence.label === 'Alta' ? 'green' : row.dataConfidence.label === 'Media' ? 'amber' : 'red'} /></td>
+                  <td className="muted">W {row.dynamicThresholds.wellness.p10 ?? '—'}-{row.dynamicThresholds.wellness.p90 ?? '—'} · RPE {row.dynamicThresholds.rpe.p10 ?? '—'}-{row.dynamicThresholds.rpe.p90 ?? '—'}</td>
                   <td>{row.compensation}</td>
                 </tr>
               ))}

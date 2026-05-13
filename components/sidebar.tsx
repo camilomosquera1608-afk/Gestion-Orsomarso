@@ -82,6 +82,7 @@ const staffGroups = [
     items: [
       { href: '/informes', label: 'Informes', icon: FileText },
       { href: '/informes/semanal', label: 'Informe semanal', icon: TrendingUp },
+      { href: '/adherencia', label: 'Adherencia', icon: Gauge },
       { href: '/ranking', label: 'Ranking', icon: Medal },
     ],
   },

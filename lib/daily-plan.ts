@@ -1,6 +1,8 @@
 import { BodyMapRecord, getBodyMapDecision } from './body-map';
 import { AppData, DailyExternalLoadRecord, DailyInternalLoadRecord, Player, StrengthSession } from './types';
 import { getPlannedPlayerIds, strengthDecision, strengthLoad } from './strength';
+import { computePredictiveRisk, type PredictiveRiskResult } from './predictive-risk';
+import { computeDynamicThresholds, computeWellnessAdherence, type DynamicThresholdMetric } from './sport-science';
 
 const sameDay = (date?: string, target?: string) => String(date ?? '') === String(target ?? '');
 const num = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -32,6 +34,9 @@ export interface PlayerDailyPlanRow {
   reason: string;
   action: string;
   quality: 'Alta' | 'Media' | 'Baja';
+  predictiveRisk: PredictiveRiskResult;
+  dynamicThresholds: Record<'wellness' | 'rpe' | 'load', DynamicThresholdMetric>;
+  dataConfidence: { score: number; label: 'Alta' | 'Media' | 'Baja'; adherencePct: number };
   plannedVsExecuted: {
     fieldMinutes: number;
     fieldLoad: number;
@@ -160,6 +165,9 @@ export const buildDailyPlan = (data: AppData, date: string, bodyRecords: BodyMap
     const playerStrength = strengthForPlayer(dayStrength, player, players);
     const bodyAlerts = openBodyRecords.filter((record) => record.playerId === player.id).slice(0, 3);
     const componentAvailability = buildComponentAvailability(player, bodyAlerts);
+    const predictiveRisk = computePredictiveRisk({ data, player, date, bodyRecords: openBodyRecords });
+    const dynamicThresholds = computeDynamicThresholds(data, player, date);
+    const adherence = computeWellnessAdherence(data, player, date);
     const latestMinutes = latestCompetitionMinutes(data, player.id, date);
 
     const fieldMinutes = num(external?.min ?? internal?.duration);
@@ -181,12 +189,27 @@ export const buildDailyPlan = (data: AppData, date: string, bodyRecords: BodyMap
     } else if (bodyAlerts.some((record) => getBodyMapDecision(record).decision === 'Trabajo modificado' || getBodyMapDecision(record).decision === 'No campo / fisioterapia')) {
       decision = 'Trabajo modificado';
       reasons.push('alerta corporal');
-    } else if ((wellness !== undefined && wellness < 3) || (internal && internal.rpe >= 9)) {
+    } else if (predictiveRisk.tone === 'red') {
+      decision = 'Carga reducida';
+      reasons.push(`riesgo predictivo ${predictiveRisk.score}/100`);
+    } else if (dynamicThresholds.wellness.outsideNormal && wellness !== undefined && (dynamicThresholds.wellness.zScore ?? 0) < -1.5) {
+      decision = 'Carga reducida';
+      reasons.push(`wellness fuera de rango individual (z ${dynamicThresholds.wellness.zScore})`);
+    } else if (dynamicThresholds.rpe.outsideNormal && internal && (dynamicThresholds.rpe.zScore ?? 0) > 1.5) {
+      decision = 'Carga reducida';
+      reasons.push(`RPE fuera de rango individual (z ${dynamicThresholds.rpe.zScore})`);
+    } else if ((wellness !== undefined && wellness < 3 && dynamicThresholds.wellness.count < 5) || (internal && internal.rpe >= 9 && dynamicThresholds.rpe.count < 5)) {
       decision = 'Carga reducida';
       reasons.push(wellness !== undefined && wellness < 3 ? `wellness ${wellness.toFixed(1)}` : `RPE ${internal?.rpe}`);
-    } else if ((wellness !== undefined && wellness <= 3.2) || (internal && internal.rpe >= 8) || (strengthDeltaPct !== undefined && strengthDeltaPct >= 30)) {
+    } else if (predictiveRisk.tone === 'amber') {
       decision = 'Control preventivo';
-      reasons.push(wellness !== undefined && wellness <= 3.2 ? `wellness ${wellness.toFixed(1)}` : internal && internal.rpe >= 8 ? `RPE ${internal.rpe}` : `fuerza +${strengthDeltaPct}%`);
+      reasons.push(`riesgo predictivo ${predictiveRisk.score}/100`);
+    } else if ((dynamicThresholds.load.outsideNormal && (dynamicThresholds.load.zScore ?? 0) > 1.5) || (strengthDeltaPct !== undefined && strengthDeltaPct >= 30)) {
+      decision = 'Control preventivo';
+      reasons.push(dynamicThresholds.load.outsideNormal ? `carga fuera de rango individual (z ${dynamicThresholds.load.zScore})` : `fuerza +${strengthDeltaPct}%`);
+    } else if ((wellness !== undefined && wellness <= 3.2 && dynamicThresholds.wellness.count < 5) || (internal && internal.rpe >= 8 && dynamicThresholds.rpe.count < 5)) {
+      decision = 'Control preventivo';
+      reasons.push(wellness !== undefined && wellness <= 3.2 ? `wellness ${wellness.toFixed(1)}` : `RPE ${internal?.rpe}`);
     }
 
     if (decision === 'Carga completa') {
@@ -207,6 +230,8 @@ export const buildDailyPlan = (data: AppData, date: string, bodyRecords: BodyMap
     const hasGpsIssue = external && fieldMinutes >= 45 && distance < 300 && num(external.playerLoad) < 50;
     const hasCoreData = Boolean(wellness !== undefined && (internal || external));
     const quality: 'Alta' | 'Media' | 'Baja' = hasGpsIssue ? 'Baja' : hasCoreData && (internal || responses.length) ? 'Alta' : hasCoreData ? 'Media' : 'Baja';
+    const confidenceScore = quality === 'Baja' ? Math.min(adherence.confidenceScore, 60) : quality === 'Media' ? Math.min(adherence.confidenceScore, 80) : adherence.confidenceScore;
+    const confidenceLabel: 'Alta' | 'Media' | 'Baja' = confidenceScore >= 85 ? 'Alta' : confidenceScore >= 70 ? 'Media' : 'Baja';
 
     return {
       player,
@@ -221,6 +246,9 @@ export const buildDailyPlan = (data: AppData, date: string, bodyRecords: BodyMap
       reason: reasons.length ? uniq(reasons).join(' · ') : 'sin alerta crítica',
       action,
       quality,
+      predictiveRisk,
+      dynamicThresholds,
+      dataConfidence: { score: confidenceScore, label: confidenceLabel, adherencePct: adherence.adherencePct },
       plannedVsExecuted: { fieldMinutes, fieldLoad, distance, neuromuscular, strengthPlanned, strengthPerceived, strengthDeltaPct },
       compensation: compensationRecommendation(player, latestMinutes, decision),
       history: recentHistory(data, player, date, bodyAlerts),

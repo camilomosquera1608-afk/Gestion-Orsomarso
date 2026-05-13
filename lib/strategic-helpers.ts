@@ -484,7 +484,7 @@ export const buildWellnessTrends = (data: AppData, activeCategory: string, days 
 };
 
 // ─── Monotonía y Strain del microciclo ────────────────────────────────────
-// Monotonía = desviación estándar / media de cargas diarias.
+// Monotonía = carga media semanal / desviación estándar semanal.
 // Strain = carga total × monotonía.
 // Monotonía óptima: < 2. Strain alto indica distribución peligrosa.
 
