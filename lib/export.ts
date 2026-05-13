@@ -1,6 +1,6 @@
 export const downloadCsv = (filename: string, rows: Array<Record<string, string | number>>) => {
   if (!rows.length || typeof window === 'undefined') return;
-  const headers = Object.keys(rows[0]);
+  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
   const csv = [
     headers.join(','),
     ...rows.map((row) => headers.map((header) => JSON.stringify(row[header] ?? '')).join(',')),

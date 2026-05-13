@@ -79,6 +79,7 @@ export default function InformesPage() {
           <ReportTypeCard title="Informe de competencia" description="Marcador, planilla e incidencias." status={hasCompetitionData ? 'Con datos' : 'Sin partidos'} primaryLabel="Ir a Competencia" onPrimary={() => window.location.href = '/competencia'} />
           <ReportTypeCard title="Informe de valoraciones" description="Nutrición, CMJ, FMS y neuromuscular." status={hasEvaluationData ? 'Con datos' : 'Sin valoraciones'} primaryLabel="Ir a Valoraciones" onPrimary={() => window.location.href = '/valoraciones'} />
           <ReportTypeCard title="Informe individual 360" description="Perfil, carga, competencia y valoraciones." status={player ? 'Listo' : 'Sin jugador'} primaryLabel="Vista previa abajo" />
+          <ReportTypeCard title="Reporte por periodo" description="Exporta números reales por jugador y rango de fechas." status={player ? 'Listo' : 'Sin jugador'} primaryLabel="Abrir reporte" onPrimary={() => window.location.href = '/informes/jugador-periodo'} />
           <ReportTypeCard title="Informe médico" description="Disponibilidad e incidencias." status="Listo" primaryLabel="Ver disponibilidad" onPrimary={() => window.location.href = '/disponibilidad'} />
           <ReportTypeCard title="Informe de carga" description="Carga interna y exposición." status={gpsEnabled ? 'GPS U20' : 'Listo'} primaryLabel="Ver carga" onPrimary={() => window.location.href = '/carga'} />
           <ReportTypeCard title="Informe ejecutivo" description="Plantel, alertas, carga y competencia." status="Listo" primaryLabel="Panel ejecutivo" onPrimary={() => window.location.href = '/ejecutivo'} />
@@ -121,6 +122,7 @@ export default function InformesPage() {
       <div className="card no-print report-next-actions">
         <SectionHeader eyebrow="Informes" title="Módulos disponibles" />
         <div className="strategy-link-grid">
+          <Link href="/informes/jugador-periodo" className="strategy-link"><FileText size={18} /><strong>Reporte jugador</strong><span>Exportación por periodo.</span></Link>
           <Link href="/disponibilidad" className="strategy-link"><HeartPulse size={18} /><strong>Informe médico</strong><span>Disponibilidad y readaptación.</span></Link>
           <Link href="/carga" className="strategy-link"><BarChart3 size={18} /><strong>Informe de carga</strong><span>Carga.</span></Link>
           <Link href="/wellness" className="strategy-link"><ShieldCheck size={18} /><strong>Informe wellness</strong><span>Bienestar y fatiga.</span></Link>
