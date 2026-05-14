@@ -1270,3 +1270,7 @@ commit;
 
 -- V127 - Competition report visual and logic fixes
 -- No schema changes required.
+
+
+-- V128 report margin/layout notes
+-- No schema changes required; see SUPABASE_V128_REPORT_MARGIN_AND_LAYOUT_NOTES.sql

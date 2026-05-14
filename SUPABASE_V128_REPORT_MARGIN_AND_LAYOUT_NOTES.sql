@@ -1,0 +1,3 @@
+-- V128 Report margin/layout notes
+-- This release only changes front-end report/PDF layout and print CSS.
+-- No Supabase schema changes are required.

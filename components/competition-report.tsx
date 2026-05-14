@@ -344,7 +344,7 @@ function MiniLineChart({ title, first, second, firstRival, secondRival, icon: Ic
   return (
     <div className="fd-line-card fd-v2-line-card">
       <div className="fd-v2-line-title"><Icon size={16} /><strong>{title}</strong><span className={trendClass}>{trend}</span></div>
-      <svg viewBox="0 0 210 120" role="img" aria-label={title}>
+      <svg className="fd-v2-half-chart" viewBox="0 0 210 120" role="img" aria-label={title}>
         <defs><linearGradient id={chartId} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#1557d6" stopOpacity="0.16" /><stop offset="100%" stopColor="#1557d6" stopOpacity="0.02" /></linearGradient></defs>
         {[18, 50, 82].map((gy, index) => <line key={`grid-${title}-${index}`} x1="34" y1={gy} x2="194" y2={gy} className="grid" />)}
         {steps.map((step, index) => <text key={`axis-${title}-${index}`} x="5" y={84 - index * 32}>{step}</text>)}

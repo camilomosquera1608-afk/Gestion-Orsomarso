@@ -8522,3 +8522,107 @@ img[loading="lazy"] { background: var(--line-soft); }
   .fd-v2-line-card { min-height: 110px !important; }
   .fd-v2-line-card svg { height: 110px !important; }
 }
+
+
+/* V128 - Report-specific print geometry, margins and density
+   Each PDF has different needs: player dossier = portrait editorial;
+   competition = portrait match report with no blank header page;
+   session = landscape table-heavy GPS report. */
+@page playerDossierV128 { size: A4 portrait; margin: 0; }
+@page competitionReportV128 { size: A4 portrait; margin: 6mm; }
+@page sessionGpsReportV128 { size: A4 landscape; margin: 6mm; }
+
+.scout-report-document { page: playerDossierV128; }
+.fd-competition-report { page: competitionReportV128; }
+.session-report-document { page: sessionGpsReportV128; }
+
+/* Player report - more intentional page use */
+@media print {
+  body:has(.scout-report-document), .pdf-print-window { background: #fff !important; }
+  .scout-report-document { width: 210mm !important; max-width: 210mm !important; }
+  .scout-page { width: 210mm !important; min-height: 297mm !important; padding: 9mm !important; border-radius: 0 !important; box-shadow: none !important; border: 0 !important; }
+  .scout-cover-card { min-height: 108mm !important; border-radius: 7mm !important; }
+  .scout-section { padding: 5mm !important; border-radius: 6mm !important; }
+  .scout-kpi-grid { gap: 3mm !important; }
+  .scout-kpi { min-height: 24mm !important; padding: 3mm !important; }
+  .scout-kpi strong, .scout-gps-average-strip .scout-kpi strong { font-size: 14pt !important; }
+  .scout-page-cover { display: grid !important; grid-template-rows: 110mm 1fr !important; gap: 5mm !important; page-break-after: always !important; break-after: page !important; }
+  .scout-page-performance { min-height: 297mm !important; page-break-after: always !important; break-after: page !important; }
+  .scout-page-performance .scout-section-feature { min-height: calc(297mm - 18mm) !important; align-content: stretch !important; }
+  .scout-page-performance .scout-visual-grid { gap: 3mm !important; }
+  .scout-page-performance .scout-chart-card, .scout-page-performance .scout-donut-card { min-height: 0 !important; }
+  .scout-gps-averages-panel { margin-top: 3mm !important; gap: 3mm !important; }
+  .scout-page-evolution { min-height: 297mm !important; page-break-before: always !important; break-before: page !important; page-break-after: always !important; break-after: page !important; }
+  .scout-page-evolution .scout-section-feature { min-height: calc(297mm - 18mm) !important; }
+  .scout-page-evolution .scout-visual-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 4mm !important; align-content: stretch !important; }
+  .scout-page-evolution .scout-chart-card { min-height: 68mm !important; padding: 4mm !important; }
+  .scout-line-chart-pro { height: 50mm !important; }
+  .scout-page-profile { min-height: 297mm !important; page-break-before: always !important; break-before: page !important; }
+  .scout-page-profile .scout-visual-grid { gap: 3mm !important; }
+  .scout-nutrition-card { min-height: 0 !important; }
+  .scout-gps-detail-table th, .scout-gps-detail-table td { padding: 1.1mm !important; font-size: 5.2pt !important; }
+}
+
+/* Competition report - remove the empty match-header page and tighten match statistics */
+.fd-v2-line-title > svg { width: 16px !important; height: 16px !important; flex: 0 0 16px !important; }
+.fd-v2-line-card > svg.fd-v2-half-chart { width: 100%; height: 120px !important; background: #fff; border-radius: 12px; }
+@media print {
+  body:has(.fd-competition-report) { background: #fff !important; }
+  .fd-competition-report { width: 100% !important; max-width: none !important; gap: 3mm !important; }
+  .fd-competition-report > .fd-report-topline,
+  .fd-competition-report > .competition-match-header { display: none !important; }
+  .competition-cover.orso-match-cover { min-height: calc(297mm - 12mm) !important; max-height: calc(297mm - 12mm) !important; page-break-after: always !important; break-after: page !important; padding: 7mm !important; }
+  .competition-cover .fd-cover-score strong { font-size: 58pt !important; }
+  .competition-lineup-page { page-break-before: auto !important; break-before: auto !important; page-break-after: auto !important; break-after: auto !important; padding-top: 0 !important; }
+  .fd-v2-lineup-layout { grid-template-columns: 57% 43% !important; gap: 3mm !important; }
+  .fd-v2-pitch { min-height: 128mm !important; }
+  .fd-v2-roster-list { gap: .65mm !important; padding: 1.4mm !important; }
+  .fd-v2-roster-card { min-height: 6mm !important; padding: .45mm .7mm !important; }
+  .fd-v2-roster-card strong { font-size: 5.2pt !important; }
+  .fd-v2-line-card { min-height: 34mm !important; padding: 2mm !important; }
+  .fd-v2-line-card > svg.fd-v2-half-chart { height: 24mm !important; }
+  .fd-v2-line-title { margin-bottom: 1mm !important; }
+  .fd-v2-line-title strong { font-size: 6pt !important; }
+  .period-line-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 2mm !important; }
+  .period-report-grid { gap: 2mm !important; }
+  .orso-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 2mm !important; }
+  .orso-summary-card { padding: 2mm !important; min-height: 14mm !important; }
+  .orso-summary-card strong { font-size: 10pt !important; }
+  .fd-visual-grid { gap: 2mm !important; }
+  .fd-donut-card, .fd-radar-card, .fd-zone-pitch-card, .eyeball-comparison-card, .fd-table-wrap { box-shadow: none !important; }
+  .fd-v2-gps-kpi-grid { gap: 2mm !important; }
+  .fd-v2-ranking-grid { gap: 3mm !important; }
+  .fd-v2-integrated-split { gap: 2mm !important; }
+  .fd-v2-gps-detail-table th, .fd-v2-gps-detail-table td { font-size: 5.4pt !important; padding: .8mm 1mm !important; }
+  .competition-gps-section { page-break-before: always !important; break-before: page !important; }
+  .competition-conclusions-page { page-break-before: always !important; break-before: page !important; }
+  .pdf-report-section { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .fd-v2-physical-table { break-inside: auto !important; page-break-inside: auto !important; }
+}
+
+/* Session report - landscape orientation for the wide GPS table, smaller margins and no zero-value ranking clutter */
+@media print {
+  body:has(.session-report-document) { background: #fff !important; }
+  .session-report-document { width: 100% !important; max-width: none !important; gap: 2.5mm !important; }
+  .session-report-document .sr-cover-palmeiras { height: calc(210mm - 12mm) !important; min-height: 0 !important; max-height: calc(210mm - 12mm) !important; page-break-after: always !important; break-after: page !important; }
+  .session-report-document .srp-top { padding: 4mm 7mm 2mm !important; }
+  .session-report-document .srp-crest-wrap { padding: 2mm 0 !important; }
+  .session-report-document .srp-crest { width: 36mm !important; height: 36mm !important; }
+  .session-report-document .srp-title { font-size: 24pt !important; }
+  .session-report-document .srp-kpi { padding: 2mm !important; }
+  .session-report-document .sr-section { margin-bottom: 2mm !important; break-inside: auto !important; page-break-inside: auto !important; }
+  .session-report-document .sr-heat-table { font-size: 5.2pt !important; }
+  .session-report-document .sr-heat-table thead th { font-size: 4.5pt !important; padding: .85mm 1mm !important; }
+  .session-report-document .sr-heat-table tbody td { font-size: 5pt !important; padding: .65mm .8mm !important; }
+  .session-report-document .sr-td-name { max-width: 38mm !important; font-size: 5.2pt !important; padding-left: 1mm !important; }
+  .session-report-document .sr-td-pos { font-size: 4.7pt !important; }
+  .session-report-document .sr-kpi-grid { gap: 1.8mm !important; }
+  .session-report-document .sr-ktile { min-height: 15mm !important; padding: 1.7mm !important; }
+  .session-report-document .sr-ktile-value { font-size: 11pt !important; }
+  .session-report-document .sr-bars-section { gap: 2.5mm !important; }
+  .session-report-document .sr-bars-list > div { grid-template-columns: 33mm 1fr 12mm !important; gap: 1.5mm !important; margin-bottom: .55mm !important; }
+  .session-report-document .sr-bars-list > div > span:first-child,
+  .session-report-document .sr-bars-list > div > span:last-child { font-size: 5.1pt !important; }
+  .session-report-document .sr-bars-list > div > div { height: 1.3mm !important; }
+  .session-report-document .sr-insight, .session-report-document .sr-alert { font-size: 5.4pt !important; line-height: 1.25 !important; padding: 1.2mm 2mm !important; }
+}

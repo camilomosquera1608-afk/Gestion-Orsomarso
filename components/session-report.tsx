@@ -207,13 +207,16 @@ function Sec({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: st
 function BarCol({ title, color, items, maxVal, f }: {
   title: string; color: string; items: { name: string; value: number }[]; maxVal: number; f?: (v: number) => string;
 }) {
+  const clean = items.filter((item) => Number.isFinite(item.value) && item.value > 0).slice(0, 22);
+  if (!clean.length) return null;
+  const localMax = Math.max(maxVal, ...clean.map((item) => item.value), 1);
   return (
     <div>
       <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.1em', color, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
         {title}
       </div>
-      {items.map(item => <HBar key={item.name} name={item.name} value={item.value} maxVal={maxVal} color={color} {...(f ? { f } : {})} />)}
+      {clean.map(item => <HBar key={item.name} name={item.name} value={item.value} maxVal={localMax} color={color} {...(f ? { f } : {})} />)}
     </div>
   );
 }
