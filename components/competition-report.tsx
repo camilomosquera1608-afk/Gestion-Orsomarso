@@ -25,6 +25,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
+import { fieldLabel } from '@/lib/report-utils';
 import { CompetitionReportData, CompetitionReportPlayerRow, CompetitionReportTone } from '@/lib/competition-report';
 import { ClubCategory } from '@/lib/types';
 import type { EyeballMatchStats } from './eyeball-importer';
@@ -75,6 +76,36 @@ const truncateName = (name: string) => {
 const playerInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'OR';
 const playerLastName = (name: string) => name.split(' ').filter(Boolean).slice(-1)[0]?.toUpperCase() ?? name.toUpperCase();
 const valueOrDash = (value: number, digits = 0, suffix = '') => value > 0 ? `${numberFmt(value, digits)}${suffix}` : '—';
+
+/* Fix #3 — Semáforo de portada con lógica correcta */
+const getControlColor = (possession: number, passPrecision: number): CompetitionReportTone => {
+  if (possession >= 55 && passPrecision >= 72) return 'green';
+  if (possession >= 48 && passPrecision >= 65) return 'amber';
+  return 'red';
+};
+const getOffensiveColor = (conversion: number, shots: number): CompetitionReportTone => {
+  if (conversion >= 25 && shots >= 8) return 'green';
+  if (conversion >= 15) return 'amber';
+  return 'red';
+};
+const getDefensiveColor = (errors: number, goalsConceded: number): CompetitionReportTone => {
+  if (errors <= 5 && goalsConceded === 0) return 'green';
+  if (errors <= 10) return 'amber';
+  return 'red';
+};
+
+/* Fix #5 — Umbral mínimo antes de marcar ventaja/desventaja */
+const isAdvantage = (orso: number, rival: number, isPercentage = false) => {
+  const diff = Math.abs(orso - rival);
+  const threshold = isPercentage ? 3 : Math.max(2, Math.abs(rival) * 0.08);
+  return orso > rival && diff >= threshold;
+};
+const hasMeaningfulGap = (orso: number, rival: number, isPercentage = false) => isAdvantage(orso, rival, isPercentage) || isAdvantage(rival, orso, isPercentage);
+const isPercentageStat = (label: string) => /%|posesi|precision|precisi|conversion|tasa|efectividad|dominio/i.test(label);
+
+/* Fix #6 — Errores con acento crítico */
+const errorToneClass = (value: number) => value > 10 ? 'fd-v2-error-high' : value > 6 ? 'fd-v2-error-medium' : '';
+const rowHasGps = (row: CompetitionReportPlayerRow) => row.totalDistance > 0 || row.playerLoad > 0 || row.highSpeedDistance > 0 || row.sprintDistance > 0 || row.acc > 0 || row.dcc > 0 || row.rhie > 0 || row.maxVelocity > 0 || row.metersPerMinute > 0;
 const gpsTypeTone = (type: string) => {
   const key = normalizeText(type);
   if (key.includes('partido') || key === 'md') return 'green';
@@ -376,8 +407,10 @@ function ComparisonStat({ label, orso, rival, lowerBetter = false }: { label: st
   const r = statNumber(rival);
   const total = Math.max(o + r, 1);
   const oWidth = pct(o, total);
-  const orsoWins = o === r ? false : lowerBetter ? o < r : o > r;
-  const rivalWins = o === r ? false : lowerBetter ? r < o : r > o;
+  const percentage = isPercentageStat(label);
+  const meaningful = hasMeaningfulGap(o, r, percentage);
+  const orsoWins = meaningful && (lowerBetter ? o < r : o > r);
+  const rivalWins = meaningful && (lowerBetter ? r < o : r > o);
   return (
     <div className="eyeball-comparison-row fd-comparison-row">
       <strong className={rivalWins ? 'winner rival' : ''}>{valueText(rival, Number.isInteger(r) ? 0 : 1)}</strong>
@@ -402,12 +435,14 @@ function EyeballComparisonTable({ rows, title }: { rows: EyeballRow[]; title?: s
             /* Fix #2 — Errores con contexto visual */
             const isErrorRow = normalizeText(row.stat).includes('errores');
             const errorValue = statNumber(row.orso);
-            const errorClass = isErrorRow && errorValue > 8 ? 'fd-v2-error-high' : isErrorRow && errorValue > 4 ? 'fd-v2-error-medium' : '';
+            const errorClass = isErrorRow ? errorToneClass(errorValue) : '';
             const o = statNumber(row.orso);
             const r = statNumber(row.rival);
             const lowerBetter = isLowerBetter(row.stat);
-            const orsoWins = o !== r && (lowerBetter ? o < r : o > r);
-            const rivalWins = o !== r && (lowerBetter ? r < o : r > o);
+            const percentage = isPercentageStat(row.stat);
+            const meaningful = hasMeaningfulGap(o, r, percentage);
+            const orsoWins = meaningful && (lowerBetter ? o < r : o > r);
+            const rivalWins = meaningful && (lowerBetter ? r < o : r > o);
             return (
               <tr key={`${row.stat}-${row.rival}-${row.orso}`}>
                 <td><strong>{row.stat}</strong></td>
@@ -467,9 +502,9 @@ function performanceChipData(stats?: EyeballMatchStats | null) {
   const goalsAgainst = statNumber(stats?.goalsAgainst ?? 0);
   const possession = statNumber(getSectionStat(stats, 'Resumen', ['Posesión', 'Posesiones'])?.orso ?? stats?.possession ?? 0);
   const passPrecision = statNumber(getSectionStat(stats, 'Distribución', ['Precisión de pases'])?.orso ?? stats?.passPrecision ?? 0);
-  const offensiveTone: CompetitionReportTone = conversion > 25 && shots > 8 ? 'green' : conversion >= 15 ? 'amber' : 'red';
-  const defensiveTone: CompetitionReportTone = errors < 5 && goalsAgainst === 0 ? 'green' : errors <= 10 ? 'amber' : 'red';
-  const controlTone: CompetitionReportTone = possession > 55 && passPrecision > 75 ? 'green' : possession >= 45 ? 'amber' : 'red';
+  const offensiveTone = getOffensiveColor(conversion, shots);
+  const defensiveTone = getDefensiveColor(errors, goalsAgainst);
+  const controlTone = getControlColor(possession, passPrecision);
   return [
     { icon: Target, label: 'Ofensiva', tone: offensiveTone, value: `${numberFmt(conversion, 1)}% conv. · ${shots} rem.` },
     { icon: ShieldCheck, label: 'Defensiva', tone: defensiveTone, value: `${errors} errores · ${goalsAgainst} GC` },
@@ -494,7 +529,7 @@ function CompetitionPerformanceCover({ report, category, eyeballStats }: { repor
   const match = report.match;
   const resultTone = toneForResult(report.resultType);
   return (
-    <section className="fd-cover pdf-report-cover orso-match-cover">
+    <section className="fd-cover pdf-report-cover orso-match-cover competition-cover">
       <div className="fd-cover-logo"><span>Orsomarso SC</span><strong>Departamento de Rendimiento</strong></div>
       <div className="fd-cover-main">
         <span>Informe estadístico de competencia</span>
@@ -526,32 +561,49 @@ const positionGroup = (position: string) => {
   return 'Otros';
 };
 
+/* Fix #1 — Portero incorrecto en campo */
+const isEligibleFieldStarter = (row: CompetitionReportPlayerRow) => {
+  if (row.role !== 'Titular') return false;
+  if (row.isGoalkeeper || positionGroup(row.position) === 'Arquero') return row.minutes > 0;
+  return true;
+};
+
 type PitchSlot = { id: string; label: string; x: number; y: number; playerId?: string };
 const fallbackPitchSlots = (rows: CompetitionReportPlayerRow[]): PitchSlot[] => {
-  const starters = rows.filter((row) => row.role === 'Titular');
-  const byGroup = (name: string) => starters.filter((row) => positionGroup(row.position) === name);
-  const base = [
+  const starters = rows.filter(isEligibleFieldStarter);
+  const goalkeeper = starters.find((row) => (row.isGoalkeeper || positionGroup(row.position) === 'Arquero') && row.minutes > 0);
+  const byGroup = (name: string) => starters.filter((row) => positionGroup(row.position) === name && !(name === 'Arquero'));
+  return [
     ...byGroup('Ataque').slice(0, 4).map((row, index) => ({ id: `a${index}`, label: row.position, playerId: row.playerId, x: [25, 50, 75, 50][index] ?? 50, y: [24, 16, 24, 32][index] ?? 24 })),
     ...byGroup('Mediocampo').slice(0, 5).map((row, index) => ({ id: `m${index}`, label: row.position, playerId: row.playerId, x: [18, 36, 50, 64, 82][index] ?? 50, y: [50, 55, 47, 55, 50][index] ?? 52 })),
     ...byGroup('Defensa').slice(0, 4).map((row, index) => ({ id: `d${index}`, label: row.position, playerId: row.playerId, x: [18, 39, 61, 82][index] ?? 50, y: [72, 76, 76, 72][index] ?? 74 })),
-    ...byGroup('Arquero').slice(0, 1).map((row) => ({ id: 'gk', label: row.position, playerId: row.playerId, x: 50, y: 91 })),
+    ...(goalkeeper ? [{ id: 'gk', label: goalkeeper.position, playerId: goalkeeper.playerId, x: 50, y: 91 }] : []),
   ];
-  return base;
 };
 
+/* Fix #14 — Fallback de foto de jugador con iniciales, nunca escudo del club */
 function PlayerAvatar({ row, size = 36 }: { row: CompetitionReportPlayerRow; size?: number }) {
-  const photoUrl = row.photoUrl;
-  return photoUrl ? (
-    <img src={photoUrl} alt={row.name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />
-  ) : <span className="fd-v2-avatar-initials" style={{ width: size, height: size }}>{playerInitials(row.name)}</span>;
+  const photoUrl = String(row.photoUrl ?? '').trim();
+  const initials = playerInitials(row.name);
+  return (
+    <span className="fd-v2-avatar-shell" style={{ width: size, height: size }}>
+      <span className="fd-v2-avatar-initials" style={{ width: size, height: size, fontSize: size * 0.33 }}>{initials}</span>
+      {photoUrl ? <img src={photoUrl} alt={row.name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : null}
+    </span>
+  );
 }
 
 function LineupPitch({ report }: { report: CompetitionReportData }) {
-  const starters = report.rows.filter((row) => row.role === 'Titular');
-  const subs = report.rows.filter((row) => row.role === 'Suplente');
+  const starters = report.rows.filter(isEligibleFieldStarter);
   const manualSlots = report.match.lineupSlots?.length ? report.match.lineupSlots.filter((slot) => slot.playerId) : [];
-  const configured = report.match.lineupSlots?.length ? manualSlots : fallbackPitchSlots(report.rows);
-  const byId = (playerId?: string) => report.rows.find((row) => row.playerId === playerId);
+  /* Fix #2 — Suplentes fuera del campo */
+  const configured = report.match.lineupSlots?.length
+    ? manualSlots.filter((slot) => {
+        const row = report.rows.find((item) => item.playerId === slot.playerId);
+        return row ? isEligibleFieldStarter(row) : false;
+      })
+    : fallbackPitchSlots(report.rows);
+  const byId = (playerId?: string) => report.rows.find((row) => row.playerId === playerId && isEligibleFieldStarter(row));
   return (
     <div className="fd-pitch orso-lineup-pitch fd-v2-pitch">
       <div className="fd-pitch-title">{report.match.lineupFormation || 'Alineación'}</div>
@@ -574,15 +626,11 @@ function LineupPitch({ report }: { report: CompetitionReportData }) {
           <div key={slot.id} className="orso-pitch-player fd-v2-field-player" style={{ left: `${slot.x}%`, top: `${slot.y}%` }}>
             <div className="fd-v2-player-photo"><PlayerAvatar row={row} size={36} />{row.yellowCards > 0 ? <i className="yellow" /> : null}{row.redCards > 0 ? <i className="red" /> : null}</div>
             <b>{row.jerseyNumber ?? '—'}</b>
-            <strong>{playerLastName(row.name)}</strong>
+            {/* Fix #13 — Apellido sin puntos suspensivos */}
+            <strong>{fieldLabel(row.name).toUpperCase()}</strong>
           </div>
         );
       })}
-      {subs.length ? (
-        <div className="fd-v2-bench-row">
-          {subs.slice(0, 9).map((row) => <span key={`bench-${row.id}`}><PlayerAvatar row={row} size={26} /><b>{row.jerseyNumber ?? '—'}</b><strong>{playerLastName(row.name)}</strong></span>)}
-        </div>
-      ) : null}
       {!configured.length && starters.length ? <EmptyReportState text="Sin posiciones de alineación configuradas." /> : null}
     </div>
   );
@@ -595,27 +643,31 @@ function LineupRosterCards({ rows }: { rows: CompetitionReportPlayerRow[] }) {
   });
   return (
     <div className="fd-v2-roster-list">
-      {sorted.map((row, index) => (
-        <div key={row.id} className={`fd-v2-roster-card ${row.role === 'Suplente' ? 'sub' : 'starter'}`}>
-          {index > 0 && sorted[index - 1]?.role !== row.role ? <div className="fd-v2-roster-separator">SUPLENTES</div> : null}
-          <PlayerAvatar row={row} size={28} />
-          <b>{row.jerseyNumber ?? '—'}</b>
-          <strong>{row.name}</strong>
-          <div className="fd-v2-min-bar"><i style={{ width: `${pct(row.minutes, 93)}%` }} /></div>
-          <span>{row.minutes || 0} min</span>
-          <div className="fd-v2-roster-chips">
-            {row.yellowCards > 0 ? <em className="yellow">TA {row.yellowCards}</em> : null}
-            {row.redCards > 0 ? <em className="red">TR {row.redCards}</em> : null}
-            {row.goals > 0 ? <em className="goal">⚽ {row.goals}</em> : null}
+      {sorted.map((row, index) => {
+        const isSubHeader = index > 0 && sorted[index - 1]?.role !== row.role && row.role === 'Suplente';
+        const inactiveSub = row.role === 'Suplente' && row.minutes <= 0;
+        return (
+          <div key={row.id} className={`fd-v2-roster-card ${row.role === 'Suplente' ? 'sub' : 'starter'} ${inactiveSub ? 'inactive-sub' : ''}`}>
+            {isSubHeader ? <div className="fd-v2-roster-separator">SUPLENTES</div> : null}
+            <PlayerAvatar row={row} size={28} />
+            <b>{row.jerseyNumber ?? '—'}</b>
+            <strong>{row.name}</strong>
+            {inactiveSub ? <div className="fd-v2-min-bar empty" /> : <div className="fd-v2-min-bar"><i style={{ width: `${pct(row.minutes, 93)}%` }} /></div>}
+            <span>{row.minutes || 0} min</span>
+            <div className="fd-v2-roster-chips">
+              {row.yellowCards > 0 ? <em className="yellow">TA {row.yellowCards}</em> : null}
+              {row.redCards > 0 ? <em className="red">TR {row.redCards}</em> : null}
+              {row.goals > 0 ? <em className="goal">⚽ {row.goals}</em> : null}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 function LineupSection({ report }: { report: CompetitionReportData }) {
-  const positioned = report.match.lineupSlots?.filter((slot) => slot.playerId).length ?? 0;
+  const positioned = report.match.lineupSlots?.filter((slot) => report.rows.some((row) => row.playerId === slot.playerId && isEligibleFieldStarter(row))).length ?? 0;
   return (
     <ReportSection icon={Users} title="Alineación del partido" subtitle={`${report.match.lineupFormation || 'Formación'} · ${positioned || report.starters.length} jugadores ubicados`} className="competition-lineup-page fd-v2-lineup-page">
       <div className="fd-lineup-grid orso-lineup-grid fd-v2-lineup-layout">
@@ -787,8 +839,18 @@ function TacticalBlock({ icon, eyebrow, title, subtitle, stats, sectionName, pat
 function KeyPassDistributionSection({ stats }: { stats?: EyeballMatchStats | null }) {
   const distribution = sectionRows(stats, 'Distribución');
   if (!distribution.length) return null;
+  /* Fix #16 — Distribución completa reducida a 10 indicadores relevantes en PDF */
+  const priorityPassStats = [
+    'pases exitosos', 'pases', 'precision de pases', 'precisión de pases', 'pases clave',
+    'pases exitosos ultimo tercio', 'pases exitosos último tercio', 'pases exitosos medio campo',
+    'pases largos exitosos', 'pases hacia adelante exitosos', 'centros exitosos', 'dominio territorial',
+  ];
+  const priorityRows = priorityPassStats
+    .map((needle) => distribution.find((row) => normalizeText(row.stat) === needle || normalizeText(row.stat).includes(needle)))
+    .filter((row): row is EyeballRow & { section: string } => Boolean(row));
+  const uniquePriorityRows = Array.from(new Map(priorityRows.map((row) => [normalizeText(row.stat), row])).values()).slice(0, 10);
   const volumeRows = distribution.filter((row) => /pases$|pases exitosos$|precision|precisión|posesion|dominio/i.test(row.stat));
-  const progressionRows = distribution.filter((row) => /ultimo tercio|medio campo|tercer defensivo|hacia adelante|progres/i.test(row.stat));
+  const progressionRows = distribution.filter((row) => /ultimo tercio|último tercio|medio campo|tercer defensivo|hacia adelante|progres/i.test(row.stat));
   const directionRows = distribution.filter((row) => /laterales|atr[aá]s|largos|media distancia|cortos|centros/i.test(row.stat));
   return (
     <ReportSection icon={Repeat2} title="Pases y circulación">
@@ -797,52 +859,51 @@ function KeyPassDistributionSection({ stats }: { stats?: EyeballMatchStats | nul
         <BarPanel title="Progresión territorial" subtitle="Último tercio y campo" items={progressionRows.slice(0, 7).map((row) => ({ name: row.stat, value: statNumber(row.orso), sub: valueText(row.orso) }))} color={C.green} />
         <BarPanel title="Dirección y longitud" subtitle="Tipos de pase" items={directionRows.slice(0, 8).map((row) => ({ name: row.stat, value: statNumber(row.orso), sub: valueText(row.orso) }))} color={C.amber} />
       </div>
-      <EyeballComparisonTable rows={distribution} title="Distribución completa" />
+      <EyeballComparisonTable rows={uniquePriorityRows.length ? uniquePriorityRows : distribution.slice(0, 10)} title="Distribución principal" />
     </ReportSection>
   );
 }
 
 function IntegratedPlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] }) {
+  /* Fix #19 — Tabla individual dividida en técnico y físico */
   if (!rows.length) return <EmptyReportState text="Sin planilla para tabla integrada." />;
+  const sorted = rows.slice().sort((a, b) => {
+    const roleOrder = (role: string) => (role === 'Titular' ? 0 : role === 'Suplente' ? 1 : 2);
+    return roleOrder(a.role) - roleOrder(b.role) || (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999) || a.name.localeCompare(b.name);
+  });
+  const hasSprintData = sorted.some((row) => row.sprintDistance > 0);
   const metricValues = {
-    distance: rows.map((row) => row.totalDistance),
-    mpm: rows.map((row) => row.metersPerMinute),
-    hsr: rows.map((row) => row.highSpeedDistance),
-    sprint: rows.map((row) => row.sprintDistance),
-    acc: rows.map((row) => row.acc),
-    dcc: rows.map((row) => row.dcc),
-    rhie: rows.map((row) => row.rhie),
-    vmax: rows.map((row) => row.maxVelocity),
-    pl: rows.map((row) => row.playerLoad),
+    distance: sorted.map((row) => row.totalDistance),
+    mpm: sorted.map((row) => row.metersPerMinute),
+    hsr: sorted.map((row) => row.highSpeedDistance),
+    sprint: sorted.map((row) => row.sprintDistance),
+    acc: sorted.map((row) => row.acc),
+    dcc: sorted.map((row) => row.dcc),
+    rhie: sorted.map((row) => row.rhie),
+    vmax: sorted.map((row) => row.maxVelocity),
+    pl: sorted.map((row) => row.playerLoad),
+  };
+  const gpsValue = (row: CompetitionReportPlayerRow, key: keyof typeof metricValues, value: number, digits = 0, suffix = '') => {
+    /* Fix #9 — Portero sin GPS con nota explícita */
+    if (row.isGoalkeeper && row.minutes > 0 && !rowHasGps(row)) return <span className="fd-v2-no-gps">Sin GPS</span>;
+    return <span className={metricCellClass(value, metricValues[key])}>{valueOrDash(value, digits, suffix)}</span>;
   };
   return (
-    <div className="fd-table-wrap">
-      <table className="pdf-report-table competition-report-table-modern competition-report-heat-table fd-roster-table orso-integrated-table fd-v2-gps-detail-table">
-        <thead>
-          <tr><th>Jugador</th><th>Pos.</th><th>Tipo</th><th>MIN</th><th>G/A o portero</th><th>TA/TR</th><th>Dist.</th><th>m/min</th><th>HSR</th><th>Sprint</th><th>ACC</th><th>DCC</th><th>RHIE</th><th>Vmax</th><th>PL</th></tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td><strong>{row.name}</strong></td>
-              <td>{row.position}</td>
-              <td><span className={`fd-v2-type-chip ${toneClass(gpsTypeTone(row.role))}`}>{row.role}</span></td>
-              <td>{row.minutes || '—'}</td>
-              <td>{row.production}</td>
-              <td>{row.discipline}</td>
-              <td className={metricCellClass(row.totalDistance, metricValues.distance)}>{valueOrDash(row.totalDistance, 0, ' m')}</td>
-              <td className={metricCellClass(row.metersPerMinute, metricValues.mpm)}>{valueOrDash(row.metersPerMinute)}</td>
-              <td className={metricCellClass(row.highSpeedDistance, metricValues.hsr)}>{valueOrDash(row.highSpeedDistance, 0, ' m')}</td>
-              <td className={metricCellClass(row.sprintDistance, metricValues.sprint)}>{valueOrDash(row.sprintDistance, 0, ' m')}</td>
-              <td className={metricCellClass(row.acc, metricValues.acc)}>{valueOrDash(row.acc)}</td>
-              <td className={metricCellClass(row.dcc, metricValues.dcc)}>{valueOrDash(row.dcc)}</td>
-              <td className={metricCellClass(row.rhie, metricValues.rhie)}>{valueOrDash(row.rhie)}</td>
-              <td className={metricCellClass(row.maxVelocity, metricValues.vmax)}>{valueOrDash(row.maxVelocity, 1)}</td>
-              <td className={metricCellClass(row.playerLoad, metricValues.pl)}>{valueOrDash(row.playerLoad)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="fd-v2-integrated-split">
+      <div className="fd-table-wrap">
+        <span className="fd-v2-table-chip">TÉCNICO</span>
+        <table className="pdf-report-table competition-report-table-modern fd-v2-gps-detail-table fd-v2-technical-table">
+          <thead><tr><th>Jugador</th><th>Pos</th><th>Tipo</th><th>MIN</th><th>G</th><th>A</th><th>TA</th><th>TR</th></tr></thead>
+          <tbody>{sorted.map((row) => <tr key={`tech-${row.id}`}><td><strong>{row.name}</strong></td><td>{row.position}</td><td><span className={`fd-v2-type-chip ${toneClass(gpsTypeTone(row.role))}`}>{row.role}</span></td><td>{row.minutes || '—'}</td><td>{row.goals || '—'}</td><td>{row.assists || '—'}</td><td className={row.yellowCards > 0 ? 'card-yellow' : undefined}>{row.yellowCards || '—'}</td><td className={row.redCards > 0 ? 'card-red' : undefined}>{row.redCards || '—'}</td></tr>)}</tbody>
+        </table>
+      </div>
+      <div className="fd-table-wrap">
+        <span className="fd-v2-table-chip physical">FÍSICO</span>
+        <table className="pdf-report-table competition-report-table-modern competition-report-heat-table fd-v2-gps-detail-table fd-v2-physical-table">
+          <thead><tr><th>Jugador</th><th>Dist</th><th>m/min</th><th>HSR</th>{hasSprintData ? <th>Sprint</th> : null}<th>ACC</th><th>DCC</th><th>RHIE</th><th>Vmax</th><th>PL</th></tr></thead>
+          <tbody>{sorted.map((row) => <tr key={`phys-${row.id}`}><td><strong>{row.name}</strong>{row.isGoalkeeper && row.minutes > 0 && !rowHasGps(row) ? <small>Sin GPS</small> : null}</td><td>{gpsValue(row, 'distance', row.totalDistance, 0, ' m')}</td><td>{gpsValue(row, 'mpm', row.metersPerMinute)}</td><td>{gpsValue(row, 'hsr', row.highSpeedDistance, 0, ' m')}</td>{hasSprintData ? <td>{gpsValue(row, 'sprint', row.sprintDistance, 0, ' m')}</td> : null}<td>{gpsValue(row, 'acc', row.acc)}</td><td>{gpsValue(row, 'dcc', row.dcc)}</td><td>{gpsValue(row, 'rhie', row.rhie)}</td><td>{gpsValue(row, 'vmax', row.maxVelocity, 1)}</td><td>{gpsValue(row, 'pl', row.playerLoad)}</td></tr>)}</tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -881,29 +942,40 @@ function GpsSummaryMetric({ icon: Icon, label, value, note, width, tone = 'blue'
 }
 
 function GpsPhysicalSection({ report }: { report: CompetitionReportData }) {
-  const rows = report.rows.filter((row) => !row.isGoalkeeper && (row.totalDistance > 0 || row.playerLoad > 0 || row.minutes > 0));
+  /* Fix #20 — Carga física del partido unificada */
+  const rows = report.rows.filter((row) => row.totalDistance > 0 || row.playerLoad > 0 || row.minutes > 0 || row.acc > 0 || row.dcc > 0 || row.rhie > 0);
   if (!rows.length) return null;
-  const distance = rows.slice().sort((a, b) => b.totalDistance - a.totalDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.totalDistance, sub: `${row.minutes || 0} min · ${row.metersPerMinute || 0} m/min` }));
-  const playerLoad = rows.slice().sort((a, b) => b.playerLoad - a.playerLoad).slice(0, 10).map((row) => ({ name: row.name, value: row.playerLoad, sub: `${row.minutes || 0} min · ${row.metersPerMinute || 0} m/min` }));
-  const hsr = rows.slice().sort((a, b) => b.highSpeedDistance - a.highSpeedDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.highSpeedDistance, sub: `${row.metersPerMinute || 0} m/min` }));
-  const sprint = rows.slice().sort((a, b) => b.sprintDistance - a.sprintDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.sprintDistance, sub: `${row.sprints || 0} sprints · ${row.metersPerMinute || 0} m/min` }));
-  const neuromuscular = rows.slice().sort((a, b) => (b.acc + b.dcc + b.rhie) - (a.acc + a.dcc + a.rhie)).slice(0, 10).map((row) => ({ name: row.name, value: row.acc + row.dcc + row.rhie, sub: `${row.metersPerMinute || 0} m/min`, acc: row.acc, dcc: row.dcc, rhie: row.rhie }));
-  const kpiValues = [report.stats.totalDistance, report.stats.avgMetersPerMinute, report.stats.highSpeedDistance, report.stats.sprintDistance, report.stats.acc + report.stats.dcc, report.stats.rhie, report.stats.playerLoad, rows.length];
+  const gpsRows = rows.filter(rowHasGps);
+  const divisor = Math.max(gpsRows.length, 1);
+  const distance = gpsRows.slice().sort((a, b) => b.totalDistance - a.totalDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.totalDistance, sub: `${row.minutes || 0} min · ${row.metersPerMinute || 0} m/min` }));
+  const playerLoad = gpsRows.slice().sort((a, b) => b.playerLoad - a.playerLoad).slice(0, 10).map((row) => ({ name: row.name, value: row.playerLoad, sub: `${row.minutes || 0} min · ${row.metersPerMinute || 0} m/min` }));
+  const hsr = gpsRows.slice().sort((a, b) => b.highSpeedDistance - a.highSpeedDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.highSpeedDistance, sub: `${row.metersPerMinute || 0} m/min` }));
+  const neuromuscular = gpsRows.slice().sort((a, b) => (b.acc + b.dcc + b.rhie) - (a.acc + a.dcc + a.rhie)).slice(0, 10).map((row) => ({ name: row.name, value: row.acc + row.dcc + row.rhie, sub: `${row.metersPerMinute || 0} m/min`, acc: row.acc, dcc: row.dcc, rhie: row.rhie }));
+  const avg = {
+    distancia: report.stats.totalDistance / divisor,
+    mmin: gpsRows.reduce((acc, row) => acc + row.metersPerMinute, 0) / divisor,
+    hsr: report.stats.highSpeedDistance / divisor,
+    sprint: report.stats.sprintDistance / divisor,
+    acc: report.stats.acc / divisor,
+    dcc: report.stats.dcc / divisor,
+    rhie: report.stats.rhie / divisor,
+    pl: report.stats.playerLoad / divisor,
+  };
+  const kpiValues = [report.stats.totalDistance, report.stats.avgMetersPerMinute, report.stats.highSpeedDistance, report.stats.sprintDistance, report.stats.acc + report.stats.dcc, report.stats.rhie, report.stats.playerLoad, gpsRows.length];
   const maxKpi = Math.max(...kpiValues, 1);
-  const avgDistance = rows.length ? report.stats.totalDistance / rows.length : 0;
-  const avgPl = rows.length ? report.stats.playerLoad / rows.length : 0;
   return (
-    <ReportSection icon={Zap} title="Carga del jugador - GPS del partido" subtitle="Distancia, Player Load, desaceleraciones, RHIE y métricas de alta intensidad.">
+    <ReportSection icon={Zap} title="Carga física del partido" subtitle="GPS de equipo y rankings individuales integrados." className="competition-gps-section fd-v2-gps-physical-section">
       <div className="fd-v2-gps-kpi-grid">
-        <GpsSummaryMetric icon={Ruler} label="Distancia total" value={`${numberFmt(report.stats.totalDistance)} m`} note={`Prom. jugador ${numberFmt(avgDistance)} m`} width={pct(report.stats.totalDistance, maxKpi)} tone="blue" />
-        <GpsSummaryMetric icon={Gauge} label="M/min promedio" value={report.stats.avgMetersPerMinute || '—'} note="Intensidad" width={pct(report.stats.avgMetersPerMinute, maxKpi)} tone="green" />
-        <GpsSummaryMetric icon={Activity} label="HSR" value={`${numberFmt(report.stats.highSpeedDistance)} m`} note="Alta intensidad" width={pct(report.stats.highSpeedDistance, maxKpi)} tone="amber" />
-        <GpsSummaryMetric icon={Trophy} label="Sprint dist." value={`${numberFmt(report.stats.sprintDistance)} m`} note="Sprint" width={pct(report.stats.sprintDistance, maxKpi)} tone="red" />
-        <GpsSummaryMetric icon={ChevronsUp} label="ACC / DCC" value={`${numberFmt(report.stats.acc)} / ${numberFmt(report.stats.dcc)}`} note="Esfuerzos" width={pct(report.stats.acc + report.stats.dcc, maxKpi)} tone="dark" />
-        <GpsSummaryMetric icon={Activity} label="RHIE" value={numberFmt(report.stats.rhie)} note="Esf. repetidos" width={pct(report.stats.rhie, maxKpi)} tone="amber" />
-        <GpsSummaryMetric icon={Zap} label="Player Load" value={numberFmt(report.stats.playerLoad)} note={`Prom. jugador ${numberFmt(avgPl)}`} width={pct(report.stats.playerLoad, maxKpi)} tone="green" />
-        <GpsSummaryMetric icon={Users} label="Jugadores GPS" value={rows.length} note="Campo" width={pct(rows.length, Math.max(rows.length, 1))} tone="neutral" />
+        <GpsSummaryMetric icon={Ruler} label="Distancia total" value={`${numberFmt(report.stats.totalDistance)} m`} note={`Prom. jugador ${numberFmt(avg.distancia)} m`} width={pct(report.stats.totalDistance, maxKpi)} tone="blue" />
+        <GpsSummaryMetric icon={Gauge} label="M/min promedio" value={report.stats.avgMetersPerMinute || '—'} note={`Prom. jugador ${numberFmt(avg.mmin)}`} width={pct(report.stats.avgMetersPerMinute, maxKpi)} tone="green" />
+        <GpsSummaryMetric icon={Activity} label="HSR" value={`${numberFmt(report.stats.highSpeedDistance)} m`} note={`Prom. jugador ${numberFmt(avg.hsr)} m`} width={pct(report.stats.highSpeedDistance, maxKpi)} tone="amber" />
+        <GpsSummaryMetric icon={Trophy} label="Sprint dist." value={`${numberFmt(report.stats.sprintDistance)} m`} note={`Prom. jugador ${numberFmt(avg.sprint)} m`} width={pct(report.stats.sprintDistance, maxKpi)} tone="red" />
+        <GpsSummaryMetric icon={ChevronsUp} label="ACC" value={numberFmt(report.stats.acc)} note={`Prom. jugador ${numberFmt(avg.acc)}`} width={pct(report.stats.acc, maxKpi)} tone="dark" />
+        <GpsSummaryMetric icon={ChevronsDown} label="DCC" value={numberFmt(report.stats.dcc)} note={`Prom. jugador ${numberFmt(avg.dcc)}`} width={pct(report.stats.dcc, maxKpi)} tone="dark" />
+        <GpsSummaryMetric icon={Activity} label="RHIE" value={numberFmt(report.stats.rhie)} note={`Prom. jugador ${numberFmt(avg.rhie)}`} width={pct(report.stats.rhie, maxKpi)} tone="amber" />
+        <GpsSummaryMetric icon={Zap} label="Player Load" value={numberFmt(report.stats.playerLoad)} note={`Prom. jugador ${numberFmt(avg.pl)}`} width={pct(report.stats.playerLoad, maxKpi)} tone="green" />
       </div>
+      <div className="fd-v2-gps-divider" />
       <div className="competition-gps-chart-grid">
         <BarPanel title="Distancia total" subtitle="Top jugadores" items={distance} color={C.blueDark} formatter={(v) => `${numberFmt(v)} m`} />
         <BarPanel title="Player Load" subtitle="Carga del jugador" items={playerLoad} color={C.blue} formatter={(v) => numberFmt(v)} />
@@ -915,35 +987,56 @@ function GpsPhysicalSection({ report }: { report: CompetitionReportData }) {
 }
 
 function ConclusionsSection({ stats }: { stats?: EyeballMatchStats | null }) {
-  /* Fix #7 — Página de conclusiones sin texto narrativo */
+  /* Fix #17 — Conclusiones con color semántico y deduplicación */
   if (!stats) return null;
+  const equivalentKeys = [
+    ['conversion', 'tasa conversion tiros', 'tasa de conversion de tiros', 'tasa de conversión de tiros'],
+    ['posesion', 'posesiones', 'dominio territorial'],
+    ['pases exitosos', 'volumen pases', 'pases'],
+  ];
+  const canonicalKey = (label: string) => {
+    const normalized = normalizeText(label);
+    const group = equivalentKeys.find((items) => items.some((item) => normalized.includes(normalizeText(item))));
+    return group?.[0] ?? normalized;
+  };
   const rows = allEyeballRows(stats).filter((row) => statNumber(row.orso) > 0 || statNumber(row.rival) > 0);
-  const strengths: Array<{ label: string; value: string }> = [];
-  const improvements: Array<{ label: string; value: string }> = [];
+  const strengths: Array<{ label: string; value: string; key: string }> = [];
+  const improvements: Array<{ label: string; value: string; key: string; priority?: number }> = [];
+  const pushUnique = (target: typeof strengths, item: { label: string; value: string; key: string; priority?: number }) => {
+    if (!target.some((existing) => existing.key === item.key)) target.push(item);
+  };
   rows.forEach((row) => {
     const o = statNumber(row.orso);
     const r = statNumber(row.rival);
     const lowerBetter = isLowerBetter(row.stat);
     if (o === 0 && r === 0) return;
-    const threshold = Math.max(o, r) * 0.2;
+    const threshold = Math.max(2, Math.max(o, r) * 0.2);
+    const key = canonicalKey(row.stat);
     if (lowerBetter) {
-      if (r - o > threshold) strengths.push({ label: row.stat, value: `${valueText(row.orso)} vs ${valueText(row.rival)}` });
-      if (o - r > threshold) improvements.push({ label: row.stat, value: `${valueText(row.orso)} vs ${valueText(row.rival)}` });
+      if (r - o > threshold) pushUnique(strengths, { label: row.stat, value: `${valueText(row.orso)} vs ${valueText(row.rival)}`, key });
+      if (o - r > threshold) pushUnique(improvements, { label: row.stat, value: `${valueText(row.orso)} vs ${valueText(row.rival)}`, key });
     } else {
-      if (o - r > threshold) strengths.push({ label: row.stat, value: `${valueText(row.orso)} vs ${valueText(row.rival)}` });
-      if (r - o > threshold) improvements.push({ label: row.stat, value: `${valueText(row.orso)} vs ${valueText(row.rival)}` });
+      if (o - r > threshold) pushUnique(strengths, { label: row.stat, value: `${valueText(row.orso)} vs ${valueText(row.rival)}`, key });
+      if (r - o > threshold) pushUnique(improvements, { label: row.stat, value: `${valueText(row.orso)} vs ${valueText(row.rival)}`, key });
     }
   });
-  const conversion = findEyeballStat(stats, ['Tasa de conversión de tiros'], ['Ofensivo']);
+  const conversion = findEyeballStat(stats, ['Tasa de conversión de tiros', 'Conversión'], ['Ofensivo']);
   const errors = findEyeballStat(stats, ['Errores'], ['Defensivo', 'Resumen']);
-  if (conversion) (statNumber(conversion.orso) >= statNumber(conversion.rival) ? strengths : improvements).unshift({ label: 'Conversión', value: `${valueText(conversion.orso)} vs ${valueText(conversion.rival)}` });
-  if (errors) (statNumber(errors.orso) <= statNumber(errors.rival) ? strengths : improvements).unshift({ label: 'Errores', value: `${valueText(errors.orso)} vs ${valueText(errors.rival)}` });
-  const unique = (items: Array<{ label: string; value: string }>) => Array.from(new Map(items.map((item) => [normalizeText(item.label), item])).values()).slice(0, 4);
+  if (conversion) {
+    const target = statNumber(conversion.orso) >= statNumber(conversion.rival) ? strengths : improvements;
+    pushUnique(target, { label: 'Conversión', value: `${valueText(conversion.orso)} vs ${valueText(conversion.rival)}`, key: 'conversion' });
+  }
+  if (errors) {
+    const item = { label: 'Errores', value: `${valueText(errors.orso)} vs ${valueText(errors.rival)}`, key: 'errores', priority: 1 };
+    if (statNumber(errors.orso) > 8) improvements.unshift(item);
+    else pushUnique(statNumber(errors.orso) <= statNumber(errors.rival) ? strengths : improvements, item);
+  }
+  const takeTop = (items: Array<{ label: string; value: string; key: string; priority?: number }>) => Array.from(new Map(items.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0)).map((item) => [item.key, item])).values()).slice(0, 4);
   return (
     <ReportSection icon={ClipboardList} title="Conclusiones del partido" className="competition-conclusions-page fd-v2-conclusions-page">
       <div className="fd-v2-conclusion-grid">
-        <div className="fd-v2-conclusion-card strengths"><h4><ThumbsUp size={16} /> Fortalezas</h4>{unique(strengths).map((item) => <span key={`str-${item.label}`}>{item.label}<b>{item.value}</b></span>)}</div>
-        <div className="fd-v2-conclusion-card improvements"><h4><AlertTriangle size={16} /> Áreas de mejora</h4>{unique(improvements).map((item) => <span key={`imp-${item.label}`}>{item.label}<b>{item.value}</b></span>)}</div>
+        <div className="fd-v2-conclusion-card strengths"><h4><ThumbsUp size={16} /> Fortalezas</h4>{takeTop(strengths).map((item) => <span key={`str-${item.key}`}>{item.label}<b>{item.value}</b></span>)}</div>
+        <div className="fd-v2-conclusion-card improvements"><h4><AlertTriangle size={16} /> Áreas de mejora</h4>{takeTop(improvements).map((item) => <span key={`imp-${item.key}`}>{item.label}<b>{item.value}</b></span>)}</div>
       </div>
     </ReportSection>
   );
@@ -967,7 +1060,7 @@ export function CompetitionReportTemplate({ report, category, className = '', co
         <div className="pdf-report-brand"><img src="/orsomarso-crest.jpg" alt="Orsomarso SC" /><div><span>Departamento de Rendimiento</span><h1>Informe estadístico de competencia</h1><p>{categoryLabel(category)} · {report.generatedAt}</p></div></div>
         <div className="pdf-report-header-meta"><strong>{formatDate(match.date)}</strong><span>{match.venue ?? 'Local'} · {match.competitionName || 'Competencia'}</span></div>
       </header>
-      <section className="pdf-report-hero competition-report-hero-premium competition-report-hero-clean fd-match-hero">
+      <section className="pdf-report-hero competition-report-hero-premium competition-report-hero-clean fd-match-hero competition-match-header">
         <div className="pdf-report-team-block"><span>Equipo</span><strong>Orsomarso SC</strong></div>
         <div className="pdf-report-score-block"><span>Marcador</span><strong>{report.score}</strong><ReportBadge text={report.resultType} tone={resultTone} /></div>
         <div className="pdf-report-team-block right"><span>Rival</span><RivalCrest match={match} className="fd-rival-crest" /><strong>{match.opponent}</strong></div>
@@ -992,10 +1085,10 @@ export function CompetitionReportTemplate({ report, category, className = '', co
 
       <ConclusionsSection stats={eyeballStats} />
 
-      {(report.medicalRows.length || report.disciplinedRows.length) ? (
+      {/* Fix #18 — Disciplina ya vive en alineación y tabla individual; no duplicar sección */}
+      {report.medicalRows.length ? (
         <div className="pdf-report-two-columns compact-blocks competition-report-bottom-grid fd-report-bottom">
-          {report.medicalRows.length ? <ReportSection icon={HeartPulse} title="Incidencias médicas"><table className="pdf-report-table compact"><thead><tr><th>Jugador</th><th>Estado</th><th>Observación</th></tr></thead><tbody>{report.medicalRows.map((row) => <tr key={row.id}><td>{row.name}</td><td>{row.medicalStatus}</td><td>{row.medicalObservation || '-'}</td></tr>)}</tbody></table></ReportSection> : null}
-          {report.disciplinedRows.length ? <ReportSection icon={AlertTriangle} title="Disciplina"><table className="pdf-report-table compact"><thead><tr><th>Jugador</th><th>Amarillas</th><th>Roja</th></tr></thead><tbody>{report.disciplinedRows.map((row) => <tr key={row.id}><td>{row.name}</td><td>{row.yellowCards}</td><td>{row.redCards}</td></tr>)}</tbody></table></ReportSection> : null}
+          <ReportSection icon={HeartPulse} title="Incidencias médicas"><table className="pdf-report-table compact"><thead><tr><th>Jugador</th><th>Estado</th><th>Observación</th></tr></thead><tbody>{report.medicalRows.map((row) => <tr key={row.id}><td>{row.name}</td><td>{row.medicalStatus}</td><td>{row.medicalObservation || '-'}</td></tr>)}</tbody></table></ReportSection>
         </div>
       ) : null}
       <footer className="pdf-report-footer"><span>Departamento de Rendimiento</span><span>{categoryLabel(category)} · Informe estadístico de competencia</span></footer>

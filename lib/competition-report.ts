@@ -139,7 +139,7 @@ export const buildCompetitionReportData = ({
       medicalStatus,
       medicalObservation,
       jerseyNumber: player?.jerseyNumber,
-      photoUrl: player?.photoUrl ?? player?.photo,
+      photoUrl: player?.photoUrl,
       goals: toSafeNumber(record.goals),
       assists: toSafeNumber(record.assists),
       goalsConceded: toSafeNumber(record.goalsConceded),

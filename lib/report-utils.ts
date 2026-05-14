@@ -132,3 +132,11 @@ export const deduplicateGpsSessions = <T extends { date?: string; sessionType?: 
   });
   return Array.from(grouped.values()).sort((a, b) => safeText(a.date, '').localeCompare(safeText(b.date, '')));
 };
+
+
+export const fieldLabel = (name: string): string => {
+  const parts = String(name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '—';
+  const surname = parts[parts.length - 1];
+  return surname.length > 9 ? surname.slice(0, 9) : surname;
+};

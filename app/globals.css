@@ -8437,3 +8437,88 @@ img[loading="lazy"] { background: var(--line-soft); }
   .scout-line-chart-pro .point-label { font-size: 8px !important; }
   .scout-line-chart-pro .point-label-latest { font-size: 11px !important; }
 }
+
+/* V127 - Competition report logic/layout corrections */
+/* Fix #11 — Portada en una sola pagina */
+.competition-cover.orso-match-cover { padding: 24px !important; }
+.competition-cover .fd-cover-score strong { font-size: 72px; }
+.competition-cover .fd-v2-traffic-chips { width: min(760px, 96%); }
+.competition-cover .fd-v2-traffic-chip { min-height: 36px; padding: 8px 12px; }
+
+/* Fix #12 — Header de partido unido a alineacion */
+.competition-match-header { margin-bottom: 16px !important; page-break-after: auto !important; break-after: auto !important; }
+.fd-report-topline { page-break-after: auto !important; break-after: auto !important; }
+
+/* Fix #14 — avatar con fallback por iniciales */
+.fd-v2-avatar-shell { position: relative; display: inline-grid; place-items: center; border-radius: 50%; overflow: hidden; line-height: 1; flex: 0 0 auto; }
+.fd-v2-avatar-shell img { position: absolute; inset: 0; z-index: 2; }
+.fd-v2-avatar-shell .fd-v2-avatar-initials { position: relative; z-index: 1; }
+
+/* Fix #15 — lista lateral mas compacta */
+.fd-v2-roster-card.inactive-sub { opacity: .58; background: #f8fafc; }
+.fd-v2-roster-card.inactive-sub .fd-v2-min-bar.empty { background: transparent; }
+.fd-v2-min-bar.empty { height: 1px; }
+
+/* Fix #17 — conclusiones semanticas */
+.fd-v2-conclusion-card { border-left: 3px solid transparent; }
+.fd-v2-conclusion-card.strengths { border-left-color: #059669; }
+.fd-v2-conclusion-card.improvements { border-left-color: #dc2626; }
+.fd-v2-conclusion-card h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+.fd-v2-conclusion-card.strengths h4 { color: #059669; }
+.fd-v2-conclusion-card.improvements h4 { color: #dc2626; }
+.fd-v2-conclusion-card span { border-radius: 0; background: transparent; border-bottom: .5px solid rgba(15,23,42,.12); padding: 6px 0; }
+.fd-v2-conclusion-card.strengths span { color: #064e3b; border-bottom-color: #d1fae5; }
+.fd-v2-conclusion-card.improvements span { color: #7f1d1d; border-bottom-color: #fee2e2; }
+.fd-v2-conclusion-card.strengths b { color: #059669; }
+.fd-v2-conclusion-card.improvements b { color: #dc2626; }
+
+/* Fix #19 — tablas separadas tecnico/fisico */
+.fd-v2-integrated-split { display: grid; gap: 12px; }
+.fd-v2-table-chip { display: inline-flex; width: max-content; margin: 0 0 6px; padding: 4px 8px; border-radius: 999px; background: #06152f; color: #fff; font-size: 8px; font-weight: 950; letter-spacing: .12em; }
+.fd-v2-table-chip.physical { background: #1557d6; }
+.fd-v2-physical-table td small { display: block; margin-top: 2px; color: #94a3b8; font-size: 7px; font-weight: 850; }
+.fd-v2-no-gps { color: #94a3b8; font-size: 8px; font-weight: 850; }
+
+/* Fix #20 — carga fisica conectada */
+.fd-v2-gps-physical-section .pdf-report-section-heading { margin-bottom: 10px; }
+.fd-v2-gps-divider { height: 1px; margin: 12px 0; background: linear-gradient(90deg, transparent, #d8e1ee, transparent); }
+.competition-gps-section { break-inside: avoid; page-break-inside: avoid; }
+
+@media print {
+  @page { size: A4 portrait; margin: 8mm; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .competition-cover.orso-match-cover { max-height: 100vh !important; min-height: 0 !important; overflow: hidden !important; padding: 6mm !important; page-break-after: always !important; break-after: page !important; }
+  .competition-cover .fd-cover-logo span { font-size: 24pt !important; }
+  .competition-cover .fd-cover-logo strong { font-size: 7pt !important; }
+  .competition-cover .fd-cover-main { gap: 2mm !important; }
+  .competition-cover .fd-cover-main span { font-size: 10pt !important; }
+  .competition-cover .fd-cover-main h1 { font-size: 24pt !important; }
+  .competition-cover .fd-cover-main p { font-size: 6pt !important; }
+  .competition-cover .fd-cover-match { gap: 6mm !important; width: 100% !important; }
+  .competition-cover .fd-cover-match img, .competition-cover .fd-rival-crest { width: 18mm !important; height: 18mm !important; }
+  .competition-cover .fd-cover-match div { font-size: 8pt !important; gap: 2mm !important; }
+  .competition-cover .fd-cover-score { gap: 2mm !important; }
+  .competition-cover .fd-cover-score strong { font-size: 72px !important; }
+  .competition-cover .fd-v2-traffic-chips { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 2mm !important; width: 100% !important; }
+  .competition-cover .fd-v2-traffic-chip { height: 36px !important; min-height: 36px !important; padding: 1mm 2mm !important; gap: 1.5mm !important; box-shadow: none !important; }
+  .competition-cover .fd-v2-traffic-chip strong { font-size: 5.8pt !important; }
+  .competition-cover .fd-v2-traffic-chip span { font-size: 5.5pt !important; }
+  .competition-match-header, .fd-report-topline, .fd-match-hero { page-break-after: auto !important; break-after: auto !important; margin-bottom: 4mm !important; }
+  .competition-lineup-page { page-break-before: always !important; break-before: page !important; break-inside: avoid !important; min-height: 0 !important; }
+  .fd-v2-lineup-layout { grid-template-columns: 55% 45% !important; gap: 3mm !important; }
+  .fd-v2-pitch { min-height: 115mm !important; padding: 3mm !important; }
+  .fd-v2-field-player strong { text-overflow: clip !important; overflow: hidden !important; }
+  .fd-v2-bench-row { display: none !important; }
+  .fd-v2-roster-list { gap: .7mm !important; padding: 1.5mm !important; }
+  .fd-v2-roster-card { grid-template-columns: 6mm 6mm minmax(0,1fr) 17mm 8mm auto !important; gap: .8mm !important; min-height: 6.3mm !important; padding: .6mm 0 !important; border-radius: 1.3mm !important; }
+  .fd-v2-roster-card img, .fd-v2-roster-card .fd-v2-avatar-shell, .fd-v2-roster-card .fd-v2-avatar-initials { width: 24px !important; height: 24px !important; font-size: 4.2pt !important; }
+  .fd-v2-roster-card strong { font-size: 9px !important; }
+  .fd-v2-roster-card > span { font-size: 5pt !important; }
+  .fd-v2-roster-chips em { font-size: 4.8pt !important; padding: .6mm 1mm !important; }
+  .fd-v2-gps-detail-table th, .fd-v2-gps-detail-table td { font-size: 8px !important; padding: 1.2mm !important; }
+  .competition-gps-section { page-break-before: always !important; break-before: page !important; }
+  .competition-conclusions-page { page-break-before: always !important; break-before: page !important; }
+  .fd-v2-conclusion-card { min-height: 0 !important; padding: 3mm 4mm !important; border-radius: 2mm !important; }
+  .fd-v2-line-card { min-height: 110px !important; }
+  .fd-v2-line-card svg { height: 110px !important; }
+}

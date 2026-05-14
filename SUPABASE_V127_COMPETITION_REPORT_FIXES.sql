@@ -1,0 +1,3 @@
+-- V127 - Competition report visual and logic fixes
+-- No schema changes required.
+-- This release adjusts the React/CSS report template only.

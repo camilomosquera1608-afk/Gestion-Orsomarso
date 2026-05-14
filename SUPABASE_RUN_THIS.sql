@@ -1267,3 +1267,6 @@ commit;
 -- V125 - COMPETITION REPORT VISUAL REDESIGN
 -- =========================================================
 -- No schema changes required.
+
+-- V127 - Competition report visual and logic fixes
+-- No schema changes required.
