@@ -1262,3 +1262,4 @@ commit;
 -- ============================================================
 -- No hay cambios obligatorios de estructura en Supabase.
 -- Esta versión mejora el reporte PDF, navegación y carga local-first de sincronización.
+\n\n-- V124_PLAYER_REPORT_VISUAL_REFINEMENT: solo nota de version, sin cambios de esquema.\n

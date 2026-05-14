@@ -1,0 +1,4 @@
+-- V124_PLAYER_REPORT_VISUAL_REFINEMENT
+-- Nota de version: no requiere cambios obligatorios de esquema.
+-- Cambios frontend: mejora visual del Reporte jugador, graficas SVG, promedios GPS,
+-- tabla GPS con m/min/ACC/DCC/Vmax, estados vacios y escalas de valoraciones.

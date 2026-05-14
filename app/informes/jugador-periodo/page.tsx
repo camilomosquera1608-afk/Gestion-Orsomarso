@@ -1,19 +1,25 @@
 'use client';
 
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import Image from 'next/image';
 import {
   Activity,
   BarChart3,
   CalendarDays,
+  ChevronsDown,
+  ChevronsUp,
+  ClipboardList,
   Download,
   Dumbbell,
   FileText,
+  Gauge,
   HeartPulse,
+  Percent,
+  Ruler,
   Scale,
   ShieldCheck,
   Trophy,
-  UserRound,
+  Utensils,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -36,7 +42,7 @@ import type { ClubCategory, CompetitionRecord, DailyExternalLoadRecord, DailyInt
 
 type Tone = 'blue' | 'cyan' | 'green' | 'amber' | 'red' | 'navy';
 type ChartPoint = { label: string; value: number };
-type BarItem = { label: string; value: number; suffix?: string; decimals?: number };
+type BarItem = { label: string; value: number; suffix?: string; decimals?: number; icon?: LucideIcon };
 type Kpi = { label: string; value: unknown; note?: string; icon: LucideIcon; tone?: Tone; suffix?: string; decimals?: number };
 
 const todayInputDate = () => new Date().toISOString().slice(0, 10);
@@ -83,6 +89,18 @@ const pointSeries = <T extends { date: string }>(rows: T[], read: (row: T) => un
   .map((row) => ({ label: row.date.slice(5), value: asNumber(read(row)) }))
   .filter((point) => Number.isFinite(point.value) && point.value !== 0);
 
+function toneForValue(kind: 'status' | 'wellness' | 'default', value: unknown): Tone {
+  if (kind === 'status') return String(value) === 'Disponible' ? 'green' : String(value) === 'Lesionado' ? 'red' : 'amber';
+  if (kind === 'wellness') {
+    const num = asNumber(value);
+    if (!num) return 'navy';
+    if (num < 3) return 'red';
+    if (num < 4) return 'amber';
+    return 'green';
+  }
+  return 'blue';
+}
+
 function KpiGrid({ items }: { items: Kpi[] }) {
   const clean = items.filter((item) => hasValidValue(item.value));
   if (!clean.length) return null;
@@ -103,6 +121,18 @@ function KpiGrid({ items }: { items: Kpi[] }) {
       })}
     </div>
   );
+}
+
+function GpsAveragesGrid({ sessions, totalDistance, playerLoad, acc, dcc, rhie }: { sessions: number; totalDistance: number; playerLoad: number; acc: number; dcc: number; rhie: number }) {
+  if (!sessions) return null;
+  const items: Kpi[] = [
+    { icon: Ruler, label: 'Dist/sesión', value: totalDistance / sessions, suffix: ' m', note: 'prom/sesión', tone: 'blue' },
+    { icon: Zap, label: 'PL/sesión', value: playerLoad / sessions, note: 'prom/sesión', tone: 'cyan' },
+    { icon: ChevronsUp, label: 'ACC/sesión', value: acc / sessions, note: 'prom/sesión', tone: 'green' },
+    { icon: ChevronsDown, label: 'DCC/sesión', value: dcc / sessions, note: 'prom/sesión', tone: 'amber' },
+    { icon: Activity, label: 'RHIE/sesión', value: rhie / sessions, note: 'prom/sesión', tone: 'navy' },
+  ];
+  return <div className="scout-gps-average-strip"><KpiGrid items={items} /></div>;
 }
 
 function Section({ eyebrow, title, children, className = '' }: { eyebrow: string; title: string; children: ReactNode; className?: string }) {
@@ -141,10 +171,11 @@ function BarsCard({ title, subtitle, items, tone = 'blue' }: { title: string; su
       <div className="scout-chart-head"><strong>{title}</strong>{subtitle ? <span>{subtitle}</span> : null}</div>
       <div className="scout-bars">
         {clean.map((item) => {
-          const width = Math.max(4, Math.min(100, (Math.abs(item.value) / peak) * 100));
+          const Icon = item.icon;
+          const width = Math.max(0.8, Math.min(100, (Math.abs(item.value) / peak) * 100));
           return (
             <div className="scout-bar-row" key={item.label}>
-              <b>{item.label}</b>
+              <b>{Icon ? <Icon size={14} /> : null}{item.label}</b>
               <i><em style={{ width: `${width}%` }} /></i>
               <strong>{formatMetric(item.value, item.suffix ?? '', item.decimals ?? 0)}</strong>
             </div>
@@ -155,36 +186,57 @@ function BarsCard({ title, subtitle, items, tone = 'blue' }: { title: string; su
   );
 }
 
-function LineChartCard({ title, subtitle, points, tone = 'blue', suffix = '', decimals = 0 }: { title: string; subtitle?: string; points: ChartPoint[]; tone?: Tone; suffix?: string; decimals?: number }) {
+function LineChartCard({ title, subtitle, points, tone = 'blue', suffix = '', decimals = 0, icon: Icon = Activity }: { title: string; subtitle?: string; points: ChartPoint[]; tone?: Tone; suffix?: string; decimals?: number; icon?: LucideIcon }) {
   const clean = points.filter((point) => Number.isFinite(point.value) && point.value !== 0);
   if (clean.length < 2) return null;
   const values = clean.map((point) => point.value);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
-  const span = Math.max(1, maxValue - minValue);
-  const width = 360;
-  const height = 150;
-  const x = (index: number) => 24 + (index / Math.max(1, clean.length - 1)) * (width - 48);
-  const y = (value: number) => 108 - ((value - minValue) / span) * 72;
+  const padding = Math.max(1, (maxValue - minValue) * 0.12);
+  const low = Math.max(0, minValue - padding);
+  const high = maxValue + padding;
+  const span = Math.max(1, high - low);
+  const width = 430;
+  const height = 205;
+  const plot = { left: 46, right: 20, top: 28, bottom: 48 };
+  const plotWidth = width - plot.left - plot.right;
+  const plotHeight = height - plot.top - plot.bottom;
+  const x = (index: number) => plot.left + (index / Math.max(1, clean.length - 1)) * plotWidth;
+  const y = (value: number) => plot.top + ((high - value) / span) * plotHeight;
   const linePath = clean.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index).toFixed(1)} ${y(point.value).toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L ${x(clean.length - 1).toFixed(1)} 112 L 24 112 Z`;
+  const areaPath = `${linePath} L ${x(clean.length - 1).toFixed(1)} ${(plot.top + plotHeight).toFixed(1)} L ${plot.left} ${(plot.top + plotHeight).toFixed(1)} Z`;
   const latest = clean[clean.length - 1];
+  const yTicks = [high, low + span * 0.66, low + span * 0.33, low];
+  const gradientId = `grad-${title.replace(/[^a-z0-9]/gi, '').toLowerCase()}`;
   return (
-    <div className={`scout-chart-card scout-chart-${tone}`}>
-      <div className="scout-chart-head"><strong>{title}</strong><span>{subtitle ?? `${clean[0].label} - ${latest.label}`}</span></div>
-      <svg className="scout-line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
-        <line x1="24" y1="112" x2="336" y2="112" />
-        <line x1="24" y1="32" x2="24" y2="112" />
-        <path d={areaPath} className="area" />
+    <div className={`scout-chart-card scout-chart-${tone} scout-line-card-pro`}>
+      <div className="scout-chart-head scout-chart-head-icon"><strong><Icon size={16} />{title}</strong><span>{subtitle ?? `${clean[0].label} - ${latest.label}`}</span></div>
+      <svg className="scout-line-chart scout-line-chart-pro" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.20" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {yTicks.map((tick, index) => {
+          const yy = y(tick);
+          return <g key={`${title}-tick-${index}`}><line x1={plot.left} y1={yy} x2={width - plot.right} y2={yy} className="grid" /><text x={plot.left - 8} y={yy + 3} textAnchor="end" className="axis-label">{formatMetric(tick, suffix, decimals)}</text></g>;
+        })}
+        <path d={areaPath} fill={`url(#${gradientId})`} className="area" />
         <path d={linePath} className="line" />
-        {clean.map((point, index) => <circle key={`${title}-${point.label}-${index}`} cx={x(index)} cy={y(point.value)} r="4" />)}
-        <text x="24" y="136" fill="#64748b" fontSize="10" fontWeight="800">{clean[0].label}</text>
-        <text x="336" y="136" fill="#64748b" fontSize="10" fontWeight="800" textAnchor="end">{latest.label}</text>
+        {clean.map((point, index) => {
+          const latestPoint = index === clean.length - 1;
+          return (
+            <g key={`${title}-${point.label}-${index}`}>
+              <circle cx={x(index)} cy={y(point.value)} r={latestPoint ? 5.5 : 3.8} className={latestPoint ? 'dot latest' : 'dot'} />
+              <text x={x(index)} y={Math.max(12, y(point.value) - 9)} textAnchor="middle" className="point-label">{formatMetric(point.value, suffix, decimals)}</text>
+              <text x={x(index)} y={height - 14} transform={`rotate(30 ${x(index)} ${height - 14})`} textAnchor="start" className="x-label">{point.label}</text>
+            </g>
+          );
+        })}
+        <rect x={width - 116} y="6" width="96" height="25" rx="12" className="last-badge" />
+        <text x={width - 68} y="22" textAnchor="middle" className="last-badge-text">{formatMetric(latest.value, suffix, decimals)}</text>
       </svg>
-      <div className="scout-chart-foot">
-        <span>Último registro</span>
-        <strong>{formatMetric(latest.value, suffix, decimals)}</strong>
-      </div>
     </div>
   );
 }
@@ -199,6 +251,101 @@ function RingCard({ title, value, maxValue, suffix = '', tone = 'blue', decimals
     </div>
   );
 }
+
+function WellnessGauge({ value }: { value: number }) {
+  if (!hasValidValue(value)) return null;
+  const pct = Math.max(0, Math.min(100, (value / 5) * 100));
+  return (
+    <div className="scout-wellness-gauge-card">
+      <div className="scout-chart-head scout-chart-head-icon"><strong><HeartPulse size={16} />Wellness</strong><span>Escala 0-5</span></div>
+      <div className="scout-wellness-gauge" style={{ ['--wellness-value' as string]: `${pct}%` } as CSSProperties}>
+        <div className="scout-wellness-gauge-inner"><strong>{formatMetric(value, '', 1)}</strong><span>/ 5</span></div>
+      </div>
+      <div className="scout-zone-legend"><span><i className="zone-red" />0-3</span><span><i className="zone-amber" />3-4</span><span><i className="zone-green" />4-5</span></div>
+    </div>
+  );
+}
+
+function ReferenceBar({ label, value, min, max, optimalMin, optimalMax, suffix = '', decimals = 0, icon: Icon = Activity }: { label: string; value: unknown; min: number; max: number; optimalMin: number; optimalMax: number; suffix?: string; decimals?: number; icon?: LucideIcon }) {
+  if (!hasValidValue(value)) return null;
+  const numeric = asNumber(value);
+  const span = Math.max(1, max - min);
+  const left = Math.max(0, Math.min(100, ((numeric - min) / span) * 100));
+  const optimalLeft = Math.max(0, Math.min(100, ((optimalMin - min) / span) * 100));
+  const optimalWidth = Math.max(0, Math.min(100 - optimalLeft, ((optimalMax - optimalMin) / span) * 100));
+  return (
+    <div className="scout-reference-row">
+      <div className="scout-reference-label"><Icon size={14} /><span>{label}</span><strong>{formatMetric(numeric, suffix, decimals)}</strong></div>
+      <div className="scout-reference-track">
+        <i className="red left" /><i className="amber left" /><i className="green" style={{ left: `${optimalLeft}%`, width: `${optimalWidth}%` }} /><i className="amber right" /><i className="red right" />
+        <em style={{ left: `${left}%` }} />
+      </div>
+      <div className="scout-reference-scale"><span>{formatMetric(min, suffix, decimals)}</span><span>{formatMetric(max, suffix, decimals)}</span></div>
+    </div>
+  );
+}
+
+function PhysicalProfileCard({ nutrition, position }: { nutrition?: NutritionRecord; position: string }) {
+  if (!nutrition) return null;
+  const isCenterBack = position.toLowerCase().includes('central');
+  const weight = isCenterBack ? { min: 68, max: 90, optimalMin: 72, optimalMax: 84 } : { min: 55, max: 95, optimalMin: 65, optimalMax: 82 };
+  return (
+    <div className="scout-donut-card scout-physical-profile">
+      <div className="scout-chart-head scout-chart-head-icon"><strong><Scale size={16} />Valoración física</strong><span>{formatPdfDate(nutrition.date)}</span></div>
+      <ReferenceBar icon={Ruler} label="Talla" value={nutrition.height} min={165} max={200} optimalMin={176} optimalMax={190} suffix=" cm" />
+      <ReferenceBar icon={Scale} label="Peso" value={nutrition.weight} min={weight.min} max={weight.max} optimalMin={weight.optimalMin} optimalMax={weight.optimalMax} suffix=" kg" decimals={1} />
+      <ReferenceBar icon={Percent} label="% grasa" value={nutrition.bodyFat} min={5} max={15} optimalMin={5.7} optimalMax={7.8} suffix="%" decimals={1} />
+      <ReferenceBar icon={Dumbbell} label="% muscular" value={nutrition.muscleMassPercentage} min={40} max={60} optimalMin={48} optimalMax={56} suffix="%" decimals={1} />
+    </div>
+  );
+}
+
+function NutritionCard({ nutrition }: { nutrition?: NutritionRecord }) {
+  if (!nutrition) return null;
+  const plan = nutrition.plan;
+  const fatRange = nutrition.fatPercentageRange;
+  return (
+    <div className="scout-donut-card scout-nutrition-card">
+      <div className="scout-chart-head scout-chart-head-icon"><strong><Utensils size={16} />Nutrición</strong><span>{formatPdfDate(nutrition.date)}</span></div>
+      <div className="scout-pill-grid">
+        {hasValidValue(fatRange) ? <span className="scout-status-pill green"><Percent size={13} />{fatRange}</span> : null}
+        {hasValidValue(plan) ? <span className="scout-status-pill blue"><ClipboardList size={13} />{plan}</span> : null}
+      </div>
+      {hasValidValue(nutrition.diagnosis) ? <p className="pdf-manual-note">{getPdfSafeText(nutrition.diagnosis, '')}</p> : null}
+    </div>
+  );
+}
+
+function EmptyCompetitionState() {
+  return <div className="scout-empty-card"><Trophy size={22} /><strong>Sin competencias en el período</strong><span>No hay partidos registrados para el rango seleccionado.</span></div>;
+}
+
+function CompetitionPills({ rows }: { rows: CompetitionRecord[] }) {
+  if (!rows.length) return <EmptyCompetitionState />;
+  return (
+    <div className="scout-match-pills">
+      {rows.slice(-6).reverse().map((record) => (
+        <div className="scout-match-pill" key={`${record.date}-${record.matchId ?? record.opponent}`}>
+          <span>{formatPdfDate(record.date)}</span><strong>{record.opponent || 'Rival'}</strong><em>{hasValidValue(record.minutesPlayed) ? `${record.minutesPlayed} min` : 'Registro'}</em>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GpsDataTable({ rows }: { rows: Array<Record<string, unknown>> }) {
+  if (!rows.length) return null;
+  const visibleColumns = ['Fecha', 'Tipo', 'Min', 'Distancia', 'PL', 'm/min', 'ACC', 'DCC', 'Vmax', 'RHIE'].filter((column) => rows.some((row) => hasValidValue(row[column])));
+  return (
+    <div className="fd-table-wrap">
+      <table className="pdf-report-table compact scout-table scout-gps-heat-table">
+        <thead><tr>{visibleColumns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+        <tbody>{rows.map((row, index) => <tr key={index}>{visibleColumns.map((column) => <td key={column} className={String(row[`${column}Tone`] ?? '')}>{hasValidValue(row[column]) ? String(row[column]) : <span className="scout-muted-cell">—</span>}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
 
 function DataTable({ columns, rows }: { columns: string[]; rows: Array<Record<string, unknown>> }) {
   const cleanRows = rows.filter((row) => Object.values(row).some((value) => hasValidValue(value)));
@@ -283,6 +430,13 @@ export default function PlayerPeriodReportPage() {
   const dcc = sum(report.external, (record: DailyExternalLoadRecord) => record.dcc);
   const rhie = sum(report.external, (record: DailyExternalLoadRecord) => record.rhie);
   const externalMinutes = sum(report.external, (record: DailyExternalLoadRecord) => record.min);
+  const gpsSessions = report.external.filter((record: DailyExternalLoadRecord) => hasValidSectionData(record.totalDistance, record.playerLoad, record.acc, record.dcc, record.rhie)).length;
+  const avgMmin = avg(report.external.map((record: DailyExternalLoadRecord) => {
+    const explicit = Number(record.distancePerMin);
+    if (Number.isFinite(explicit) && explicit > 0) return explicit;
+    const min = asNumber(record.min);
+    return min > 0 ? asNumber(record.totalDistance) / min : 0;
+  }), 1);
   const matchMinutes = sum(report.competition, (record: CompetitionRecord) => record.minutesPlayed);
   const matches = report.competition.length;
   const goals = sum(report.competition, (record: CompetitionRecord) => record.goals);
@@ -316,16 +470,52 @@ export default function PlayerPeriodReportPage() {
     DCC: hasValidValue(record.dcc) ? record.dcc : '',
   }));
 
-  const gpsRows = uniqueBy(report.external.slice(-12).reverse(), (record) => `${record.date}-${record.sessionId ?? ''}-${record.movementModule ?? ''}-${record.min ?? ''}-${Math.round(record.totalDistance ?? 0)}-${Math.round(record.playerLoad ?? 0)}`).map((record) => ({
-    Fecha: formatPdfDate(record.date),
-    Tipo: record.movementModule === 'competencia' ? 'Competencia' : record.sessionType ?? 'Sesión',
-    Min: hasValidValue(record.min) ? formatMetric(record.min, ' min') : '',
-    Distancia: formatMetric(record.totalDistance, ' m', 0),
-    PL: formatMetric(record.playerLoad, '', 0),
-    HSR: formatMetric(record.hsr ?? record.highSpeedDistance, ' m', 0),
-    Sprint: formatMetric(record.sprintDistance, ' m', 0),
-    RHIE: hasValidValue(record.rhie) ? record.rhie : '',
-  }));
+  const uniqueGpsRecords = uniqueBy(report.external.slice(-12).reverse(), (record) => `${record.date}-${record.sessionId ?? ''}-${record.movementModule ?? ''}-${record.min ?? ''}-${Math.round(record.totalDistance ?? 0)}-${Math.round(record.playerLoad ?? 0)}`);
+  const gpsTone = (value: unknown, values: number[]) => {
+    const num = asNumber(value);
+    const clean = values.filter((item) => Number.isFinite(item) && item > 0);
+    if (!num || !clean.length) return '';
+    const peak = Math.max(...clean);
+    const ratio = peak > 0 ? num / peak : 0;
+    if (ratio >= 0.75) return 'heat-green';
+    if (ratio >= 0.45) return 'heat-amber';
+    return 'heat-red';
+  };
+  const gpsHeatValues = {
+    PL: uniqueGpsRecords.map((record) => asNumber(record.playerLoad)),
+    Distancia: uniqueGpsRecords.map((record) => asNumber(record.totalDistance)),
+    ACC: uniqueGpsRecords.map((record) => asNumber(record.acc)),
+    DCC: uniqueGpsRecords.map((record) => asNumber(record.dcc)),
+    RHIE: uniqueGpsRecords.map((record) => asNumber(record.rhie)),
+    Vmax: uniqueGpsRecords.map((record) => asNumber(record.maxVelocity)),
+    'm/min': uniqueGpsRecords.map((record) => {
+      const min = asNumber(record.min);
+      return min > 0 ? asNumber(record.totalDistance) / min : asNumber(record.distancePerMin);
+    }),
+  };
+  const gpsRows = uniqueGpsRecords.map((record) => {
+    const min = asNumber(record.min);
+    const mmin = min > 0 ? asNumber(record.totalDistance) / min : asNumber(record.distancePerMin);
+    return {
+      Fecha: formatPdfDate(record.date),
+      Tipo: record.movementModule === 'competencia' ? 'Competencia' : record.sessionType ?? 'Sesión',
+      Min: hasValidValue(record.min) ? formatMetric(record.min, ' min') : '',
+      Distancia: formatMetric(record.totalDistance, ' m', 0),
+      PL: formatMetric(record.playerLoad, '', 0),
+      'm/min': formatMetric(mmin, '', 1),
+      ACC: hasValidValue(record.acc) ? record.acc : '',
+      DCC: hasValidValue(record.dcc) ? record.dcc : '',
+      Vmax: formatMetric(record.maxVelocity, ' km/h', 1),
+      RHIE: hasValidValue(record.rhie) ? record.rhie : '',
+      DistanciaTone: gpsTone(record.totalDistance, gpsHeatValues.Distancia),
+      PLTone: gpsTone(record.playerLoad, gpsHeatValues.PL),
+      'm/minTone': gpsTone(mmin, gpsHeatValues['m/min']),
+      ACCTone: gpsTone(record.acc, gpsHeatValues.ACC),
+      DCCTone: gpsTone(record.dcc, gpsHeatValues.DCC),
+      VmaxTone: gpsTone(record.maxVelocity, gpsHeatValues.Vmax),
+      RHIETone: gpsTone(record.rhie, gpsHeatValues.RHIE),
+    };
+  });
 
   const latestEvaluationItems = [
     { label: 'Fecha valoración', value: latestNutrition?.date ? formatPdfDate(latestNutrition.date) : '' },
@@ -436,15 +626,16 @@ export default function PlayerPeriodReportPage() {
 
         <Section eyebrow="Resumen del período" title="Indicadores principales" className="scout-section-main">
           <KpiGrid items={[
-            { icon: ShieldCheck, label: 'Estado', value: player.status, note: 'Disponibilidad', tone: player.status === 'Disponible' ? 'green' : 'amber' },
+            { icon: ShieldCheck, label: 'Estado', value: player.status, note: 'Disponibilidad', tone: toneForValue('status', player.status) },
             { icon: Trophy, label: 'Partidos', value: matches, note: formatMetric(matchMinutes, ' min'), tone: 'navy' },
             { icon: Activity, label: 'Carga interna', value: internalTotal, note: 'UA acumulada', tone: 'blue' },
             { icon: Zap, label: 'Player Load', value: playerLoad, note: 'GPS total', tone: 'cyan' },
-            { icon: BarChart3, label: 'Distancia', value: totalDistance, suffix: ' m', note: 'GPS total', tone: 'green' },
-            { icon: HeartPulse, label: 'Wellness', value: wellnessAverage, note: latestWellness?.date ? `Último: ${formatPdfDate(latestWellness.date)}` : undefined, tone: 'amber', decimals: 1 },
+            { icon: Ruler, label: 'Distancia', value: totalDistance, suffix: ' m', note: 'GPS total', tone: 'green' },
+            { icon: HeartPulse, label: 'Wellness', value: wellnessAverage, note: latestWellness?.date ? `Último: ${formatPdfDate(latestWellness.date)}` : undefined, tone: toneForValue('wellness', wellnessAverage), decimals: 1 },
             { icon: Scale, label: 'Peso valoración', value: latestNutrition?.weight, suffix: ' kg', note: latestNutrition?.date ? formatPdfDate(latestNutrition.date) : undefined, tone: 'blue', decimals: 1 },
             { icon: Dumbbell, label: 'CMJ', value: cmjValue, suffix: ' cm', note: latestCmj?.date ? formatPdfDate(latestCmj.date) : latestNeuro?.date ? formatPdfDate(latestNeuro.date) : undefined, tone: 'green', decimals: 1 },
           ]} />
+          <GpsAveragesGrid sessions={gpsSessions} totalDistance={totalDistance} playerLoad={playerLoad} acc={acc} dcc={dcc} rhie={rhie} />
         </Section>
         </div>
 
@@ -453,25 +644,40 @@ export default function PlayerPeriodReportPage() {
           <Section eyebrow="Mapa deportivo" title="Competencia y carga externa" className="scout-section-feature">
             <div className="scout-visual-grid">
               <RingCard title="Minutos jugados vs. disponibles" value={matchMinutes} maxValue={maxPossibleMinutes} suffix=" min" tone="blue" />
-              <RingCard title="Wellness promedio / 5" value={wellnessAverage} maxValue={5} tone="green" decimals={1} />
+              <WellnessGauge value={wellnessAverage} />
               <BarsCard title="Producción competitiva" subtitle="Totales" tone="navy" items={[
-                { label: 'Min', value: matchMinutes, suffix: ' min' },
-                { label: 'Goles', value: goals },
-                { label: 'Asist', value: assists },
-                { label: 'TA', value: yellows },
-                { label: 'TR', value: reds },
+                { label: 'Min', value: matchMinutes, suffix: ' min', icon: CalendarDays },
+                { label: 'Goles', value: goals, icon: Trophy },
+                { label: 'Asist', value: assists, icon: Activity },
+                { label: 'TA', value: yellows, icon: ShieldCheck },
+                { label: 'TR', value: reds, icon: ShieldCheck },
               ]} />
               <BarsCard title="GPS integrado" subtitle="Entreno + partido" tone="cyan" items={[
-                { label: 'Dist', value: totalDistance, suffix: ' m' },
-                { label: 'PL', value: playerLoad },
-                { label: 'HSR', value: hsr, suffix: ' m' },
-                { label: 'Sprint', value: sprint, suffix: ' m' },
-                { label: 'ACC', value: acc },
-                { label: 'DCC', value: dcc },
-                { label: 'RHIE', value: rhie },
+                { label: 'Dist', value: totalDistance, suffix: ' m', icon: Ruler },
+                { label: 'PL', value: playerLoad, icon: Zap },
+                { label: 'HSR', value: hsr, suffix: ' m', icon: Activity },
+                { label: 'Sprint', value: sprint, suffix: ' m', icon: Activity },
+                { label: 'ACC', value: acc, icon: ChevronsUp },
+                { label: 'DCC', value: dcc, icon: ChevronsDown },
+                { label: 'RHIE', value: rhie, icon: Activity },
               ]} />
             </div>
           </Section>
+          </div>
+        ) : null}
+
+        {gpsSessions ? (
+          <div className="scout-page scout-page-gps-averages">
+            <Section eyebrow="GPS" title="Promedios GPS del período" className="scout-section-feature">
+              <KpiGrid items={[
+                { icon: Ruler, label: 'Dist/sesión', value: totalDistance / gpsSessions, suffix: ' m', note: 'prom/sesión', tone: 'blue' },
+                { icon: Zap, label: 'PL/sesión', value: playerLoad / gpsSessions, note: 'prom/sesión', tone: 'cyan' },
+                { icon: ChevronsUp, label: 'ACC/sesión', value: acc / gpsSessions, note: 'prom/sesión', tone: 'green' },
+                { icon: ChevronsDown, label: 'DCC/sesión', value: dcc / gpsSessions, note: 'prom/sesión', tone: 'amber' },
+                { icon: Activity, label: 'RHIE/sesión', value: rhie / gpsSessions, note: 'prom/sesión', tone: 'navy' },
+                { icon: Gauge, label: 'm/min prom', value: avgMmin, note: 'promedio', tone: 'blue', decimals: 1 },
+              ]} />
+            </Section>
           </div>
         ) : null}
 
@@ -479,14 +685,14 @@ export default function PlayerPeriodReportPage() {
           <div className="scout-page scout-page-evolution">
         <Section eyebrow="Evolución" title="Gráficos del período" className="scout-section-feature">
           <div className="scout-visual-grid">
-            <LineChartCard title="Player Load" points={playerLoadPoints} tone="cyan" />
-            <LineChartCard title="Distancia" points={distancePoints} suffix=" m" tone="green" />
-            <LineChartCard title="Carga interna" points={internalPoints} suffix=" UA" tone="blue" />
-            <LineChartCard title="Wellness" points={wellnessPoints} decimals={1} tone="amber" />
-            <LineChartCard title="Peso" points={weightPoints} suffix=" kg" decimals={1} tone="blue" />
-            <LineChartCard title="% grasa" points={bodyFatPoints} suffix="%" decimals={1} tone="red" />
-            <LineChartCard title="CMJ" points={cmjPoints} suffix=" cm" decimals={1} tone="green" />
-            <LineChartCard title="FMS" points={fmsPoints} suffix=" pts" tone="navy" />
+            <LineChartCard title="Player Load" points={playerLoadPoints} tone="cyan" icon={Zap} />
+            <LineChartCard title="Distancia" points={distancePoints} suffix=" m" tone="green" icon={Ruler} />
+            <LineChartCard title="Carga interna" points={internalPoints} suffix=" UA" tone="blue" icon={Activity} />
+            <LineChartCard title="Wellness" points={wellnessPoints} decimals={1} tone="amber" icon={HeartPulse} />
+            <LineChartCard title="Peso" points={weightPoints} suffix=" kg" decimals={1} tone="blue" icon={Scale} />
+            <LineChartCard title="% grasa" points={bodyFatPoints} suffix="%" decimals={1} tone="red" icon={Percent} />
+            <LineChartCard title="CMJ" points={cmjPoints} suffix=" cm" decimals={1} tone="green" icon={Dumbbell} />
+            <LineChartCard title="FMS" points={fmsPoints} suffix=" pts" tone="navy" icon={ShieldCheck} />
           </div>
         </Section>
           </div>
@@ -497,14 +703,8 @@ export default function PlayerPeriodReportPage() {
         {(hasEvaluation || hasMedical) ? (
           <Section eyebrow="Perfil integral" title="Valoraciones, nutrición y disponibilidad">
             <div className="scout-visual-grid">
-              {hasEvaluation ? <BarsCard title="Última valoración" subtitle={latestNutrition?.date ? formatPdfDate(latestNutrition.date) : 'Registros'} tone="green" items={latestEvaluationItems.map((item) => ({ label: item.label, value: typeof item.value === 'number' ? item.value : Number.NaN, suffix: item.suffix, decimals: item.decimals }))} /> : null}
-              {latestNutrition ? (
-                <div className="scout-donut-card">
-                  <div className="scout-chart-head"><strong>Nutrición</strong><span>{formatPdfDate(latestNutrition.date)}</span></div>
-                  <BioStrip items={latestEvaluationItems.filter((item) => typeof item.value !== 'number')} />
-                  {hasValidValue(latestNutrition.diagnosis) ? <p className="pdf-manual-note">{getPdfSafeText(latestNutrition.diagnosis, '')}</p> : null}
-                </div>
-              ) : null}
+              {latestNutrition ? <PhysicalProfileCard nutrition={latestNutrition} position={player.position} /> : null}
+              {latestNutrition ? <NutritionCard nutrition={latestNutrition} /> : null}
               {hasValidSectionData(cmjValue, latestNeuro?.sj, latestFmsTotal) ? (
                 <BarsCard title="CMJ / FMS" subtitle="Últimos registros" tone="amber" items={[
                   { label: 'CMJ', value: cmjValue, suffix: ' cm', decimals: 1 },
@@ -515,7 +715,7 @@ export default function PlayerPeriodReportPage() {
               ) : null}
               {hasMedical ? (
                 <div className="scout-donut-card">
-                  <div className="scout-chart-head"><strong>Área médica</strong><span>Datos manuales</span></div>
+                  <div className="scout-chart-head scout-chart-head-icon"><strong><HeartPulse size={16} />Área médica</strong><span>Datos manuales</span></div>
                   <BioStrip items={[
                     { label: 'Estado', value: player.status !== 'Disponible' ? player.status : '' },
                     { label: 'Detalle', value: medicalDetails },
@@ -533,12 +733,13 @@ export default function PlayerPeriodReportPage() {
           <Section eyebrow="Detalle" title="Registros del período">
             <div className="pdf-report-two-columns compact-blocks">
               <div>
-                <div className="scout-section-title"><span>Competencia</span><h2>Últimos partidos</h2></div>
+                <div className="scout-section-title scout-section-title-icon"><span>Competencia</span><h2><Trophy size={17} />Últimos partidos</h2></div>
+                <CompetitionPills rows={report.competition} />
                 <DataTable columns={['Fecha', 'Rival', 'Min', 'G', 'A', 'PL', 'DCC']} rows={competitionRows} />
               </div>
               <div>
-                <div className="scout-section-title"><span>Carga</span><h2>GPS integrado</h2></div>
-                <DataTable columns={['Fecha', 'Tipo', 'Min', 'Distancia', 'PL', 'HSR', 'Sprint', 'RHIE']} rows={gpsRows} />
+                <div className="scout-section-title scout-section-title-icon"><span>Carga</span><h2><BarChart3 size={17} />GPS integrado</h2></div>
+                <GpsDataTable rows={gpsRows} />
               </div>
             </div>
           </Section>

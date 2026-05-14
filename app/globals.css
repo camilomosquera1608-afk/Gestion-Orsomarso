@@ -7937,3 +7937,215 @@ img[loading="lazy"] { background: var(--line-soft); }
   .pdf-manual-note { font-size: 7pt !important; padding: 3mm !important; border-radius: 4mm !important; }
   .scout-report-footer { display: none !important; }
 }
+
+/* V124 - Premium functional player report fixes from scout review */
+.scout-report-document {
+  --orso-navy: #06152f;
+  --orso-blue: #1557d6;
+  --orso-gold: #C9A84C;
+  --win-green: #059669;
+  --warn-amber: #d97706;
+  --danger-red: #dc2626;
+  --neutral-gray: #64748b;
+  --bg-light: #f8fbff;
+}
+
+/* Fix #1: KPI cards con jerarquia, icono y borde semantico */
+.scout-kpi {
+  position: relative;
+  border-left: 6px solid var(--orso-blue);
+  overflow: hidden;
+}
+.scout-kpi small {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.scout-kpi strong {
+  font-size: 28px;
+  font-weight: 900;
+}
+.scout-kpi-green { border-left-color: var(--win-green); }
+.scout-kpi-amber { border-left-color: var(--warn-amber); }
+.scout-kpi-red { border-left-color: var(--danger-red); }
+.scout-kpi-navy { border-left-color: var(--orso-navy); }
+.scout-kpi-cyan { border-left-color: #0ea5e9; }
+.scout-gps-average-strip { margin-top: 14px; }
+.scout-gps-average-strip .scout-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.scout-gps-average-strip .scout-kpi { min-height: 82px; padding: 12px; }
+.scout-gps-average-strip .scout-kpi strong { font-size: 20px; }
+
+/* Fix #2 y #6: GPS integrado con proporciones reales e iconos */
+.scout-visual-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+.scout-bar-row b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.scout-bar-row i em { transition: width .18s ease; }
+
+/* Fix #3: donut wellness con zonas rojo/ambar/verde */
+.scout-wellness-gauge-card {
+  grid-column: span 1;
+  border-radius: 24px;
+  padding: 16px;
+  min-height: 230px;
+  background: #fff;
+  border: 1px solid #dbe7f5;
+  display: grid;
+  gap: 12px;
+  place-items: center;
+  box-shadow: 0 12px 22px rgba(15,23,42,.04);
+}
+.scout-wellness-gauge {
+  width: 150px;
+  height: 150px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, #fff 0 58%, transparent 59%),
+    conic-gradient(var(--orso-blue) 0 var(--wellness-value), transparent var(--wellness-value) 100%),
+    conic-gradient(var(--danger-red) 0 60%, var(--warn-amber) 60% 80%, var(--win-green) 80% 100%);
+  box-shadow: inset 0 0 0 1px #e2e8f0;
+}
+.scout-wellness-gauge-inner { display: grid; place-items: center; }
+.scout-wellness-gauge-inner strong { color: var(--orso-navy); font-size: 36px; line-height: .95; font-weight: 950; }
+.scout-wellness-gauge-inner span { color: var(--neutral-gray); font-size: 12px; font-weight: 900; }
+.scout-zone-legend { display: flex; justify-content: center; gap: 10px; color: var(--neutral-gray); font-size: 10px; font-weight: 900; }
+.scout-zone-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.scout-zone-legend i { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
+.zone-red { background: var(--danger-red); }
+.zone-amber { background: var(--warn-amber); }
+.zone-green { background: var(--win-green); }
+
+/* Fix #4 y #5: titulos con iconos y graficas legibles en print */
+.scout-chart-head-icon strong,
+.scout-section-title-icon h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.scout-line-card-pro { min-height: 300px; }
+.scout-line-chart-pro {
+  width: 100%;
+  height: 205px;
+  min-height: 205px;
+  color: inherit;
+  overflow: visible;
+}
+.scout-line-chart-pro .grid {
+  stroke: #f1f5f9;
+  stroke-width: 1.2;
+  stroke-dasharray: none;
+}
+.scout-line-chart-pro .line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.scout-line-chart-pro .dot {
+  fill: #fff;
+  stroke: currentColor;
+  stroke-width: 3;
+}
+.scout-line-chart-pro .dot.latest { fill: currentColor; stroke: #fff; stroke-width: 2.5; }
+.scout-line-chart-pro .axis-label,
+.scout-line-chart-pro .x-label {
+  fill: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+}
+.scout-line-chart-pro .point-label {
+  fill: #06152f;
+  font-size: 9px;
+  font-weight: 900;
+}
+.scout-line-chart-pro .last-badge { fill: #06152f; opacity: .96; }
+.scout-line-chart-pro .last-badge-text { fill: #fff; font-size: 11px; font-weight: 900; }
+.scout-chart-amber .scout-line-chart-pro .line,
+.scout-chart-amber .scout-line-chart-pro .dot { color: var(--warn-amber); }
+.scout-chart-blue .scout-line-chart-pro .line,
+.scout-chart-blue .scout-line-chart-pro .dot { color: var(--orso-blue); }
+.scout-chart-cyan .scout-line-chart-pro .line,
+.scout-chart-cyan .scout-line-chart-pro .dot { color: #0ea5e9; }
+.scout-chart-green .scout-line-chart-pro .line,
+.scout-chart-green .scout-line-chart-pro .dot { color: var(--win-green); }
+.scout-chart-red .scout-line-chart-pro .line,
+.scout-chart-red .scout-line-chart-pro .dot { color: var(--danger-red); }
+
+/* Fix #7: barras de valoracion fisica con escala y zonas */
+.scout-physical-profile { align-content: start; }
+.scout-reference-row { display: grid; gap: 7px; }
+.scout-reference-label { display: flex; align-items: center; gap: 7px; color: var(--neutral-gray); font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+.scout-reference-label strong { margin-left: auto; color: var(--orso-navy); font-size: 14px; letter-spacing: 0; text-transform: none; }
+.scout-reference-track { position: relative; height: 14px; border-radius: 999px; overflow: hidden; background: #fee2e2; }
+.scout-reference-track i { position: absolute; top: 0; bottom: 0; display: block; }
+.scout-reference-track .red.left { left: 0; width: 18%; background: #fee2e2; }
+.scout-reference-track .amber.left { left: 18%; width: 22%; background: #fef3c7; }
+.scout-reference-track .green { background: #dcfce7; }
+.scout-reference-track .amber.right { right: 18%; width: 22%; background: #fef3c7; }
+.scout-reference-track .red.right { right: 0; width: 18%; background: #fee2e2; }
+.scout-reference-track em { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 999px; transform: translate(-50%, -50%); background: var(--orso-blue); border: 3px solid #fff; box-shadow: 0 3px 10px rgba(15,23,42,.25); }
+.scout-reference-scale { display: flex; justify-content: space-between; color: #94a3b8; font-size: 9px; font-weight: 800; }
+
+/* Fix #8: nutricion como badges y chips */
+.scout-pill-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.scout-status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 999px; font-size: 11px; font-weight: 950; border: 1px solid transparent; }
+.scout-status-pill.green { color: #047857; background: #dcfce7; border-color: #bbf7d0; }
+.scout-status-pill.blue { color: #0d3d9c; background: #eaf2ff; border-color: #bfdbfe; }
+
+/* Fix #9: detalle GPS con heatmap y competencias con estado claro */
+.scout-empty-card { min-height: 106px; display: grid; place-items: center; align-content: center; gap: 5px; border: 1px dashed #cbd5e1; border-radius: 18px; background: #f8fafc; color: #94a3b8; text-align: center; }
+.scout-empty-card strong { color: #64748b; }
+.scout-empty-card span { font-size: 11px; font-weight: 800; }
+.scout-match-pills { display: grid; gap: 8px; margin-bottom: 10px; }
+.scout-match-pill { display: grid; grid-template-columns: 72px 1fr auto; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 14px; border: 1px solid #dbe7f5; background: #fff; }
+.scout-match-pill span { color: #64748b; font-size: 10px; font-weight: 900; }
+.scout-match-pill strong { color: #06152f; font-size: 12px; }
+.scout-match-pill em { font-style: normal; color: #047857; background: #dcfce7; border: 1px solid #bbf7d0; border-radius: 999px; padding: 4px 7px; font-size: 10px; font-weight: 950; }
+.scout-gps-heat-table td.heat-green { background: #ecfdf5; color: #047857; font-weight: 950; }
+.scout-gps-heat-table td.heat-amber { background: #fffbeb; color: #92400e; font-weight: 950; }
+.scout-gps-heat-table td.heat-red { background: #fef2f2; color: #991b1b; font-weight: 950; }
+.scout-muted-cell { color: #94a3b8; }
+
+@media print {
+  /* Fix #10: PDF sin pagina web impresa, con paginas y graficas mas grandes */
+  @page { size: A4 portrait; margin: 8mm; }
+  html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .pdf-print-window { margin: 0 !important; background: #fff !important; }
+  .scout-report-document { width: 194mm !important; max-width: 194mm !important; gap: 4mm !important; }
+  .scout-page { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .scout-page-cover, .scout-page-performance, .scout-page-gps-averages, .scout-page-evolution { page-break-after: always !important; }
+  .scout-section { padding: 4mm !important; border-radius: 5mm !important; gap: 3mm !important; }
+  .scout-cover-card { min-height: 92mm !important; padding: 7mm !important; border-radius: 7mm !important; }
+  .scout-kpi-grid { gap: 2.2mm !important; }
+  .scout-kpi { min-height: 20mm !important; padding: 2.6mm !important; border-left-width: 3pt !important; }
+  .scout-kpi > span { width: 7mm !important; height: 7mm !important; }
+  .scout-kpi small { font-size: 5.4pt !important; letter-spacing: .08em !important; }
+  .scout-kpi strong { font-size: 13pt !important; }
+  .scout-gps-average-strip .scout-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+  .scout-visual-grid { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 2.6mm !important; }
+  .scout-wellness-gauge-card, .scout-ring { min-height: 52mm !important; padding: 3mm !important; }
+  .scout-wellness-gauge, .scout-ring-visual { width: 30mm !important; height: 30mm !important; }
+  .scout-wellness-gauge-inner strong { font-size: 15pt !important; }
+  .scout-chart-card, .scout-donut-card { min-height: 58mm !important; padding: 3.2mm !important; }
+  .scout-line-card-pro { min-height: 70mm !important; }
+  .scout-line-chart-pro { height: 48mm !important; min-height: 48mm !important; }
+  .scout-line-chart-pro .point-label { font-size: 7px !important; }
+  .scout-line-chart-pro .axis-label, .scout-line-chart-pro .x-label { font-size: 7px !important; }
+  .scout-bar-row { grid-template-columns: 16mm 1fr 20mm !important; font-size: 6pt !important; }
+  .scout-reference-label { font-size: 5.6pt !important; }
+  .scout-reference-track { height: 3mm !important; }
+  .scout-reference-track em { width: 4mm !important; height: 4mm !important; }
+  .scout-match-pill { grid-template-columns: 18mm 1fr auto !important; padding: 2mm !important; }
+  .scout-gps-heat-table th, .scout-gps-heat-table td { font-size: 5.6pt !important; padding: 1.4mm !important; }
+}
