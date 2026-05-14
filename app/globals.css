@@ -8309,3 +8309,131 @@ img[loading="lazy"] { background: var(--line-soft); }
   .fd-v2-line-card svg { height: 90px !important; }
   .fd-v2-conclusion-card { min-height: 54mm !important; padding: 4mm !important; border-radius: 4mm !important; }
 }
+
+/* V126 - Player Performance Dossier density and legibility fixes */
+/* Fix #1 - KPIs inconsistentes */
+.scout-gps-average-strip .scout-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.scout-gps-average-strip .scout-kpi { min-height: 118px; padding: 15px; }
+.scout-gps-average-strip .scout-kpi strong { font-size: 28px; font-weight: 900; }
+.scout-gps-average-strip .scout-kpi small { font-size: 9px; }
+.scout-gps-average-strip .scout-kpi em { font-size: 11px; }
+
+/* Fix #3 - Nutricion sin espacio muerto */
+.scout-nutrition-card { align-items: flex-start; align-content: flex-start; padding-top: 12px; gap: 8px; min-height: 0; }
+.scout-nutrition-card .scout-chart-head { width: 100%; margin-top: 0; padding-top: 0; }
+.scout-nutrition-card .scout-pill-grid { align-items: flex-start; margin-top: 0; }
+
+/* Fix #4 - CMJ/FMS con escalas */
+.scout-cmj-fms-scale-card { align-content: start; gap: 11px; }
+.scout-performance-scale-row { display: grid; gap: 7px; }
+.scout-performance-scale-label { display: flex; align-items: center; gap: 7px; color: var(--neutral-gray); font-size: 10px; font-weight: 950; text-transform: uppercase; letter-spacing: .08em; }
+.scout-performance-scale-label strong { margin-left: auto; color: var(--orso-navy); font-size: 14px; letter-spacing: 0; text-transform: none; }
+.scout-performance-scale-track { position: relative; height: 16px; border-radius: 999px; overflow: visible; background: #f1f5f9; }
+.scout-performance-scale-track i { position: absolute; inset-block: 0; display: block; }
+.scout-performance-scale-track .red { background: #fee2e2; border-radius: 999px 0 0 999px; }
+.scout-performance-scale-track .amber { background: #fef3c7; }
+.scout-performance-scale-track .green { background: #dcfce7; border-radius: 0 999px 999px 0; }
+.scout-performance-scale-track em { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 999px; transform: translate(-50%, -50%); background: var(--orso-blue); border: 3px solid #fff; box-shadow: 0 5px 14px rgba(15,23,42,.22); }
+.scout-performance-scale-track em b { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); white-space: nowrap; color: #06152f; font-size: 9px; font-style: normal; font-weight: 950; }
+.scout-performance-scale-row.tone-green .scout-performance-scale-track em { background: var(--win-green); }
+.scout-performance-scale-row.tone-amber .scout-performance-scale-track em { background: var(--warn-amber); }
+.scout-performance-scale-row.tone-red .scout-performance-scale-track em { background: var(--danger-red); }
+
+/* Fix #5 - Competencia solo en pills enriquecidas */
+.scout-match-pills-rich { gap: 9px; }
+.scout-match-pill-rich { grid-template-columns: 78px 1fr auto; }
+.scout-match-pill-chips { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+.scout-match-pill-chips em { color: #047857; background: #dcfce7; border: 1px solid #bbf7d0; }
+.scout-match-pill-chips em.blue { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+.scout-match-pill-chips em.amber { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+.scout-match-pill-chips em.yellow { color: #92400e; background: #fef3c7; border-color: #fcd34d; }
+.scout-match-pill-chips em.green { color: #047857; background: #dcfce7; border-color: #bbf7d0; }
+
+/* Fix #6 - Promedios GPS con contenido visual adicional */
+.scout-gps-averages-panel { display: grid; gap: 14px; margin-top: 16px; }
+.scout-gps-averages-panel > .scout-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.scout-gps-average-visuals { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: 14px; align-items: stretch; }
+.scout-gps-comparison-card,
+.scout-distance-trend-card,
+.scout-gps-mini-table { border-radius: 22px; padding: 14px; background: #fff; border: 1px solid #dbe7f5; box-shadow: 0 12px 22px rgba(15,23,42,.04); }
+.scout-gps-comparison-list { display: grid; gap: 8px; margin-top: 8px; }
+.scout-gps-comparison-row { display: grid; grid-template-columns: 92px 1fr 72px; align-items: center; gap: 10px; }
+.scout-gps-comparison-row b { display: inline-flex; gap: 6px; align-items: center; color: #64748b; font-size: 10px; font-weight: 950; text-transform: uppercase; }
+.scout-gps-comparison-row strong { text-align: right; color: #06152f; font-size: 12px; font-weight: 950; }
+.scout-gps-comparison-track { position: relative; height: 12px; background: #eaf2ff; border-radius: 999px; overflow: visible; }
+.scout-gps-comparison-track .player { position: absolute; inset-block: 0; left: 0; border-radius: inherit; background: linear-gradient(90deg, var(--orso-blue), #38bdf8); }
+.scout-gps-comparison-track .reference { position: absolute; top: -4px; bottom: -4px; width: 2px; transform: translateX(-50%); border-left: 2px dashed var(--orso-gold); }
+.scout-gps-comparison-legend { display: flex; gap: 14px; color: #64748b; font-size: 9px; font-weight: 900; margin-top: 8px; }
+.scout-gps-comparison-legend span { display: inline-flex; gap: 5px; align-items: center; }
+.scout-gps-comparison-legend i { width: 16px; height: 7px; border-radius: 999px; background: var(--orso-blue); display: inline-block; }
+.scout-gps-comparison-legend em { width: 12px; height: 12px; border-left: 2px dashed var(--orso-gold); display: inline-block; }
+.scout-distance-trend-svg { width: 100%; height: 96px; overflow: visible; }
+.scout-distance-trend-svg line { stroke: #e2e8f0; }
+.scout-distance-trend-svg path { fill: none; stroke: var(--orso-blue); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.scout-distance-trend-svg circle { fill: #fff; stroke: var(--orso-blue); stroke-width: 3; }
+.scout-distance-trend-svg text { fill: #64748b; font-size: 10px; font-weight: 900; }
+
+/* Fix #7 - Mapa deportivo sin espacio muerto */
+.scout-page-performance .scout-section-feature { min-height: auto; }
+.scout-page-performance .scout-ring-visual,
+.scout-page-performance .scout-wellness-gauge { width: 140px; height: 140px; }
+.scout-page-performance .scout-bar-row i { height: 12px; }
+.scout-gps-integrated-stack { grid-column: span 3; display: grid; gap: 12px; }
+.scout-gps-integrated-stack .scout-chart-card { grid-column: auto; min-height: 0; }
+.scout-gps-mini-table { display: grid; gap: 8px; }
+.scout-gps-mini-table > div:not(.scout-chart-head) { display: grid; grid-template-columns: 72px 1fr 82px 64px; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 12px; background: #f8fbff; border: 1px solid #e2e8f0; }
+.scout-gps-mini-table span { color: #64748b; font-size: 10px; font-weight: 900; }
+.scout-gps-mini-table b { color: #06152f; font-size: 11px; }
+.scout-gps-mini-table strong,
+.scout-gps-mini-table em { color: #1557d6; font-size: 10px; font-weight: 950; font-style: normal; text-align: right; }
+
+/* Fix #8 - Labels de evolucion mas legibles */
+.scout-line-chart-pro .point-label { font-size: 9px; font-weight: 900; }
+.scout-line-chart-pro .point-label-latest { font-size: 11px; fill: #06152f; }
+
+@media print {
+  /* V126 print density: evitar paginas vacias por page-break excesivo */
+  .scout-report-document { width: 194mm !important; max-width: 194mm !important; gap: 0 !important; }
+  .scout-page { min-height: auto !important; height: auto !important; page-break-after: auto !important; break-after: auto !important; page-break-inside: avoid !important; break-inside: avoid !important; padding: 8mm !important; gap: 3mm !important; }
+  .scout-page-cover { page-break-after: always !important; break-after: page !important; }
+  .scout-page-performance { page-break-after: always !important; break-after: page !important; }
+  .scout-page-evolution { page-break-before: always !important; break-before: page !important; page-break-after: always !important; break-after: page !important; }
+  .scout-page-profile { page-break-before: always !important; break-before: page !important; }
+  .scout-page-gps-averages { page-break-after: auto !important; break-after: auto !important; }
+  .scout-cover-card { min-height: 92mm !important; }
+  .scout-kpi { min-height: 20mm !important; padding: 2.7mm !important; border-left-width: 3pt !important; }
+  .scout-kpi strong,
+  .scout-gps-average-strip .scout-kpi strong { font-size: 13pt !important; }
+  .scout-gps-average-strip .scout-kpi { min-height: 20mm !important; padding: 2.7mm !important; }
+  .scout-gps-average-strip .scout-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+  .scout-gps-averages-panel > .scout-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .scout-gps-average-visuals { grid-template-columns: 1.1fr .9fr !important; gap: 2.5mm !important; }
+  .scout-gps-comparison-card,
+  .scout-distance-trend-card,
+  .scout-gps-mini-table { padding: 2.6mm !important; border-radius: 4mm !important; box-shadow: none !important; }
+  .scout-gps-comparison-row { grid-template-columns: 21mm 1fr 18mm !important; gap: 2mm !important; }
+  .scout-gps-comparison-row b,
+  .scout-gps-comparison-row strong { font-size: 5.6pt !important; }
+  .scout-gps-comparison-track { height: 2.7mm !important; }
+  .scout-distance-trend-svg { height: 20mm !important; }
+  .scout-page-performance .scout-ring-visual,
+  .scout-page-performance .scout-wellness-gauge { width: 34mm !important; height: 34mm !important; }
+  .scout-page-performance .scout-bar-row i { height: 2.8mm !important; }
+  .scout-gps-integrated-stack { gap: 2mm !important; }
+  .scout-gps-mini-table > div:not(.scout-chart-head) { grid-template-columns: 18mm 1fr 20mm 16mm !important; padding: 1.3mm !important; gap: 1.4mm !important; }
+  .scout-gps-mini-table span,
+  .scout-gps-mini-table b,
+  .scout-gps-mini-table strong,
+  .scout-gps-mini-table em { font-size: 5.5pt !important; }
+  .scout-nutrition-card { padding-top: 2.5mm !important; gap: 2mm !important; }
+  .scout-performance-scale-label { font-size: 5.6pt !important; }
+  .scout-performance-scale-label strong { font-size: 6.5pt !important; }
+  .scout-performance-scale-track { height: 3mm !important; }
+  .scout-performance-scale-track em { width: 3.6mm !important; height: 3.6mm !important; }
+  .scout-performance-scale-track em b { bottom: 4mm !important; font-size: 5pt !important; }
+  .scout-match-pill-rich { grid-template-columns: 18mm 1fr auto !important; }
+  .scout-match-pill-chips { gap: 1mm !important; }
+  .scout-match-pill-chips em { font-size: 5.2pt !important; padding: 1mm 1.4mm !important; }
+  .scout-line-chart-pro .point-label { font-size: 8px !important; }
+  .scout-line-chart-pro .point-label-latest { font-size: 11px !important; }
+}

@@ -114,3 +114,21 @@ export const formatPdfValueIfValid = (value: unknown, suffix = '', fallback = 'â
   if (!hasValidValue(value)) return fallback;
   return formatPdfValue(value, suffix, fallback);
 };
+
+
+export const reportCompletenessScore = (row: Record<string, unknown>): number => Object.values(row).reduce<number>((score, value) => score + (hasValidValue(value) ? 1 : 0), 0);
+
+export const deduplicateGpsSessions = <T extends { date?: string; sessionType?: string; movementModule?: string; sessionId?: string }>(rows: T[]): T[] => {
+  const grouped = new Map<string, T>();
+  rows.forEach((row) => {
+    const key = [
+      safeText(row.date, 'sin-fecha'),
+      safeText(row.sessionType ?? row.movementModule ?? row.sessionId, 'sin-tipo'),
+    ].join('|').toLowerCase();
+    const current = grouped.get(key);
+    if (!current || reportCompletenessScore(row as Record<string, unknown>) > reportCompletenessScore(current as Record<string, unknown>)) {
+      grouped.set(key, row);
+    }
+  });
+  return Array.from(grouped.values()).sort((a, b) => safeText(a.date, '').localeCompare(safeText(b.date, '')));
+};
