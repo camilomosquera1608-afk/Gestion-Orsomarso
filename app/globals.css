@@ -8626,3 +8626,101 @@ img[loading="lazy"] { background: var(--line-soft); }
   .session-report-document .sr-bars-list > div > div { height: 1.3mm !important; }
   .session-report-document .sr-insight, .session-report-document .sr-alert { font-size: 5.4pt !important; line-height: 1.25 !important; padding: 1.2mm 2mm !important; }
 }
+
+/* V129 - Report-specific cleanup: player dossier, competition photos, margins and tables */
+@page playerDossierV128 { size: A4 portrait; margin: 0; }
+@page competitionReportV128 { size: A4 portrait; margin: 7mm; }
+@page sessionGpsReportV128 { size: A4 landscape; margin: 5mm; }
+
+.scout-detail-competition-only {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.fd-v2-avatar-shell {
+  background: linear-gradient(135deg, #1557d6, #06152f);
+  border: 2px solid rgba(255,255,255,.62);
+  box-shadow: 0 6px 12px rgba(0,0,0,.16);
+}
+.fd-v2-avatar-shell img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center top !important;
+  display: block;
+}
+.fd-v2-avatar-shell .fd-v2-avatar-initials { border: 0 !important; box-shadow: none !important; }
+.fd-v2-neuro-track i, .fd-v2-neuro-track b, .fd-v2-neuro-track em, .fd-v2-neuro-track u { display: block; height: 100%; text-decoration: none; }
+.fd-v2-neuro-track em { background: #dc2626; font-style: normal; }
+
+@media print {
+  /* Cada PDF tiene necesidades distintas: jugador editorial, competencia partido, sesión tabla GPS. */
+  .fd-table-wrap {
+    overflow: visible !important;
+    max-width: 100% !important;
+  }
+  .fd-table-wrap table,
+  .pdf-report-table,
+  .sr-heat-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  /* Reporte jugador: sin tabla GPS detallada; mantener solo resumen, gráficos y competencia. */
+  .scout-report-document .scout-detail-competition-only { grid-template-columns: 1fr !important; }
+  .scout-report-document .scout-page-profile { min-height: auto !important; }
+  .scout-report-document .scout-match-pills-rich { gap: 2mm !important; }
+  .scout-report-document .scout-section { border-color: #dce7f6 !important; }
+
+  /* Informe competencia: fotos reales más limpias en campo y lista, sin deformación. */
+  .fd-competition-report .fd-v2-avatar-shell,
+  .fd-competition-report .fd-v2-player-photo,
+  .fd-competition-report .fd-v2-field-player .fd-v2-avatar-shell {
+    overflow: hidden !important;
+    border-radius: 50% !important;
+  }
+  .fd-competition-report .fd-v2-field-player .fd-v2-avatar-shell,
+  .fd-competition-report .fd-v2-field-player img,
+  .fd-competition-report .fd-v2-field-player .fd-v2-avatar-initials {
+    width: 9mm !important;
+    height: 9mm !important;
+    font-size: 5.2pt !important;
+  }
+  .fd-competition-report .fd-v2-roster-card .fd-v2-avatar-shell,
+  .fd-competition-report .fd-v2-roster-card img,
+  .fd-competition-report .fd-v2-roster-card .fd-v2-avatar-initials {
+    width: 6.6mm !important;
+    height: 6.6mm !important;
+    font-size: 4pt !important;
+  }
+  .fd-competition-report .fd-v2-player-photo { width: 9mm !important; height: 9mm !important; }
+  .fd-competition-report .fd-v2-gps-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .fd-competition-report .fd-v2-gps-kpi { min-height: 15mm !important; padding: 2mm !important; }
+  .fd-competition-report .fd-v2-gps-kpi strong { font-size: 9.5pt !important; }
+  .fd-competition-report .fd-v2-technical-table th,
+  .fd-competition-report .fd-v2-technical-table td,
+  .fd-competition-report .fd-v2-physical-table th,
+  .fd-competition-report .fd-v2-physical-table td {
+    font-size: 5.1pt !important;
+    padding: .7mm .85mm !important;
+    line-height: 1.05 !important;
+    word-break: normal !important;
+  }
+  .fd-competition-report .fd-v2-physical-table th:first-child,
+  .fd-competition-report .fd-v2-physical-table td:first-child,
+  .fd-competition-report .fd-v2-technical-table th:first-child,
+  .fd-competition-report .fd-v2-technical-table td:first-child {
+    width: 31mm !important;
+  }
+
+  /* Informe sesión: landscape real para tabla larga, sin scroll y con menor margen. */
+  .session-report-document .sr-heat-table th,
+  .session-report-document .sr-heat-table td {
+    white-space: normal !important;
+    word-break: normal !important;
+  }
+  .session-report-document .sr-td-name { width: 34mm !important; max-width: 34mm !important; }
+  .session-report-document .sr-bars-list > div > span:first-child { max-width: 32mm !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+}

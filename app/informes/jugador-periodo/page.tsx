@@ -700,7 +700,8 @@ export default function PlayerPeriodReportPage() {
   const fmsPoints = report.fms.map((record) => ({ label: record.date.slice(5), value: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })).filter((point) => point.value !== 0);
   const hasEvolution = [playerLoadPoints, distancePoints, internalPoints, wellnessPoints, weightPoints, bodyFatPoints, cmjPoints, fmsPoints].some((points) => points.length >= 2);
   const hasSportMap = hasValidSectionData(matches, matchMinutes, goals, assists) || hasValidSectionData(totalDistance, playerLoad, hsr, sprint, acc, dcc, rhie);
-  const hasDetails = Boolean(competitionRows.length || gpsRows.length);
+  // V129: el informe del jugador es dossier/scouting; no incluye tabla GPS detallada.
+  const hasDetails = Boolean(competitionRows.length);
   const hasGoalkeeper = player.position === 'Portero' && hasValidSectionData(
     sum(report.competition, (record) => record.goalsConceded),
     sum(report.competition, (record) => record.goalsPrevented),
@@ -866,15 +867,11 @@ export default function PlayerPeriodReportPage() {
         ) : null}
 
         {hasDetails ? (
-          <Section eyebrow="Detalle" title="Registros del período">
-            <div className="pdf-report-two-columns compact-blocks">
+          <Section eyebrow="Detalle" title="Competencia del período">
+            <div className="compact-blocks scout-detail-competition-only">
               <div>
                 <div className="scout-section-title scout-section-title-icon"><span>Competencia</span><h2><Trophy size={17} />Últimos partidos</h2></div>
                 <CompetitionPills rows={report.competition} />
-              </div>
-              <div>
-                <div className="scout-section-title scout-section-title-icon"><span>Carga</span><h2><BarChart3 size={17} />GPS integrado</h2></div>
-                <GpsDataTable rows={gpsRows} />
               </div>
             </div>
           </Section>

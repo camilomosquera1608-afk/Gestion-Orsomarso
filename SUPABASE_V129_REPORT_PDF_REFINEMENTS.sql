@@ -1,0 +1,9 @@
+-- V129 - Ajustes visuales de reportes PDF
+-- No requiere cambios de estructura en Supabase.
+-- Cambios de frontend:
+-- 1) Reporte jugador sin tabla GPS detallada; mantiene resumen, promedios y gráficos.
+-- 2) Fotos de jugador mejoradas en informe de competencia.
+-- 3) Márgenes y orientación específicos por tipo de PDF.
+-- 4) Sin scroll horizontal en impresión/PDF.
+-- 5) Tablas largas más compactas para competencia y sesión.
+-- 6) Sprint efforts visible en informe de competencia.

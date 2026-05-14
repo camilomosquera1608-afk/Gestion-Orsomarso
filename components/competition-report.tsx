@@ -41,7 +41,7 @@ type Props = {
 };
 
 type IconComponent = typeof Users;
-type ChartItem = { name: string; value: number; sub?: string; context?: string; acc?: number; dcc?: number; rhie?: number };
+type ChartItem = { name: string; value: number; sub?: string; context?: string; acc?: number; dcc?: number; sprints?: number; rhie?: number };
 type EyeballRow = { stat: string; rival: string | number; orso: string | number; unit?: '%' | ''; rawStat?: string; index?: number };
 
 const C = {
@@ -283,19 +283,21 @@ function NeuroRankPanel({ items }: { items: ChartItem[] }) {
   const maxValue = Math.max(...items.map((item) => item.value), 1);
   return (
     <div className="competition-chart-panel fd-v2-ranking-panel">
-      <div className="competition-chart-heading"><span style={{ background: C.red }} /><div><strong>Neuromuscular</strong><small>ACC + DCC + RHIE</small></div></div>
+      <div className="competition-chart-heading"><span style={{ background: C.red }} /><div><strong>Neuromuscular</strong><small>ACC + DCC + Sprint Eff. + RHIE</small></div></div>
       <div className="competition-chart-list">
         {items.map((item, index) => {
           const acc = item.acc ?? 0;
           const dcc = item.dcc ?? 0;
+          const sprints = item.sprints ?? 0;
           const rhie = item.rhie ?? 0;
-          const total = Math.max(acc + dcc + rhie, 1);
+          const total = Math.max(acc + dcc + sprints + rhie, 1);
           return (
             <div className="competition-chart-row fd-v2-neuro-row" key={`neuro-${item.name}`}>
               <div className="competition-chart-player"><strong>{truncateName(item.name)} {index === 0 ? <em>TOP</em> : null}</strong><span>{item.sub}</span></div>
               <div className="fd-v2-neuro-track" style={{ width: `${Math.max(8, pct(item.value, maxValue))}%` }}>
                 <i style={{ width: `${pct(acc, total)}%` }} />
                 <b style={{ width: `${pct(dcc, total)}%` }} />
+                <em style={{ width: `${pct(sprints, total)}%` }} />
                 <u style={{ width: `${pct(rhie, total)}%` }} />
               </div>
               <strong className="competition-chart-value">{numberFmt(item.value)}</strong>
@@ -871,12 +873,14 @@ function IntegratedPlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] })
     const roleOrder = (role: string) => (role === 'Titular' ? 0 : role === 'Suplente' ? 1 : 2);
     return roleOrder(a.role) - roleOrder(b.role) || (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999) || a.name.localeCompare(b.name);
   });
-  const hasSprintData = sorted.some((row) => row.sprintDistance > 0);
+  const hasSprintDistanceData = sorted.some((row) => row.sprintDistance > 0);
+  const hasSprintEffortsData = sorted.some((row) => row.sprints > 0);
   const metricValues = {
     distance: sorted.map((row) => row.totalDistance),
     mpm: sorted.map((row) => row.metersPerMinute),
     hsr: sorted.map((row) => row.highSpeedDistance),
-    sprint: sorted.map((row) => row.sprintDistance),
+    sprintDistance: sorted.map((row) => row.sprintDistance),
+    sprintEfforts: sorted.map((row) => row.sprints),
     acc: sorted.map((row) => row.acc),
     dcc: sorted.map((row) => row.dcc),
     rhie: sorted.map((row) => row.rhie),
@@ -900,8 +904,8 @@ function IntegratedPlayerTable({ rows }: { rows: CompetitionReportPlayerRow[] })
       <div className="fd-table-wrap">
         <span className="fd-v2-table-chip physical">FÍSICO</span>
         <table className="pdf-report-table competition-report-table-modern competition-report-heat-table fd-v2-gps-detail-table fd-v2-physical-table">
-          <thead><tr><th>Jugador</th><th>Dist</th><th>m/min</th><th>HSR</th>{hasSprintData ? <th>Sprint</th> : null}<th>ACC</th><th>DCC</th><th>RHIE</th><th>Vmax</th><th>PL</th></tr></thead>
-          <tbody>{sorted.map((row) => <tr key={`phys-${row.id}`}><td><strong>{row.name}</strong>{row.isGoalkeeper && row.minutes > 0 && !rowHasGps(row) ? <small>Sin GPS</small> : null}</td><td>{gpsValue(row, 'distance', row.totalDistance, 0, ' m')}</td><td>{gpsValue(row, 'mpm', row.metersPerMinute)}</td><td>{gpsValue(row, 'hsr', row.highSpeedDistance, 0, ' m')}</td>{hasSprintData ? <td>{gpsValue(row, 'sprint', row.sprintDistance, 0, ' m')}</td> : null}<td>{gpsValue(row, 'acc', row.acc)}</td><td>{gpsValue(row, 'dcc', row.dcc)}</td><td>{gpsValue(row, 'rhie', row.rhie)}</td><td>{gpsValue(row, 'vmax', row.maxVelocity, 1)}</td><td>{gpsValue(row, 'pl', row.playerLoad)}</td></tr>)}</tbody>
+          <thead><tr><th>Jugador</th><th>Dist</th><th>m/min</th><th>HSR</th>{hasSprintDistanceData ? <th>Sprint dist.</th> : null}{hasSprintEffortsData ? <th>Sprint eff.</th> : null}<th>ACC</th><th>DCC</th><th>RHIE</th><th>Vmax</th><th>PL</th></tr></thead>
+          <tbody>{sorted.map((row) => <tr key={`phys-${row.id}`}><td><strong>{row.name}</strong>{row.isGoalkeeper && row.minutes > 0 && !rowHasGps(row) ? <small>Sin GPS</small> : null}</td><td>{gpsValue(row, 'distance', row.totalDistance, 0, ' m')}</td><td>{gpsValue(row, 'mpm', row.metersPerMinute)}</td><td>{gpsValue(row, 'hsr', row.highSpeedDistance, 0, ' m')}</td>{hasSprintDistanceData ? <td>{gpsValue(row, 'sprintDistance', row.sprintDistance, 0, ' m')}</td> : null}{hasSprintEffortsData ? <td>{gpsValue(row, 'sprintEfforts', row.sprints)}</td> : null}<td>{gpsValue(row, 'acc', row.acc)}</td><td>{gpsValue(row, 'dcc', row.dcc)}</td><td>{gpsValue(row, 'rhie', row.rhie)}</td><td>{gpsValue(row, 'vmax', row.maxVelocity, 1)}</td><td>{gpsValue(row, 'pl', row.playerLoad)}</td></tr>)}</tbody>
         </table>
       </div>
     </div>
@@ -950,18 +954,19 @@ function GpsPhysicalSection({ report }: { report: CompetitionReportData }) {
   const distance = gpsRows.slice().sort((a, b) => b.totalDistance - a.totalDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.totalDistance, sub: `${row.minutes || 0} min · ${row.metersPerMinute || 0} m/min` }));
   const playerLoad = gpsRows.slice().sort((a, b) => b.playerLoad - a.playerLoad).slice(0, 10).map((row) => ({ name: row.name, value: row.playerLoad, sub: `${row.minutes || 0} min · ${row.metersPerMinute || 0} m/min` }));
   const hsr = gpsRows.slice().sort((a, b) => b.highSpeedDistance - a.highSpeedDistance).slice(0, 10).map((row) => ({ name: row.name, value: row.highSpeedDistance, sub: `${row.metersPerMinute || 0} m/min` }));
-  const neuromuscular = gpsRows.slice().sort((a, b) => (b.acc + b.dcc + b.rhie) - (a.acc + a.dcc + a.rhie)).slice(0, 10).map((row) => ({ name: row.name, value: row.acc + row.dcc + row.rhie, sub: `${row.metersPerMinute || 0} m/min`, acc: row.acc, dcc: row.dcc, rhie: row.rhie }));
+  const neuromuscular = gpsRows.slice().sort((a, b) => (b.acc + b.dcc + b.sprints + b.rhie) - (a.acc + a.dcc + a.sprints + a.rhie)).slice(0, 10).map((row) => ({ name: row.name, value: row.acc + row.dcc + row.sprints + row.rhie, sub: `${row.metersPerMinute || 0} m/min`, acc: row.acc, dcc: row.dcc, sprints: row.sprints, rhie: row.rhie }));
   const avg = {
     distancia: report.stats.totalDistance / divisor,
     mmin: gpsRows.reduce((acc, row) => acc + row.metersPerMinute, 0) / divisor,
     hsr: report.stats.highSpeedDistance / divisor,
     sprint: report.stats.sprintDistance / divisor,
+    sprintEfforts: report.stats.sprints / divisor,
     acc: report.stats.acc / divisor,
     dcc: report.stats.dcc / divisor,
     rhie: report.stats.rhie / divisor,
     pl: report.stats.playerLoad / divisor,
   };
-  const kpiValues = [report.stats.totalDistance, report.stats.avgMetersPerMinute, report.stats.highSpeedDistance, report.stats.sprintDistance, report.stats.acc + report.stats.dcc, report.stats.rhie, report.stats.playerLoad, gpsRows.length];
+  const kpiValues = [report.stats.totalDistance, report.stats.avgMetersPerMinute, report.stats.highSpeedDistance, report.stats.sprintDistance, report.stats.sprints, report.stats.acc + report.stats.dcc, report.stats.rhie, report.stats.playerLoad, gpsRows.length];
   const maxKpi = Math.max(...kpiValues, 1);
   return (
     <ReportSection icon={Zap} title="Carga física del partido" subtitle="GPS de equipo y rankings individuales integrados." className="competition-gps-section fd-v2-gps-physical-section">
@@ -969,7 +974,8 @@ function GpsPhysicalSection({ report }: { report: CompetitionReportData }) {
         <GpsSummaryMetric icon={Ruler} label="Distancia total" value={`${numberFmt(report.stats.totalDistance)} m`} note={`Prom. jugador ${numberFmt(avg.distancia)} m`} width={pct(report.stats.totalDistance, maxKpi)} tone="blue" />
         <GpsSummaryMetric icon={Gauge} label="M/min promedio" value={report.stats.avgMetersPerMinute || '—'} note={`Prom. jugador ${numberFmt(avg.mmin)}`} width={pct(report.stats.avgMetersPerMinute, maxKpi)} tone="green" />
         <GpsSummaryMetric icon={Activity} label="HSR" value={`${numberFmt(report.stats.highSpeedDistance)} m`} note={`Prom. jugador ${numberFmt(avg.hsr)} m`} width={pct(report.stats.highSpeedDistance, maxKpi)} tone="amber" />
-        <GpsSummaryMetric icon={Trophy} label="Sprint dist." value={`${numberFmt(report.stats.sprintDistance)} m`} note={`Prom. jugador ${numberFmt(avg.sprint)} m`} width={pct(report.stats.sprintDistance, maxKpi)} tone="red" />
+        <GpsSummaryMetric icon={Trophy} label="Sprint efforts" value={numberFmt(report.stats.sprints)} note={`Prom. jugador ${numberFmt(avg.sprintEfforts)}`} width={pct(report.stats.sprints, maxKpi)} tone="red" />
+        {report.stats.sprintDistance > 0 ? <GpsSummaryMetric icon={Trophy} label="Sprint dist." value={`${numberFmt(report.stats.sprintDistance)} m`} note={`Prom. jugador ${numberFmt(avg.sprint)} m`} width={pct(report.stats.sprintDistance, maxKpi)} tone="red" /> : null}
         <GpsSummaryMetric icon={ChevronsUp} label="ACC" value={numberFmt(report.stats.acc)} note={`Prom. jugador ${numberFmt(avg.acc)}`} width={pct(report.stats.acc, maxKpi)} tone="dark" />
         <GpsSummaryMetric icon={ChevronsDown} label="DCC" value={numberFmt(report.stats.dcc)} note={`Prom. jugador ${numberFmt(avg.dcc)}`} width={pct(report.stats.dcc, maxKpi)} tone="dark" />
         <GpsSummaryMetric icon={Activity} label="RHIE" value={numberFmt(report.stats.rhie)} note={`Prom. jugador ${numberFmt(avg.rhie)}`} width={pct(report.stats.rhie, maxKpi)} tone="amber" />
