@@ -38,7 +38,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
       if (isLogin) {
         if (authed) {
-          router.replace(session.role === 'master' ? '/informes' : '/');
+          router.replace(session.role === 'master' ? '/informes/jugador-periodo' : '/');
           return;
         }
         if (!cancelled) setAllowed(true);

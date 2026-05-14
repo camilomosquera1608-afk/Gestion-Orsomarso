@@ -117,7 +117,7 @@ export default function RankingPage() {
         </div>
         <div className="btn-row">
           <StatusBadge tone="blue" text={master ? 'Usuario Maestro' : `Categoría ${categoryLabel(activeCategory)}`} />
-          <Link className="btn secondary" href="/informes">Ir a informes</Link>
+          <Link className="btn secondary" href="/informes/jugador-periodo">Ir a reporte jugador</Link>
         </div>
       </div>
       <div className="grid grid-2">

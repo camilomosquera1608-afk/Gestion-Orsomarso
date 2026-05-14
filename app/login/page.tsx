@@ -67,7 +67,7 @@ export default function LoginPage() {
       setError('Acceso demo no válido.');
       return;
     }
-    window.location.assign(result.session.role === 'master' ? '/informes' : '/');
+    window.location.assign(result.session.role === 'master' ? '/informes/jugador-periodo' : '/');
   };
 
   const fillAccess = (item: (typeof accessList)[number]) => {

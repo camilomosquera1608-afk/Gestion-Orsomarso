@@ -1249,3 +1249,9 @@ create unique index if not exists ux_players_legacy_id_not_null
   where legacy_id is not null;
 
 commit;
+
+
+-- =========================================================
+-- V122 - Reporte jugador y estabilidad de sincronización
+-- No requiere SQL; nota de versión en SUPABASE_V122_REPORT_PLAYER_ROUTE_AND_SYNC_NOTE.sql
+-- =========================================================

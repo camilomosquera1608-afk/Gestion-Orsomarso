@@ -246,7 +246,7 @@ export default function ExecutivePage() {
               </div>
               <div className="btn-row">
                 <Link className="btn" href={`/jugadores/${selectedPlayer.player.id}`}>Abrir ficha</Link>
-                <Link className="btn secondary" href="/informes">Informe</Link>
+                <Link className="btn secondary" href="/informes/jugador-periodo">Informe</Link>
               </div>
             </>
           ) : <EmptyState title="Selecciona un jugador" text="El perfil 360 aparecerá aquí." />}
@@ -311,7 +311,7 @@ export default function ExecutivePage() {
             <Link href="/carga" className="strategy-link"><BarChart3 size={18} /><strong>Carga</strong><span>RPE, minutos y GPS U20.</span></Link>
             <Link href="/wellness" className="strategy-link"><HeartPulse size={18} /><strong>Wellness</strong><span>Estado diario.</span></Link>
             <Link href="/alertas" className="strategy-link"><Target size={18} /><strong>Alertas</strong><span>Prioridades del staff.</span></Link>
-            <Link href="/informes" className="strategy-link"><Zap size={18} /><strong>Informes</strong><span>Reportes para staff.</span></Link>
+            <Link href="/informes/jugador-periodo" className="strategy-link"><Zap size={18} /><strong>Informes</strong><span>Reportes para staff.</span></Link>
           </div>
         </div>
       </div>

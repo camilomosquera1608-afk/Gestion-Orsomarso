@@ -1,0 +1,7 @@
+-- V122 - Reporte jugador y estabilidad de sincronización
+-- No requiere cambios de estructura en Supabase.
+-- Cambios de app:
+-- 1) /informes redirige a /informes/jugador-periodo.
+-- 2) El menú deja solo "Reporte jugador" en el grupo Análisis.
+-- 3) El informe del jugador se genera por rango de fechas.
+-- 4) La UI de sincronización queda local-first para no quedarse en "sincronizando" durante guardados lentos.

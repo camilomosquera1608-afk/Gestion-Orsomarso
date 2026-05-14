@@ -217,7 +217,7 @@ export default function PlayerProfilePage() {
           </div>
           <div className="roster-actions">
             <Link className="btn secondary" href="/jugadores">Volver a plantilla</Link>
-            <Link className="btn secondary" href="/informes">Generar informe</Link>
+            <Link className="btn secondary" href="/informes/jugador-periodo">Reporte jugador</Link>
           </div>
         </div>
         <div className="card">

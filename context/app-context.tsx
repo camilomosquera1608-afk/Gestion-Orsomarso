@@ -401,7 +401,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
 
     setSyncStatus(source === "manual" ? "syncing" : "ready");
-    const remote = await fetchSupabaseTablesAppData(supabase);
+    const remote = await Promise.race([
+      fetchSupabaseTablesAppData(supabase),
+      new Promise<{ ok: false; reason: string }>((resolve) =>
+        setTimeout(() => resolve({ ok: false, reason: `timeout-${source}` }), source === "manual" ? 9000 : 6500),
+      ),
+    ]);
     if (!remote.ok) {
       keepLocalDataAfterReadIssue(remote.reason);
       return;
@@ -535,6 +540,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         skipRemoteRefreshUntilRef.current = blockUntil;
       }
       setSyncStatus("syncing");
+      const releaseSyncIndicator = setTimeout(() => {
+        setSyncStatus((current) => (current === "syncing" ? "ready" : current));
+      }, scope === "all" ? 4200 : 1800);
       const session = getStaffSession();
       const scopedData = filterAppDataForSession(nextData, session);
       const saveOperation =
@@ -547,7 +555,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               : saveSupabaseTablesAppData(supabase, scopedData);
       // Los guardados pequeños (ficha / valoraciones) no deben quedar bloqueados
       // por el guardado completo de entrenamientos y competencia.
-      const timeoutMs = scope === "all" ? 30000 : 12000;
+      const timeoutMs = scope === "all" ? 18000 : 6500;
       const saveWithTimeout = Promise.race([
         saveOperation,
         new Promise<{ ok: false; reason: string }>((resolve) =>
@@ -555,13 +563,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         ),
       ]);
       const result = await saveWithTimeout;
+      clearTimeout(releaseSyncIndicator);
       // After save completes, keep blocking for 20 more seconds so the
       // realtime echo from Supabase doesn't overwrite our local state.
       const postSaveBlock = Date.now() + 20000;
       if (postSaveBlock > skipRemoteRefreshUntilRef.current) {
         skipRemoteRefreshUntilRef.current = postSaveBlock;
       }
-      setSyncStatus(result.ok ? "ready" : "error");
+      if (!result.ok) {
+        console.warn('[Orsomarso] Guardado remoto no confirmado; se conserva respaldo local.', result.reason);
+      }
+      setSyncStatus(result.ok || result.reason === "timeout" ? "ready" : "error");
     } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
       setSyncStatus("syncing");
       const result = await saveRemoteAppState(nextData);
@@ -631,7 +643,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           new Promise<{ ok: false; reason: string }>((resolve) =>
             setTimeout(
               () => resolve({ ok: false, reason: "timeout-init" }),
-              20000,
+              8000,
             ),
           ),
         ]);
@@ -815,18 +827,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
 
     const syncOnResume = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && Date.now() - lastRemotePullRef.current > 45000) {
         // Use 'poll' so the skipRemoteRefresh timer is respected after saves.
         scheduleRemoteRefresh("poll");
       }
     };
 
     const syncOnFocus = () => {
-      scheduleRemoteRefresh("poll");
+      if (Date.now() - lastRemotePullRef.current > 45000) scheduleRemoteRefresh("poll");
     };
 
     const syncOnOnline = () => {
-      scheduleRemoteRefresh("poll");
+      if (Date.now() - lastRemotePullRef.current > 45000) scheduleRemoteRefresh("poll");
     };
 
     document.addEventListener("visibilitychange", syncOnResume);
@@ -864,9 +876,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     channel.subscribe();
 
     const interval = setInterval(() => {
-      const shouldPoll = Date.now() - lastRemotePullRef.current > 12000;
+      const shouldPoll = Date.now() - lastRemotePullRef.current > 45000;
       if (shouldPoll) scheduleRemoteRefresh("poll");
-    }, 15000);
+    }, 60000);
 
     return () => {
       document.removeEventListener("visibilitychange", syncOnResume);
