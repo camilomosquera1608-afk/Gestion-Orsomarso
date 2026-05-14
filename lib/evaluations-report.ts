@@ -63,11 +63,20 @@ const withFmsTotal = (record: FMSRecord): EvaluationFmsRow => ({
     safeNumber(record.rotaryStability),
 });
 
-const sortLatest = <T extends { date: string }>(items: T[]) => items.slice().sort((a, b) => b.date.localeCompare(a.date));
+const safeDateText = (value: unknown) => String(value ?? '');
+const validDateRecord = <T extends { date?: string | null }>(item: T | null | undefined): item is T => Boolean(item && safeDateText(item.date));
+const sortLatest = <T extends { date?: string | null }>(items: T[]) =>
+  items
+    .filter(validDateRecord)
+    .slice()
+    .sort((a, b) => safeDateText(b.date).localeCompare(safeDateText(a.date)));
 
-const latestByPlayer = <T extends { playerId: string; date: string }>(items: T[]) => Object.values(items.reduce<Record<string, T>>((acc, item) => {
-  const current = acc[item.playerId];
-  if (!current || item.date > current.date) acc[item.playerId] = item;
+const latestByPlayer = <T extends { playerId?: string | null; date?: string | null }>(items: T[]) => Object.values(items.reduce<Record<string, T>>((acc, item) => {
+  const playerId = String(item.playerId ?? '').trim();
+  const date = safeDateText(item.date);
+  if (!playerId || !date) return acc;
+  const current = acc[playerId];
+  if (!current || date > safeDateText(current.date)) acc[playerId] = item;
   return acc;
 }, {}));
 
@@ -117,27 +126,9 @@ export const buildEvaluationsReportData = ({
   const cmjAverage = latestCmjGroup.length ? latestCmjGroup.reduce((acc, row) => acc + safeNumber(row.value), 0) / latestCmjGroup.length : 0;
   const fmsAverage = latestFmsGroup.length ? latestFmsGroup.reduce((acc, row) => acc + safeNumber(row.total), 0) / latestFmsGroup.length : 0;
 
-  const notes = [
-    deltaText('Peso', latestNutrition?.weight, previousNutrition?.weight, ' kg'),
-    deltaText('% grasa', latestNutrition?.bodyFat, previousNutrition?.bodyFat, '%'),
-    deltaText('% masa muscular', latestNutrition?.muscleMassPercentage, previousNutrition?.muscleMassPercentage, '%'),
-    deltaText('CMJ neuromuscular', latestNeuromuscular?.cmj, previousNeuromuscular?.cmj, ' cm'),
-    deltaText('CMJ', latestCmj?.value, previousCmj?.value, ' cm'),
-    deltaText('FMS total', latestFms?.total, previousFms?.total, ' pts'),
-  ].filter((item): item is string => Boolean(item));
+  const notes: string[] = [];
 
-  const availableBlocks = [
-    latestNutrition ? 'nutricion' : '',
-    latestNeuromuscular ? 'perfil neuromuscular' : '',
-    latestCmj ? 'CMJ' : '',
-    latestFms ? 'FMS' : '',
-  ].filter(Boolean);
-
-  const executiveSummary = mode === 'individual' && player
-    ? availableBlocks.length
-      ? `${player.name}: ${plural(availableBlocks.length, 'bloque disponible', 'bloques disponibles')}: ${availableBlocks.join(', ')}.`
-      : `${player.name}: sin datos completos para lectura integral.`
-    : `${categoryLabel(activeCategory)}: ${categoryPlayers.length} jugadores registrados.`;
+  const executiveSummary = '';
 
   return {
     mode,
@@ -169,6 +160,6 @@ export const buildEvaluationsReportData = ({
       cmjAverage,
       fmsAverage,
     },
-    improvementNotes: notes.length ? notes : ['Completar mediciones para análisis integral.'],
+    improvementNotes: notes,
   };
 };

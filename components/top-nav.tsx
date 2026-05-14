@@ -26,7 +26,6 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
       icon: Home,
       items: [
         { href: '/', label: 'Inicio', icon: Home },
-        { href: '/ejecutivo', label: 'Panel ejecutivo', icon: Briefcase },
         { href: '/diario', label: 'Diario operativo', icon: Gauge },
       ] },
     {
@@ -48,7 +47,6 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
         { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
           { href: '/riesgo', label: 'Riesgo', icon: TrendingUp },
-        { href: '/alertas', label: 'Alertas', icon: Bell },
       ] },
     {
       label: 'Plantilla',

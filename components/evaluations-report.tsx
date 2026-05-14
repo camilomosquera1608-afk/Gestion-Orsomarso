@@ -15,9 +15,9 @@ import {
   Zap,
 } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
-import { formatNutritionText, formatNutritionValue, getNutritionPlanLabel, getNutritionRangeLabel, getNutritionTechnicalReading, normalizeNutritionRecord } from '@/lib/nutrition';
+import { FAT_PERCENTAGE_RANGES, formatNutritionText, formatNutritionValue, getNutritionPlanLabel, getNutritionRangeLabel, normalizeNutritionRecord } from '@/lib/nutrition';
 import { EvaluationReportData, EvaluationReportTone } from '@/lib/evaluations-report';
-import { ReportCover } from './report-ui';
+import { PdfEvolutionChart, ReportCover } from './report-ui';
 
 type Props = {
   report: EvaluationReportData;
@@ -30,6 +30,8 @@ type IconComponent = typeof Activity;
 const toneClass = (tone: EvaluationReportTone = 'neutral') => `pdf-report-tone-${tone}`;
 const dash = (value: unknown) => (value === undefined || value === null || value === '' ? '-' : String(value));
 const numberDash = (value: number | undefined, decimals = 1) => (typeof value === 'number' && Number.isFinite(value) ? value.toFixed(decimals) : '-');
+const manualText = (value: unknown) => String(value ?? '').trim();
+const chartDate = (date: string) => date ? date.slice(5) : '-';
 
 function IconBadge({ icon: Icon, tone = 'blue' }: { icon: IconComponent; tone?: EvaluationReportTone }) {
   return <span className={`pdf-report-icon ${toneClass(tone)}`}><Icon size={15} strokeWidth={2.4} /></span>;
@@ -92,6 +94,9 @@ export function EvaluationsReportTemplate({ report, className = '', compact = fa
   const latestFms = report.latestFms;
   const playerInitials = player?.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || categoryLabel(report.category).slice(0, 2).toUpperCase();
   const hasEvaluationHistory = report.nutritionHistory.length > 0 || report.cmjHistory.length > 0;
+  const nutritionChronological = report.nutritionHistory.slice().reverse().map((record) => normalizeNutritionRecord(record));
+  const manualDiagnosis = manualText(latestNutrition?.diagnosis);
+  const hasEvolutionCharts = nutritionChronological.length > 1 || report.cmjHistory.length > 1 || report.neuromuscularHistory.length > 1;
 
   return (
     <article className={`pdf-report-document evaluations-report-document ${compact ? 'pdf-report-compact' : ''} ${className}`}>
@@ -137,15 +142,13 @@ export function EvaluationsReportTemplate({ report, className = '', compact = fa
         </div>
       </section>
 
-      <ReportSection icon={FileText} eyebrow="Resumen" title="Resumen">
-        <p className="pdf-report-summary">{report.executiveSummary}</p>
-      </ReportSection>
 
       <ReportSection icon={Activity} eyebrow="Métricas" title="Métricas">
         <div className="pdf-report-kpi-grid evaluation-kpi-grid">
           <ReportKpi icon={Scale} label="Peso" value={latestNutrition ? formatNutritionValue(latestNutrition.weight, ' kg') : '-'} note={latestNutrition?.date ?? 'Sin registro'} tone="blue" />
           <ReportKpi icon={Ruler} label="Talla" value={latestNutrition ? formatNutritionValue(latestNutrition.height, ' cm') : '-'} note="Antropometría" tone="dark" />
           <ReportKpi icon={Percent} label="Grasa" value={latestNutrition ? formatNutritionValue(latestNutrition.bodyFat, '%') : '-'} note="Composición" tone="amber" />
+          <ReportKpi icon={TrendingUp} label="IMO" value={latestNutrition ? formatNutritionValue(latestNutrition.imo) : '-'} note="Índice morfológico" tone="dark" />
           <ReportKpi icon={Zap} label="CMJ" value={latestCmj ? `${latestCmj.value} cm` : latestNeuromuscular ? `${latestNeuromuscular.cmj} cm` : '-'} note={latestCmj?.date ?? latestNeuromuscular?.date ?? 'Sin registro'} tone="green" />
           <ReportKpi icon={Activity} label="FMS" value={latestFms ? `${latestFms.total} pts` : '-'} note="Funcional" tone="blue" />
           <ReportKpi icon={TrendingUp} label="Cobertura" value={`${report.group.nutrition}/${report.group.players}`} note="Grupo" tone="neutral" />
@@ -164,19 +167,18 @@ export function EvaluationsReportTemplate({ report, className = '', compact = fa
                 <div><span>Sumatoria grasa</span><strong>{formatNutritionValue(latestNutrition.skinfoldSum)}</strong></div>
                 <div><span>Rango sumatoria</span><strong>{getNutritionRangeLabel(latestNutrition.skinfoldRange)}</strong></div>
                 <div><span>% grasa</span><strong>{formatNutritionValue(latestNutrition.bodyFat, '%')}</strong></div>
+                <div><span>Rango % grasa</span><strong>{getNutritionRangeLabel(latestNutrition.fatPercentageRange)}</strong></div>
                 <div><span>% masa muscular</span><strong>{formatNutritionValue(latestNutrition.muscleMassPercentage, '%')}</strong></div>
                 <div><span>Rango masa</span><strong>{getNutritionRangeLabel(latestNutrition.muscleMassRange)}</strong></div>
                 <div><span>IMO</span><strong>{formatNutritionValue(latestNutrition.imo)}</strong></div>
                 <div><span>Plan</span><strong>{getNutritionPlanLabel(latestNutrition.plan)}</strong></div>
               </div>
-              <div className="pdf-nutrition-diagnosis">
-                <span>Diagnóstico</span>
-                <p>{latestNutrition.diagnosis || 'No disponible.'}</p>
-              </div>
-              <div className="pdf-nutrition-diagnosis muted">
-                <span>Lectura</span>
-                <p>{getNutritionTechnicalReading(latestNutrition)}</p>
-              </div>
+              {manualDiagnosis ? (
+                <div className="pdf-nutrition-diagnosis">
+                  <span>Diagnóstico manual</span>
+                  <p>{manualDiagnosis}</p>
+                </div>
+              ) : null}
             </div>
           ) : <EmptyReportState text="Sin registros." />}
         </ReportSection>
@@ -215,11 +217,25 @@ export function EvaluationsReportTemplate({ report, className = '', compact = fa
         </ReportSection>
       </div>
 
-      <ReportSection icon={AlertTriangle} eyebrow="Recomendación" title="Recomendación">
-        <div className="pdf-report-note-list">
-          {report.improvementNotes.map((note) => <div key={note}><AlertTriangle size={14} /><span>{note}</span></div>)}
+
+      <ReportSection icon={Percent} eyebrow="Rangos" title="Rangos de % grasa">
+        <div className="pdf-fat-range-strip">
+          {FAT_PERCENTAGE_RANGES.map((range) => <span key={range}>{range}</span>)}
         </div>
       </ReportSection>
+
+      {hasEvolutionCharts ? (
+        <ReportSection icon={TrendingUp} eyebrow="Evolución" title="Evolución de datos cargados">
+          <div className="pdf-chart-grid">
+            <PdfEvolutionChart title="Peso" suffix=" kg" decimals={1} points={nutritionChronological.map((row) => ({ label: chartDate(row.date), value: row.weight }))} />
+            <PdfEvolutionChart title="IMO" decimals={1} points={nutritionChronological.map((row) => ({ label: chartDate(row.date), value: row.imo ?? 0 }))} />
+            <PdfEvolutionChart title="% grasa" suffix="%" decimals={1} points={nutritionChronological.map((row) => ({ label: chartDate(row.date), value: row.bodyFat }))} />
+            <PdfEvolutionChart title="% masa muscular" suffix="%" decimals={1} points={nutritionChronological.filter((row) => typeof row.muscleMassPercentage === 'number').map((row) => ({ label: chartDate(row.date), value: row.muscleMassPercentage ?? 0 }))} />
+            <PdfEvolutionChart title="CMJ" suffix=" cm" decimals={1} points={report.cmjHistory.slice().reverse().map((row) => ({ label: chartDate(row.date), value: row.value }))} />
+            <PdfEvolutionChart title="CMJ neuromuscular" suffix=" cm" decimals={1} points={report.neuromuscularHistory.slice().reverse().map((row) => ({ label: chartDate(row.date), value: row.cmj }))} />
+          </div>
+        </ReportSection>
+      ) : null}
 
       <ReportSection icon={TrendingUp} eyebrow="Histórico" title="Histórico" >
         {hasEvaluationHistory ? (

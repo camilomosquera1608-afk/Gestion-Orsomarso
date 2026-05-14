@@ -2,7 +2,7 @@ import { Activity, AlertTriangle, BarChart3, CalendarDays, HeartPulse, Scale, Sh
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory, Player } from '@/lib/types';
 import { calculateAgeSafe, formatPdfValue, getPdfSafeText, reportDash, supportsGps } from '@/lib/report-utils';
-import { ReportBadge, ReportCover, ReportEmptyState, ReportInsightBox, ReportKpiCard, ReportLayout, ReportSection } from './report-ui';
+import { PdfEvolutionChart, ReportBadge, ReportCover, ReportEmptyState, ReportInsightBox, ReportKpiCard, ReportLayout, ReportSection } from './report-ui';
 import { groupAverage } from '@/lib/utils';
 
 type PlayerReportProps = {
@@ -11,7 +11,7 @@ type PlayerReportProps = {
   generatedAt?: string;
   wellnessHistory: Array<{ date: string; value: number }>;
   internalHistory: Array<{ date: string; load: number; rpe: number; duration: number }>;
-  externalHistory: Array<{ date: string; min: number; acc?: number; dcc?: number; sprints?: number; rhie?: number; ima?: number; rpe?: number }>;
+  externalHistory: Array<{ date: string; min: number; acc?: number; dcc?: number; sprints?: number; rhie?: number; ima?: number; rpe?: number; totalDistance?: number; playerLoad?: number; highSpeedDistance?: number; sprintDistance?: number }>;
   competitionHistory: Array<{ date: string; competitionName?: string; opponent: string; minutesPlayed: number; goals: number; assists: number; yellowCards: number; redCards: number; goalsConceded?: number; goalsPrevented?: number; penaltiesSaved?: number; crossesDefended?: number; footworkActions?: number }>;
   nutritionHistory: Array<{ date: string; weight: number; height: number; bodyFat: number; skinfoldSum: number; plan: string; weightRange?: string; skinfoldRange?: string; fatPercentageRange?: string; muscleMassPercentage?: number; muscleMassRange?: string; imo?: number; diagnosis?: string; nutritionPlan?: string }>;
   cmjHistory: Array<{ date: string; value: number }>;
@@ -46,7 +46,10 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
   const ageLabel = calculateAgeSafe(player.birthDate, player.age);
   const wellnessAvg = groupAverage(wellnessHistory.map((row) => row.value).filter((value) => value > 0));
   const internalTotal = internalHistory.reduce((acc, row) => acc + (row.load || 0), 0);
-  const executiveText = `${getPdfSafeText(player.name, 'Jugador')} pertenece a ${categoryLabel(playerCategory)} y se encuentra en estado ${getPdfSafeText(player.status, 'sin estado')}.`;
+  const manualMedicalNotes = String(player.medicalNotes ?? '').trim();
+  const medicalSummaryItems = [player.injuryArea, player.injuryType, player.injurySeverity].map((item) => String(item ?? '').trim()).filter(Boolean);
+  const nutritionChronological = nutritionHistory.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const competitionChronological = competitionHistory.slice().sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <ReportLayout title="Perfil 360" subtitle={player.name} category={playerCategory} generatedAt={generatedAt} className={`player-report-document ${className}`}>
@@ -76,9 +79,6 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
         </div>
       </section>
 
-      <ReportSection icon={UserRound} eyebrow="Resumen" title="Resumen">
-        <p className="pdf-report-summary">{executiveText}</p>
-      </ReportSection>
 
       <ReportSection icon={BarChart3} eyebrow="Métricas" title="Estado reciente">
         <div className="pdf-report-kpi-grid player-report-kpis">
@@ -109,10 +109,11 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
           </div>
         </ReportSection>
         <ReportSection icon={HeartPulse} eyebrow="Área médica" title="Disponibilidad">
-          <ReportInsightBox tone={player.status === 'Disponible' ? 'green' : player.status === 'Lesionado' ? 'red' : 'amber'}>
-            <strong>{player.status}</strong><br />
-            {player.injuryArea || player.injuryType || player.injurySeverity ? `${reportDash(player.injuryArea)} · ${reportDash(player.injuryType)} · ${reportDash(player.injurySeverity)}` : 'Sin observaciones.'}
-          </ReportInsightBox>
+          <div className="pdf-report-feature-grid single">
+            <div><span>Estado</span><strong>{player.status}</strong></div>
+            {medicalSummaryItems.length ? <div><span>Detalle médico</span><strong>{medicalSummaryItems.join(' · ')}</strong></div> : null}
+          </div>
+          {manualMedicalNotes ? <p className="pdf-manual-note">{manualMedicalNotes}</p> : null}
         </ReportSection>
       </div>
 
@@ -126,12 +127,28 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
         {!latestNutrition && !latestCmj && !latestFms && !latestNeuro ? <ReportEmptyState text="Sin registros." /> : null}
       </ReportSection>
 
+      <ReportSection icon={BarChart3} eyebrow="Evolución" title="Evolución de datos cargados">
+        <div className="pdf-chart-grid">
+          <PdfEvolutionChart title="Wellness" decimals={1} points={wellnessHistory.map((row) => ({ label: row.date.slice(5), value: row.value }))} />
+          <PdfEvolutionChart title="Carga interna" suffix=" UA" decimals={0} points={internalHistory.map((row) => ({ label: row.date.slice(5), value: row.load }))} />
+          <PdfEvolutionChart title="Peso" suffix=" kg" decimals={1} points={nutritionChronological.map((row) => ({ label: row.date.slice(5), value: row.weight }))} />
+          <PdfEvolutionChart title="IMO" decimals={1} points={nutritionChronological.filter((row) => typeof row.imo === 'number').map((row) => ({ label: row.date.slice(5), value: row.imo ?? 0 }))} />
+          <PdfEvolutionChart title="% grasa" suffix="%" decimals={1} points={nutritionChronological.map((row) => ({ label: row.date.slice(5), value: row.bodyFat }))} />
+          <PdfEvolutionChart title="% masa muscular" suffix="%" decimals={1} points={nutritionChronological.filter((row) => typeof row.muscleMassPercentage === 'number').map((row) => ({ label: row.date.slice(5), value: row.muscleMassPercentage ?? 0 }))} />
+          <PdfEvolutionChart title="Player Load" decimals={0} points={externalHistory.filter((row) => typeof row.playerLoad === 'number').map((row) => ({ label: row.date.slice(5), value: row.playerLoad ?? 0 }))} />
+          <PdfEvolutionChart title="Distancia" suffix=" m" decimals={0} points={externalHistory.filter((row) => typeof row.totalDistance === 'number').map((row) => ({ label: row.date.slice(5), value: row.totalDistance ?? 0 }))} />
+          <PdfEvolutionChart title="Minutos competencia" suffix=" min" decimals={0} points={competitionChronological.map((row) => ({ label: row.date.slice(5), value: row.minutesPlayed }))} />
+        </div>
+      </ReportSection>
+
       {gpsEnabled ? (
         <ReportSection icon={Zap} eyebrow="GPS U20" title="Carga externa">
           {latestExternal ? (
             <div className="pdf-report-feature-grid">
               <div><span>Fecha</span><strong>{latestExternal.date}</strong></div>
               <div><span>MIN</span><strong>{latestExternal.min}</strong></div>
+              <div><span>Distancia</span><strong>{reportDash(latestExternal.totalDistance)}</strong></div>
+              <div><span>Player Load</span><strong>{reportDash(latestExternal.playerLoad)}</strong></div>
               <div><span>ACC</span><strong>{reportDash(latestExternal.acc)}</strong></div>
               <div><span>DCC</span><strong>{reportDash(latestExternal.dcc)}</strong></div>
               <div><span>Sprints</span><strong>{reportDash(latestExternal.sprints)}</strong></div>
@@ -141,17 +158,6 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
         </ReportSection>
       ) : null}
 
-      <ReportSection icon={AlertTriangle} eyebrow="Recomendación" title="Recomendación">
-        <ReportInsightBox tone={player.status === 'Lesionado' ? 'red' : latestWellness && latestWellness.value < 3.2 ? 'amber' : 'blue'}>
-          {player.status === 'Lesionado'
-            ? 'Seguimiento médico prioritario.'
-            : latestWellness && latestWellness.value < 3.2
-              ? 'Controlar recuperación y carga reciente.'
-              : competitionHistory.length === 0
-                ? 'Sin competencia registrada.'
-                : 'Seguimiento regular.'}
-        </ReportInsightBox>
-      </ReportSection>
     </ReportLayout>
   );
 }

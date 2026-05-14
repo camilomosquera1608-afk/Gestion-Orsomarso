@@ -47,11 +47,11 @@ export default function HomePage() {
         <div>
           <span className="section-eyebrow">Flujo</span>
           <h3 style={{ margin: 0 }}>Rutina diaria</h3>
-          <p className="muted-line">Wellness, alertas, sesión, pendientes y cierre.</p>
+          <p className="muted-line">Wellness, disponibilidad, sesión, pendientes y cierre.</p>
         </div>
         <div className="workflow-steps">
           <span>1. Wellness</span>
-          <span>2. Alertas</span>
+          <span>2. Disponibilidad</span>
           <span>3. Sesión</span>
           <span>4. Pendientes</span>
           <span>5. Cierre</span>
@@ -127,11 +127,9 @@ export default function HomePage() {
         <div className="card">
           <SectionHeader eyebrow="Acciones" title="Accesos rápidos" />
           <div className="quick-action-grid">
-            <Link className="quick-action-card" href="/ejecutivo"><div className="qa-icon"><Target size={18} /></div><strong>Panel ejecutivo</strong><span>Dirección deportiva</span></Link>
             <Link className="quick-action-card" href="/disponibilidad"><div className="qa-icon"><HeartPulse size={18} /></div><strong>Centro médico</strong><span>Disponibilidad</span></Link>
             <Link className="quick-action-card" href="/carga"><div className="qa-icon"><Activity size={18} /></div><strong>Centro de carga</strong><span>Carga GPS</span></Link>
             <Link className="quick-action-card" href="/wellness"><div className="qa-icon"><CalendarCheck2 size={18} /></div><strong>Wellness</strong><span>Bienestar diario</span></Link>
-            <Link className="quick-action-card" href="/alertas"><div className="qa-icon"><AlertTriangle size={18} /></div><strong>Alertas</strong><span>Prioridades</span></Link>
             <Link className="quick-action-card" href="/competencia"><div className="qa-icon"><ClipboardList size={18} /></div><strong>Match Center</strong><span>Competencia</span></Link>
           </div>
         </div>

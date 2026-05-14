@@ -23,7 +23,6 @@ const groups: NavGroup[] = [
     label: 'Dashboard',
     items: [
       { href: '/', label: 'Inicio', icon: Home },
-      { href: '/ejecutivo', label: 'Panel ejecutivo', icon: Briefcase },
       { href: '/diario', label: 'Diario operativo', icon: Gauge },
     ] },
   {
@@ -41,7 +40,6 @@ const groups: NavGroup[] = [
       { href: '/carga', label: 'Centro de carga', icon: Dumbbell },
       { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
       { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
-      { href: '/alertas', label: 'Alertas', icon: Bell },
     ] },
   {
     label: 'Plantilla',

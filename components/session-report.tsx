@@ -577,7 +577,7 @@ export function SessionReportTemplate({
             sub="Ordena a los jugadores por ACC + DCC + sprints + RHIE para identificar quién concentró más acciones de alta exigencia." />
           <table className="sr-heat-table" style={{ fontSize: 9.5 }}>
             <thead><tr>
-              <th className="sr-th-name">Jugador</th><th>Pos.</th><th>ACC</th><th>DCC</th><th>Sprints</th><th>RHIE</th><th>Total neuro</th><th>Lectura</th>
+              <th className="sr-th-name">Jugador</th><th>Pos.</th><th>ACC</th><th>DCC</th><th>Sprints</th><th>RHIE</th><th>Total neuro</th>
             </tr></thead>
             <tbody>
               {neuromuscularRows.map(item => (
@@ -589,14 +589,10 @@ export function SessionReportTemplate({
                   <td style={{ textAlign:'center', fontWeight:900 }}>{item.row.sprints}</td>
                   <td style={{ textAlign:'center', fontWeight:900 }}>{item.row.rhie}</td>
                   <td style={{ textAlign:'center', fontWeight:900, color: item.value >= avgNeuromuscular * 1.25 ? C.red : item.value >= avgNeuromuscular ? C.amber : C.green }}>{item.value}</td>
-                  <td style={{ color:C.muted }}>Alta vigilancia sobre {item.focus}; evitar repetir el mismo pico si el RPE o wellness quedan comprometidos.</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="sr-insight sr-insight-neutral" style={{ marginTop: 8 }}>
-            Uso práctico: esta tabla no reemplaza la decisión médica; sirve para definir qué componente conviene descargar o no repetir en la siguiente sesión.
-          </div>
         </section>
       )}
 
@@ -660,16 +656,11 @@ export function SessionReportTemplate({
             <KTile label="Estado muscular" value={avgPain ? avgPain.toFixed(1) : '—'} note="Mayor = sin dolor" accent={avgPain >= 3.7 ? C.green : avgPain >= 3.0 ? C.amber : C.red} />
             <KTile label="Tranquilidad" value={avgStress ? avgStress.toFixed(1) : '—'} note="Mayor = menos estrés" accent={avgStress >= 3.7 ? C.green : avgStress >= 3.0 ? C.amber : C.red} />
           </div>
-          <div className="sr-insight sr-insight-neutral">
-            {avgReadiness
-              ? `Lectura: carga interna promedio ${Math.round(avgLoad)} UA con readiness ${avgReadiness.toFixed(1)}/5. ${loadWellnessRatio > 160 ? 'Relación alta: conviene revisar recuperación, energía y estado muscular antes de aumentar volumen.' : loadWellnessRatio > 115 ? 'Relación moderada: mantener control individual y observar jugadores con RPE elevado.' : 'Relación estable: la carga parece coherente con el estado subjetivo del grupo.'}`
-              : 'No hay suficientes registros wellness para calcular la relación carga-bienestar.'}
-          </div>
         </section>
       )}
 
       {/* ══ INDIVIDUALIZACIÓN CIENTÍFICA ═════════════════════════════════════ */}
-      {reg.length > 0 && (
+      {false && reg.length > 0 && (
         <section className="sr-section" style={{ pageBreakBefore: gps ? 'always' : undefined }}>
           <Sec eyebrow="Individualización" title="Matriz científica para ajustar la próxima carga"
             sub="Integra línea base individual, carga 7d vs habitual, wellness, estado médico, posición y respuesta de la sesión." />
@@ -709,7 +700,7 @@ export function SessionReportTemplate({
         </section>
       )}
 
-      {priorityRows.length > 0 && (
+      {false && priorityRows.length > 0 && (
         <section className="sr-section">
           <Sec eyebrow="Decisiones" title="Prioridades individuales para el cuerpo técnico"
             sub="Acciones sugeridas para convertir el informe en ajustes concretos de carga." />
@@ -725,7 +716,7 @@ export function SessionReportTemplate({
         </section>
       )}
 
-      {nextSessionRows.length > 0 && (
+      {false && nextSessionRows.length > 0 && (
         <section className="sr-section">
           <Sec eyebrow="Próxima sesión" title="Recomendación concreta por jugador"
             sub="Convierte la decisión porcentual en restricciones y focos prácticos para la siguiente sesión." />
@@ -747,7 +738,7 @@ export function SessionReportTemplate({
         </section>
       )}
 
-      {subStimRows.length > 0 && (
+      {false && subStimRows.length > 0 && (
         <section className="sr-section">
           <Sec eyebrow="Subestimulación" title="Jugadores con posible necesidad de complemento"
             sub="Detecta baja exposición relativa dentro de la sesión. Solo debe convertirse en compensatorio si no hay dolor, restricción o fatiga elevada." />
@@ -772,17 +763,9 @@ export function SessionReportTemplate({
         </section>
       )}
 
+      {/* Datos + alertas simples */}
       <section className="sr-section">
-        <Sec eyebrow="Marco de interpretación" title="Cómo leer la carga de esta sesión" />
-        <div className="sr-insight sr-insight-green"><strong>Contexto del día:</strong> {microcycleContext(sessionType)}</div>
-        <div className="sr-insight sr-insight-neutral" style={{ marginTop: 8 }}>
-          <strong>Volumen:</strong> {gps ? `${formatPdfNumber(totalDist)} m totales y ${formatPdfNumber(avgMMin, 1)} m/min.` : `${Math.round(totalLoad)} UA internas.`} <strong> Intensidad:</strong> RPE {avgRpe.toFixed(1)} y {gps ? `velocidad máxima ${formatPdfNumber(maxVel, 1)} km/h.` : `tiempo medio ${Math.round(avgMin)} min.`} <strong> Neuromuscular:</strong> {gps ? `${Math.round(avgAcc)} ACC, ${Math.round(avgDcc)} DCC y ${formatPdfNumber(totalSpr)} sprints.` : 'sin GPS; interpretar con RPE, minutos y estado muscular.'}
-        </div>
-      </section>
-
-      {/* ══ ANÁLISIS + ALERTAS ════════════════════════════════════════════════ */}
-      <section className="sr-section">
-        <Sec eyebrow="Análisis" title="Lectura de sesión" />
+        <Sec eyebrow="Datos" title="Resumen de sesión y alertas" />
         <div className="sr-insight">
           {reg.length
             ? gps

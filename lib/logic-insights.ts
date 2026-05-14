@@ -37,6 +37,13 @@ export interface SessionLoadMetrics {
 const safeAverage = (values: number[]) => groupAverage(values.filter((value) => Number.isFinite(value) && value > 0));
 const round = (value: number, digits = 0) => (Number.isFinite(value) ? value.toFixed(digits) : (0).toFixed(digits));
 
+const safeDateText = (value: unknown) => String(value ?? '');
+const compareDateDesc = <T extends { date?: string | null }>(a: T, b: T) =>
+  safeDateText(b.date).localeCompare(safeDateText(a.date));
+const hasDate = <T extends { date?: string | null }>(record: T | null | undefined): record is T =>
+  Boolean(record && safeDateText(record.date));
+
+
 export const trainingTypeLabel: Record<TrainingSessionType, string> = {
   'MD+1': 'MD+1',
   'MD+2': 'MD+2',
@@ -177,8 +184,8 @@ export const buildLoadWellnessRelation = (params: {
 
 type ReadinessTone = 'green' | 'yellow' | 'red' | 'neutral';
 
-const latestByDate = <T extends { date: string }>(records: T[]) =>
-  [...records].sort((a, b) => b.date.localeCompare(a.date))[0];
+const latestByDate = <T extends { date?: string | null }>(records: T[]) =>
+  [...records].filter(hasDate).sort(compareDateDesc)[0];
 
 const mean = (values: number[]) => safeAverage(values);
 const stdDev = (values: number[]) => {
@@ -315,7 +322,7 @@ export const buildRoleLoadControl = (params: {
     .map((player) => {
       const recentMatches = competitionRecords
         .filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate))
-        .sort((a, b) => b.date.localeCompare(a.date))
+        .sort(compareDateDesc)
         .slice(0, 5);
       const currentLoad = getPlayerLoadWindow(player.id, referenceDate, 0, 6, internalLoads, externalLoads);
       if (recentMatches.length < 5) {
@@ -643,7 +650,7 @@ export const buildEvaluationLogic = (params: { data: AppData; players: Player[];
   const scopedPlayers = players.filter((player) => category === 'all' || !category || player.category === category);
   const insights: LogicInsight[] = [];
   scopedPlayers.forEach((player) => {
-    const cmj = data.cmjRecords.filter((record) => record.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date));
+    const cmj = data.cmjRecords.filter((record) => record.playerId === player.id && hasDate(record)).sort(compareDateDesc);
     const neuroSameDay = cmj[0] ? data.neuromuscularRecords.find((record) => record.playerId === player.id && record.date === cmj[0].date) : undefined;
     if (cmj[0] && neuroSameDay && Math.abs((neuroSameDay.cmj ?? 0) - cmj[0].value) >= 0.5) {
       insights.push({
@@ -656,7 +663,7 @@ export const buildEvaluationLogic = (params: { data: AppData; players: Player[];
     }
     if (cmj[0] && cmj[1]) {
       const delta = cmj[0].value - cmj[1].value;
-      const prev5Load = Array.from({ length: 5 }, (_, index) => getPlayerDailyInternalLoad(player.id, dateMinusDays(cmj[0].date, index + 1), data.internalLoads, data.externalLoads)).reduce((sum, value) => sum + value, 0);
+      const prev5Load = Array.from({ length: 5 }, (_, index) => getPlayerDailyInternalLoad(player.id, dateMinusDays(safeDateText(cmj[0].date), index + 1), data.internalLoads, data.externalLoads)).reduce((sum, value) => sum + value, 0);
       if (Math.abs(delta) >= 2) {
         insights.push({
           id: `eval-cmj-${player.id}`,
@@ -671,7 +678,7 @@ export const buildEvaluationLogic = (params: { data: AppData; players: Player[];
         });
       }
     }
-    const fms = data.fmsRecords.filter((record) => record.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const fms = data.fmsRecords.filter((record) => record.playerId === player.id && hasDate(record)).sort(compareDateDesc)[0];
     if (fms) {
       const total = fms.shoulderMobility + fms.squat + fms.legRaise + fms.hurdleStep + fms.lunge + fms.trunkStability + fms.rotaryStability;
       if (total <= 14 || [fms.shoulderMobility, fms.squat, fms.legRaise, fms.hurdleStep, fms.lunge, fms.trunkStability, fms.rotaryStability].some((value) => value <= 1)) {
@@ -695,11 +702,11 @@ export const buildIntelligentRanking = (params: { data: AppData; players: Player
     .map((player) => {
       const loads = data.internalLoads
         .filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate))
-        .sort((a, b) => b.date.localeCompare(a.date));
+        .sort(compareDateDesc);
       const recentLoad = loads.slice(0, 6).reduce((sum, record) => sum + calculateInternalLoad(record), 0);
-      const wellness = averageWellness(data.wellness.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate)).sort((a, b) => b.date.localeCompare(a.date))[0]);
-      const cmj = data.cmjRecords.filter((record) => record.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0]?.value ?? 0;
-      const fms = data.fmsRecords.filter((record) => record.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+      const wellness = averageWellness(data.wellness.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate)).sort(compareDateDesc)[0]);
+      const cmj = data.cmjRecords.filter((record) => record.playerId === player.id && hasDate(record)).sort(compareDateDesc)[0]?.value ?? 0;
+      const fms = data.fmsRecords.filter((record) => record.playerId === player.id && hasDate(record)).sort(compareDateDesc)[0];
       const fmsTotal = fms ? fms.shoulderMobility + fms.squat + fms.legRaise + fms.hurdleStep + fms.lunge + fms.trunkStability + fms.rotaryStability : 0;
       const comp = data.competitionRecords.filter((record) => record.playerId === player.id);
       const goalsAssists = comp.reduce((sum, record) => sum + (record.goals * 8) + (record.assists * 6), 0);

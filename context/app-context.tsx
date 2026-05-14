@@ -446,6 +446,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const persistData = async (
     nextData: AppData,
     scope: "all" | "players" | "evaluations" = "all",
+    options: { playerIds?: string[] } = {},
   ) => {
     saveLocalAppData(nextData);
     setLocalBackups(listLocalBackups());
@@ -470,7 +471,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const scopedData = filterAppDataForSession(nextData, session);
       const saveOperation =
         scope === "players"
-          ? saveSupabasePlayersAppData(supabase, scopedData)
+          ? saveSupabasePlayersAppData(supabase, scopedData, { onlyPlayerIds: options.playerIds })
           : scope === "evaluations"
             ? saveSupabaseEvaluationsAppData(supabase, scopedData)
             : saveSupabaseTablesAppData(supabase, scopedData);
@@ -503,6 +504,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const applyMutation = (
     updater: (prev: AppData) => AppData,
     scope: "all" | "players" | "evaluations" = "all",
+    options: { playerIds?: string[] } = {},
   ) => {
     setData((prev) => {
       // FIX #10: Usar el ref cacheado en lugar de llamar getStaffSession() en cada mutación
@@ -513,7 +515,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
       const next = updater(prev);
       dataRef.current = next;
-      void persistData(next, scope);
+      void persistData(next, scope, options);
       return next;
     });
   };
@@ -1117,6 +1119,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               .sort((a, b) => a.name.localeCompare(b.name)),
           }),
           "players",
+          { playerIds: [player.id] },
         ),
       deletePlayer: (playerId) => {
         const session = sessionRef.current;

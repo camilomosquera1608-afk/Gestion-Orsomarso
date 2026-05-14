@@ -1,0 +1,4 @@
+-- V119 PDF_REPORTS_AND_NAV_CLEANUP
+-- No requiere cambios estructurales obligatorios.
+-- Esta versión reorganiza navegación y rediseña los informes PDF desde la interfaz.
+-- Mantiene compatibilidad con las tablas existentes de jugadores, cargas, competencia y valoraciones.

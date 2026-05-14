@@ -161,3 +161,93 @@ export function ReportComparisonBar({ label, value, max = 100, note }: { label: 
     </div>
   );
 }
+
+
+export type PdfChartPoint = { label: string; value: number; note?: string };
+
+export function PdfSectionHeader({ icon: Icon = FileText, eyebrow, title, subtitle }: { icon?: LucideIcon; eyebrow?: string; title: string; subtitle?: string }) {
+  return (
+    <div className="pdf-report-section-heading pdf-section-header-pro">
+      <span className="pdf-report-icon pdf-report-tone-blue"><Icon size={15} strokeWidth={2.4} /></span>
+      <div>
+        {eyebrow ? <span>{getPdfSafeText(eyebrow, '')}</span> : null}
+        <h3>{getPdfSafeText(title, 'Sección')}</h3>
+        {subtitle ? <p>{getPdfSafeText(subtitle, '')}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+export function PdfMetricCard(props: { icon?: LucideIcon; label: string; value: ReactNode; note?: string; tone?: ReportTone }) {
+  return <ReportKpiCard {...props} />;
+}
+
+export function PdfChartBlock({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  return (
+    <div className="pdf-chart-block">
+      <div className="pdf-chart-block-head">
+        <strong>{getPdfSafeText(title, 'Gráfico')}</strong>
+        {subtitle ? <span>{getPdfSafeText(subtitle, '')}</span> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function PdfEvolutionChart({ title, points, suffix = '', decimals = 0 }: { title: string; points: PdfChartPoint[]; suffix?: string; decimals?: number }) {
+  const clean = points.filter((point) => Number.isFinite(point.value));
+  if (clean.length < 2) return null;
+  const values = clean.map((point) => point.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(1, max - min);
+  const width = 320;
+  const height = 120;
+  const x = (index: number) => 22 + (index / Math.max(1, clean.length - 1)) * (width - 44);
+  const y = (value: number) => 92 - ((value - min) / span) * 62;
+  const d = clean.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index).toFixed(1)} ${y(point.value).toFixed(1)}`).join(' ');
+  const lastPoint = clean[clean.length - 1];
+  const firstPoint = clean[0];
+  const delta = lastPoint.value - firstPoint.value;
+  const formattedLast = `${lastPoint.value.toFixed(decimals)}${suffix}`;
+  const formattedDelta = `${delta >= 0 ? '+' : ''}${delta.toFixed(decimals)}${suffix}`;
+  return (
+    <PdfChartBlock title={title} subtitle={`${clean[0].label} - ${lastPoint.label}`}>
+      <div className="pdf-evolution-chart">
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+          <line x1="22" y1="92" x2="298" y2="92" className="axis" />
+          <line x1="22" y1="30" x2="22" y2="92" className="axis" />
+          <path d={d} className="line" />
+          {clean.map((point, index) => <circle key={`${title}-${point.label}-${index}`} cx={x(index)} cy={y(point.value)} r="3.5" className="dot" />)}
+          <text x="22" y="111" className="tick">{clean[0].label}</text>
+          <text x="298" y="111" textAnchor="end" className="tick">{lastPoint.label}</text>
+        </svg>
+        <div className="pdf-evolution-meta">
+          <span>Actual</span><strong>{formattedLast}</strong><small>Δ {formattedDelta}</small>
+        </div>
+      </div>
+    </PdfChartBlock>
+  );
+}
+
+export function PdfPlayerSummary({ name, meta, status, children }: { name: string; meta?: string; status?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="pdf-player-summary-card">
+      <div><span>Jugador</span><strong>{getPdfSafeText(name, 'Jugador')}</strong>{meta ? <small>{getPdfSafeText(meta, '')}</small> : null}</div>
+      {status ? <div className="pdf-player-summary-status">{status}</div> : null}
+      {children}
+    </div>
+  );
+}
+
+export function PdfCompetitionGpsTable({ rows }: { rows: Array<{ name: string; minutes?: number; totalDistance?: number; playerLoad?: number; hsr?: number; sprint?: number; acc?: number; dcc?: number; rhie?: number }> }) {
+  if (!rows.length) return <ReportEmptyState text="Sin datos GPS." />;
+  return (
+    <div className="fd-table-wrap">
+      <table className="pdf-report-table compact pdf-gps-table">
+        <thead><tr><th>Jugador</th><th>MIN</th><th>Dist.</th><th>PL</th><th>HSR</th><th>Sprint</th><th>ACC</th><th>DCC</th><th>RHIE</th></tr></thead>
+        <tbody>{rows.map((row) => <tr key={row.name}><td><strong>{row.name}</strong></td><td>{reportDash(row.minutes)}</td><td>{reportDash(row.totalDistance)}</td><td>{reportDash(row.playerLoad)}</td><td>{reportDash(row.hsr)}</td><td>{reportDash(row.sprint)}</td><td>{reportDash(row.acc)}</td><td>{reportDash(row.dcc)}</td><td>{reportDash(row.rhie)}</td></tr>)}</tbody>
+      </table>
+    </div>
+  );
+}

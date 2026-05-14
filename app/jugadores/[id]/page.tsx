@@ -59,7 +59,7 @@ export default function PlayerProfilePage() {
       setProfileMessage('Información actualizada y respaldada.');
     }
     if (syncStatus === 'error') {
-      setProfileMessage('Guardado local aplicado. Ejecuta el SQL V116 en Supabase para completar la sincronización.');
+      setProfileMessage('Guardado local aplicado. Revisa conexión/Supabase y ejecuta el SQL V118 para completar la sincronización de ficha.');
     }
   }, [profileMessage, syncStatus]);
 

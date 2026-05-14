@@ -1166,6 +1166,7 @@ const upsertEvaluationTables = async (
 export const saveSupabasePlayersAppData = async (
   supabase: SupabaseClient,
   data: AppData,
+  options: { onlyPlayerIds?: string[] } = {},
 ): Promise<SyncResult> => {
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) {
@@ -1174,7 +1175,14 @@ export const saveSupabasePlayersAppData = async (
   }
 
   try {
-    await upsertRows(supabase, "players", toPlayerRows(data.players));
+    const onlyIds = new Set((options.onlyPlayerIds ?? []).filter(Boolean));
+    const playersToSave = onlyIds.size
+      ? data.players.filter((player) => onlyIds.has(player.id))
+      : data.players;
+    const result = await upsertRows(supabase, "players", toPlayerRows(playersToSave));
+    if (playersToSave.length > 0 && result.savedCount === 0) {
+      return { ok: false, reason: "save_players_failed" };
+    }
     return { ok: true };
   } catch (error) {
     return {

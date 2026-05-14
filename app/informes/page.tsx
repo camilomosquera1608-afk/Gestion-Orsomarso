@@ -35,7 +35,7 @@ export default function InformesPage() {
     ? data.externalLoads
       .filter((record) => record.playerId === selectedPlayerId)
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map((record) => ({ date: record.date, min: record.min, acc: record.acc, dcc: record.dcc, sprints: record.sprints, rhie: record.rhie, ima: record.ima, rpe: record.rpe }))
+      .map((record) => ({ date: record.date, min: record.min, acc: record.acc, dcc: record.dcc, sprints: record.sprints, rhie: record.rhie, ima: record.ima, rpe: record.rpe, totalDistance: record.totalDistance, playerLoad: record.playerLoad, highSpeedDistance: record.highSpeedDistance, sprintDistance: record.sprintDistance }))
     : [];
   const nutritionHistory = data.nutritionRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => a.date.localeCompare(b.date));
   const neuromuscularHistory = data.neuromuscularRecords.filter((record) => record.playerId === selectedPlayerId).sort((a, b) => a.date.localeCompare(b.date));
@@ -65,14 +65,14 @@ export default function InformesPage() {
   return (
     <div className="grid report-page">
       <AppHero
-        title="Centro de informes"
-        subtitle="Reportes institucionales."
+        title="Exportar PDF"
+        subtitle="Centro simple para generar reportes PDF profesionales sin duplicar módulos."
       
         heroClass="hero-informes"
       />
 
       <section className="card report-command-center no-print">
-        <SectionHeader eyebrow="Reportes" title="Centro de informes" />
+        <SectionHeader eyebrow="PDF" title="Centro de exportación" subtitle="Los datos se consultan en cada módulo; aquí solo preparas los informes para imprimir o enviar." />
         <div className="report-center-grid premium-report-center-grid">
           <ReportTypeCard title="Informe diario" description="Wellness, carga y alertas." status={hasDailyData ? 'Listo' : 'No disponible'} primaryLabel="Ir a Diario" onPrimary={() => window.location.href = '/diario'} />
           <ReportTypeCard title="Informe de sesión" description="Sesión, participación, RPE y MIN." status={hasSessionData ? 'Disponible' : 'Sin sesión'} primaryLabel="Ir a Sesión" onPrimary={() => window.location.href = '/sesion-entrenamiento'} />
@@ -82,7 +82,6 @@ export default function InformesPage() {
           <ReportTypeCard title="Reporte por periodo" description="Exporta números reales por jugador y rango de fechas." status={player ? 'Listo' : 'Sin jugador'} primaryLabel="Abrir reporte" onPrimary={() => window.location.href = '/informes/jugador-periodo'} />
           <ReportTypeCard title="Informe médico" description="Disponibilidad e incidencias." status="Listo" primaryLabel="Ver disponibilidad" onPrimary={() => window.location.href = '/disponibilidad'} />
           <ReportTypeCard title="Informe de carga" description="Carga interna y exposición." status={gpsEnabled ? 'GPS U20' : 'Listo'} primaryLabel="Ver carga" onPrimary={() => window.location.href = '/carga'} />
-          <ReportTypeCard title="Informe ejecutivo" description="Plantel, alertas, carga y competencia." status="Listo" primaryLabel="Panel ejecutivo" onPrimary={() => window.location.href = '/ejecutivo'} />
         </div>
       </section>
 
@@ -129,8 +128,6 @@ export default function InformesPage() {
           <Link href="/competencia" className="strategy-link"><Trophy size={18} /><strong>Informe competencia</strong><span>Competencia.</span></Link>
           <Link href="/sesion-entrenamiento" className="strategy-link"><ClipboardList size={18} /><strong>Informe sesión</strong><span>Sesión.</span></Link>
           <Link href="/jugadores" className="strategy-link"><UserRound size={18} /><strong>Perfil 360</strong><span>Jugador.</span></Link>
-          <Link href="/alertas" className="strategy-link"><Zap size={18} /><strong>Alertas</strong><span>Alertas.</span></Link>
-          <Link href="/ejecutivo" className="strategy-link"><FileText size={18} /><strong>Ejecutivo</strong><span>Dirección deportiva.</span></Link>
         </div>
       </div>
     </div>

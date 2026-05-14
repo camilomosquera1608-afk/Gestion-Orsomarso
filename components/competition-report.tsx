@@ -474,7 +474,7 @@ function EyeballKpiStrip({ stats }: { stats?: EyeballMatchStats | null }) {
 
 function MatchDynamicsSection({ stats }: { stats?: EyeballMatchStats | null }) {
   if (!stats) {
-    return <ReportSection icon={BarChart3} title="Dinámica general"><EmptyReportState text="Importa el CSV Eyeball para construir las gráficas del partido." /></ReportSection>;
+    return <ReportSection icon={BarChart3} title="Dinámica general"><EmptyReportState text="Sin datos Eyeball cargados." /></ReportSection>;
   }
   const possession = getSectionStat(stats, 'Resumen', ['Posesión', 'Posesiones']);
   const passPrecision = getSectionStat(stats, 'Distribución', ['Precisión de pases']);
@@ -731,6 +731,12 @@ export function CompetitionReportTemplate({ report, category, className = '', co
       <TacticalBlock icon={Flag} eyebrow="Pelota quieta" title="Acciones de pelota quieta" stats={eyeballStats} patterns={setPiecePatterns} empty="Sin datos de pelota quieta." color={C.amber} />
       <GpsPhysicalSection report={report} />
       <ReportSection icon={ClipboardList} title="Tabla individual integrada"><IntegratedPlayerTable rows={report.rows} /></ReportSection>
+      {String(match.observation ?? '').trim() ? (
+        <ReportSection icon={ClipboardList} title="Observaciones manuales del partido">
+          <p className="pdf-manual-note">{String(match.observation ?? '').trim()}</p>
+        </ReportSection>
+      ) : null}
+
       {(report.medicalRows.length || report.disciplinedRows.length) ? (
         <div className="pdf-report-two-columns compact-blocks competition-report-bottom-grid fd-report-bottom">
           {report.medicalRows.length ? <ReportSection icon={HeartPulse} title="Incidencias médicas"><table className="pdf-report-table compact"><thead><tr><th>Jugador</th><th>Estado</th><th>Observación</th></tr></thead><tbody>{report.medicalRows.map((row) => <tr key={row.id}><td>{row.name}</td><td>{row.medicalStatus}</td><td>{row.medicalObservation || '-'}</td></tr>)}</tbody></table></ReportSection> : null}

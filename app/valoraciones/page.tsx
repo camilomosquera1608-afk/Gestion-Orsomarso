@@ -123,9 +123,9 @@ export default function ValoracionesPage() {
   }, {}));
   const categoryPlayerIds = new Set(categoryPlayers.map((player) => player.id));
   const latestNutritionGroup = latestByPlayer(data.nutritionRecords.map((record) => normalizeNutritionRecord(record)).filter((record) => categoryPlayerIds.has(record.playerId) && safeDateText(record.date)));
-  const latestNeuromuscularGroup = latestByPlayer(data.neuromuscularRecords.filter((record) => categoryPlayerIds.has(record.playerId)));
-  const latestCmjGroup = latestByPlayer(data.cmjRecords.filter((record) => categoryPlayerIds.has(record.playerId)));
-  const latestFmsGroup = latestByPlayer(data.fmsRecords.filter((record) => categoryPlayerIds.has(record.playerId)).map((record) => ({ ...record, total: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })));
+  const latestNeuromuscularGroup = latestByPlayer(data.neuromuscularRecords.filter((record) => categoryPlayerIds.has(record.playerId) && safeDateText(record.date)));
+  const latestCmjGroup = latestByPlayer(data.cmjRecords.filter((record) => categoryPlayerIds.has(record.playerId) && safeDateText(record.date)));
+  const latestFmsGroup = latestByPlayer(data.fmsRecords.filter((record) => categoryPlayerIds.has(record.playerId) && safeDateText(record.date)).map((record) => ({ ...record, total: Number(record.shoulderMobility ?? 0) + Number(record.squat ?? 0) + Number(record.legRaise ?? 0) + Number(record.hurdleStep ?? 0) + Number(record.lunge ?? 0) + Number(record.trunkStability ?? 0) + Number(record.rotaryStability ?? 0) })));
   const cmjGroupAverage = latestCmjGroup.length ? latestCmjGroup.reduce((acc, row) => acc + row.value, 0) / latestCmjGroup.length : 0;
   const neuroGroupAverage = latestNeuromuscularGroup.length ? latestNeuromuscularGroup.reduce((acc, row) => acc + row.cmj, 0) / latestNeuromuscularGroup.length : 0;
   const fmsGroupAverage = latestFmsGroup.length ? latestFmsGroup.reduce((acc, row) => acc + row.total, 0) / latestFmsGroup.length : 0;
