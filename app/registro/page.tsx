@@ -6,7 +6,7 @@ import { AppHero } from '@/components/app-hero';
 import { EmptyState, FormSection, SectionHeader } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { categoryLabel, calcAge, formatBirthDateForDisplay } from '@/lib/labels';
+import { categoryLabel, calcAge, normalizeBirthDateInput } from '@/lib/labels';
 import { ClubCategory, CompetitiveRole, DominantFoot, LoadTolerance, PlayerStatus, Position } from '@/lib/types';
 
 const positions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
@@ -49,7 +49,7 @@ export default function RegistroPage() {
   const handlePlayerSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const birthDate = formatBirthDateForDisplay(getText(form, 'birthDate'));
+    const birthDate = normalizeBirthDateInput(getText(form, 'birthDate'));
     addPlayer({
       id: crypto.randomUUID(),
       name: getText(form, 'name'),

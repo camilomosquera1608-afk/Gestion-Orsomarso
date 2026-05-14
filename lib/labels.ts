@@ -9,31 +9,39 @@ export const categoryLabel = (category?: ClubCategory | 'all' | string) => {
 };
 
 
-export const formatBirthDateForDisplay = (iso?: string) => {
+export const normalizeBirthDateInput = (value?: string | null) => {
+  if (!value) return '';
+  const text = String(value).trim();
+  if (!text) return '';
+  const isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const [, yyyy, mm, dd] = isoMatch;
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  }
+  const slashMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, dd, mm, yyyy] = slashMatch;
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  }
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return '';
+};
+
+export const formatBirthDateForDisplay = (value?: string | null) => {
+  const iso = normalizeBirthDateInput(value);
   if (!iso) return '';
-  if (iso.includes('/')) return iso;
-  const parts = iso.split('-');
-  if (parts.length !== 3) return iso;
-  const [yyyy, mm, dd] = parts;
+  const [yyyy, mm, dd] = iso.split('-');
   return `${dd}/${mm}/${yyyy}`;
 };
 
-export const normalizeBirthDateInput = (value?: string) => {
-  if (!value) return '';
-  if (value.includes('-')) return value;
-  const parts = value.split('/');
-  if (parts.length !== 3) return value;
-  const [dd, mm, yyyy] = parts;
-  return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
-};
-
-export const parseBirthDate = (value?: string) => {
-  if (!value) return null;
-  const normalized = formatBirthDateForDisplay(value);
-  const [dd, mm, yyyy] = normalized.split('/');
-  const day = Number(dd);
-  const month = Number(mm);
+export const parseBirthDate = (value?: string | null) => {
+  const iso = normalizeBirthDateInput(value);
+  if (!iso) return null;
+  const [yyyy, mm, dd] = iso.split('-');
   const year = Number(yyyy);
+  const month = Number(mm);
+  const day = Number(dd);
   if (!day || !month || !year) return null;
   const date = new Date(year, month - 1, day);
   return Number.isNaN(date.getTime()) ? null : date;

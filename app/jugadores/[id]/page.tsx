@@ -171,6 +171,7 @@ export default function PlayerProfilePage() {
       ...player,
       ...draft,
       category: savedCategory,
+      birthDate: normalizeBirthDateInput(draft.birthDate) || undefined,
       age: calcAge(draft.birthDate) ?? draft.age,
       injuryHistory: draft.injuryHistory ?? player.injuryHistory,
       categoryHistory: Array.from(new Set([...(player.categoryHistory ?? []), ...(draft.categoryHistory ?? []), savedCategory])),
@@ -324,7 +325,7 @@ export default function PlayerProfilePage() {
           <div className="grid grid-3">
             <div className="field"><label>Nombre</label><input className="input" value={editablePlayer.name} onChange={(e) => patchPlayer({ name: e.target.value })} /></div>
             <div className="field"><label>Documento / ID</label><input className="input" value={editablePlayer.documentId ?? ''} onChange={(e) => patchPlayer({ documentId: e.target.value })} /></div>
-            <div className="field"><label>Fecha de nacimiento</label><input className="input" type="date" value={normalizeBirthDateInput(editablePlayer.birthDate)} onChange={(e) => patchPlayer({ birthDate: formatBirthDateForDisplay(e.target.value) })} /></div>
+            <div className="field"><label>Fecha de nacimiento</label><input className="input" type="date" value={normalizeBirthDateInput(editablePlayer.birthDate)} onChange={(e) => patchPlayer({ birthDate: e.target.value })} /></div>
           </div>
           <div className="grid grid-3">
             <div className="field"><label>Nacionalidad</label><input className="input" value={editablePlayer.nationality ?? ''} onChange={(e) => patchPlayer({ nationality: e.target.value })} /></div>

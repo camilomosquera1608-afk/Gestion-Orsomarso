@@ -172,8 +172,12 @@ const DEFAULT_CATEGORY = "Sub20" as const;
 const hydrateData = (stored: Partial<AppData> | null): AppData =>
   normalizeAppData(stored, initialData);
 
-const isMeaningfulValue = (value: unknown) =>
-  value !== null && value !== undefined && value !== "";
+const isMeaningfulValue = (value: unknown) => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+};
 
 const mergeObjectWithLocalFallback = <T extends Record<string, unknown>>(
   remoteItem: T,
@@ -294,7 +298,15 @@ const mergeByIdPreferLocal = <T extends { id: string }>(
   const localRows = Array.isArray(local) ? local : [];
   const byId = new Map<string, T>();
   remoteRows.forEach((item) => item?.id && byId.set(item.id, item));
-  localRows.forEach((item) => item?.id && byId.set(item.id, { ...(byId.get(item.id) ?? {}), ...item }));
+  localRows.forEach((item) => {
+    if (!item?.id) return;
+    const current = (byId.get(item.id) ?? {}) as Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...current };
+    Object.entries(item as Record<string, unknown>).forEach(([key, value]) => {
+      if (isMeaningfulValue(value) || !isMeaningfulValue(merged[key])) merged[key] = value;
+    });
+    byId.set(item.id, merged as T);
+  });
   return Array.from(byId.values());
 };
 

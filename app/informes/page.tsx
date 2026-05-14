@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BarChart3, ClipboardList, FileText, HeartPulse, ShieldCheck, Trophy, UserRound, Zap } from 'lucide-react';
+import { BarChart3, ClipboardList, HeartPulse, ShieldCheck, Trophy, UserRound } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
 import { EmptyState, ReportTypeCard, SectionHeader } from '@/components/pro-ui';
 import { PlayerReportTemplate } from '@/components/player-report';
@@ -78,8 +78,7 @@ export default function InformesPage() {
           <ReportTypeCard title="Informe de sesión" description="Sesión, participación, RPE y MIN." status={hasSessionData ? 'Disponible' : 'Sin sesión'} primaryLabel="Ir a Sesión" onPrimary={() => window.location.href = '/sesion-entrenamiento'} />
           <ReportTypeCard title="Informe de competencia" description="Marcador, planilla e incidencias." status={hasCompetitionData ? 'Con datos' : 'Sin partidos'} primaryLabel="Ir a Competencia" onPrimary={() => window.location.href = '/competencia'} />
           <ReportTypeCard title="Informe de valoraciones" description="Nutrición, CMJ, FMS y neuromuscular." status={hasEvaluationData ? 'Con datos' : 'Sin valoraciones'} primaryLabel="Ir a Valoraciones" onPrimary={() => window.location.href = '/valoraciones'} />
-          <ReportTypeCard title="Informe individual 360" description="Perfil, carga, competencia y valoraciones." status={player ? 'Listo' : 'Sin jugador'} primaryLabel="Vista previa abajo" />
-          <ReportTypeCard title="Reporte por periodo" description="Exporta números reales por jugador y rango de fechas." status={player ? 'Listo' : 'Sin jugador'} primaryLabel="Abrir reporte" onPrimary={() => window.location.href = '/informes/jugador-periodo'} />
+          <ReportTypeCard title="Informe individual del jugador" description="Ficha, carga, competencia, nutrición, CMJ, FMS e historial médico si existen." status={player ? 'Listo' : 'Sin jugador'} primaryLabel="Vista previa abajo" />
           <ReportTypeCard title="Informe médico" description="Disponibilidad e incidencias." status="Listo" primaryLabel="Ver disponibilidad" onPrimary={() => window.location.href = '/disponibilidad'} />
           <ReportTypeCard title="Informe de carga" description="Carga interna y exposición." status={gpsEnabled ? 'GPS U20' : 'Listo'} primaryLabel="Ver carga" onPrimary={() => window.location.href = '/carga'} />
         </div>
@@ -88,7 +87,7 @@ export default function InformesPage() {
       <section className="card no-print report-toolbar-premium">
         <div>
           <span className="section-eyebrow">Individual</span>
-          <h3>Vista previa</h3>
+          <h3>Informe individual del jugador</h3>
           
         </div>
         <div className="btn-row">
@@ -121,7 +120,6 @@ export default function InformesPage() {
       <div className="card no-print report-next-actions">
         <SectionHeader eyebrow="Informes" title="Módulos disponibles" />
         <div className="strategy-link-grid">
-          <Link href="/informes/jugador-periodo" className="strategy-link"><FileText size={18} /><strong>Reporte jugador</strong><span>Exportación por periodo.</span></Link>
           <Link href="/disponibilidad" className="strategy-link"><HeartPulse size={18} /><strong>Informe médico</strong><span>Disponibilidad y readaptación.</span></Link>
           <Link href="/carga" className="strategy-link"><BarChart3 size={18} /><strong>Informe de carga</strong><span>Carga.</span></Link>
           <Link href="/wellness" className="strategy-link"><ShieldCheck size={18} /><strong>Informe wellness</strong><span>Bienestar y fatiga.</span></Link>

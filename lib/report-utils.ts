@@ -92,3 +92,25 @@ export const getReportSectionVisibility = (...values: unknown[]): boolean => val
   if (Array.isArray(value)) return value.length > 0;
   return hasPdfValue(value);
 });
+
+export const hasValidValue = (value: unknown): boolean => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'number') return Number.isFinite(value) && value !== 0;
+  if (Array.isArray(value)) return value.some((item) => hasValidValue(item));
+  if (typeof value === 'object') return Object.values(value as Record<string, unknown>).some((item) => hasValidValue(item));
+  const text = String(value).trim();
+  if (!text) return false;
+  const lowered = text.toLowerCase();
+  return !['0', '0.0', '0,0', '-', '—', 'sin dato', 'sin datos', 'sin registro', 'n/a', 'na', 'null', 'undefined', 'nan'].includes(lowered);
+};
+
+export const hasValidSectionData = (...values: unknown[]): boolean => values.some((value) => hasValidValue(value));
+
+export const filterEmptyMetrics = <T extends { value: unknown }>(metrics: T[]): T[] => metrics.filter((metric) => hasValidValue(metric.value));
+
+export const shouldRenderPdfSection = (...values: unknown[]): boolean => hasValidSectionData(...values);
+
+export const formatPdfValueIfValid = (value: unknown, suffix = '', fallback = '—'): string => {
+  if (!hasValidValue(value)) return fallback;
+  return formatPdfValue(value, suffix, fallback);
+};
