@@ -154,7 +154,7 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
       baseCategory: record.baseCategory ?? record.category ?? getPlayer(record.playerId)?.category,
       actingCategory: record.actingCategory ?? record.category ?? getPlayer(record.playerId)?.category,
       movementType: record.movementType ?? 'base',
-      movementModule: record.movementModule ?? 'sesion',
+      movementModule: record.movementModule ?? (String(record.id ?? '').startsWith('comp-load-') ? 'competencia' : 'sesion'),
     })),
     cmjRecords: pickArray<CMJRecord, 'cmjRecords'>(stored, fallback, 'cmjRecords'),
     nutritionRecords: pickArray<NutritionRecord, 'nutritionRecords'>(stored, fallback, 'nutritionRecords').map(normalizeNutritionRecord),

@@ -117,14 +117,30 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
         </ReportSection>
       </div>
 
-      <ReportSection icon={Scale} eyebrow="Valoraciones" title="Valoraciones">
-        <div className="pdf-report-feature-grid">
-          <div><span>Nutrición</span><strong>{latestNutrition ? `${formatPdfValue(latestNutrition.weight, ' kg')} · ${formatPdfValue(latestNutrition.bodyFat, '%')}` : '—'}</strong></div>
-          <div><span>CMJ</span><strong>{latestCmj ? formatPdfValue(latestCmj.value, ' cm') : latestNeuro ? formatPdfValue(latestNeuro.cmj, ' cm') : '—'}</strong></div>
-          <div><span>FMS</span><strong>{latestFms ? formatPdfValue(latestFms.total, ' pts') : '—'}</strong></div>
-          <div><span>Neuromuscular</span><strong>{latestNeuro ? `SJ ${latestNeuro.sj} · Reactivos ${latestNeuro.reactiveJumps}` : '—'}</strong></div>
-        </div>
+      <ReportSection icon={Scale} eyebrow="Valoraciones" title="Antropometría, CMJ y FMS">
         {!latestNutrition && !latestCmj && !latestFms && !latestNeuro ? <ReportEmptyState text="Sin registros." /> : null}
+        {latestNutrition ? (
+          <div className="pdf-report-feature-grid">
+            <div><span>Fecha valoración</span><strong>{latestNutrition.date}</strong></div>
+            <div><span>Talla</span><strong>{formatPdfValue(latestNutrition.height, ' cm')}</strong></div>
+            <div><span>Peso</span><strong>{formatPdfValue(latestNutrition.weight, ' kg')}</strong></div>
+            <div><span>IMO</span><strong>{typeof latestNutrition.imo === 'number' ? latestNutrition.imo.toFixed(1) : '—'}</strong></div>
+            <div><span>Sumatoria grasa</span><strong>{formatPdfValue(latestNutrition.skinfoldSum, ' mm')}</strong></div>
+            <div><span>% grasa</span><strong>{formatPdfValue(latestNutrition.bodyFat, '%')}</strong></div>
+            <div><span>% masa muscular</span><strong>{typeof latestNutrition.muscleMassPercentage === 'number' ? `${latestNutrition.muscleMassPercentage}%` : '—'}</strong></div>
+            <div><span>Rango % grasa</span><strong>{latestNutrition.fatPercentageRange ?? '—'}</strong></div>
+          </div>
+        ) : null}
+        {(latestCmj || latestNeuro || latestFms) ? (
+          <div className="pdf-report-feature-grid" style={{ marginTop: 12 }}>
+            {latestCmj ? <div><span>CMJ</span><strong>{formatPdfValue(latestCmj.value, ' cm')}</strong></div> : null}
+            {latestNeuro ? <div><span>CMJ neuromuscular</span><strong>{formatPdfValue(latestNeuro.cmj, ' cm')}</strong></div> : null}
+            {latestNeuro ? <div><span>SJ</span><strong>{formatPdfValue(latestNeuro.sj, ' cm')}</strong></div> : null}
+            {latestNeuro ? <div><span>Saltos reactivos</span><strong>{latestNeuro.reactiveJumps}</strong></div> : null}
+            {latestFms ? <div><span>FMS total</span><strong>{formatPdfValue(latestFms.total, ' pts')}</strong></div> : null}
+          </div>
+        ) : null}
+        {latestNutrition?.diagnosis ? <p className="pdf-manual-note">{getPdfSafeText(latestNutrition.diagnosis)}</p> : null}
       </ReportSection>
 
       <ReportSection icon={BarChart3} eyebrow="Evolución" title="Evolución de datos cargados">
@@ -138,6 +154,8 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
           <PdfEvolutionChart title="Player Load" decimals={0} points={externalHistory.filter((row) => typeof row.playerLoad === 'number').map((row) => ({ label: row.date.slice(5), value: row.playerLoad ?? 0 }))} />
           <PdfEvolutionChart title="Distancia" suffix=" m" decimals={0} points={externalHistory.filter((row) => typeof row.totalDistance === 'number').map((row) => ({ label: row.date.slice(5), value: row.totalDistance ?? 0 }))} />
           <PdfEvolutionChart title="Minutos competencia" suffix=" min" decimals={0} points={competitionChronological.map((row) => ({ label: row.date.slice(5), value: row.minutesPlayed }))} />
+          <PdfEvolutionChart title="CMJ" suffix=" cm" decimals={1} points={cmjHistory.map((row) => ({ label: row.date.slice(5), value: row.value }))} />
+          <PdfEvolutionChart title="FMS" suffix=" pts" decimals={0} points={fmsHistory.map((row) => ({ label: row.date.slice(5), value: row.total }))} />
         </div>
       </ReportSection>
 

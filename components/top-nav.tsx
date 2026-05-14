@@ -44,6 +44,7 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
       icon: Dumbbell,
       items: [
         { href: '/carga', label: 'Centro de carga', icon: Dumbbell },
+        { href: '/rendimiento-equipo', label: 'Rendimiento equipo', icon: BarChart3 },
         { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
         { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
           { href: '/riesgo', label: 'Riesgo', icon: TrendingUp },

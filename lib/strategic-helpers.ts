@@ -139,12 +139,15 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
   // de carga pueda medir minutos, Player Load, distancia, DCC y RHIE del partido.
   const storedExternal = data.externalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
   const storedCompetitionKeys = new Set(storedExternal
-    .filter((item) => item.movementModule === 'competencia')
-    .map((item) => `${item.sessionId ?? ''}-${item.playerId}-${item.date}`));
+    .filter((item) => item.movementModule === 'competencia' || String(item.id).startsWith('comp-load-'))
+    .flatMap((item) => [
+      `${item.sessionId ?? ''}-${item.playerId}-${item.date}`,
+      `${item.playerId}-${item.date}`,
+    ]));
   const competitionExternalFromRecords: DailyExternalLoadRecord[] = data.competitionRecords
     .filter((record) => ids.has(record.playerId) && dateInRange(record.date, dates))
     .filter((record) => !isGoalkeeper(players.find((player) => player.id === record.playerId)))
-    .filter((record) => !storedCompetitionKeys.has(`${record.matchId ?? ''}-${record.playerId}-${record.date}`))
+    .filter((record) => !storedCompetitionKeys.has(`${record.matchId ?? ''}-${record.playerId}-${record.date}`) && !storedCompetitionKeys.has(`${record.playerId}-${record.date}`))
     .filter((record) => (record.minutesPlayed ?? 0) > 0 || (record.totalDistance ?? 0) > 0 || (record.playerLoad ?? 0) > 0)
     .map((record) => ({
       id: `competition-${record.id}`,

@@ -22,6 +22,7 @@ import {
   deleteSupabaseTableRowByLegacyId,
   deleteSupabaseTrainingSessionCascade,
   fetchSupabaseTablesAppData,
+  saveSupabaseCompetitionAppData,
   saveSupabaseEvaluationsAppData,
   saveSupabasePlayersAppData,
   saveSupabaseTablesAppData,
@@ -254,8 +255,8 @@ const mergeCompetitionMatches = (
   local: CompetitionMatchSummary[] | undefined,
 ): CompetitionMatchSummary[] =>
   mergeByKeys(
-    remote as unknown as Record<string, unknown>[],
-    local as unknown as Record<string, unknown>[] | undefined,
+    (local?.length ? local : remote) as unknown as Record<string, unknown>[],
+    (local?.length ? remote : local) as unknown as Record<string, unknown>[] | undefined,
     [
       (item) => (item.id ? String(item.id) : null),
       (item) =>
@@ -270,8 +271,8 @@ const mergeCompetitionRecords = (
   local: CompetitionRecord[] | undefined,
 ): CompetitionRecord[] =>
   mergeByKeys(
-    remote as unknown as Record<string, unknown>[],
-    local as unknown as Record<string, unknown>[] | undefined,
+    (local?.length ? local : remote) as unknown as Record<string, unknown>[],
+    (local?.length ? remote : local) as unknown as Record<string, unknown>[] | undefined,
     [
       (item) => (item.id ? String(item.id) : null),
       (item) =>
@@ -284,6 +285,61 @@ const mergeCompetitionRecords = (
           : null,
     ],
   ) as unknown as CompetitionRecord[];
+
+const mergeByIdPreferLocal = <T extends { id: string }>(
+  remote: T[] | undefined,
+  local: T[] | undefined,
+): T[] => {
+  const remoteRows = Array.isArray(remote) ? remote : [];
+  const localRows = Array.isArray(local) ? local : [];
+  const byId = new Map<string, T>();
+  remoteRows.forEach((item) => item?.id && byId.set(item.id, item));
+  localRows.forEach((item) => item?.id && byId.set(item.id, { ...(byId.get(item.id) ?? {}), ...item }));
+  return Array.from(byId.values());
+};
+
+const buildCompetitionExternalLoad = (
+  match: CompetitionMatchSummary,
+  record: CompetitionRecord,
+): DailyExternalLoadRecord | null => {
+  const hasGps =
+    (record.playerLoad ?? 0) > 0 ||
+    (record.totalDistance ?? 0) > 0 ||
+    (record.highSpeedDistance ?? record.hsr ?? 0) > 0 ||
+    (record.sprintDistance ?? 0) > 0 ||
+    (record.acc ?? 0) > 0 ||
+    (record.dcc ?? 0) > 0 ||
+    (record.sprints ?? 0) > 0 ||
+    (record.rhie ?? 0) > 0;
+  if (!hasGps && (record.minutesPlayed ?? 0) <= 0) return null;
+  return {
+    id: `comp-load-${match.id}-${record.playerId}`,
+    sessionId: match.id,
+    playerId: record.playerId,
+    date: match.date || record.date,
+    min: record.minutesPlayed ?? 0,
+    acc: record.acc ?? 0,
+    dcc: record.dcc ?? 0,
+    sprints: record.sprints ?? 0,
+    rhie: record.rhie ?? 0,
+    ima: record.ima ?? 0,
+    rpe: 8,
+    totalDistance: record.totalDistance,
+    highSpeedDistance: record.highSpeedDistance ?? record.hsr,
+    hsr: record.hsr ?? record.highSpeedDistance,
+    sprintDistance: record.sprintDistance,
+    maxVelocity: record.maxVelocity,
+    playerLoad: record.playerLoad,
+    participation: 'Completa',
+    sessionType: 'MD',
+    category: record.category ?? match.category,
+    baseCategory: record.baseCategory,
+    actingCategory: record.actingCategory ?? record.category ?? match.category,
+    movementType: record.movementType ?? 'base',
+    movementModule: 'competencia',
+    loggedBy: record.loggedBy,
+  };
+};
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [data, setData] = useState<AppData>(initialData);
@@ -414,7 +470,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Players: merge remote + local to avoid losing ficha edits if Supabase
       // has not persisted a newer column yet. Remote fields stay primary,
       // local fills gaps and preserves local-only players.
-      players: mergeByIdWithLocalFallback(
+      players: mergeByIdPreferLocal(
         remoteHydrated.players,
         current.players,
       ),
@@ -445,7 +501,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const persistData = async (
     nextData: AppData,
-    scope: "all" | "players" | "evaluations" = "all",
+    scope: "all" | "players" | "evaluations" | "competition" = "all",
     options: { playerIds?: string[] } = {},
   ) => {
     saveLocalAppData(nextData);
@@ -474,7 +530,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           ? saveSupabasePlayersAppData(supabase, scopedData, { onlyPlayerIds: options.playerIds })
           : scope === "evaluations"
             ? saveSupabaseEvaluationsAppData(supabase, scopedData)
-            : saveSupabaseTablesAppData(supabase, scopedData);
+            : scope === "competition"
+              ? saveSupabaseCompetitionAppData(supabase, scopedData)
+              : saveSupabaseTablesAppData(supabase, scopedData);
       // Los guardados pequeños (ficha / valoraciones) no deben quedar bloqueados
       // por el guardado completo de entrenamientos y competencia.
       const timeoutMs = scope === "all" ? 30000 : 12000;
@@ -503,7 +561,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const applyMutation = (
     updater: (prev: AppData) => AppData,
-    scope: "all" | "players" | "evaluations" = "all",
+    scope: "all" | "players" | "evaluations" | "competition" = "all",
     options: { playerIds?: string[] } = {},
   ) => {
     setData((prev) => {
@@ -650,7 +708,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             ),
             // Players: merge remote + local to avoid wiping ficha edits
             // while new Supabase columns are being added.
-            players: mergeArrays(remoteData.players, localData?.players),
+            players: mergeByIdPreferLocal(remoteData.players, localData?.players),
           };
 
           setData(merged);
@@ -1492,21 +1550,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 ),
             ),
           ],
-        })),
+        }), 'competition'),
       updateCompetitionRecord: (record) =>
         applyMutation((prev) => ({
           ...prev,
           competitionRecords: prev.competitionRecords.map((item) =>
             item.id === record.id ? record : item,
           ),
-        })),
+        }), 'competition'),
       deleteCompetitionRecord: (recordId) => {
+        const currentRecord = dataRef.current.competitionRecords.find((item) => item.id === recordId);
         applyMutation((prev) => ({
           ...prev,
           competitionRecords: prev.competitionRecords.filter(
             (item) => item.id !== recordId,
           ),
-        }));
+          externalLoads: prev.externalLoads.filter(
+            (item) => item.id !== `comp-load-${currentRecord?.matchId ?? ''}-${currentRecord?.playerId ?? ''}`,
+          ),
+        }), 'competition');
         void deleteRemoteLegacy("competition_players", recordId);
       },
       upsertCompetitionMatchSummary: (record) =>
@@ -1525,7 +1587,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 ),
             ),
           ],
-        })),
+        }), 'competition'),
 
       // Guarda el partido y toda su planilla en una sola mutacion.
       // Evita que Supabase devuelva primero solo el encabezado del partido
@@ -1548,7 +1610,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             opponent: record.opponent,
             competitionName: record.competitionName,
             category: item.category ?? record.category,
+            movementModule: 'competencia' as const,
           }));
+          const competitionExternalLoads = normalizedRecords
+            .map((item) => buildCompetitionExternalLoad(record, item))
+            .filter(Boolean) as DailyExternalLoadRecord[];
+          const competitionLoadIds = new Set(competitionExternalLoads.map((item) => item.id));
+          const sameCompetitionLoad = (item: DailyExternalLoadRecord) => {
+            if (competitionLoadIds.has(item.id)) return true;
+            if (item.movementModule !== 'competencia' && !item.id.startsWith('comp-load-')) return false;
+            return item.sessionId === record.id || (item.date === record.date && normalizedRecords.some((row) => row.playerId === item.playerId));
+          };
           return {
             ...prev,
             competitionMatchSummaries: [
@@ -1568,8 +1640,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               ...normalizedRecords,
               ...prev.competitionRecords.filter((item) => !sameMatch(item)),
             ],
+            externalLoads: [
+              ...competitionExternalLoads,
+              ...prev.externalLoads.filter((item) => !sameCompetitionLoad(item)),
+            ],
           };
-        }),
+        }, 'competition'),
       deleteCompetitionMatchSummary: (matchId) => {
         applyMutation((prev) => ({
           ...prev,
@@ -1579,7 +1655,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           competitionRecords: prev.competitionRecords.filter(
             (item) => item.matchId !== matchId,
           ),
-        }));
+          externalLoads: prev.externalLoads.filter(
+            (item) => !(item.sessionId === matchId && (item.movementModule === 'competencia' || item.id.startsWith('comp-load-'))),
+          ),
+        }), 'competition');
         void deleteRemoteLegacy("competition_matches", matchId);
       },
 

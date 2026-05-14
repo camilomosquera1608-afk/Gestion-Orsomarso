@@ -528,6 +528,7 @@ export const fetchSupabaseTablesAppData = async (
       actingCategory: row.acting_category ?? undefined,
       movementType: row.movement_type ?? undefined,
       movementNote: row.movement_note ?? undefined,
+      movementModule: row.movement_module ?? (String(row.legacy_id ?? row.id).startsWith('comp-load-') ? 'competencia' : undefined),
       loggedBy: row.logged_by ?? undefined,
     }));
 
@@ -563,6 +564,7 @@ export const fetchSupabaseTablesAppData = async (
       actingCategory: row.acting_category ?? undefined,
       movementType: row.movement_type ?? undefined,
       movementNote: row.movement_note ?? undefined,
+      movementModule: row.movement_module ?? (String(row.legacy_id ?? row.id).startsWith('comp-load-') ? 'competencia' : undefined),
       loggedBy: row.logged_by ?? undefined,
     }));
 
@@ -1064,6 +1066,219 @@ const toPlayerRows = (players: Player[]): DbRow[] =>
     ),
   }));
 
+
+const normalizeOpponent = (value: unknown) =>
+  String(value ?? '').trim().toLowerCase();
+
+const upsertCompetitionMatchRows = async (
+  supabase: SupabaseClient,
+  rows: DbRow[],
+): Promise<void> => {
+  const result = await upsertRows(supabase, 'competition_matches', rows);
+  if (result.savedCount === rows.length) return;
+
+  for (const originalRow of rows) {
+    let row = originalRow;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const existingByLegacy = row.legacy_id
+        ? await supabase
+            .from('competition_matches')
+            .select('id')
+            .eq('legacy_id', row.legacy_id)
+            .limit(1)
+            .maybeSingle()
+        : { data: null, error: null } as any;
+      if (!existingByLegacy.error && existingByLegacy.data?.id) {
+        const { error } = await supabase
+          .from('competition_matches')
+          .update(row)
+          .eq('id', existingByLegacy.data.id);
+        if (!error) break;
+        const missing = missingColumnFromError(error);
+        if (missing) {
+          row = stripColumns([row], new Set([missing]))[0];
+          continue;
+        }
+      }
+
+      const natural = await supabase
+        .from('competition_matches')
+        .select('id, opponent')
+        .eq('date', row.date)
+        .eq('category', row.category);
+      if (!natural.error) {
+        const match = ((natural.data ?? []) as DbRow[]).find(
+          (item) => normalizeOpponent(item.opponent) === normalizeOpponent(row.opponent),
+        );
+        if (match?.id) {
+          const { error } = await supabase
+            .from('competition_matches')
+            .update(row)
+            .eq('id', match.id);
+          if (!error) break;
+          const missing = missingColumnFromError(error);
+          if (missing) {
+            row = stripColumns([row], new Set([missing]))[0];
+            continue;
+          }
+        }
+      }
+
+      const { error } = await supabase.from('competition_matches').insert(row);
+      if (!error) break;
+      const missing = missingColumnFromError(error);
+      if (missing) {
+        row = stripColumns([row], new Set([missing]))[0];
+        continue;
+      }
+      console.warn('[Supabase] competition_matches fallback failed:', error.message);
+      break;
+    }
+  }
+};
+
+const competitionExternalLoadRows = (
+  data: AppData,
+  playerUuid: (legacyId: string) => string | null,
+  playerCategoryById: Record<string, ClubCategory>,
+): DbRow[] =>
+  data.externalLoads
+    .filter((record) =>
+      (record.movementModule === 'competencia' || String(record.id).startsWith('comp-load-')) &&
+      supportsGps(record.category ?? playerCategoryById[record.playerId]) &&
+      playerUuid(record.playerId) &&
+      isoDate(record.date),
+    )
+    .map((record) => ({
+      legacy_id: record.id,
+      player_id: playerUuid(record.playerId),
+      microcycle_id: null,
+      date: isoDate(record.date),
+      category: 'Sub20',
+      base_category: record.baseCategory ?? null,
+      acting_category: record.actingCategory ?? null,
+      session_number: record.sessionNumber ?? null,
+      session_id: null,
+      minutes: num(record.min),
+      acc: num(record.acc),
+      dcc: num(record.dcc),
+      sprints: num(record.sprints),
+      rhie: num(record.rhie),
+      ima: num(record.ima),
+      rpe: record.rpe ?? 8,
+      total_distance: record.totalDistance ?? null,
+      high_speed_distance: record.highSpeedDistance ?? record.hsr ?? null,
+      hsr: record.hsr ?? record.highSpeedDistance ?? null,
+      sprint_distance: record.sprintDistance ?? null,
+      max_velocity: record.maxVelocity ?? null,
+      player_load: record.playerLoad ?? null,
+      participation: record.participation ?? 'Completa',
+      session_type: record.sessionType ?? 'MD',
+      movement_type: record.movementType ?? null,
+      movement_note: record.movementNote ?? null,
+      movement_module: 'competencia',
+      logged_by: record.loggedBy ?? null,
+    }));
+
+const upsertCompetitionTables = async (
+  supabase: SupabaseClient,
+  data: AppData,
+): Promise<void> => {
+  await upsertRows(supabase, 'players', toPlayerRows(data.players));
+  const playerMap = await fetchLegacyIdMap(supabase, 'players');
+  const playerCategoryById = Object.fromEntries(
+    data.players.map((player) => [player.id, category(player.category)]),
+  ) as Record<string, ClubCategory>;
+  const playerUuid = (legacyId: string) => playerMap[legacyId] ?? null;
+
+  const matchRows = data.competitionMatchSummaries
+    .filter((record) => isoDate(record.date))
+    .map((record) => ({
+      legacy_id: record.id,
+      date: isoDate(record.date),
+      category: category(record.category),
+      competition_name: record.competitionName ?? 'Partido oficial',
+      opponent: record.opponent,
+      venue: record.venue ?? null,
+      goals_for: record.goalsFor ?? null,
+      goals_against: record.goalsAgainst ?? null,
+      result_type: record.resultType ?? null,
+      observation: record.observation ?? null,
+      status: record.status ?? null,
+      lineup_formation: record.lineupFormation ?? null,
+      lineup_slots: record.lineupSlots ?? [],
+      opponent_logo: record.opponentLogo ?? null,
+      eyeball_stats: record.eyeballStats ?? null,
+      eyeball_first_half_stats: record.eyeballFirstHalfStats ?? null,
+      eyeball_second_half_stats: record.eyeballSecondHalfStats ?? null,
+    }));
+
+  await upsertCompetitionMatchRows(supabase, matchRows);
+
+  const matchRowsRes = await supabase
+    .from('competition_matches')
+    .select('id, legacy_id, date, category, opponent');
+  if (matchRowsRes.error) throw matchRowsRes.error;
+
+  const normalizeMatchKey = (date?: string | null, cat?: string | null, opponent?: string | null) =>
+    `${date ?? ''}::${cat ?? ''}::${normalizeOpponent(opponent)}`;
+  const matchLegacyMap: LegacyMap = {};
+  const matchKeyMap: LegacyMap = {};
+  ((matchRowsRes.data ?? []) as DbRow[]).forEach((row) => {
+    if (row.legacy_id) matchLegacyMap[String(row.legacy_id)] = String(row.id);
+    matchKeyMap[normalizeMatchKey(row.date, row.category, row.opponent)] = String(row.id);
+  });
+  const localMatchById = Object.fromEntries(
+    data.competitionMatchSummaries.map((match) => [match.id, match]),
+  );
+  const matchUuid = (record: CompetitionRecord) => {
+    if (record.matchId && matchLegacyMap[record.matchId]) return matchLegacyMap[record.matchId];
+    const local = record.matchId ? localMatchById[record.matchId] : undefined;
+    return matchKeyMap[normalizeMatchKey(local?.date ?? record.date, local?.category ?? record.category, local?.opponent ?? record.opponent)] ?? null;
+  };
+
+  await upsertRows(
+    supabase,
+    'competition_players',
+    data.competitionRecords
+      .filter((record) => matchUuid(record) && playerUuid(record.playerId))
+      .map((record) => ({
+        legacy_id: record.id,
+        match_id: matchUuid(record),
+        player_id: playerUuid(record.playerId),
+        category: category(record.category),
+        starting_role: record.startingRole ?? null,
+        minutes_played: num(record.minutesPlayed),
+        goals: num(record.goals),
+        assists: num(record.assists),
+        yellow_cards: num(record.yellowCards),
+        red_cards: num(record.redCards),
+        goals_conceded: record.goalsConceded ?? null,
+        goals_prevented: record.goalsPrevented ?? null,
+        penalties_saved: record.penaltiesSaved ?? null,
+        crosses_defended: record.crossesDefended ?? null,
+        footwork_actions: record.footworkActions ?? null,
+        medical_status: record.medicalStatus ?? 'Sin lesión',
+        injury_kind: record.injuryKind ?? null,
+        medical_observation: record.medicalObservation ?? null,
+        acc: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.acc ?? null) : null,
+        dcc: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.dcc ?? null) : null,
+        sprints: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.sprints ?? null) : null,
+        rhie: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.rhie ?? null) : null,
+        ima: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.ima ?? null) : null,
+        total_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.totalDistance ?? null) : null,
+        high_speed_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.highSpeedDistance ?? record.hsr ?? null) : null,
+        hsr: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.hsr ?? record.highSpeedDistance ?? null) : null,
+        sprint_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.sprintDistance ?? null) : null,
+        max_velocity: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.maxVelocity ?? null) : null,
+        player_load: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.playerLoad ?? null) : null,
+        logged_by: record.loggedBy ?? null,
+      })),
+  );
+
+  await upsertRows(supabase, 'daily_external_loads', competitionExternalLoadRows(data, playerUuid, playerCategoryById));
+};
+
 const upsertEvaluationTables = async (
   supabase: SupabaseClient,
   data: AppData,
@@ -1215,6 +1430,29 @@ export const saveSupabaseEvaluationsAppData = async (
   }
 };
 
+
+export const saveSupabaseCompetitionAppData = async (
+  supabase: SupabaseClient,
+  data: AppData,
+): Promise<SyncResult> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) {
+    console.error('[Supabase] saveSupabaseCompetitionAppData: not authenticated');
+    return { ok: false, reason: 'not_authenticated' };
+  }
+
+  try {
+    await upsertCompetitionTables(supabase, data);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: isAuthError(error) ? 'not_authorized' : 'save_competition_failed',
+      error,
+    };
+  }
+};
+
 export const saveSupabaseTablesAppData = async (
   supabase: SupabaseClient,
   data: AppData,
@@ -1341,6 +1579,7 @@ export const saveSupabaseTablesAppData = async (
           session_type: record.sessionType ?? null,
           movement_type: record.movementType ?? null,
           movement_note: record.movementNote ?? null,
+          movement_module: record.movementModule ?? null,
           logged_by: record.loggedBy ?? null,
         })),
     );
@@ -1729,6 +1968,12 @@ export const saveSupabaseTablesAppData = async (
             : null,
           logged_by: record.loggedBy ?? null,
         })),
+    );
+
+    await upsertRows(
+      supabase,
+      "daily_external_loads",
+      competitionExternalLoadRows(data, playerUuid, playerCategoryById),
     );
 
     await upsertRows(
