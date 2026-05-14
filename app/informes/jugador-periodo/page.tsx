@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import {
   Activity,
@@ -61,6 +61,15 @@ const avg = (values: number[], decimals = 1) => {
   return Number(value.toFixed(decimals));
 };
 const max = (values: number[]) => values.filter((value) => Number.isFinite(value) && value !== 0).reduce((current, value) => Math.max(current, value), 0);
+const uniqueBy = <T,>(rows: T[], readKey: (row: T) => string) => {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = readKey(row);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const formatMetric = (value: unknown, suffix = '', decimals = 0) => {
   if (!hasValidValue(value)) return '';
@@ -194,14 +203,16 @@ function RingCard({ title, value, maxValue, suffix = '', tone = 'blue', decimals
 function DataTable({ columns, rows }: { columns: string[]; rows: Array<Record<string, unknown>> }) {
   const cleanRows = rows.filter((row) => Object.values(row).some((value) => hasValidValue(value)));
   if (!cleanRows.length) return null;
+  const visibleColumns = columns.filter((column) => cleanRows.some((row) => hasValidValue(row[column])));
+  if (!visibleColumns.length) return null;
   return (
     <div className="fd-table-wrap">
       <table className="pdf-report-table compact scout-table">
-        <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+        <thead><tr>{visibleColumns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
         <tbody>
           {cleanRows.map((row, index) => (
             <tr key={index}>
-              {columns.map((column) => <td key={column}>{hasValidValue(row[column]) ? String(row[column]) : ''}</td>)}
+              {visibleColumns.map((column) => <td key={column}>{hasValidValue(row[column]) ? String(row[column]) : ''}</td>)}
             </tr>
           ))}
         </tbody>
@@ -225,6 +236,7 @@ export default function PlayerPeriodReportPage() {
   const activeCategory = master ? filters.category : session.category;
   const [startDate, setStartDate] = useState(defaultStartDate());
   const [endDate, setEndDate] = useState(todayInputDate());
+  const reportRef = useRef<HTMLElement | null>(null);
 
   const categoryPlayers = useMemo(
     () => data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory),
@@ -294,7 +306,7 @@ export default function PlayerPeriodReportPage() {
     ...report.nutrition.map((record) => ({ seccion: 'Nutricion', fecha: record.date, peso: record.weight, talla: record.height, grasa: record.bodyFat, masa_muscular: record.muscleMassPercentage ?? '', imo: record.imo ?? '' })),
   ];
 
-  const competitionRows = report.competition.slice(-8).reverse().map((record) => ({
+  const competitionRows = uniqueBy(report.competition.slice(-10).reverse(), (record) => `${record.date}-${record.matchId ?? record.opponent ?? ''}-${record.minutesPlayed ?? ''}`).map((record) => ({
     Fecha: formatPdfDate(record.date),
     Rival: record.opponent,
     Min: hasValidValue(record.minutesPlayed) ? formatMetric(record.minutesPlayed, ' min') : '',
@@ -304,7 +316,7 @@ export default function PlayerPeriodReportPage() {
     DCC: hasValidValue(record.dcc) ? record.dcc : '',
   }));
 
-  const gpsRows = report.external.slice(-8).reverse().map((record) => ({
+  const gpsRows = uniqueBy(report.external.slice(-12).reverse(), (record) => `${record.date}-${record.sessionId ?? ''}-${record.movementModule ?? ''}-${record.min ?? ''}-${Math.round(record.totalDistance ?? 0)}-${Math.round(record.playerLoad ?? 0)}`).map((record) => ({
     Fecha: formatPdfDate(record.date),
     Tipo: record.movementModule === 'competencia' ? 'Competencia' : record.sessionType ?? 'Sesión',
     Min: hasValidValue(record.min) ? formatMetric(record.min, ' min') : '',
@@ -332,7 +344,42 @@ export default function PlayerPeriodReportPage() {
 
   const hasEvaluation = hasValidSectionData(latestNutrition, cmjValue, latestNeuro, latestFmsTotal);
   const hasMedical = player.status !== 'Disponible' || hasValidSectionData(medicalDetails, manualMedicalNotes, player.allergies, player.chronicConditions);
-  const generatedAt = new Date().toLocaleString('es-CO');
+  const generatedAt = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: '2-digit' });
+
+  const playerLoadPoints = pointSeries(report.external, (record) => record.playerLoad);
+  const distancePoints = pointSeries(report.external, (record) => record.totalDistance);
+  const internalPoints = report.internal.map((record) => ({ label: record.date.slice(5), value: calculateInternalLoad(record) })).filter((point) => point.value !== 0);
+  const wellnessPoints = report.wellness.map((record) => ({ label: record.date.slice(5), value: averageWellness(record) })).filter((point) => point.value !== 0);
+  const weightPoints = pointSeries(report.nutrition, (record) => record.weight);
+  const bodyFatPoints = pointSeries(report.nutrition, (record) => record.bodyFat);
+  const cmjPoints = pointSeries(report.cmj, (record) => record.value);
+  const fmsPoints = report.fms.map((record) => ({ label: record.date.slice(5), value: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })).filter((point) => point.value !== 0);
+  const hasEvolution = [playerLoadPoints, distancePoints, internalPoints, wellnessPoints, weightPoints, bodyFatPoints, cmjPoints, fmsPoints].some((points) => points.length >= 2);
+  const hasSportMap = hasValidSectionData(matches, matchMinutes, goals, assists) || hasValidSectionData(totalDistance, playerLoad, hsr, sprint, acc, dcc, rhie);
+  const hasDetails = Boolean(competitionRows.length || gpsRows.length);
+  const hasGoalkeeper = player.position === 'Portero' && hasValidSectionData(
+    sum(report.competition, (record) => record.goalsConceded),
+    sum(report.competition, (record) => record.goalsPrevented),
+    sum(report.competition, (record) => record.penaltiesSaved),
+    sum(report.competition, (record) => record.crossesDefended),
+    sum(report.competition, (record) => record.footworkActions),
+  );
+
+  const openPrintDossier = () => {
+    if (typeof window === 'undefined' || !reportRef.current) return;
+    const reportHtml = reportRef.current.outerHTML;
+    const styles = Array.from(document.querySelectorAll<HTMLStyleElement | HTMLLinkElement>('style, link[rel="stylesheet"]'))
+      .map((node) => node.outerHTML)
+      .join('\n');
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=900');
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Reporte jugador - ${player.name}</title>${styles}<style>@page{size:A4 portrait;margin:0}html,body{margin:0!important;background:#fff!important}.scout-report-document{box-shadow:none!important;border:0!important;margin:0 auto!important}.no-print,.tnav,.sidebar,.mobile-bottom-nav{display:none!important}</style></head><body class="pdf-print-window">${reportHtml}<script>setTimeout(function(){window.focus();window.print();setTimeout(function(){window.close();},250);},650);<\/script></body></html>`);
+    printWindow.document.close();
+  };
 
   return (
     <div className="grid report-page player-period-page">
@@ -350,13 +397,14 @@ export default function PlayerPeriodReportPage() {
           <label className="field"><span>Hasta</span><input className="input" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
           <div className="btn-row align-end">
             <button type="button" className="btn secondary" onClick={() => downloadCsv(`reporte-jugador-${player.name.replaceAll(' ', '_')}-${startDate}-${endDate}.csv`, csvRows)}><Download size={16} /> CSV</button>
-            <button type="button" className="btn" onClick={() => window.print()}><FileText size={16} /> Exportar PDF</button>
+            <button type="button" className="btn" onClick={openPrintDossier}><FileText size={16} /> Exportar PDF</button>
           </div>
         </div>
         <div className="small-row">Estado Supabase: {syncStatus === 'syncing' ? 'guardando en segundo plano' : syncStatus === 'error' ? 'revisar conexión' : 'listo'}</div>
       </section>
 
-      <article className="scout-report-document">
+      <article ref={reportRef} className="scout-report-document premium-dossier">
+        <div className="scout-page scout-page-cover">
         <section className="scout-cover-card scout-cover-bg">
           <div className="scout-cover-top">
             <div className="scout-brand-lockup">
@@ -398,9 +446,11 @@ export default function PlayerPeriodReportPage() {
             { icon: Dumbbell, label: 'CMJ', value: cmjValue, suffix: ' cm', note: latestCmj?.date ? formatPdfDate(latestCmj.date) : latestNeuro?.date ? formatPdfDate(latestNeuro.date) : undefined, tone: 'green', decimals: 1 },
           ]} />
         </Section>
+        </div>
 
-        {(hasValidSectionData(matches, matchMinutes, goals, assists) || hasValidSectionData(totalDistance, playerLoad, hsr, sprint, acc, dcc, rhie)) ? (
-          <Section eyebrow="Mapa deportivo" title="Competencia y carga externa">
+        {hasSportMap ? (
+          <div className="scout-page scout-page-performance">
+          <Section eyebrow="Mapa deportivo" title="Competencia y carga externa" className="scout-section-feature">
             <div className="scout-visual-grid">
               <RingCard title="Minutos jugados vs. disponibles" value={matchMinutes} maxValue={maxPossibleMinutes} suffix=" min" tone="blue" />
               <RingCard title="Wellness promedio / 5" value={wellnessAverage} maxValue={5} tone="green" decimals={1} />
@@ -422,21 +472,28 @@ export default function PlayerPeriodReportPage() {
               ]} />
             </div>
           </Section>
+          </div>
         ) : null}
 
-        <Section eyebrow="Evolución" title="Gráficos del período">
+        {hasEvolution ? (
+          <div className="scout-page scout-page-evolution">
+        <Section eyebrow="Evolución" title="Gráficos del período" className="scout-section-feature">
           <div className="scout-visual-grid">
-            <LineChartCard title="Player Load" points={pointSeries(report.external, (record) => record.playerLoad)} tone="cyan" />
-            <LineChartCard title="Distancia" points={pointSeries(report.external, (record) => record.totalDistance)} suffix=" m" tone="green" />
-            <LineChartCard title="Carga interna" points={report.internal.map((record) => ({ label: record.date.slice(5), value: calculateInternalLoad(record) })).filter((point) => point.value !== 0)} suffix=" UA" tone="blue" />
-            <LineChartCard title="Wellness" points={report.wellness.map((record) => ({ label: record.date.slice(5), value: averageWellness(record) })).filter((point) => point.value !== 0)} decimals={1} tone="amber" />
-            <LineChartCard title="Peso" points={pointSeries(report.nutrition, (record) => record.weight)} suffix=" kg" decimals={1} tone="blue" />
-            <LineChartCard title="% grasa" points={pointSeries(report.nutrition, (record) => record.bodyFat)} suffix="%" decimals={1} tone="red" />
-            <LineChartCard title="CMJ" points={pointSeries(report.cmj, (record) => record.value)} suffix=" cm" decimals={1} tone="green" />
-            <LineChartCard title="FMS" points={report.fms.map((record) => ({ label: record.date.slice(5), value: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })).filter((point) => point.value !== 0)} suffix=" pts" tone="navy" />
+            <LineChartCard title="Player Load" points={playerLoadPoints} tone="cyan" />
+            <LineChartCard title="Distancia" points={distancePoints} suffix=" m" tone="green" />
+            <LineChartCard title="Carga interna" points={internalPoints} suffix=" UA" tone="blue" />
+            <LineChartCard title="Wellness" points={wellnessPoints} decimals={1} tone="amber" />
+            <LineChartCard title="Peso" points={weightPoints} suffix=" kg" decimals={1} tone="blue" />
+            <LineChartCard title="% grasa" points={bodyFatPoints} suffix="%" decimals={1} tone="red" />
+            <LineChartCard title="CMJ" points={cmjPoints} suffix=" cm" decimals={1} tone="green" />
+            <LineChartCard title="FMS" points={fmsPoints} suffix=" pts" tone="navy" />
           </div>
         </Section>
+          </div>
+        ) : null}
 
+        {(hasEvaluation || hasMedical || hasDetails || hasGoalkeeper) ? (
+          <div className="scout-page scout-page-profile">
         {(hasEvaluation || hasMedical) ? (
           <Section eyebrow="Perfil integral" title="Valoraciones, nutrición y disponibilidad">
             <div className="scout-visual-grid">
@@ -472,7 +529,7 @@ export default function PlayerPeriodReportPage() {
           </Section>
         ) : null}
 
-        {(competitionRows.length || gpsRows.length) ? (
+        {hasDetails ? (
           <Section eyebrow="Detalle" title="Registros del período">
             <div className="pdf-report-two-columns compact-blocks">
               <div>
@@ -487,13 +544,7 @@ export default function PlayerPeriodReportPage() {
           </Section>
         ) : null}
 
-        {player.position === 'Portero' && hasValidSectionData(
-          sum(report.competition, (record) => record.goalsConceded),
-          sum(report.competition, (record) => record.goalsPrevented),
-          sum(report.competition, (record) => record.penaltiesSaved),
-          sum(report.competition, (record) => record.crossesDefended),
-          sum(report.competition, (record) => record.footworkActions),
-        ) ? (
+        {hasGoalkeeper ? (
           <Section eyebrow="Portero" title="Indicadores específicos">
             <KpiGrid items={[
               { icon: ShieldCheck, label: 'Goles encajados', value: sum(report.competition, (record) => record.goalsConceded), tone: 'red' },
@@ -503,6 +554,8 @@ export default function PlayerPeriodReportPage() {
               { icon: ShieldCheck, label: 'Juego de pies', value: sum(report.competition, (record) => record.footworkActions), tone: 'navy' },
             ]} />
           </Section>
+        ) : null}
+          </div>
         ) : null}
 
         <footer className="scout-report-footer">

@@ -121,7 +121,7 @@ export default function InformeSemanalPage() {
           <button type="button" className="btn secondary" onClick={() => window.print()}>
             <FileText size={15} /> Imprimir / PDF
           </button>
-          <Link href="/informes/jugador-periodo" className="btn secondary">← Reporte jugador</Link>
+          <Link href="/reporte-jugador" className="btn secondary">← Reporte jugador</Link>
         </div>
       </div>
 

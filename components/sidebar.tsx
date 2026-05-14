@@ -78,7 +78,7 @@ const staffGroups = [
   {
     title: 'Análisis',
     items: [
-      { href: '/informes/jugador-periodo', label: 'Reporte jugador', icon: FileText },
+      { href: '/reporte-jugador', label: 'Reporte jugador', icon: FileText },
       { href: '/adherencia', label: 'Adherencia', icon: Gauge },
       { href: '/ranking', label: 'Ranking', icon: Medal },
     ],

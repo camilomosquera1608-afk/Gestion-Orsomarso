@@ -1,0 +1,3 @@
+-- V123 - Premium Reporte jugador
+-- No hay cambios obligatorios de estructura en Supabase.
+-- Esta versión mejora el reporte PDF, navegación y carga local-first de sincronización.

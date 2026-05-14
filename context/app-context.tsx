@@ -539,10 +539,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (blockUntil > skipRemoteRefreshUntilRef.current) {
         skipRemoteRefreshUntilRef.current = blockUntil;
       }
-      setSyncStatus("syncing");
+      // Local-first: los guardados pequeños no deben bloquear la interfaz ni
+      // dejar visible el estado "sincronizando" por varios segundos.
+      setSyncStatus(scope === "all" ? "syncing" : "ready");
       const releaseSyncIndicator = setTimeout(() => {
         setSyncStatus((current) => (current === "syncing" ? "ready" : current));
-      }, scope === "all" ? 4200 : 1800);
+      }, scope === "all" ? 3200 : 900);
       const session = getStaffSession();
       const scopedData = filterAppDataForSession(nextData, session);
       const saveOperation =
@@ -636,8 +638,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Ahora solo se eliminan esos registros de ejemplo y se preserva competencia.
         sanitizeLegacyMockLocalData();
 
-        setSyncStatus("syncing");
-        // 20s timeout so init never hangs on 'syncing'
+        const localSnapshot = readLocalAppData();
+        if (localSnapshot) {
+          const localHydrated = hydrateData(localSnapshot);
+          setData(localHydrated);
+          dataRef.current = localHydrated;
+          setSyncStatus("ready");
+          setIsHydrated(true);
+        } else {
+          setSyncStatus("syncing");
+        }
+        // Lectura remota en segundo plano: la app queda usable con cache local
+        // y Supabase actualiza cuando responda.
         const remote = await Promise.race([
           fetchSupabaseTablesAppData(supabase),
           new Promise<{ ok: false; reason: string }>((resolve) =>

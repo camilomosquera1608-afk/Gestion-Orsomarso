@@ -1255,3 +1255,10 @@ commit;
 -- V122 - Reporte jugador y estabilidad de sincronización
 -- No requiere SQL; nota de versión en SUPABASE_V122_REPORT_PLAYER_ROUTE_AND_SYNC_NOTE.sql
 -- =========================================================
+
+
+-- ============================================================
+-- SUPABASE_V123_PREMIUM_PLAYER_REPORT.sql
+-- ============================================================
+-- No hay cambios obligatorios de estructura en Supabase.
+-- Esta versión mejora el reporte PDF, navegación y carga local-first de sincronización.
