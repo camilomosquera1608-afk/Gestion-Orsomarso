@@ -8149,3 +8149,163 @@ img[loading="lazy"] { background: var(--line-soft); }
   .scout-match-pill { grid-template-columns: 18mm 1fr auto !important; padding: 2mm !important; }
   .scout-gps-heat-table th, .scout-gps-heat-table td { font-size: 5.6pt !important; padding: 1.4mm !important; }
 }
+
+/* v125 Competition report visual upgrade — fd-v2 system */
+:root {
+  --orso-navy: #06152f;
+  --orso-blue: #1557d6;
+  --orso-gold: #C9A84C;
+  --win-green: #059669;
+  --warn-amber: #d97706;
+  --danger-red: #dc2626;
+  --neutral-gray: #64748b;
+  --bg-light: #f8fbff;
+}
+
+/* Fix #6 — Semáforo de rendimiento en portada */
+.fd-v2-traffic-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: min(760px, 92%); }
+.fd-v2-traffic-chip { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 14px; border-radius: 999px; border: 1px solid transparent; font-weight: 950; box-shadow: 0 12px 30px rgba(15, 23, 42, .08); }
+.fd-v2-traffic-chip strong { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.fd-v2-traffic-chip span { font-size: 11px; font-weight: 850; }
+.fd-v2-traffic-green { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.fd-v2-traffic-amber { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+.fd-v2-traffic-red { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.fd-v2-traffic-blue { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.fd-v2-traffic-neutral { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
+
+/* Fix #2 — Errores con contexto visual */
+.fd-eyeball-table td.fd-v2-error-high { background: #fee2e2 !important; color: #7f1d1d !important; font-weight: 950 !important; }
+.fd-eyeball-table td.fd-v2-error-medium { background: #fef9c3 !important; color: #713f12 !important; font-weight: 950 !important; }
+.fd-eyeball-table td.fd-v2-orso-win { background: #f0f9ff !important; color: #1557d6 !important; font-weight: 950 !important; }
+.fd-eyeball-table td.fd-v2-rival-win { color: #dc2626 !important; font-weight: 950 !important; }
+
+/* Rediseño completo de la alineación */
+.fd-v2-lineup-layout { grid-template-columns: minmax(560px, 1.4fr) minmax(340px, .9fr) !important; align-items: stretch; gap: 18px; }
+.fd-v2-pitch { min-height: 520px !important; border: 0 !important; border-radius: 24px !important; padding: 18px !important; background: linear-gradient(180deg, #0a3d1f 0%, #0f5c2e 50%, #0a3d1f 100%) !important; box-shadow: inset 0 0 0 2px rgba(255,255,255,.20), 0 18px 40px rgba(6,21,47,.14) !important; overflow: hidden; position: relative; }
+.fd-v2-pitch::before, .fd-v2-pitch::after { display: none !important; }
+.fd-v2-pitch .fd-pitch-title { position: absolute; top: 14px; left: 14px; z-index: 5; background: rgba(6,21,47,.82) !important; border: 1px solid rgba(255,255,255,.22); color: #fff; padding: 7px 11px !important; border-radius: 999px !important; font-size: 10px; }
+.fd-v2-grass { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(15,92,46,.42) 0 54px, rgba(11,74,36,.42) 54px 108px); opacity: .9; }
+.fd-v2-pitch-lines { position: absolute; inset: 20px; width: calc(100% - 40px); height: calc(100% - 40px); z-index: 1; pointer-events: none; }
+.fd-v2-pitch-lines * { fill: none; stroke: rgba(255,255,255,.35); stroke-width: .7; vector-effect: non-scaling-stroke; }
+.fd-v2-field-player { position: absolute; z-index: 3; transform: translate(-50%, -50%); width: 58px; min-height: 72px; display: grid; justify-items: center; gap: 2px; padding: 5px 4px; border: 1px solid rgba(255,255,255,.70); border-radius: 12px; background: rgba(6,21,47,.32); backdrop-filter: blur(2px); box-shadow: 0 12px 22px rgba(0,0,0,.16); color: #fff; }
+.fd-v2-player-photo { position: relative; width: 36px; height: 36px; }
+.fd-v2-player-photo img, .fd-v2-avatar-initials { border: 2px solid rgba(255,255,255,.62); box-shadow: 0 6px 12px rgba(0,0,0,.16); }
+.fd-v2-avatar-initials { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1557d6; color: #fff; font-size: 10px; font-weight: 950; }
+.fd-v2-player-photo i { position: absolute; right: -1px; bottom: 1px; width: 9px; height: 9px; border-radius: 999px; border: 1px solid #fff; }
+.fd-v2-player-photo i.yellow { background: #d97706; }
+.fd-v2-player-photo i.red { background: #dc2626; }
+.fd-v2-field-player b { display: inline-flex; align-items: center; justify-content: center; min-width: 25px; height: 16px; padding: 0 6px; border-radius: 999px; background: #1557d6; color: #fff; font-size: 9px; font-weight: 950; line-height: 1; }
+.fd-v2-field-player strong { max-width: 54px; color: #fff !important; font-size: 7px; line-height: 1.05; text-align: center; letter-spacing: .04em; font-weight: 950; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fd-v2-bench-row { position: absolute; left: 22px; right: 22px; bottom: 18px; z-index: 4; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; padding: 8px; border-radius: 16px; background: rgba(6,21,47,.45); border: 1px solid rgba(255,255,255,.16); }
+.fd-v2-bench-row span { display: grid; justify-items: center; gap: 1px; min-width: 40px; color: #fff; font-size: 6px; font-weight: 950; }
+.fd-v2-bench-row b { background: #475569; color: #fff; border-radius: 999px; padding: 1px 5px; font-size: 7px; }
+.fd-v2-bench-row strong { max-width: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-v2-roster-list { display: grid; gap: 7px; align-content: start; border: 1px solid #d8e1ee; border-radius: 22px; padding: 12px; background: #fff; }
+.fd-v2-roster-card { display: grid; grid-template-columns: 28px 28px minmax(0, 1fr) 80px 42px auto; align-items: center; gap: 7px; min-height: 38px; padding: 6px 7px; border-radius: 13px; background: #f8fbff; border: 1px solid #e2e8f0; }
+.fd-v2-roster-card > b { display: grid; place-items: center; min-width: 23px; height: 22px; border-radius: 999px; background: #1557d6; color: #fff; font-size: 9px; font-weight: 950; }
+.fd-v2-roster-card.sub > b { background: #475569; }
+.fd-v2-roster-card strong { color: #06152f; font-size: 10px; font-weight: 950; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fd-v2-min-bar { height: 7px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.fd-v2-min-bar i { display: block; height: 100%; border-radius: inherit; background: #1557d6; }
+.fd-v2-roster-card.sub .fd-v2-min-bar i { background: #94a3b8; }
+.fd-v2-roster-card > span { color: #64748b; font-size: 9px; font-weight: 900; }
+.fd-v2-roster-chips { display: flex; gap: 3px; justify-content: flex-end; }
+.fd-v2-roster-chips em { font-style: normal; border-radius: 999px; padding: 2px 5px; font-size: 7px; font-weight: 950; }
+.fd-v2-roster-chips .yellow { background: #fef3c7; color: #92400e; }
+.fd-v2-roster-chips .red { background: #fee2e2; color: #991b1b; }
+.fd-v2-roster-chips .goal { background: #dcfce7; color: #047857; }
+.fd-v2-roster-separator { grid-column: 1 / -1; margin: 3px 0; color: #64748b; font-size: 8px; letter-spacing: .14em; font-weight: 950; }
+
+/* Fix #4 — GPS con referencia visual */
+.fd-v2-gps-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 9px; }
+.fd-v2-gps-kpi { display: flex; gap: 8px; min-height: 76px; padding: 10px; border: 1px solid #d8e1ee; border-radius: 16px; background: linear-gradient(180deg,#fff 0%,#f8fbff 100%); }
+.fd-v2-gps-kpi > svg { margin-top: 2px; color: #1557d6; }
+.fd-v2-gps-kpi div { display: grid; gap: 3px; width: 100%; }
+.fd-v2-gps-kpi span { color: #64748b; font-size: 8px; text-transform: uppercase; letter-spacing: .09em; font-weight: 950; }
+.fd-v2-gps-kpi strong { color: #06152f; font-size: 20px; line-height: 1; font-weight: 950; }
+.fd-v2-gps-kpi small { color: #64748b; font-size: 8px; font-weight: 850; }
+.fd-v2-gps-kpi i { height: 5px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.fd-v2-gps-kpi i b { display: block; height: 100%; border-radius: inherit; background: #1557d6; }
+.fd-v2-gps-kpi.pdf-report-tone-green i b { background: #059669; }
+.fd-v2-gps-kpi.pdf-report-tone-amber i b { background: #d97706; }
+.fd-v2-gps-kpi.pdf-report-tone-red i b { background: #dc2626; }
+.fd-v2-gps-kpi.pdf-report-tone-dark i b { background: #06152f; }
+
+/* Fix #5 — Gráficos 1T vs 2T legibles */
+.fd-v2-line-card { min-height: 170px; }
+.fd-v2-line-title { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.fd-v2-line-title svg { color: #1557d6; }
+.fd-v2-line-title strong { margin: 0 !important; flex: 1; }
+.fd-v2-line-title span { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; font-size: 13px; font-weight: 950; }
+.fd-v2-line-title span.up { background: #dcfce7; color: #047857; }
+.fd-v2-line-title span.down { background: #fee2e2; color: #991b1b; }
+.fd-v2-line-title span.flat { background: #f1f5f9; color: #64748b; }
+.fd-v2-line-card svg { height: 120px !important; background: #fff; border-radius: 12px; }
+.fd-v2-line-card line.grid { stroke: #f1f5f9 !important; stroke-width: 1; }
+.fd-v2-line-card path.area { fill: url(#area-posesion); opacity: .5; stroke: 0; }
+.fd-v2-line-card .value { fill: #1557d6; font-size: 10px; font-weight: 800; }
+.fd-v2-line-card .rvalue { fill: #dc2626; font-size: 9px; font-weight: 800; }
+.fd-v2-line-card .date { fill: #64748b; font-size: 8px; font-weight: 800; }
+.fd-v2-line-card .last { stroke: #fff; stroke-width: 2; }
+.fd-v2-line-foot { align-items: center; }
+.fd-v2-line-foot b { padding: 3px 7px; border-radius: 999px; background: #eaf2ff; color: #1557d6; }
+
+/* GPS detail table heatmap and chips */
+.fd-v2-gps-detail-table th { background: #06152f !important; color: #fff !important; font-size: 8px !important; }
+.fd-v2-gps-detail-table td { font-size: 9px; }
+.fd-v2-type-chip { display: inline-flex; border-radius: 999px; padding: 2px 6px; font-size: 7px; font-weight: 950; }
+.fd-v2-heat-high { background: #dcfce7 !important; color: #065f46 !important; font-weight: 950 !important; }
+.fd-v2-heat-mid { background: #fef3c7 !important; color: #92400e !important; font-weight: 950 !important; }
+.fd-v2-heat-low { background: #fee2e2 !important; color: #991b1b !important; font-weight: 950 !important; }
+.fd-v2-muted-cell { color: #94a3b8 !important; background: #f8fafc !important; }
+
+/* Rankings GPS */
+.fd-v2-rank-row .competition-chart-player em { display: inline-flex; margin-left: 4px; padding: 1px 5px; border-radius: 999px; background: #06152f; color: #fff; font-size: 7px; font-style: normal; letter-spacing: .08em; }
+.fd-v2-neuro-row { grid-template-columns: minmax(115px, 1.1fr) minmax(110px, 1.6fr) 54px; }
+.fd-v2-neuro-track { display: flex; height: 10px; min-width: 8px; border-radius: 999px; overflow: hidden; background: #e2e8f0; justify-self: stretch; }
+.fd-v2-neuro-track i, .fd-v2-neuro-track b, .fd-v2-neuro-track u { display: block; height: 100%; text-decoration: none; }
+.fd-v2-neuro-track i { background: #1557d6; }
+.fd-v2-neuro-track b { background: #059669; }
+.fd-v2-neuro-track u { background: #d97706; }
+
+/* Fix #7 — Conclusiones */
+.fd-v2-conclusions-page { page-break-before: always; break-before: page; }
+.fd-v2-conclusion-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.fd-v2-conclusion-card { min-height: 240px; border-radius: 22px; padding: 18px; border: 1px solid #d8e1ee; display: grid; align-content: start; gap: 10px; }
+.fd-v2-conclusion-card.strengths { background: #f0fff8; border-color: #bbf7d0; }
+.fd-v2-conclusion-card.improvements { background: #fff5f5; border-color: #fecaca; }
+.fd-v2-conclusion-card h4 { margin: 0 0 4px; display: flex; align-items: center; gap: 8px; color: #06152f; font-size: 17px; }
+.fd-v2-conclusion-card.strengths h4 svg { color: #059669; }
+.fd-v2-conclusion-card.improvements h4 svg { color: #dc2626; }
+.fd-v2-conclusion-card span { display: flex; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 999px; background: rgba(255,255,255,.75); color: #334155; font-size: 11px; font-weight: 950; }
+.fd-v2-conclusion-card b { color: #06152f; white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .fd-v2-lineup-layout, .fd-v2-gps-kpi-grid { grid-template-columns: 1fr !important; }
+  .fd-v2-traffic-chips { grid-template-columns: 1fr; width: 100%; }
+}
+
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .competition-lineup-page { page-break-before: always; min-height: 90vh; }
+  .competition-conclusions-page { page-break-before: always; }
+  .fd-player-card img, .fd-v2-player-photo img, .fd-v2-roster-card img { border-radius: 50% !important; }
+  .fd-v2-lineup-layout { grid-template-columns: 60% 40% !important; gap: 4mm !important; }
+  .fd-v2-pitch { min-height: 124mm !important; border-radius: 4mm !important; padding: 4mm !important; }
+  .fd-v2-field-player { width: 14mm !important; min-height: 18mm !important; padding: 1mm !important; border-radius: 2mm !important; }
+  .fd-v2-player-photo, .fd-v2-field-player img, .fd-v2-field-player .fd-v2-avatar-initials { width: 8mm !important; height: 8mm !important; font-size: 5pt !important; }
+  .fd-v2-field-player b { min-width: 7mm !important; height: 4mm !important; font-size: 5pt !important; }
+  .fd-v2-field-player strong { font-size: 4.5pt !important; max-width: 13mm !important; }
+  .fd-v2-bench-row { padding: 1.5mm !important; bottom: 3mm !important; }
+  .fd-v2-roster-list { gap: 1.2mm !important; padding: 2mm !important; border-radius: 3mm !important; }
+  .fd-v2-roster-card { grid-template-columns: 7mm 7mm minmax(0,1fr) 22mm 10mm auto !important; gap: 1.2mm !important; min-height: 8mm !important; padding: 1.1mm !important; border-radius: 2mm !important; }
+  .fd-v2-roster-card img, .fd-v2-roster-card .fd-v2-avatar-initials { width: 7mm !important; height: 7mm !important; font-size: 4.5pt !important; }
+  .fd-v2-roster-card strong, .fd-v2-roster-card > span { font-size: 5.2pt !important; }
+  .fd-v2-gps-kpi-grid { grid-template-columns: repeat(4, minmax(0,1fr)) !important; gap: 1.5mm !important; }
+  .fd-v2-gps-kpi { min-height: 15mm !important; padding: 1.7mm !important; border-radius: 2.5mm !important; }
+  .fd-v2-gps-kpi strong { font-size: 9pt !important; }
+  .fd-v2-line-card { min-height: 32mm !important; }
+  .fd-v2-line-card svg { height: 90px !important; }
+  .fd-v2-conclusion-card { min-height: 54mm !important; padding: 4mm !important; border-radius: 4mm !important; }
+}

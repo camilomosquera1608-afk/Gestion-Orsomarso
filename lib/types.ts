@@ -146,6 +146,7 @@ export interface Player {
   chronicConditions?: string;
   riskAreas?: string;
   photo: string;
+  photoUrl?: string;
   injuryArea?: string;
   injuryType?: string;
   injurySeverity?: string;

@@ -1,0 +1,4 @@
+-- V125 - Competition report visual redesign
+-- No schema changes required.
+-- Frontend-only update: premium competition report layout, conditional goalkeeper section,
+-- visual error emphasis, GPS reference bars, lineup redesign, and conclusions page.

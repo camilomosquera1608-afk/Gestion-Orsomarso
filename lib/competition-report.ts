@@ -18,6 +18,7 @@ export interface CompetitionReportPlayerRow {
   medicalStatus: string;
   medicalObservation: string;
   jerseyNumber?: number;
+  photoUrl?: string;
   goals: number;
   assists: number;
   goalsConceded: number;
@@ -138,6 +139,7 @@ export const buildCompetitionReportData = ({
       medicalStatus,
       medicalObservation,
       jerseyNumber: player?.jerseyNumber,
+      photoUrl: player?.photoUrl ?? player?.photo,
       goals: toSafeNumber(record.goals),
       assists: toSafeNumber(record.assists),
       goalsConceded: toSafeNumber(record.goalsConceded),
