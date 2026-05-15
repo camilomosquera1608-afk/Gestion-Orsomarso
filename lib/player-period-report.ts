@@ -1,7 +1,7 @@
 import type { AppData, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, NutritionRecord, Player, StrengthPlayerResponse, StrengthSession } from './types';
 import { averageWellness, calculateInternalLoad } from './utils';
 import { strengthLoad } from './strength';
-import { getEffectiveExternalLoadsForPlayer } from './relational-data';
+import { getEffectiveExternalLoads, getRelatedPlayerIds, uniqueWellnessByPlayerIdentityDate } from './relational-data';
 
 export type PeriodReportMetricRow = Record<string, string | number>;
 
@@ -99,14 +99,14 @@ const competitionRow = (record: CompetitionRecord): PeriodReportMetricRow => ({
   velocidad_max_kmh: record.maxVelocity ?? '',
 });
 
-const strengthRowsForPlayer = (sessions: StrengthSession[], playerId: string, startDate: string, endDate: string): PeriodReportMetricRow[] => {
+const strengthRowsForPlayer = (sessions: StrengthSession[], playerIds: Set<string>, startDate: string, endDate: string): PeriodReportMetricRow[] => {
   const rows: PeriodReportMetricRow[] = [];
   sessions
     .filter((session) => inDateRange(session.date, startDate, endDate))
     .sort(byDateAsc)
     .forEach((session) => {
-      const response = (session.responses ?? []).find((item) => item.playerId === playerId);
-      const plannedForPlayer = (session.playerIds ?? []).includes(playerId) && !(session.excludedPlayerIds ?? []).includes(playerId);
+      const response = (session.responses ?? []).find((item) => playerIds.has(item.playerId));
+      const plannedForPlayer = (session.playerIds ?? []).some((id) => playerIds.has(id)) && !(session.excludedPlayerIds ?? []).some((id) => playerIds.has(id));
       if (!plannedForPlayer && !response) return;
       const responseRpe = response?.rpe ?? '';
       rows.push({
@@ -130,9 +130,9 @@ const strengthRowsForPlayer = (sessions: StrengthSession[], playerId: string, st
   return rows;
 };
 
-const evaluationRowsForPlayer = (data: AppData, playerId: string, startDate: string, endDate: string): PeriodReportMetricRow[] => {
+const evaluationRowsForPlayer = (data: AppData, playerIds: Set<string>, startDate: string, endDate: string): PeriodReportMetricRow[] => {
   const nutritionRows = data.nutritionRecords
-    .filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate))
+    .filter((record) => playerIds.has(record.playerId) && inDateRange(record.date, startDate, endDate))
     .sort(byDateAsc)
     .map((record: NutritionRecord) => ({
       tipo: 'Nutricion',
@@ -146,12 +146,12 @@ const evaluationRowsForPlayer = (data: AppData, playerId: string, startDate: str
     }));
 
   const cmjRows = data.cmjRecords
-    .filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate))
+    .filter((record) => playerIds.has(record.playerId) && inDateRange(record.date, startDate, endDate))
     .sort(byDateAsc)
     .map((record) => ({ tipo: 'CMJ', fecha: record.date, cmj: record.value }));
 
   const neuromuscularRows = data.neuromuscularRecords
-    .filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate))
+    .filter((record) => playerIds.has(record.playerId) && inDateRange(record.date, startDate, endDate))
     .sort(byDateAsc)
     .map((record) => ({
       tipo: 'Neuromuscular',
@@ -162,7 +162,7 @@ const evaluationRowsForPlayer = (data: AppData, playerId: string, startDate: str
     }));
 
   const fmsRows = data.fmsRecords
-    .filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate))
+    .filter((record) => playerIds.has(record.playerId) && inDateRange(record.date, startDate, endDate))
     .sort(byDateAsc)
     .map((record: FMSRecord) => ({
       tipo: 'FMS',
@@ -184,12 +184,13 @@ export const buildPlayerPeriodReport = (data: AppData, playerId: string, startDa
   const player = data.players.find((item) => item.id === playerId);
   if (!player) return null;
 
-  const wellnessRecords = data.wellness.filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
-  const internalRecords = data.internalLoads.filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
-  const externalRecords = getEffectiveExternalLoadsForPlayer(data, playerId, { startDate, endDate, activeCategory: player.category ?? 'all' }).sort(byDateAsc);
-  const competitionRecords = data.competitionRecords.filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
-  const strengthRows = strengthRowsForPlayer(data.strengthSessions ?? [], playerId, startDate, endDate);
-  const evaluationRows = evaluationRowsForPlayer(data, playerId, startDate, endDate);
+  const relatedIds = getRelatedPlayerIds(data.players, playerId);
+  const wellnessRecords = uniqueWellnessByPlayerIdentityDate(data.players, data.wellness.filter((record) => relatedIds.has(record.playerId) && inDateRange(record.date, startDate, endDate))).sort(byDateAsc);
+  const internalRecords = data.internalLoads.filter((record) => relatedIds.has(record.playerId) && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
+  const externalRecords = getEffectiveExternalLoads(data, { activeCategory: player.category ?? 'all', playerIds: relatedIds }).filter((record) => inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
+  const competitionRecords = data.competitionRecords.filter((record) => relatedIds.has(record.playerId) && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
+  const strengthRows = strengthRowsForPlayer(data.strengthSessions ?? [], relatedIds, startDate, endDate);
+  const evaluationRows = evaluationRowsForPlayer(data, relatedIds, startDate, endDate);
 
   const wellnessRows = wellnessRecords.map(wellnessRow);
   const internalRows = internalRecords.map(internalRow);

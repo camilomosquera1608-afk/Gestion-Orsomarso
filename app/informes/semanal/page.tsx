@@ -12,6 +12,7 @@ import { formatDateShort } from '@/lib/operational-helpers';
 import { averageWellness, groupAverage } from '@/lib/utils';
 import { buildAcwrData, buildMonotonyStrain } from '@/lib/strategic-helpers';
 import { buildFosterTable } from '@/lib/sport-science';
+import { getCanonicalPlayers, getRelatedPlayerIdSet, uniqueWellnessByPlayerIdentityDate } from '@/lib/relational-data';
 
 
 export default function InformeSemanalPage() {
@@ -34,8 +35,8 @@ export default function InformeSemanalPage() {
       return d.toISOString().slice(0, 10);
     })();
 
-    const players = data.players.filter((p) => !catFilter || p.category === catFilter);
-    const playerIds = new Set(players.map((p) => p.id));
+    const players = getCanonicalPlayers(data, data.players.filter((p) => !catFilter || p.category === catFilter));
+    const playerIds = getRelatedPlayerIdSet(data.players, players);
 
     // Disponibilidad
     const disponibles = players.filter((p) => p.status === 'Disponible').length;
@@ -45,9 +46,9 @@ export default function InformeSemanalPage() {
     const disponibilidadPct = players.length > 0 ? Math.round((disponibles / players.length) * 100) : 0;
 
     // Wellness del período
-    const wellnessPeriodo = data.wellness.filter((w) =>
+    const wellnessPeriodo = uniqueWellnessByPlayerIdentityDate(data.players, data.wellness.filter((w) =>
       playerIds.has(w.playerId) && w.date >= startDate && w.date <= endDate,
-    );
+    ));
     const wellnessPromedio = groupAverage(wellnessPeriodo.map((w) => averageWellness(w)));
 
     // Carga del período

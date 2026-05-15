@@ -36,6 +36,7 @@ import {
 } from "@/lib/types";
 import { findMicrocycleByDate, groupAverage } from "@/lib/utils";
 import { buildDailyOperations } from "@/lib/operational-helpers";
+import { getCanonicalPlayers, getRelatedPlayerIds, getRelatedPlayerIdSet, getWellnessRecordsForDate } from "@/lib/relational-data";
 import { supportsGps } from "@/lib/report-utils";
 import { findDuplicateTrainingSession } from "@/lib/operational-validation";
 import {
@@ -362,7 +363,7 @@ export default function SesionEntrenamientoPage() {
 
   // Players & rows
   const sessionPlayers = useMemo(
-    () => data.players.filter((p) => p.category === sourceCat),
+    () => getCanonicalPlayers(data, data.players.filter((p) => p.category === sourceCat)),
     [data.players, sourceCat],
   );
   const existingRecs = useMemo(
@@ -504,16 +505,13 @@ export default function SesionEntrenamientoPage() {
   const reportRows = selectedRows.length
     ? selectedRows
     : rows.filter((r) =>
-        existingRecs.some((rec) => rec.playerId === r.player.id),
+        existingRecs.some((rec) => getRelatedPlayerIds(data.players, r.player.id).has(rec.playerId)),
       );
   const absentPlayers = sessionPlayers.filter(
     (p) => !reportRows.some((r) => r.player.id === p.id),
   );
-  const sessWellness = data.wellness.filter(
-    (rec) =>
-      rec.date === filters.date &&
-      sessionPlayers.some((p) => p.id === rec.playerId),
-  );
+  const sessionPlayerIds = getRelatedPlayerIdSet(data.players, sessionPlayers);
+  const sessWellness = getWellnessRecordsForDate(data, filters.date, sessionPlayerIds);
 
   const sessionLoadMetrics = useMemo(() => {
     const avgMinutes = groupAverage(selectedRows.map((r) => r.min));

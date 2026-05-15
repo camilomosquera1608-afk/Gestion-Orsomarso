@@ -310,6 +310,40 @@ const mergeByIdPreferLocal = <T extends { id: string }>(
   return Array.from(byId.values());
 };
 
+const normalizePlayerMergeText = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+
+const playerMergeKeys = (player: Player) => [
+  player.id ? `id:${player.id}` : '',
+  player.documentId ? `doc:${normalizePlayerMergeText(player.documentId)}` : '',
+  player.name ? `name:${normalizePlayerMergeText(player.category)}:${normalizePlayerMergeText(player.name)}` : '',
+].filter(Boolean);
+
+const mergePlayersPreferLocal = (remote: Player[] | undefined, local: Player[] | undefined): Player[] => {
+  const rows = [...(Array.isArray(remote) ? remote : []), ...(Array.isArray(local) ? local : [])];
+  const groups = new Map<string, Player>();
+  const aliases = new Map<string, string>();
+
+  rows.forEach((player) => {
+    if (!player?.id) return;
+    const keys = playerMergeKeys(player);
+    const groupKey = keys.map((key) => aliases.get(key)).find(Boolean) ?? keys[0] ?? `id:${player.id}`;
+    const existing = groups.get(groupKey);
+    const merged = existing
+      ? (mergeObjectWithLocalFallback(player as unknown as Record<string, unknown>, existing as unknown as Record<string, unknown>) as unknown as Player)
+      : player;
+    groups.set(groupKey, merged);
+    keys.forEach((key) => aliases.set(key, groupKey));
+  });
+
+  return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+};
+
 const buildCompetitionExternalLoad = (
   match: CompetitionMatchSummary,
   record: CompetitionRecord,
@@ -487,7 +521,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Players: merge remote + local to avoid losing ficha edits if Supabase
       // has not persisted a newer column yet. Remote fields stay primary,
       // local fills gaps and preserves local-only players.
-      players: mergeByIdPreferLocal(
+      players: mergePlayersPreferLocal(
         remoteHydrated.players,
         current.players,
       ),
@@ -744,7 +778,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             ),
             // Players: merge remote + local to avoid wiping ficha edits
             // while new Supabase columns are being added.
-            players: mergeByIdPreferLocal(remoteData.players, localData?.players),
+            players: mergePlayersPreferLocal(remoteData.players, localData?.players),
           };
 
           setData(merged);

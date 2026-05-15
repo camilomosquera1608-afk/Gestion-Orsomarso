@@ -16,6 +16,7 @@ import { ClubCategory, Player } from '@/lib/types';
 import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
 import { formatDateShort } from '@/lib/operational-helpers';
 import { formatMatchScore } from '@/lib/performance-helpers';
+import { getCanonicalPlayers, getEffectiveExternalLoads, getRelatedPlayerIds, getRelatedPlayerIdSet, getWellnessRecordsForDate } from '@/lib/relational-data';
 
 const normalizeCategoryText = (category: string | undefined) => {
   if (!category || category === 'all') return 'Todas';
@@ -39,13 +40,13 @@ export default function ExecutivePage() {
 
   const dashboard = useMemo(() => {
     const categoryFilter = activeCategory === 'all' ? undefined : activeCategory as ClubCategory;
-    const players = data.players.filter((player) => !categoryFilter || player.category === categoryFilter);
-    const playerIds = new Set(players.map((player) => player.id));
+    const players = getCanonicalPlayers(data, data.players.filter((player) => !categoryFilter || player.category === categoryFilter));
+    const playerIds = getRelatedPlayerIdSet(data.players, players);
     const microcycle = data.microcycles.find((item) => (!categoryFilter || item.category === categoryFilter) && filters.date >= item.startDate && filters.date <= item.endDate);
     const sessionSummary = data.trainingSessionSummaries.find((item) => item.date === filters.date && (!categoryFilter || item.category === categoryFilter));
-    const dayWellness = data.wellness.filter((item) => item.date === filters.date && playerIds.has(item.playerId));
+    const dayWellness = getWellnessRecordsForDate(data, filters.date, playerIds);
     const dayInternal = data.internalLoads.filter((item) => item.date === filters.date && playerIds.has(item.playerId));
-    const dayExternal = data.externalLoads.filter((item) => item.date === filters.date && playerIds.has(item.playerId));
+    const dayExternal = getEffectiveExternalLoads(data, { activeCategory, date: filters.date, playerIds });
     const recentMatches = data.competitionMatchSummaries
       .filter((item) => !categoryFilter || item.category === categoryFilter)
       .sort((a, b) => b.date.localeCompare(a.date));
@@ -70,10 +71,11 @@ export default function ExecutivePage() {
     }, {});
 
     const playerCards = players.map((player) => {
-      const latestWellness = data.wellness.filter((item) => item.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
-      const latestExternal = data.externalLoads.filter((item) => item.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
-      const latestInternal = data.internalLoads.filter((item) => item.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
-      const latestCompetition = data.competitionRecords.filter((item) => item.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      const latestWellness = data.wellness.filter((item) => relatedIds.has(item.playerId)).sort((a, b) => b.date.localeCompare(a.date))[0];
+      const latestExternal = data.externalLoads.filter((item) => relatedIds.has(item.playerId)).sort((a, b) => b.date.localeCompare(a.date))[0];
+      const latestInternal = data.internalLoads.filter((item) => relatedIds.has(item.playerId)).sort((a, b) => b.date.localeCompare(a.date))[0];
+      const latestCompetition = data.competitionRecords.filter((item) => relatedIds.has(item.playerId)).sort((a, b) => b.date.localeCompare(a.date))[0];
       const wellness = latestWellness ? averageWellness(latestWellness) : 0;
       const load = latestInternal ? calculateInternalLoad(latestInternal) : 0;
       const alerts = [
@@ -102,7 +104,7 @@ export default function ExecutivePage() {
           fecha: formatDateShort(date),
           Carga: Math.round(sum(internal.map((item) => calculateInternalLoad(item)))),
           Min: Math.round(sum(external.map((item) => item.min))),
-          Wellness: Number(avg(data.wellness.filter((item) => item.date === date && playerIds.has(item.playerId)).map((item) => averageWellness(item))).toFixed(1)),
+          Wellness: Number(avg(getWellnessRecordsForDate(data, date, playerIds).map((item) => averageWellness(item))).toFixed(1)),
         };
       });
 

@@ -13,6 +13,8 @@ import { canDeletePlayer, canDeletePlayers, canWrite, getDeleteDeniedMessage } f
 import { categoryLabel, calcAge } from '@/lib/labels';
 import { PlayerStatus } from '@/lib/types';
 import { averageWellness, calculateInternalLoad } from '@/lib/utils';
+import { getVisiblePlayers } from '@/lib/operational-helpers';
+import { getRelatedPlayerIds } from '@/lib/relational-data';
 
 const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Lesionado'];
 
@@ -24,12 +26,7 @@ export default function JugadoresPage() {
   const canEditPlayers = canWrite(session);
   const canDeleteRosterPlayers = canDeletePlayers(session);
   const activeCategory = master ? filters.category : session.category;
-  const players = data.players.filter((player) =>
-    (filters.playerId === 'all' || player.id === filters.playerId) &&
-    (activeCategory === 'all' || player.category === activeCategory) &&
-    (filters.position === 'all' || player.position === filters.position) &&
-    (filters.status === 'all' || player.status === filters.status),
-  );
+  const players = getVisiblePlayers(data, filters, activeCategory);
   const statusSummary = {
     disponibles: players.filter((player) => player.status === 'Disponible').length,
     molestia: players.filter((player) => player.status === 'Molestia').length,
@@ -65,10 +62,11 @@ export default function JugadoresPage() {
         <SectionHeader eyebrow="Roster" title="Plantel filtrado" subtitle="Vista tipo club con últimas señales operativas." />
         <div className="grid grid-2 player-roster-grid">
           {players.map((player) => {
-            const latestWellness = data.wellness.filter((row) => row.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
-            const latestInternal = data.internalLoads.filter((row) => row.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
-            const latestExternal = data.externalLoads.filter((row) => row.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
-            const recentCompetition = data.competitionRecords.filter((row) => row.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+            const relatedIds = getRelatedPlayerIds(data.players, player.id);
+            const latestWellness = data.wellness.filter((row) => relatedIds.has(row.playerId)).sort((a, b) => b.date.localeCompare(a.date))[0];
+            const latestInternal = data.internalLoads.filter((row) => relatedIds.has(row.playerId)).sort((a, b) => b.date.localeCompare(a.date))[0];
+            const latestExternal = data.externalLoads.filter((row) => relatedIds.has(row.playerId)).sort((a, b) => b.date.localeCompare(a.date))[0];
+            const recentCompetition = data.competitionRecords.filter((row) => relatedIds.has(row.playerId)).sort((a, b) => b.date.localeCompare(a.date))[0];
             const wellnessValue = averageWellness(latestWellness);
             const internalLoad = latestInternal ? calculateInternalLoad(latestInternal) : 0;
             return (

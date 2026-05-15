@@ -3,7 +3,7 @@ import { averageWellness, calculateInternalLoad, getPlayerDayLoad, groupAverage 
 import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performance-helpers';
 import { supportsGps } from './report-utils';
 import { getMicrocycleDayStatus } from './session-derived';
-import { getEffectiveExternalLoads, getInternalLoadsForDate, getWellnessRecordsForDate } from './relational-data';
+import { getCanonicalPlayers, getEffectiveExternalLoads, getInternalLoadsForDate, getRelatedPlayerIds, getRelatedPlayerIdSet, getWellnessRecordsForDate } from './relational-data';
 
 export type AlertLevel = 'critical' | 'warning' | 'info';
 
@@ -88,12 +88,16 @@ export const eachDateInRange = (startDate: string, endDate: string) => {
 
 export const isSameCategory = (activeCategory: string, category?: string) => activeCategory === 'all' || !category || category === activeCategory;
 
-export const getVisiblePlayers = (data: AppData, filters: GlobalFilters, activeCategory: string) => data.players.filter((player) =>
-  isSameCategory(activeCategory, player.category) &&
-  (filters.playerId === 'all' || player.id === filters.playerId) &&
-  (filters.position === 'all' || player.position === filters.position) &&
-  (filters.status === 'all' || player.status === filters.status),
-);
+export const getVisiblePlayers = (data: AppData, filters: GlobalFilters, activeCategory: string) => {
+  const selectedIds = filters.playerId === 'all' ? undefined : getRelatedPlayerIds(data.players, filters.playerId);
+  const filtered = data.players.filter((player) =>
+    isSameCategory(activeCategory, player.category) &&
+    (!selectedIds || selectedIds.has(player.id)) &&
+    (filters.position === 'all' || player.position === filters.position) &&
+    (filters.status === 'all' || player.status === filters.status),
+  );
+  return getCanonicalPlayers(data, filtered);
+};
 
 const uniqueRecordsByPlayer = <T extends { playerId: string }>(records: T[]) => {
   const seen = new Set<string>();
@@ -125,7 +129,7 @@ export const getDataQualityPercent = (items: DataQualityItem[]) => {
 
 export const buildDailyOperations = (data: AppData, filters: GlobalFilters, activeCategory: string): DailyOperations => {
   const players = getVisiblePlayers(data, filters, activeCategory);
-  const playerIds = new Set(players.map((player) => player.id));
+  const playerIds = getRelatedPlayerIdSet(data.players, players);
   const date = filters.date;
   const gpsEnabled = supportsGps(activeCategory);
   const activeMicrocycle = date
@@ -140,26 +144,37 @@ export const buildDailyOperations = (data: AppData, filters: GlobalFilters, acti
   const matchIds = new Set(matchesToday.map((match) => match.id));
   const matchRecordsToday = data.competitionRecords.filter((record) => (matchIds.has(record.matchId ?? '') || (record.date === date && matchesToday.some((match) => match.opponent === record.opponent))) && playerIds.has(record.playerId));
 
-  const missingWellness = players.filter((player) => !wellnessRecords.some((record) => record.playerId === player.id));
+  const missingWellness = players.filter((player) => {
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    return !wellnessRecords.some((record) => relatedIds.has(record.playerId));
+  });
   const playersWithSessionLoad = new Set(externalRecords.filter((record) => (record.min ?? 0) > 0 || (record.rpe ?? 0) > 0).map((record) => record.playerId));
   const playersWithInternalLoad = new Set([...internalRecords.map((record) => record.playerId), ...playersWithSessionLoad]);
-  const missingInternal = players.filter((player) => !playersWithInternalLoad.has(player.id));
-  const missingExternal = gpsEnabled ? players.filter((player) => !externalRecords.some((record) => record.playerId === player.id)) : [];
+  const missingInternal = players.filter((player) => {
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    return !Array.from(relatedIds).some((id) => playersWithInternalLoad.has(id));
+  });
+  const missingExternal = gpsEnabled ? players.filter((player) => {
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    return !externalRecords.some((record) => relatedIds.has(record.playerId));
+  }) : [];
   const lowWellnessPlayers = players.filter((player) => {
-    const value = averageWellness(wellnessRecords.find((record) => record.playerId === player.id));
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    const value = averageWellness(wellnessRecords.find((record) => relatedIds.has(record.playerId)));
     return value > 0 && value < 3;
   });
   const highLoadPlayers = players.filter((player) => {
-    const playerInternal = internalRecords.filter((record) => record.playerId === player.id);
-    const playerExternal = externalRecords.filter((record) => record.playerId === player.id);
-    const internalLoad = getPlayerDayLoad(player.id, date, { internalLoads: playerInternal, externalLoads: playerExternal });
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    const playerInternal = internalRecords.filter((record) => relatedIds.has(record.playerId));
+    const playerExternal = externalRecords.filter((record) => relatedIds.has(record.playerId));
+    const internalLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerDayLoad(id, date, { internalLoads: playerInternal, externalLoads: playerExternal })), 0);
     return internalLoad >= 450 || playerExternal.some((external) => (external.rpe ?? 0) >= 8 || (external.min ?? 0) >= 90);
   });
 
   const dataQualityItems = [
     asRatioItem('Wellness', wellnessRecords.length, players.length, `${wellnessRecords.length}/${players.length} jugadores`),
-    asRatioItem('Carga interna', playersWithInternalLoad.size, players.length, `${playersWithInternalLoad.size}/${players.length} jugadores`),
-    ...(gpsEnabled ? [asRatioItem('Carga externa / GPS', new Set(externalRecords.map((record) => record.playerId)).size, players.length, `${new Set(externalRecords.map((record) => record.playerId)).size}/${players.length} jugadores`)] : []),
+    asRatioItem('Carga interna', players.length - missingInternal.length, players.length, `${players.length - missingInternal.length}/${players.length} jugadores`),
+    ...(gpsEnabled ? [asRatioItem('Carga externa / GPS', players.length - missingExternal.length, players.length, `${players.length - missingExternal.length}/${players.length} jugadores`)] : []),
     asRatioItem('Sesión', sessionSummaries.length ? 1 : 0, 1, sessionSummaries.length ? 'Sesión registrada' : 'Sin sesión del día'),
     matchesToday.length
       ? asRatioItem('Competencia', matchRecordsToday.length ? 1 : 0, 1, matchRecordsToday.length ? 'Partido con planilla' : 'Partido sin jugadores')
@@ -194,7 +209,7 @@ export const buildDailyOperations = (data: AppData, filters: GlobalFilters, acti
       id: `wellness-low-${player.id}`,
       level: 'warning' as const,
       title: `${player.name} con wellness bajo`,
-      description: `Wellness ${averageWellness(wellnessRecords.find((record) => record.playerId === player.id)).toFixed(1)} en la fecha activa.`,
+      description: `Wellness ${averageWellness(wellnessRecords.find((record) => getRelatedPlayerIds(data.players, player.id).has(record.playerId))).toFixed(1)} en la fecha activa.`,
       action: 'Revisar carga y estado físico',
     })),
     ...highLoadPlayers.map((player) => ({

@@ -16,6 +16,7 @@ import { readBodyMapRecords, type BodyMapRecord } from '@/lib/body-map';
 import { computePlayerScientificLoadDecision } from '@/lib/scientific-load';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { computeBanisterMetrics, computeDynamicThresholds } from '@/lib/sport-science';
+import { getRelatedPlayerIds } from '@/lib/relational-data';
 
 const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Lesionado'];
 const positions: Position[] = ['Portero', 'Defensa central', 'Lateral', 'Mediocampista', 'Extremo', 'Delantero'];
@@ -66,38 +67,39 @@ export default function PlayerProfilePage() {
   if (!player) return <div className="empty">Jugador no encontrado o eliminado.</div>;
 
   const editablePlayer = profileDraft ?? player;
+  const relatedIds = getRelatedPlayerIds(data.players, player.id);
 
-  const latestDate = [...new Set(data.wellness.filter((x) => x.playerId === player.id).map((x) => x.date))].sort().at(-1) ?? new Date().toISOString().slice(0, 10);
-  const latestWellness = data.wellness.find((x) => x.playerId === player.id && x.date === latestDate);
-  const latestInternal = data.internalLoads.find((x) => x.playerId === player.id && x.date === latestDate);
-  const latestExternal = data.externalLoads.find((x) => x.playerId === player.id && x.date === latestDate);
-  const latestCmj = data.cmjRecords.filter((x) => x.playerId === player.id).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
-  const previousCmj = data.cmjRecords.filter((x) => x.playerId === player.id).sort((a, b) => a.date.localeCompare(b.date)).at(-2);
+  const latestDate = [...new Set(data.wellness.filter((x) => relatedIds.has(x.playerId)).map((x) => x.date))].sort().at(-1) ?? new Date().toISOString().slice(0, 10);
+  const latestWellness = data.wellness.find((x) => relatedIds.has(x.playerId) && x.date === latestDate);
+  const latestInternal = data.internalLoads.find((x) => relatedIds.has(x.playerId) && x.date === latestDate);
+  const latestExternal = data.externalLoads.find((x) => relatedIds.has(x.playerId) && x.date === latestDate);
+  const latestCmj = data.cmjRecords.filter((x) => relatedIds.has(x.playerId)).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+  const previousCmj = data.cmjRecords.filter((x) => relatedIds.has(x.playerId)).sort((a, b) => a.date.localeCompare(b.date)).at(-2);
   const groupAverageCmj = groupAverage(data.cmjRecords.filter((x) => x.date === latestDate).map((x) => x.value));
-  const wellnessHistory = data.wellness.filter((x) => x.playerId === player.id).sort((a, b) => a.date.localeCompare(b.date)).map((x) => ({ fecha: x.date.slice(5), wellness: averageWellness(x) }));
-  const cmjHistory = data.cmjRecords.filter((x) => x.playerId === player.id).sort((a, b) => a.date.localeCompare(b.date)).map((x) => ({ fecha: x.date.slice(5), cmj: x.value }));
-  const recentSessions = data.externalLoads.filter((x) => x.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
-  const recentCompetition = data.competitionRecords.filter((x) => x.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  const wellnessHistory = data.wellness.filter((x) => relatedIds.has(x.playerId)).sort((a, b) => a.date.localeCompare(b.date)).map((x) => ({ fecha: x.date.slice(5), wellness: averageWellness(x) }));
+  const cmjHistory = data.cmjRecords.filter((x) => relatedIds.has(x.playerId)).sort((a, b) => a.date.localeCompare(b.date)).map((x) => ({ fecha: x.date.slice(5), cmj: x.value }));
+  const recentSessions = data.externalLoads.filter((x) => relatedIds.has(x.playerId)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  const recentCompetition = data.competitionRecords.filter((x) => relatedIds.has(x.playerId)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   const youthSimple = player.category !== 'Sub20';
   const bmi = player.height && player.weight ? Number((player.weight / ((player.height / 100) ** 2)).toFixed(1)) : undefined;
   const currentWellness = averageWellness(latestWellness);
   const weeklyInternalLoad = data.internalLoads
-    .filter((x) => x.playerId === player.id)
+    .filter((x) => relatedIds.has(x.playerId))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 7)
     .reduce((total, item) => total + calculateInternalLoad(item), 0);
   const weeklyMinutes = data.externalLoads
-    .filter((x) => x.playerId === player.id)
+    .filter((x) => relatedIds.has(x.playerId))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 7)
     .reduce((total, item) => total + (item.min ?? 0), 0);
   const weeklyHsr = data.externalLoads
-    .filter((x) => x.playerId === player.id)
+    .filter((x) => relatedIds.has(x.playerId))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 7)
     .reduce((total, item) => total + (item.highSpeedDistance ?? item.hsr ?? 0), 0);
   const weeklySprint = data.externalLoads
-    .filter((x) => x.playerId === player.id)
+    .filter((x) => relatedIds.has(x.playerId))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 7)
     .reduce((total, item) => total + (item.sprintDistance ?? 0), 0);
@@ -105,7 +107,7 @@ export default function PlayerProfilePage() {
   const injuryHistory = [
     ...(editablePlayer.injuryHistory ?? []),
     ...data.competitionRecords
-      .filter((x) => x.playerId === player.id && (x.injuryKind || x.medicalObservation || x.postCompetitionStatus))
+      .filter((x) => relatedIds.has(x.playerId) && (x.injuryKind || x.medicalObservation || x.postCompetitionStatus))
       .map((x, index) => ({
         id: `comp-injury-${x.id}-${index}`,
         date: x.date,
@@ -119,10 +121,10 @@ export default function PlayerProfilePage() {
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   const temporaryMovements = [
-    ...data.externalLoads.filter((x) => x.playerId === player.id && ((x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) || (x.movementType ?? 'base') !== 'base')).map((x) => ({
+    ...data.externalLoads.filter((x) => relatedIds.has(x.playerId) && ((x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) || (x.movementType ?? 'base') !== 'base')).map((x) => ({
       date: x.date, module: 'Sesión', baseCategory: x.baseCategory ?? player.category, actingCategory: x.actingCategory ?? x.category ?? player.category, movementType: x.movementType ?? 'base', note: x.movementNote ?? '',
     })),
-    ...data.competitionRecords.filter((x) => x.playerId === player.id && ((x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) || (x.movementType ?? 'base') !== 'base')).map((x) => ({
+    ...data.competitionRecords.filter((x) => relatedIds.has(x.playerId) && ((x.actingCategory ?? x.category) !== (x.baseCategory ?? player.category) || (x.movementType ?? 'base') !== 'base')).map((x) => ({
       date: x.date, module: 'Competencia', baseCategory: x.baseCategory ?? player.category, actingCategory: x.actingCategory ?? x.category ?? player.category, movementType: x.movementType ?? 'base', note: x.movementNote ?? '',
     })),
   ].sort((a, b) => b.date.localeCompare(a.date));

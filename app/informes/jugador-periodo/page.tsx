@@ -40,6 +40,7 @@ import {
   hasValidValue,
 } from '@/lib/report-utils';
 import type { ClubCategory, CMJRecord, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, NutritionRecord, Player } from '@/lib/types';
+import { getCanonicalPlayers, getEffectiveExternalLoads, getRelatedPlayerIds, uniqueWellnessByPlayerIdentityDate } from '@/lib/relational-data';
 
 type Tone = 'blue' | 'cyan' | 'green' | 'amber' | 'red' | 'navy';
 type ChartPoint = { label: string; value: number };
@@ -523,7 +524,7 @@ export default function PlayerPeriodReportPage() {
   const reportRef = useRef<HTMLElement | null>(null);
 
   const categoryPlayers = useMemo(
-    () => data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory),
+    () => getCanonicalPlayers(data, data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory)),
     [data.players, activeCategory],
   );
   const selectedPlayerId = filters.playerId === 'all' ? categoryPlayers[0]?.id ?? data.players[0]?.id ?? '' : filters.playerId;
@@ -531,15 +532,16 @@ export default function PlayerPeriodReportPage() {
 
   const report = useMemo(() => {
     if (!player) return null;
-    const wellness = sortByDate(data.wellness.filter((record) => record.playerId === player.id && inRange(record.date, startDate, endDate)));
-    const internal = sortByDate(data.internalLoads.filter((record) => record.playerId === player.id && inRange(record.date, startDate, endDate)));
-    const external = sortByDate(deduplicateGpsSessions(data.externalLoads.filter((record) => record.playerId === player.id && inRange(record.date, startDate, endDate))));
-    const competition = sortByDate(data.competitionRecords.filter((record) => record.playerId === player.id && inRange(record.date, startDate, endDate)));
-    const nutrition = sortByDate(data.nutritionRecords.filter((record) => record.playerId === player.id && inRange(record.date, startDate, endDate)));
-    const cmj = sortByDate(data.cmjRecords.filter((record) => record.playerId === player.id && inRange(record.date, startDate, endDate)));
-    const neuromuscular = sortByDate(data.neuromuscularRecords.filter((record) => record.playerId === player.id && inRange(record.date, startDate, endDate)));
-    const fms = sortByDate(data.fmsRecords.filter((record) => record.playerId === player.id && inRange(record.date, startDate, endDate)));
-    const strength = sortByDate((data.strengthSessions ?? []).filter((sessionItem) => inRange(sessionItem.date, startDate, endDate) && ((sessionItem.playerIds ?? []).includes(player.id) || (sessionItem.responses ?? []).some((response) => response.playerId === player.id))));
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    const wellness = sortByDate(uniqueWellnessByPlayerIdentityDate(data.players, data.wellness.filter((record) => relatedIds.has(record.playerId) && inRange(record.date, startDate, endDate))));
+    const internal = sortByDate(data.internalLoads.filter((record) => relatedIds.has(record.playerId) && inRange(record.date, startDate, endDate)));
+    const external = sortByDate(deduplicateGpsSessions(getEffectiveExternalLoads(data, { activeCategory, playerIds: relatedIds }).filter((record) => inRange(record.date, startDate, endDate))));
+    const competition = sortByDate(data.competitionRecords.filter((record) => relatedIds.has(record.playerId) && inRange(record.date, startDate, endDate)));
+    const nutrition = sortByDate(data.nutritionRecords.filter((record) => relatedIds.has(record.playerId) && inRange(record.date, startDate, endDate)));
+    const cmj = sortByDate(data.cmjRecords.filter((record) => relatedIds.has(record.playerId) && inRange(record.date, startDate, endDate)));
+    const neuromuscular = sortByDate(data.neuromuscularRecords.filter((record) => relatedIds.has(record.playerId) && inRange(record.date, startDate, endDate)));
+    const fms = sortByDate(data.fmsRecords.filter((record) => relatedIds.has(record.playerId) && inRange(record.date, startDate, endDate)));
+    const strength = sortByDate((data.strengthSessions ?? []).filter((sessionItem) => inRange(sessionItem.date, startDate, endDate) && ((sessionItem.playerIds ?? []).some((id) => relatedIds.has(id)) || (sessionItem.responses ?? []).some((response) => relatedIds.has(response.playerId)))));
     return { wellness, internal, external, competition, nutrition, cmj, neuromuscular, fms, strength };
   }, [data, player, startDate, endDate]);
 

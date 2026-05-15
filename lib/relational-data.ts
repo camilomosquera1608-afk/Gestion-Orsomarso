@@ -11,6 +11,80 @@ import { isGoalkeeper } from './performance-helpers';
 
 const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase();
 
+const normalizePlayerName = (value: unknown) => normalize(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+
+export const playerIdentityKey = (player?: Pick<Player, 'id' | 'name' | 'category' | 'documentId'> | null) => {
+  if (!player) return '';
+  const documentKey = normalize(player.documentId);
+  if (documentKey) return `doc:${documentKey}`;
+  const nameKey = normalizePlayerName(player.name);
+  const categoryKey = normalize(player.category);
+  return nameKey ? `name:${categoryKey}:${nameKey}` : `id:${player.id}`;
+};
+
+export const getRelatedPlayerIds = (players: Player[], playerId: string) => {
+  const player = players.find((item) => item.id === playerId);
+  if (!player) return new Set([playerId]);
+  const key = playerIdentityKey(player);
+  return new Set(players.filter((item) => playerIdentityKey(item) === key).map((item) => item.id));
+};
+
+export const getRelatedPlayerIdSet = (allPlayers: Player[], visiblePlayers: Player[]) => {
+  const ids = new Set<string>();
+  visiblePlayers.forEach((player) => getRelatedPlayerIds(allPlayers, player.id).forEach((id) => ids.add(id)));
+  return ids;
+};
+
+const recordCountForPlayer = (data: Pick<AppData, 'wellness' | 'internalLoads' | 'externalLoads' | 'competitionRecords'>, playerId: string) =>
+  (data.wellness ?? []).filter((item) => item.playerId === playerId).length +
+  (data.internalLoads ?? []).filter((item) => item.playerId === playerId).length +
+  (data.externalLoads ?? []).filter((item) => item.playerId === playerId).length +
+  (data.competitionRecords ?? []).filter((item) => item.playerId === playerId).length;
+
+const playerCompletenessScore = (player: Player) => [
+  player.documentId,
+  player.birthDate,
+  player.jerseyNumber,
+  player.phone,
+  player.height,
+  player.weight,
+  player.dominantFoot,
+  player.competitiveRole,
+  player.photoUrl || player.photo,
+  player.medicalNotes,
+].filter((value) => value !== undefined && value !== null && String(value).trim() !== '').length;
+
+export const getCanonicalPlayers = (data: AppData, sourcePlayers?: Player[]) => {
+  const players = sourcePlayers ?? data.players;
+  const groups = new Map<string, Player[]>();
+  players.forEach((player) => {
+    const key = playerIdentityKey(player);
+    groups.set(key, [...(groups.get(key) ?? []), player]);
+  });
+
+  return Array.from(groups.values()).map((group) => group.slice().sort((a, b) => {
+    const recordDelta = recordCountForPlayer(data, b.id) - recordCountForPlayer(data, a.id);
+    if (recordDelta) return recordDelta;
+    const completenessDelta = playerCompletenessScore(b) - playerCompletenessScore(a);
+    if (completenessDelta) return completenessDelta;
+    return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+  })[0]);
+};
+
+export const uniqueWellnessByPlayerIdentityDate = (players: Player[], records: DailyWellnessRecord[]) => {
+  const byKey = new Map<string, DailyWellnessRecord>();
+  records.forEach((record) => {
+    const player = players.find((item) => item.id === record.playerId);
+    const identity = player ? playerIdentityKey(player) : `id:${record.playerId}`;
+    const key = `${identity}::${record.date}`;
+    const existing = byKey.get(key);
+    const score = [record.sleep, record.fatigue, record.stress, record.musclePain, record.mood].filter((value) => Number(value) > 0).length;
+    const existingScore = existing ? [existing.sleep, existing.fatigue, existing.stress, existing.musclePain, existing.mood].filter((value) => Number(value) > 0).length : -1;
+    if (!existing || score > existingScore || (score === existingScore && String(record.id).localeCompare(String(existing.id)) > 0)) byKey.set(key, record);
+  });
+  return Array.from(byKey.values());
+};
+
 export const isAllCategory = (category?: string | null) => !category || category === 'all';
 
 export const sameCategory = (activeCategory: string, itemCategory?: string | null) =>
@@ -157,12 +231,13 @@ export const uniqueWellnessByPlayerDate = (records: DailyWellnessRecord[]) => {
 };
 
 export const getWellnessRecordsForDate = (
-  data: Pick<AppData, 'wellness'>,
+  data: Pick<AppData, 'wellness'> & Partial<Pick<AppData, 'players'>>,
   date: string,
   playerIds?: Set<string>,
-) => uniqueWellnessByPlayerDate(
-  (data.wellness ?? []).filter((record) => record.date === date && (!playerIds || playerIds.has(record.playerId))),
-);
+) => {
+  const filtered = (data.wellness ?? []).filter((record) => record.date === date && (!playerIds || playerIds.has(record.playerId)));
+  return data.players?.length ? uniqueWellnessByPlayerIdentityDate(data.players, filtered) : uniqueWellnessByPlayerDate(filtered);
+};
 
 export const getInternalLoadsForDate = (
   data: Pick<AppData, 'internalLoads'>,
@@ -180,6 +255,12 @@ export interface SharedDataDiagnostic {
 
 export const buildSharedDataDiagnostics = (data: AppData): SharedDataDiagnostic[] => {
   const playerIds = new Set(data.players.map((player) => player.id));
+  const identityCounts = data.players.reduce((acc, player) => {
+    const key = playerIdentityKey(player);
+    acc.set(key, (acc.get(key) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
+  const duplicatePlayerIdentities = Array.from(identityCounts.values()).filter((count) => count > 1).length;
   const knownMicrocycleIds = new Set(data.microcycles.map((item) => item.id));
   const sessionIds = new Set(data.trainingSessionSummaries.map((item) => item.id));
   const matchIds = new Set(data.competitionMatchSummaries.map((item) => item.id));
@@ -203,6 +284,7 @@ export const buildSharedDataDiagnostics = (data: AppData): SharedDataDiagnostic[
   });
 
   return [
+    item('duplicate-player-identities', duplicatePlayerIdentities, 'Jugadores duplicados por identidad', 'No se detectan jugadores repetidos por nombre/categoría o documento.', '{count} identidades de jugador están duplicadas. La app las unifica para lectura, pero conviene limpiar la plantilla.', 'warning'),
     item('wellness-player-link', orphanWellness, 'Wellness ↔ jugadores', 'Todos los wellness están asociados a jugadores.', '{count} wellness no tienen jugador válido.', 'error'),
     item('internal-player-link', orphanInternal, 'Carga interna ↔ jugadores', 'Toda la carga interna está asociada a jugadores.', '{count} cargas internas no tienen jugador válido.', 'error'),
     item('external-player-link', orphanExternal, 'GPS/carga externa ↔ jugadores', 'Toda la carga externa está asociada a jugadores.', '{count} cargas externas no tienen jugador válido.', 'error'),
