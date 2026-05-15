@@ -51,6 +51,7 @@ import {
   microcycleBelongsToCategory,
 } from "@/lib/utils";
 import { findOverlappingMicrocycle } from "@/lib/operational-validation";
+import { normalizeSharedDataLinks } from "@/lib/relational-data";
 import { normalizeAppData } from "@/lib/performance-helpers";
 import {
   AppData,
@@ -170,7 +171,7 @@ const AppContext = createContext<AppContextValue | undefined>(undefined);
 const DEFAULT_CATEGORY = "Sub20" as const;
 
 const hydrateData = (stored: Partial<AppData> | null): AppData =>
-  normalizeAppData(stored, initialData);
+  normalizeSharedDataLinks(normalizeAppData(stored, initialData));
 
 const isMeaningfulValue = (value: unknown) => {
   if (value === null || value === undefined) return false;
@@ -527,12 +528,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ),
     };
 
+    const normalizedNext = normalizeSharedDataLinks(next);
     const currentSnapshot = JSON.stringify(dataRef.current);
-    const nextSnapshot = JSON.stringify(next);
+    const nextSnapshot = JSON.stringify(normalizedNext);
     if (currentSnapshot !== nextSnapshot) {
-      setData(next);
-      dataRef.current = next;
-      saveLocalAppData(next);
+      setData(normalizedNext);
+      dataRef.current = normalizedNext;
+      saveLocalAppData(normalizedNext);
       setLocalBackups(listLocalBackups());
     }
     lastRemotePullRef.current = Date.now();
@@ -631,7 +633,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setSyncStatus("error");
         return prev;
       }
-      const next = updater(prev);
+      const next = normalizeSharedDataLinks(updater(prev));
       dataRef.current = next;
       void persistData(next, scope, options);
       return next;
@@ -781,9 +783,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             players: mergePlayersPreferLocal(remoteData.players, localData?.players),
           };
 
-          setData(merged);
-          dataRef.current = merged;
-          saveLocalAppData(merged);
+          const normalizedMerged = normalizeSharedDataLinks(merged);
+          setData(normalizedMerged);
+          dataRef.current = normalizedMerged;
+          saveLocalAppData(normalizedMerged);
           setSyncStatus("ready");
         } else {
           const local = readLocalAppData();

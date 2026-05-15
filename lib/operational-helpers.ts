@@ -290,11 +290,28 @@ export const buildDailyOperations = (data: AppData, filters: GlobalFilters, acti
     matchesToday,
     matchRecordsToday,
     averages: {
-      wellness: groupAverage(players.map((player) => averageWellness(wellnessRecords.find((record) => record.playerId === player.id)))),
-      internalLoad: groupAverage(players.map((player) => getPlayerDayLoad(player.id, date, { internalLoads: internalRecords, externalLoads: externalRecords }))),
-      rpe: groupAverage(players.map((player) => groupAverage(externalRecords.filter((record) => record.playerId === player.id).map((record) => record.rpe ?? 0).filter((value) => value > 0)))),
-      minutes: groupAverage(players.map((player) => externalRecords.filter((record) => record.playerId === player.id).reduce((sum, record) => sum + (record.min ?? 0), 0))),
-      externalLoad: groupAverage(players.map((player) => externalRecords.filter((record) => record.playerId === player.id).reduce((sum, record) => sum + (record.acc ?? 0), 0))),
+      wellness: groupAverage(players.map((player) => {
+        const relatedIds = getRelatedPlayerIds(data.players, player.id);
+        return averageWellness(wellnessRecords.find((record) => relatedIds.has(record.playerId)));
+      })),
+      internalLoad: groupAverage(players.map((player) => {
+        const relatedIds = getRelatedPlayerIds(data.players, player.id);
+        const playerInternal = internalRecords.filter((record) => relatedIds.has(record.playerId));
+        const playerExternal = externalRecords.filter((record) => relatedIds.has(record.playerId));
+        return Math.max(...Array.from(relatedIds).map((id) => getPlayerDayLoad(id, date, { internalLoads: playerInternal, externalLoads: playerExternal })), 0);
+      })),
+      rpe: groupAverage(players.map((player) => {
+        const relatedIds = getRelatedPlayerIds(data.players, player.id);
+        return groupAverage(externalRecords.filter((record) => relatedIds.has(record.playerId)).map((record) => record.rpe ?? 0).filter((value) => value > 0));
+      })),
+      minutes: groupAverage(players.map((player) => {
+        const relatedIds = getRelatedPlayerIds(data.players, player.id);
+        return externalRecords.filter((record) => relatedIds.has(record.playerId)).reduce((sum, record) => sum + (record.min ?? 0), 0);
+      })),
+      externalLoad: groupAverage(players.map((player) => {
+        const relatedIds = getRelatedPlayerIds(data.players, player.id);
+        return externalRecords.filter((record) => relatedIds.has(record.playerId)).reduce((sum, record) => sum + (record.acc ?? 0), 0);
+      })),
     },
     missing: {
       wellness: missingWellness,

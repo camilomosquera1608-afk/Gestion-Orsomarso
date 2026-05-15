@@ -258,23 +258,27 @@ export const buildWellnessCenter = (data: AppData, filters: GlobalFilters, activ
   const rows: WellnessPlayerRow[] = players.map((player) => {
     const relatedIds = getRelatedPlayerIds(data.players, player.id);
     const playerRecords = records.filter((item) => relatedIds.has(item.playerId));
-    const latest = byDateDesc(playerRecords)[0];
-    const average = groupAverage(playerRecords.map(averageWellness).filter((value) => value > 0));
-    const latestAgeDays = latest ? daysDiff(latest.date, filters.date) : 999;
-    const latestIsStale = latestAgeDays > 1;
-    const tone = latestIsStale ? 'neutral' : wellnessTone(latest ? averageWellness(latest) : average);
+    const todayRecord = today.find((item) => relatedIds.has(item.playerId));
+    const latest = todayRecord ?? byDateDesc(playerRecords)[0];
+    // Para que no haya incoherencias visuales: la tabla y las alertas usan la fecha activa.
+    // La tendencia sigue usando el periodo completo, pero el estado individual del día
+    // no mezcla promedios históricos con pendientes de hoy.
+    const todayAverage = averageWellness(todayRecord);
+    const periodAverage = groupAverage(playerRecords.map(averageWellness).filter((value) => value > 0));
+    const latestIsStale = !todayRecord;
+    const tone = latestIsStale ? 'neutral' : wellnessTone(todayAverage);
     return {
       player,
       records: playerRecords,
       latest,
-      average,
-      sleep: groupAverage(playerRecords.map((item) => item.sleep)),
-      fatigue: groupAverage(playerRecords.map((item) => item.fatigue)),
-      stress: groupAverage(playerRecords.map((item) => item.stress)),
-      musclePain: groupAverage(playerRecords.map((item) => item.musclePain)),
-      mood: groupAverage(playerRecords.map((item) => item.mood)),
+      average: todayAverage,
+      sleep: todayRecord?.sleep ?? 0,
+      fatigue: todayRecord?.fatigue ?? 0,
+      stress: todayRecord?.stress ?? 0,
+      musclePain: todayRecord?.musclePain ?? 0,
+      mood: todayRecord?.mood ?? 0,
       tone,
-      recommendation: latestIsStale ? `Último registro: hace ${latestAgeDays} días` : tone === 'red' ? 'Atención prioritaria' : tone === 'amber' ? 'Control preventivo' : tone === 'green' ? 'Estado favorable' : 'Sin registro reciente',
+      recommendation: todayRecord ? (tone === 'red' ? 'Atención prioritaria' : tone === 'amber' ? 'Control preventivo' : tone === 'green' ? 'Estado favorable' : 'Sin registro') : periodAverage > 0 ? `Sin registro hoy · periodo ${periodAverage.toFixed(1)}` : 'Sin registro hoy',
     };
   }).sort((a, b) => (a.average || 99) - (b.average || 99));
   return {
@@ -480,8 +484,8 @@ export const buildWellnessTrends = (data: AppData, activeCategory: string, days 
   );
 
   players.forEach((player) => {
-    const records = data.wellness
-      .filter((record) => record.playerId === player.id)
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    const records = uniqueWellnessByPlayerIdentityDate(data.players, data.wellness.filter((record) => relatedIds.has(record.playerId)))
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-days);
 

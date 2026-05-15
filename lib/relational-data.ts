@@ -1,11 +1,17 @@
 import type {
   AppData,
   ClubCategory,
+  CMJRecord,
   CompetitionRecord,
   DailyExternalLoadRecord,
   DailyInternalLoadRecord,
   DailyWellnessRecord,
+  FMSRecord,
+  NeuromuscularRecord,
+  NutritionRecord,
   Player,
+  StrengthPlayerAdjustment,
+  StrengthPlayerResponse,
 } from './types';
 import { isGoalkeeper } from './performance-helpers';
 
@@ -13,20 +19,70 @@ const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase();
 
 const normalizePlayerName = (value: unknown) => normalize(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 
-export const playerIdentityKey = (player?: Pick<Player, 'id' | 'name' | 'category' | 'documentId'> | null) => {
-  if (!player) return '';
+export const playerIdentityKeys = (player?: Pick<Player, 'id' | 'name' | 'category' | 'documentId'> | null) => {
+  if (!player) return [];
+  const keys = new Set<string>();
   const documentKey = normalize(player.documentId);
-  if (documentKey) return `doc:${documentKey}`;
   const nameKey = normalizePlayerName(player.name);
   const categoryKey = normalize(player.category);
-  return nameKey ? `name:${categoryKey}:${nameKey}` : `id:${player.id}`;
+  if (documentKey) keys.add(`doc:${documentKey}`);
+  if (nameKey) keys.add(`name:${categoryKey}:${nameKey}`);
+  if (player.id) keys.add(`id:${player.id}`);
+  return Array.from(keys).filter(Boolean);
+};
+
+export const playerIdentityKey = (player?: Pick<Player, 'id' | 'name' | 'category' | 'documentId'> | null) => {
+  if (!player) return '';
+  const keys = playerIdentityKeys(player).filter((key) => !key.startsWith('id:'));
+  return keys[0] ?? (player.id ? `id:${player.id}` : '');
+};
+
+const buildPlayerIdentityAliasMap = (players: Player[]) => {
+  const aliases = new Map<string, string>();
+  const groups = new Map<string, Player[]>();
+
+  players.forEach((player) => {
+    const keys = playerIdentityKeys(player);
+    const existingGroup = keys.map((key) => aliases.get(key)).find(Boolean);
+    const groupKey = existingGroup ?? keys.find((key) => !key.startsWith('id:')) ?? `id:${player.id}`;
+    const current = groups.get(groupKey) ?? [];
+    current.push(player);
+    groups.set(groupKey, current);
+    keys.forEach((key) => aliases.set(key, groupKey));
+  });
+
+  // Segunda pasada para unir cadenas de alias: jugador A comparte documento con B,
+  // B comparte nombre/categoría con C. Todos deben leerse como el mismo jugador.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    players.forEach((player) => {
+      const keys = playerIdentityKeys(player);
+      const groupKeys = Array.from(new Set(keys.map((key) => aliases.get(key)).filter(Boolean))) as string[];
+      if (groupKeys.length <= 1) return;
+      const target = groupKeys[0];
+      groupKeys.slice(1).forEach((source) => {
+        if (source === target) return;
+        const sourcePlayers = groups.get(source) ?? [];
+        const targetPlayers = groups.get(target) ?? [];
+        groups.set(target, [...targetPlayers, ...sourcePlayers]);
+        groups.delete(source);
+        sourcePlayers.forEach((item) => playerIdentityKeys(item).forEach((key) => aliases.set(key, target)));
+        changed = true;
+      });
+    });
+  }
+
+  return { aliases, groups };
 };
 
 export const getRelatedPlayerIds = (players: Player[], playerId: string) => {
   const player = players.find((item) => item.id === playerId);
   if (!player) return new Set([playerId]);
-  const key = playerIdentityKey(player);
-  return new Set(players.filter((item) => playerIdentityKey(item) === key).map((item) => item.id));
+  const { aliases, groups } = buildPlayerIdentityAliasMap(players);
+  const groupKey = playerIdentityKeys(player).map((key) => aliases.get(key)).find(Boolean);
+  const related = groupKey ? groups.get(groupKey) ?? [] : [];
+  return new Set((related.length ? related : [player]).map((item) => item.id));
 };
 
 export const getRelatedPlayerIdSet = (allPlayers: Player[], visiblePlayers: Player[]) => {
@@ -54,21 +110,36 @@ const playerCompletenessScore = (player: Player) => [
   player.medicalNotes,
 ].filter((value) => value !== undefined && value !== null && String(value).trim() !== '').length;
 
+const mergePlayerGroup = (canonical: Player, group: Player[]): Player => {
+  const merged: Record<string, unknown> = { ...(canonical as unknown as Record<string, unknown>) };
+  group.forEach((player) => {
+    Object.entries(player as unknown as Record<string, unknown>).forEach(([key, value]) => {
+      if (key === 'id') return;
+      const current = merged[key];
+      const hasCurrent = hasMeaningfulValue(current);
+      const hasValue = hasMeaningfulValue(value);
+      if (!hasCurrent && hasValue) merged[key] = value;
+    });
+  });
+  merged.id = canonical.id;
+  merged.categoryHistory = Array.from(new Set(group.flatMap((player) => [player.category, ...(player.categoryHistory ?? [])]).filter(Boolean))) as ClubCategory[];
+  return merged as unknown as Player;
+};
+
 export const getCanonicalPlayers = (data: AppData, sourcePlayers?: Player[]) => {
   const players = sourcePlayers ?? data.players;
-  const groups = new Map<string, Player[]>();
-  players.forEach((player) => {
-    const key = playerIdentityKey(player);
-    groups.set(key, [...(groups.get(key) ?? []), player]);
-  });
+  const { groups } = buildPlayerIdentityAliasMap(players);
 
-  return Array.from(groups.values()).map((group) => group.slice().sort((a, b) => {
-    const recordDelta = recordCountForPlayer(data, b.id) - recordCountForPlayer(data, a.id);
-    if (recordDelta) return recordDelta;
-    const completenessDelta = playerCompletenessScore(b) - playerCompletenessScore(a);
-    if (completenessDelta) return completenessDelta;
-    return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
-  })[0]);
+  return Array.from(groups.values()).map((group) => {
+    const canonical = group.slice().sort((a, b) => {
+      const recordDelta = recordCountForPlayer(data, b.id) - recordCountForPlayer(data, a.id);
+      if (recordDelta) return recordDelta;
+      const completenessDelta = playerCompletenessScore(b) - playerCompletenessScore(a);
+      if (completenessDelta) return completenessDelta;
+      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    })[0];
+    return mergePlayerGroup(canonical, group);
+  }).sort((a, b) => a.name.localeCompare(b.name));
 };
 
 export const uniqueWellnessByPlayerIdentityDate = (players: Player[], records: DailyWellnessRecord[]) => {
@@ -300,4 +371,143 @@ export const buildSharedDataDiagnostics = (data: AppData): SharedDataDiagnostic[
       detail: `${derivedCompetitionLoads} registros de competencia quedan disponibles para centros de carga, reportes y riesgo.`,
     },
   ];
+};
+
+const valueMeaningScore = (record: Record<string, unknown>): number =>
+  Object.values(record).reduce<number>((score, value) => {
+    if (value === undefined || value === null) return score;
+    if (typeof value === 'number') return score + (Number.isFinite(value) && value !== 0 ? 2 : 0);
+    if (typeof value === 'string') return score + (value.trim() ? 1 : 0);
+    if (Array.isArray(value)) return score + value.length;
+    if (typeof value === 'object') return score + 1;
+    return score + 1;
+  }, 0);
+
+const hasMeaningfulValue = (value: unknown) => {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'number') return Number.isFinite(value) && value !== 0;
+  return true;
+};
+
+const mergeSharedRecord = <T extends Record<string, unknown>>(current: T | undefined, incoming: T): T => {
+  if (!current) return incoming;
+  const currentScore = valueMeaningScore(current);
+  const incomingScore = valueMeaningScore(incoming);
+  const primary = incomingScore >= currentScore ? incoming : current;
+  const fallback = incomingScore >= currentScore ? current : incoming;
+  const merged: Record<string, unknown> = { ...fallback, ...primary };
+  Object.entries(fallback).forEach(([key, value]) => {
+    if (!hasMeaningfulValue(merged[key]) && hasMeaningfulValue(value)) merged[key] = value;
+  });
+  return merged as T;
+};
+
+const dedupeSharedRecords = <T extends Record<string, unknown>>(
+  records: T[],
+  keyFns: Array<(item: T) => string | undefined | null>,
+): T[] => {
+  const byKey = new Map<string, T>();
+  const aliases = new Map<string, string>();
+
+  records.forEach((record) => {
+    const keys = keyFns.map((fn) => fn(record)).filter(Boolean) as string[];
+    const primaryKey = keys.map((key) => aliases.get(key)).find(Boolean) ?? keys[0] ?? JSON.stringify(record);
+    const next = mergeSharedRecord(byKey.get(primaryKey), record);
+    byKey.set(primaryKey, next);
+    keys.forEach((key) => aliases.set(key, primaryKey));
+  });
+
+  return Array.from(byKey.values());
+};
+
+const remapPlayerRecord = <T extends { playerId: string }>(record: T, idMap: Map<string, string>): T => ({
+  ...record,
+  playerId: idMap.get(record.playerId) ?? record.playerId,
+});
+
+const normalizeDate = (value: unknown) => String(value ?? '').slice(0, 10);
+const normalizeCategoryKey = (value: unknown) => normalize(value);
+
+const mapStrengthPlayerIds = (ids: string[] | undefined, idMap: Map<string, string>) =>
+  Array.from(new Set((ids ?? []).map((id) => idMap.get(id) ?? id).filter(Boolean)));
+
+export const normalizeSharedDataLinks = (data: AppData): AppData => {
+  const originalPlayers = data.players ?? [];
+  const canonicalPlayers = getCanonicalPlayers(data, originalPlayers);
+  const idMap = new Map<string, string>();
+
+  const { groups } = buildPlayerIdentityAliasMap(originalPlayers);
+  Array.from(groups.values()).forEach((group) => {
+    const groupIds = new Set(group.map((player) => player.id));
+    const canonical = canonicalPlayers.find((player) => groupIds.has(player.id)) ?? group[0];
+    group.forEach((player) => idMap.set(player.id, canonical.id));
+  });
+
+  const wellness = dedupeSharedRecords(
+    (data.wellness ?? []).map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+    [
+      (item) => item.playerId && item.date ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category)}` : undefined,
+      (item) => item.id ? `id:${item.id}` : undefined,
+    ],
+  ) as unknown as DailyWellnessRecord[];
+
+  const internalLoads = dedupeSharedRecords(
+    (data.internalLoads ?? []).map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+    [
+      (item) => item.sessionId && item.playerId ? `session:${item.sessionId}:${item.playerId}` : undefined,
+      (item) => item.playerId && item.date && item.sessionNumber ? `daily-session:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category ?? item.actingCategory)}:${item.sessionNumber}` : undefined,
+      (item) => item.id ? `id:${item.id}` : undefined,
+    ],
+  ) as unknown as DailyInternalLoadRecord[];
+
+  const externalLoads = dedupeSharedRecords(
+    (data.externalLoads ?? []).map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+    [
+      (item) => item.sessionId && item.playerId ? `session:${item.sessionId}:${item.playerId}:${normalize(item.movementModule)}` : undefined,
+      (item) => item.playerId && item.date && item.sessionNumber ? `daily-session:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category ?? item.actingCategory)}:${item.sessionNumber}:${normalize(item.movementModule)}` : undefined,
+      (item) => item.id ? `id:${item.id}` : undefined,
+    ],
+  ) as unknown as DailyExternalLoadRecord[];
+
+  const competitionRecords = dedupeSharedRecords(
+    (data.competitionRecords ?? []).map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+    [
+      (item) => item.matchId && item.playerId ? `match:${item.matchId}:${item.playerId}` : undefined,
+      (item) => item.playerId && item.date && item.opponent ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalize(item.opponent)}` : undefined,
+      (item) => item.id ? `id:${item.id}` : undefined,
+    ],
+  ) as unknown as CompetitionRecord[];
+
+  const dedupeEvaluation = <T extends CMJRecord | NutritionRecord | NeuromuscularRecord | FMSRecord>(records: T[]) =>
+    dedupeSharedRecords(
+      records.map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+      [
+        (item) => item.playerId && item.date ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category)}` : undefined,
+        (item) => item.id ? `id:${item.id}` : undefined,
+      ],
+    ) as unknown as T[];
+
+  const strengthSessions = (data.strengthSessions ?? []).map((session) => ({
+    ...session,
+    playerIds: mapStrengthPlayerIds(session.playerIds, idMap),
+    excludedPlayerIds: session.excludedPlayerIds ? mapStrengthPlayerIds(session.excludedPlayerIds, idMap) : session.excludedPlayerIds,
+    adjustments: session.adjustments?.map((item: StrengthPlayerAdjustment) => ({ ...item, playerId: idMap.get(item.playerId) ?? item.playerId })),
+    responses: session.responses?.map((item: StrengthPlayerResponse) => ({ ...item, playerId: idMap.get(item.playerId) ?? item.playerId })),
+  }));
+
+  return {
+    ...data,
+    players: canonicalPlayers,
+    wellness,
+    internalLoads,
+    externalLoads,
+    competitionRecords,
+    cmjRecords: dedupeEvaluation(data.cmjRecords ?? []),
+    nutritionRecords: dedupeEvaluation(data.nutritionRecords ?? []),
+    neuromuscularRecords: dedupeEvaluation(data.neuromuscularRecords ?? []),
+    fmsRecords: dedupeEvaluation(data.fmsRecords ?? []),
+    strengthSessions,
+  };
 };

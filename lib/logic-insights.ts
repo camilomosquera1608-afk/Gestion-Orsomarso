@@ -11,6 +11,7 @@ import type {
   TrainingSessionType,
 } from './types';
 import { averageWellness, calculateInternalLoad, computeWellnessScore, getPlayerDayLoad, groupAverage } from './utils';
+import { getEffectiveExternalLoads, getRelatedPlayerIds } from './relational-data';
 
 export type InsightTone = 'green' | 'yellow' | 'red' | 'blue' | 'neutral';
 
@@ -258,13 +259,16 @@ export const buildPlayerReadinessSemaphores = (params: {
   return players
     .filter((player) => category === 'all' || !category || player.category === category)
     .map((player) => {
-      const latestWellness = latestByDate(wellness.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate)));
+      const relatedIds = getRelatedPlayerIds(players, player.id);
+      const latestWellness = latestByDate(wellness.filter((record) => relatedIds.has(record.playerId) && (!referenceDate || record.date <= referenceDate)));
       const ready = wellnessReadiness(latestWellness);
-      const currentLoad = getPlayerLoadWindow(player.id, referenceDate, 0, 6, internalLoads, externalLoads);
+      const playerInternal = internalLoads.filter((record) => relatedIds.has(record.playerId));
+      const playerExternal = externalLoads.filter((record) => relatedIds.has(record.playerId));
+      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, playerInternal, playerExternal)), 0);
       const previousLoads = [
-        getPlayerLoadWindow(player.id, referenceDate, 7, 13, internalLoads, externalLoads),
-        getPlayerLoadWindow(player.id, referenceDate, 14, 20, internalLoads, externalLoads),
-        getPlayerLoadWindow(player.id, referenceDate, 21, 27, internalLoads, externalLoads),
+        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 7, 13, playerInternal, playerExternal)), 0),
+        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 14, 20, playerInternal, playerExternal)), 0),
+        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 21, 27, playerInternal, playerExternal)), 0),
       ].filter((value) => value > 0);
       const chronic = previousLoads.length ? previousLoads.reduce((sum, value) => sum + value, 0) / previousLoads.length : 0;
       const ratio = chronic > 0 ? currentLoad / chronic : 0;
@@ -320,11 +324,12 @@ export const buildRoleLoadControl = (params: {
   return players
     .filter((player) => category === 'all' || !category || player.category === category)
     .map((player) => {
+      const relatedIds = getRelatedPlayerIds(players, player.id);
       const recentMatches = competitionRecords
-        .filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate))
+        .filter((record) => relatedIds.has(record.playerId) && (!referenceDate || record.date <= referenceDate))
         .sort(compareDateDesc)
         .slice(0, 5);
-      const currentLoad = getPlayerLoadWindow(player.id, referenceDate, 0, 6, internalLoads, externalLoads);
+      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, internalLoads.filter((record) => relatedIds.has(record.playerId)), externalLoads.filter((record) => relatedIds.has(record.playerId)))), 0);
       if (recentMatches.length < 5) {
         return { player, role: 'Muestra insuficiente', currentLoad, avgMinutes: 0, tone: 'blue' as InsightTone, description: `Solo hay ${recentMatches.length}/5 partidos de referencia. No se aplican umbrales por rol hasta completar muestra mínima.` };
       }
@@ -384,9 +389,12 @@ export const buildReturnToPlayAlerts = (params: {
   return players
     .filter((player) => category === 'all' || !category || player.category === category)
     .map((player) => {
-      const currentLoad = getPlayerLoadWindow(player.id, referenceDate, 0, 6, internalLoads, externalLoads);
-      const previousLoad = getPlayerLoadWindow(player.id, referenceDate, 7, 13, internalLoads, externalLoads);
-      const lastMatch = latestByDate(competitionRecords.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate)));
+      const relatedIds = getRelatedPlayerIds(players, player.id);
+      const playerInternal = internalLoads.filter((record) => relatedIds.has(record.playerId));
+      const playerExternal = externalLoads.filter((record) => relatedIds.has(record.playerId));
+      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, playerInternal, playerExternal)), 0);
+      const previousLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 7, 13, playerInternal, playerExternal)), 0);
+      const lastMatch = latestByDate(competitionRecords.filter((record) => relatedIds.has(record.playerId) && (!referenceDate || record.date <= referenceDate)));
       const increase = previousLoad > 0 ? ((currentLoad - previousLoad) / previousLoad) * 100 : currentLoad > 0 ? 100 : 0;
       const hasRtpStatus = player.status === 'Readaptación' || player.status === 'Molestia' || player.status === 'Lesionado' || lastMatch?.medicalStatus === 'Lesionado' || recentlyReturned(player);
       const riskyReturn = hasRtpStatus && (currentLoad >= 350 || (lastMatch?.minutesPlayed ?? 0) >= 30 || increase >= 45);
@@ -700,17 +708,19 @@ export const buildIntelligentRanking = (params: { data: AppData; players: Player
   const scopedPlayers = players.filter((player) => category === 'all' || !category || player.category === category);
   return scopedPlayers
     .map((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      const effectiveExternal = getEffectiveExternalLoads(data, { activeCategory: category, playerIds: relatedIds });
       const loads = data.internalLoads
-        .filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate))
+        .filter((record) => relatedIds.has(record.playerId) && (!referenceDate || record.date <= referenceDate))
         .sort(compareDateDesc);
       const recentLoad = loads.slice(0, 6).reduce((sum, record) => sum + calculateInternalLoad(record), 0);
-      const wellness = averageWellness(data.wellness.filter((record) => record.playerId === player.id && (!referenceDate || record.date <= referenceDate)).sort(compareDateDesc)[0]);
-      const cmj = data.cmjRecords.filter((record) => record.playerId === player.id && hasDate(record)).sort(compareDateDesc)[0]?.value ?? 0;
-      const fms = data.fmsRecords.filter((record) => record.playerId === player.id && hasDate(record)).sort(compareDateDesc)[0];
+      const wellness = averageWellness(data.wellness.filter((record) => relatedIds.has(record.playerId) && (!referenceDate || record.date <= referenceDate)).sort(compareDateDesc)[0]);
+      const cmj = data.cmjRecords.filter((record) => relatedIds.has(record.playerId) && hasDate(record)).sort(compareDateDesc)[0]?.value ?? 0;
+      const fms = data.fmsRecords.filter((record) => relatedIds.has(record.playerId) && hasDate(record)).sort(compareDateDesc)[0];
       const fmsTotal = fms ? fms.shoulderMobility + fms.squat + fms.legRaise + fms.hurdleStep + fms.lunge + fms.trunkStability + fms.rotaryStability : 0;
-      const comp = data.competitionRecords.filter((record) => record.playerId === player.id);
+      const comp = data.competitionRecords.filter((record) => relatedIds.has(record.playerId));
       const goalsAssists = comp.reduce((sum, record) => sum + (record.goals * 8) + (record.assists * 6), 0);
-      const gpsIntensity = safeAverage(data.externalLoads.filter((record) => record.playerId === player.id).map((record) => record.totalDistance && record.min ? record.totalDistance / record.min : 0));
+      const gpsIntensity = safeAverage(effectiveExternal.filter((record) => relatedIds.has(record.playerId)).map((record) => record.totalDistance && record.min ? record.totalDistance / record.min : 0));
       const wellnessScore = wellness > 0 ? wellness * 12 : 0;
       const score = goalsAssists + Math.min(35, recentLoad / 120) + wellnessScore + Math.min(20, cmj / 2) + Math.min(15, fmsTotal) + Math.min(25, gpsIntensity / 4);
       return {

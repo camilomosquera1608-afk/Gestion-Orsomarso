@@ -9,7 +9,8 @@ import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { averageWellness, calculateInternalLoad, groupAverage, getMicrocyclesForCategory, findMicrocycleByDate } from '@/lib/utils';
-import { buildMicrocycleWeek } from '@/lib/operational-helpers';
+import { buildMicrocycleWeek, getVisiblePlayers } from '@/lib/operational-helpers';
+import { getEffectiveExternalLoads, getRelatedPlayerIds, getWellnessRecordsForDate } from '@/lib/relational-data';
 import { supportsGps } from '@/lib/report-utils';
 import { findOverlappingMicrocycle } from '@/lib/operational-validation';
 import { buildAbruptLoadAlerts, buildDataInconsistencyAlerts, buildMicrocycleLogic, buildPlayerReadinessSemaphores, buildReturnToPlayAlerts, buildRoleLoadControl, buildSelfComparisonInsights, buildWeeklyMonotonyFatigue } from '@/lib/logic-insights';
@@ -56,20 +57,29 @@ export default function MicrocicloPage() {
     if (microcycle.id !== filters.microcycleId) setFilters({ microcycleId: microcycle.id });
   }, [filters.microcycleId, microcycle.id, setFilters]);
 
-  const players = data.players.filter((player) => player.category === effectiveCategory && (filters.playerId === 'all' || player.id === filters.playerId));
+  const players = getVisiblePlayers(data, { ...filters, category: effectiveCategory }, effectiveCategory);
   const recordsInRange = (date: string) => hasRange && date >= microcycle.startDate && date <= microcycle.endDate;
   const recordBelongsToMicrocycle = (date: string, microcycleId?: string) => hasRange ? recordsInRange(date) : (microcycleId ?? microcycle.id) === microcycle.id;
-  const sessionRecords = data.externalLoads
-    .filter((x) => (x.category === effectiveCategory || data.players.find((p) => p.id === x.playerId)?.category === effectiveCategory) && recordBelongsToMicrocycle(x.date, x.microcycleId))
+  const sessionRecords = getEffectiveExternalLoads(data, { activeCategory: effectiveCategory })
+    .filter((x) => recordBelongsToMicrocycle(x.date, x.microcycleId))
     .sort((a, b) => (a.date + (a.sessionNumber ?? 0)).localeCompare(b.date + (b.sessionNumber ?? 0)));
 
   const uniqueDays = Array.from(new Set<string>(sessionRecords.map((record) => record.date))).filter((date) => !hasRange || recordsInRange(date));
   const dayData = uniqueDays.map((date) => ({
     date: date.slice(5),
-    wellness: groupAverage(players.map((player) => averageWellness(data.wellness.find((x) => x.playerId === player.id && x.date === date)))),
-    minutos: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.min ?? 0)),
-    rpe: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.rpe ?? 0)),
-    acc: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.acc ?? 0)),
+    wellness: groupAverage(players.map((player) => averageWellness(getWellnessRecordsForDate(data, date, getRelatedPlayerIds(data.players, player.id))[0]))),
+    minutos: groupAverage(players.map((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      return sessionRecords.find((x) => relatedIds.has(x.playerId) && x.date === date)?.min ?? 0;
+    })),
+    rpe: groupAverage(players.map((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      return sessionRecords.find((x) => relatedIds.has(x.playerId) && x.date === date)?.rpe ?? 0;
+    })),
+    acc: groupAverage(players.map((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      return sessionRecords.find((x) => relatedIds.has(x.playerId) && x.date === date)?.acc ?? 0;
+    })),
   }));
 
   const availabilitySummary = {
@@ -78,15 +88,20 @@ export default function MicrocicloPage() {
     readaptacion: players.filter((p) => p.status === 'Readaptación').length,
     lesionados: players.filter((p) => p.status === 'Lesionado').length,
   };
-  const playersWithoutRecords = players.filter((player) => !sessionRecords.some((record) => record.playerId === player.id));
+  const playersWithoutRecords = players.filter((player) => !sessionRecords.some((record) => getRelatedPlayerIds(data.players, player.id).has(record.playerId)));
 
-  const accumulated = players.map((player) => ({
-    jugador: player.name,
-    carga: data.internalLoads.filter((x) => x.playerId === player.id && (!hasRange || recordsInRange(x.date))).reduce((acc, item) => acc + calculateInternalLoad(item), 0),
-    minutos: data.externalLoads.filter((x) => x.playerId === player.id && (!hasRange || recordsInRange(x.date))).reduce((acc, item) => acc + (item.min ?? 0), 0),
-    rpe: groupAverage(data.externalLoads.filter((x) => x.playerId === player.id && (!hasRange || recordsInRange(x.date))).map((item) => item.rpe ?? 0)),
-    acc: data.externalLoads.filter((x) => x.playerId === player.id && (!hasRange || recordsInRange(x.date))).reduce((acc, item) => acc + (item.acc ?? 0), 0),
-  })).sort((a, b) => youthSimple ? b.minutos - a.minutos : b.acc - a.acc);
+  const accumulated = players.map((player) => {
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    const playerInternal = data.internalLoads.filter((x) => relatedIds.has(x.playerId) && (!hasRange || recordsInRange(x.date)));
+    const playerExternal = sessionRecords.filter((x) => relatedIds.has(x.playerId) && (!hasRange || recordsInRange(x.date)));
+    return {
+      jugador: player.name,
+      carga: playerInternal.reduce((acc, item) => acc + calculateInternalLoad(item), 0),
+      minutos: playerExternal.reduce((acc, item) => acc + (item.min ?? 0), 0),
+      rpe: groupAverage(playerExternal.map((item) => item.rpe ?? 0)),
+      acc: playerExternal.reduce((acc, item) => acc + (item.acc ?? 0), 0),
+    };
+  }).sort((a, b) => youthSimple ? b.minutos - a.minutos : b.acc - a.acc);
 
   const deleteSessionFromMicrocycle = async (sessionId: string) => {
     const target = data.trainingSessionSummaries.find((item) => item.id === sessionId);

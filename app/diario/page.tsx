@@ -11,7 +11,8 @@ import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { averageWellness, findMicrocycleByDate, groupAverage } from '@/lib/utils';
 import { categoryLabel } from '@/lib/labels';
-import { buildDailyOperations } from '@/lib/operational-helpers';
+import { buildDailyOperations, getVisiblePlayers } from '@/lib/operational-helpers';
+import { getEffectiveExternalLoads, getRelatedPlayerIds, getWellnessRecordsForDate } from '@/lib/relational-data';
 
 export default function DiarioPage() {
   const { data, filters } = useApp();
@@ -31,22 +32,20 @@ export default function DiarioPage() {
       ? selectedMicrocycle.name + ' está seleccionado, pero aún no tiene rango de fechas. Asígnale fecha de inicio y fin en Microciclo.'
       : 'No hay microciclo seleccionado.';
 
-  const players = data.players.filter((player) =>
-    (activeCategory === 'all' || player.category === activeCategory) &&
-    (filters.playerId === 'all' || player.id === filters.playerId) &&
-    (filters.position === 'all' || player.position === filters.position) &&
-    (filters.status === 'all' || player.status === filters.status)
-  );
+  const players = getVisiblePlayers(data, filters, activeCategory);
+  const effectiveExternal = getEffectiveExternalLoads(data, { activeCategory });
+  const effectiveExternalToday = effectiveExternal.filter((record) => record.date === filters.date);
 
   const tableRows = players.map((player) => {
-    const wellness = data.wellness.find((x) => x.playerId === player.id && x.date === filters.date);
-    const external = data.externalLoads.find((x) => x.playerId === player.id && x.date === filters.date);
+    const relatedIds = getRelatedPlayerIds(data.players, player.id);
+    const wellness = getWellnessRecordsForDate(data, filters.date, relatedIds)[0];
+    const external = effectiveExternalToday.find((x) => relatedIds.has(x.playerId));
     return { player, wellness, external, wellnessAvg: averageWellness(wellness) };
   });
 
   const chartDates = Array.from(new Set([
     ...data.wellness.map((record) => record.date),
-    ...data.externalLoads.map((record) => record.date),
+    ...effectiveExternal.map((record) => record.date),
   ]))
     .filter((date) => {
       const start = visibleMicrocycle?.startDate;
@@ -56,13 +55,22 @@ export default function DiarioPage() {
     .sort();
   const lineData = chartDates.map((date) => ({
     date: date.slice(5),
-    wellness: groupAverage(players.map((player) => averageWellness(data.wellness.find((x) => x.playerId === player.id && x.date === date)))),
-    minutos: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.min ?? 0)),
-    rpe: groupAverage(players.map((player) => data.externalLoads.find((x) => x.playerId === player.id && x.date === date)?.rpe ?? 0)),
+    wellness: groupAverage(players.map((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      return averageWellness(getWellnessRecordsForDate(data, date, relatedIds)[0]);
+    })),
+    minutos: groupAverage(players.map((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      return effectiveExternal.find((x) => relatedIds.has(x.playerId) && x.date === date)?.min ?? 0;
+    })),
+    rpe: groupAverage(players.map((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      return effectiveExternal.find((x) => relatedIds.has(x.playerId) && x.date === date)?.rpe ?? 0;
+    })),
   }));
 
-  const playersWithoutWellness = players.filter((player) => !data.wellness.find((x) => x.playerId === player.id && x.date === filters.date));
-  const playersWithoutLoad = players.filter((player) => !data.externalLoads.find((x) => x.playerId === player.id && x.date === filters.date));
+  const playersWithoutWellness = players.filter((player) => !getWellnessRecordsForDate(data, filters.date, getRelatedPlayerIds(data.players, player.id))[0]);
+  const playersWithoutLoad = players.filter((player) => !effectiveExternalToday.some((x) => getRelatedPlayerIds(data.players, player.id).has(x.playerId)));
   const medicalAlerts = players.filter((player) => player.status !== 'Disponible').map((player) => `${player.name}: ${player.status}`);
   const alertItems = [
     ...medicalAlerts,
