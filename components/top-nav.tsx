@@ -61,7 +61,9 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
       label: 'Análisis',
       icon: FileText,
       items: [
+        { href: '/informes', label: 'Centro informes', icon: Briefcase },
         { href: '/reporte-jugador', label: 'Reporte jugador', icon: FileText },
+        { href: '/informes/grupo', label: 'Informes grupo', icon: Briefcase },
         { href: '/adherencia', label: 'Adherencia', icon: Gauge },
         { href: '/ranking', label: 'Ranking', icon: Medal },
       ] },

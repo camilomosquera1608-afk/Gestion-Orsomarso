@@ -51,6 +51,9 @@ const groups: NavGroup[] = [
   {
     label: 'Análisis',
     items: [
+      { href: '/informes', label: 'Centro informes', icon: Briefcase },
+      { href: '/reporte-jugador', label: 'Reporte jugador', icon: FileText },
+      { href: '/informes/grupo', label: 'Informes grupo', icon: Briefcase },
       { href: '/ranking', label: 'Ranking', icon: Medal },
     ] },
 ];
