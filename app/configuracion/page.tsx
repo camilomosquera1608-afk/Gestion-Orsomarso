@@ -10,6 +10,7 @@ import { CATEGORY_SCOPE_LABELS, ROLE_LABELS } from '@/lib/access-control';
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory } from '@/lib/types';
 import { getCategoryReadinessChecks, getCategoryReadinessSummary, getDataTotals, getDuplicateChecks, getOverallDataQuality, qualityLabel, qualityToneClass } from '@/lib/data-quality';
+import { buildSharedDataDiagnostics } from '@/lib/relational-data';
 import { fetchAuditLogs, getSupabaseUserEmail, hasSupabaseConfig, signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { clearLocalBackups, getLocalStorageUsageKb, getLocalStorageWarning } from '@/lib/app-storage';
 
@@ -72,6 +73,8 @@ export default function ConfiguracionPage() {
   const readinessChecks = getCategoryReadinessChecks(data, safePointCategory);
   const duplicateChecks = getDuplicateChecks(data);
   const duplicateStatus = getOverallDataQuality(duplicateChecks);
+  const sharedDataDiagnostics = buildSharedDataDiagnostics(data);
+  const sharedDataStatus = getOverallDataQuality(sharedDataDiagnostics.map((item) => ({ id: item.id, label: item.title, severity: item.severity, detail: item.detail })));
   const dataTotals = getDataTotals(data);
   const categorySummary = getCategoryReadinessSummary(data, safePointCategory);
   const selectedCategoryLabel = categoryLabel(safePointCategory);
@@ -266,6 +269,26 @@ export default function ConfiguracionPage() {
           ))}
         </div>
       </div>
+
+      <div className="card data-quality-card">
+        <SectionHeader eyebrow="Sincronización" title="Datos compartidos entre apartados" subtitle="Comprueba que wellness, cargas, competencia, sesiones y jugadores estén conectados para que aparezcan en todos los módulos correctos." />
+        <div className={`quality-overview ${qualityToneClass(sharedDataStatus)}`}>
+          <strong>{qualityLabel(sharedDataStatus)}</strong>
+          <span>{sharedDataStatus === 'ok' ? 'Los datos compartidos están conectados entre apartados.' : 'Hay vínculos que pueden hacer que un dato se vea en un módulo y no en otro.'}</span>
+        </div>
+        <div className="quality-check-grid">
+          {sharedDataDiagnostics.map((check) => (
+            <div key={check.id} className={`quality-check ${qualityToneClass(check.severity)}`}>
+              <div>
+                <strong>{check.title}</strong>
+                <span>{check.detail}</span>
+              </div>
+              <em>{qualityLabel(check.severity)}</em>
+            </div>
+          ))}
+        </div>
+      </div>
+
 
       <div className="card data-quality-card">
         <SectionHeader eyebrow="Control" title="Duplicados y consistencia" subtitle="Revisión operativa para evitar sesiones, partidos, wellness o cargas repetidas." />

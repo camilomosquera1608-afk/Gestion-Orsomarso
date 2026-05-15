@@ -1,6 +1,7 @@
 import type { AppData, ClubCategory } from './types';
 import { categoryLabel } from './labels';
 import { supportsGps } from './report-utils';
+import { getEffectiveExternalLoads } from './relational-data';
 
 export type QualitySeverity = 'ok' | 'warning' | 'error';
 
@@ -65,7 +66,7 @@ export const getDataTotals = (data: AppData): CategoryDataTotals => {
   const microcyclesU15 = data.microcycles.filter((item) => item.category === 'Sub15');
   const microcyclesU17 = data.microcycles.filter((item) => item.category === 'Sub17');
   const microcyclesU20 = data.microcycles.filter((item) => item.category === 'Sub20');
-  const gpsRecords = data.externalLoads.filter(isGpsLike);
+  const gpsRecords = getEffectiveExternalLoads(data).filter(isGpsLike);
 
   return {
     players: data.players.length,
@@ -86,7 +87,7 @@ export const getDataTotals = (data: AppData): CategoryDataTotals => {
 
 export const getCategoryReadinessSummary = (data: AppData, category: ClubCategory): CategoryReadinessSummary => {
   const playerIds = new Set(data.players.filter((player) => player.category === category).map((player) => player.id));
-  const gpsRecords = data.externalLoads.filter((record) => isGpsLike(record) && playerIds.has(record.playerId));
+  const gpsRecords = getEffectiveExternalLoads(data, { activeCategory: category, playerIds }).filter(isGpsLike);
 
   return {
     players: data.players.filter((player) => player.category === category).length,
@@ -118,8 +119,9 @@ export const getCategoryReadinessChecks = (data: AppData, category: ClubCategory
     ...data.neuromuscularRecords.filter((item) => item.category === category),
     ...data.fmsRecords.filter((item) => item.category === category),
   ];
-  const gpsOutsideU20 = data.externalLoads.filter((record) => isGpsLike(record) && !supportsGps(record.category));
-  const gpsWithoutKnownPlayer = data.externalLoads.filter((record) => isGpsLike(record) && supportsGps(record.category) && !playerIds.has(record.playerId));
+  const effectiveGpsLoads = getEffectiveExternalLoads(data);
+  const gpsOutsideU20 = effectiveGpsLoads.filter((record) => isGpsLike(record) && !supportsGps(record.category));
+  const gpsWithoutKnownPlayer = effectiveGpsLoads.filter((record) => isGpsLike(record) && supportsGps(record.category) && !playerIds.has(record.playerId));
 
   const checks: QualityCheck[] = [
     {
@@ -241,12 +243,12 @@ const countOverlappingMicrocycles = (data: AppData) => {
 
 export const getDuplicateChecks = (data: AppData): DuplicateCheck[] => {
   const duplicatePlayers = countDuplicateGroups(data.players, (player) => normalizeKeyPart(player.name));
-  const duplicateSessions = countDuplicateGroups(data.trainingSessionSummaries, (session) => `${normalizeKeyPart(session.category)}|${session.date}`);
+  const duplicateSessions = countDuplicateGroups(data.trainingSessionSummaries, (session) => `${normalizeKeyPart(session.category)}|${session.date}|${session.sessionNumber ?? 1}`);
   const duplicateMatches = countDuplicateGroups(data.competitionMatchSummaries, (match) => `${normalizeKeyPart(match.category)}|${match.date}|${normalizeKeyPart(match.opponent)}`);
   const duplicateWellness = countDuplicateGroups(data.wellness, (record) => `${record.playerId}|${record.date}|${normalizeKeyPart(record.category)}`);
   const duplicateNutrition = countDuplicateGroups(data.nutritionRecords, (record) => `${record.playerId}|${record.date}`);
-  const duplicateExternalLoads = countDuplicateGroups(data.externalLoads, (record) => `${record.sessionId ?? record.date + '-' + record.sessionNumber}|${record.playerId}`);
-  const duplicateInternalLoads = countDuplicateGroups(data.internalLoads, (record) => `${record.sessionId ?? record.date + '-' + record.sessionNumber}|${record.playerId}`);
+  const duplicateExternalLoads = countDuplicateGroups(data.externalLoads, (record) => `${record.sessionId ?? `${record.date}-${record.sessionNumber ?? 1}`}|${record.playerId}`);
+  const duplicateInternalLoads = countDuplicateGroups(data.internalLoads, (record) => `${record.sessionId ?? `${record.date}-${record.sessionNumber ?? 1}`}|${record.playerId}`);
   const overlappingMicrocycles = countOverlappingMicrocycles(data);
 
   const build = (id: string, label: string, count: number, okDetail: string, badDetail: string): DuplicateCheck => ({
@@ -259,7 +261,7 @@ export const getDuplicateChecks = (data: AppData): DuplicateCheck[] => {
 
   return [
     build('duplicate-players', 'Jugadores repetidos', duplicatePlayers, 'Sin nombres de jugador repetidos.', '{count} posibles nombres repetidos.'),
-    build('duplicate-sessions', 'Sesiones duplicadas', duplicateSessions, 'Una sesión por fecha y categoría.', '{count} fechas/categorías con más de una sesión.'),
+    build('duplicate-sessions', 'Sesiones duplicadas', duplicateSessions, 'Sin sesiones repetidas por fecha, categoría y número de sesión.', '{count} fecha/categoría/número de sesión con más de un registro.'),
     build('overlap-microcycles', 'Microciclos solapados', overlappingMicrocycles, 'Sin solapamientos de microciclo por categoría.', '{count} solapamientos de microciclo detectados.'),
     build('duplicate-matches', 'Partidos duplicados', duplicateMatches, 'Sin partidos repetidos por fecha, categoría y rival.', '{count} partidos posiblemente duplicados.'),
     build('duplicate-wellness', 'Wellness duplicado', duplicateWellness, 'Una respuesta wellness por jugador y fecha.', '{count} jugadores con más de un wellness el mismo día.'),

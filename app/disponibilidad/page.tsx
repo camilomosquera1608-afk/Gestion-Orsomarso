@@ -71,9 +71,16 @@ export default function AvailabilityPage() {
 
     void loadBodyRecords();
     const timer = supabase && tableSchemaSyncEnabled ? window.setInterval(() => { void loadBodyRecords(); }, 45000) : undefined;
+    const channel = supabase && tableSchemaSyncEnabled
+      ? supabase
+        .channel('availability-body-map-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: REMOTE_BODY_MAP_TABLE }, () => { void loadBodyRecords(); })
+        .subscribe()
+      : undefined;
     return () => {
       active = false;
       if (timer) window.clearInterval(timer);
+      if (channel && supabase) void supabase.removeChannel(channel);
     };
   }, []);
   useEffect(() => {

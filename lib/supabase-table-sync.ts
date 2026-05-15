@@ -561,6 +561,9 @@ export const fetchSupabaseTablesAppData = async (
       ima: num(row.ima),
       rpe: row.rpe ?? undefined,
       totalDistance: row.total_distance ?? undefined,
+      highSpeedDistance: row.high_speed_distance ?? row.hsr ?? undefined,
+      hsr: row.hsr ?? row.high_speed_distance ?? undefined,
+      sprintDistance: row.sprint_distance ?? undefined,
       maxVelocity: row.max_velocity ?? undefined,
       playerLoad: row.player_load ?? undefined,
       participation: row.participation ?? undefined,
@@ -1164,7 +1167,7 @@ const competitionExternalLoadRows = (
       player_id: playerUuid(record.playerId),
       microcycle_id: null,
       date: isoDate(record.date),
-      category: 'Sub20',
+      category: category(record.category ?? playerCategoryById[record.playerId]),
       base_category: record.baseCategory ?? null,
       acting_category: record.actingCategory ?? null,
       session_number: record.sessionNumber ?? null,
@@ -1570,7 +1573,7 @@ export const saveSupabaseTablesAppData = async (
           player_id: playerUuid(record.playerId),
           microcycle_id: microcycleUuid(record.microcycleId),
           date: isoDate(record.date),
-          category: "Sub20",
+          category: category(record.category ?? playerCategoryById[record.playerId]),
           base_category: record.baseCategory ?? null,
           acting_category: record.actingCategory ?? null,
           session_number: record.sessionNumber ?? null,
@@ -1583,6 +1586,9 @@ export const saveSupabaseTablesAppData = async (
           ima: num(record.ima),
           rpe: record.rpe ?? null,
           total_distance: record.totalDistance ?? null,
+          high_speed_distance: record.highSpeedDistance ?? record.hsr ?? null,
+          hsr: record.hsr ?? record.highSpeedDistance ?? null,
+          sprint_distance: record.sprintDistance ?? null,
           max_velocity: record.maxVelocity ?? null,
           player_load: record.playerLoad ?? null,
           participation: record.participation ?? null,
@@ -1594,11 +1600,9 @@ export const saveSupabaseTablesAppData = async (
         })),
     );
 
-    // FIX DEFINITIVO: training_sessions upsert.
-    // El único índice UNIQUE garantizado en la tabla es (category, date).
-    // Usamos ese índice para el onConflict y actualizamos legacy_id en cada upsert.
-    // Esto garantiza que la sesión siempre llega a Supabase independientemente
-    // de si legacy_id tiene o no restricción UNIQUE.
+    // Training sessions: la clave natural real incluye session_number.
+    // Esto evita que una doble jornada de la misma categoría y fecha se pise
+    // en Supabase y luego desaparezca en otras vistas.
     const sessionRows = data.trainingSessionSummaries
       .filter((record) => isoDate(record.date) && category(record.category))
       .map((record) => ({
@@ -1615,12 +1619,12 @@ export const saveSupabaseTablesAppData = async (
       }));
 
     if (sessionRows.length > 0) {
-      // Upsert usando (category, date) como clave de conflicto — siempre existe como índice único.
+      // Upsert usando (category, date, session_number) como clave de conflicto.
       // Actualiza legacy_id para que futuros fetches puedan correlacionar el id local con Supabase.
       const { error: sessionError } = await supabase
         .from("training_sessions")
         .upsert(sessionRows, {
-          onConflict: "category,date",
+          onConflict: "category,date,session_number",
           ignoreDuplicates: false,
         });
 
@@ -1632,12 +1636,12 @@ export const saveSupabaseTablesAppData = async (
           const { error: upsertErr } = await supabase
             .from("training_sessions")
             .upsert(row, {
-              onConflict: "category,date",
+              onConflict: "category,date,session_number",
               ignoreDuplicates: false,
             });
 
           if (upsertErr) {
-            // Último recurso: UPDATE puro por category+date
+            // Último recurso: UPDATE puro por category+date+session_number
             await supabase
               .from("training_sessions")
               .update({
@@ -1651,7 +1655,8 @@ export const saveSupabaseTablesAppData = async (
                 status: row.status,
               })
               .eq("category", row.category)
-              .eq("date", row.date as string);
+              .eq("date", row.date as string)
+              .eq("session_number", row.session_number as number);
           }
         }
       }
@@ -1735,7 +1740,7 @@ export const saveSupabaseTablesAppData = async (
             player_id: playerUuid(record.playerId),
             microcycle_id: microcycleUuid(record.microcycleId),
             date: isoDate(record.date),
-            category: "Sub20",
+            category: category(record.category ?? playerCategoryById[record.playerId]),
             base_category: record.baseCategory ?? null,
             acting_category: record.actingCategory ?? null,
             session_number: record.sessionNumber ?? null,
@@ -1748,6 +1753,9 @@ export const saveSupabaseTablesAppData = async (
             ima: num(record.ima),
             rpe: record.rpe ?? null,
             total_distance: record.totalDistance ?? null,
+            high_speed_distance: record.highSpeedDistance ?? record.hsr ?? null,
+            hsr: record.hsr ?? record.highSpeedDistance ?? null,
+            sprint_distance: record.sprintDistance ?? null,
             max_velocity: record.maxVelocity ?? null,
             player_load: record.playerLoad ?? null,
             participation: record.participation ?? null,

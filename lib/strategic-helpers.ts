@@ -3,6 +3,7 @@ import { averageWellness, calculateInternalLoad, computeWellnessScore, getPlayer
 import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performance-helpers';
 import { addDays, buildDailyOperations, eachDateInRange, formatDateShort, getVisiblePlayers, isSameCategory, type OperationalAlert } from './operational-helpers';
 import { supportsGps } from './report-utils';
+import { getEffectiveExternalLoads, getWellnessRecordsForDate } from './relational-data';
 
 export type UiHealthTone = 'green' | 'amber' | 'red' | 'blue' | 'neutral' | 'dark';
 
@@ -50,14 +51,15 @@ export interface AvailabilityRow {
 }
 
 export const buildAvailabilityCenter = (data: AppData, filters: GlobalFilters, activeCategory: string) => {
-  const gpsEnabled = supportsGps(activeCategory);
+  const gpsEnabled = activeCategory === 'all' || supportsGps(activeCategory);
   const players = getVisiblePlayers(data, filters, activeCategory);
   const ids = playerIds(players);
   const { dates } = getActiveRange(data, filters, activeCategory);
   const rows: AvailabilityRow[] = players.map((player) => {
-    const wellnessToday = data.wellness.find((item) => item.playerId === player.id && item.date === filters.date);
-    const externalToday = gpsEnabled ? data.externalLoads.find((item) => item.playerId === player.id && item.date === filters.date) : undefined;
-    const weeklyExternal = gpsEnabled ? data.externalLoads.filter((item) => item.playerId === player.id && dateInRange(item.date, dates)) : [];
+    const wellnessToday = getWellnessRecordsForDate(data, filters.date, new Set([player.id]))[0];
+    const playerEffectiveExternal = gpsEnabled ? getEffectiveExternalLoads(data, { activeCategory, playerIds: new Set([player.id]) }) : [];
+    const externalToday = gpsEnabled ? playerEffectiveExternal.find((item) => item.date === filters.date) : undefined;
+    const weeklyExternal = gpsEnabled ? playerEffectiveExternal.filter((item) => dateInRange(item.date, dates)) : [];
     const latestMedical = byDateDesc(data.competitionRecords.filter((item) => item.playerId === player.id && (item.medicalObservation || item.medicalStatus === 'Lesionado' || item.postCompetitionStatus === 'Lesionado')))[0];
     const latestCompetition = byDateDesc(data.competitionRecords.filter((item) => item.playerId === player.id))[0];
     const latestWellness = computeWellnessScore(wellnessToday);
@@ -131,51 +133,14 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
   const players = getVisiblePlayers(data, filters, activeCategory);
   const ids = playerIds(players);
   const { microcycle, dates } = getActiveRange(data, filters, activeCategory);
-  const gpsEnabled = supportsGps(activeCategory);
+  const gpsEnabled = activeCategory === 'all' || supportsGps(activeCategory);
 
   // Carga del jugador = entrenamientos + competencia.
   // La competencia puede venir como externalLoad (si se sincroniza así) o como
   // competitionRecord; se convierte a una fila GPS compatible para que el Centro
   // de carga pueda medir minutos, Player Load, distancia, DCC y RHIE del partido.
-  const storedExternal = data.externalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
-  const storedCompetitionKeys = new Set(storedExternal
-    .filter((item) => item.movementModule === 'competencia' || String(item.id).startsWith('comp-load-'))
-    .flatMap((item) => [
-      `${item.sessionId ?? ''}-${item.playerId}-${item.date}`,
-      `${item.playerId}-${item.date}`,
-    ]));
-  const competitionExternalFromRecords: DailyExternalLoadRecord[] = data.competitionRecords
-    .filter((record) => ids.has(record.playerId) && dateInRange(record.date, dates))
-    .filter((record) => !isGoalkeeper(players.find((player) => player.id === record.playerId)))
-    .filter((record) => !storedCompetitionKeys.has(`${record.matchId ?? ''}-${record.playerId}-${record.date}`) && !storedCompetitionKeys.has(`${record.playerId}-${record.date}`))
-    .filter((record) => (record.minutesPlayed ?? 0) > 0 || (record.totalDistance ?? 0) > 0 || (record.playerLoad ?? 0) > 0)
-    .map((record) => ({
-      id: `competition-${record.id}`,
-      sessionId: record.matchId,
-      playerId: record.playerId,
-      date: record.date,
-      min: record.minutesPlayed ?? 0,
-      rpe: 8,
-      acc: record.acc ?? 0,
-      dcc: record.dcc ?? 0,
-      sprints: record.sprints ?? 0,
-      rhie: record.rhie ?? 0,
-      ima: record.ima ?? 0,
-      totalDistance: record.totalDistance,
-      highSpeedDistance: record.highSpeedDistance ?? record.hsr,
-      hsr: record.hsr ?? record.highSpeedDistance,
-      sprintDistance: record.sprintDistance,
-      maxVelocity: record.maxVelocity,
-      playerLoad: record.playerLoad,
-      participation: 'Completa',
-      category: record.category,
-      baseCategory: record.baseCategory,
-      actingCategory: record.actingCategory ?? record.category,
-      movementType: record.movementType ?? 'base',
-      movementModule: 'competencia',
-      loggedBy: record.loggedBy,
-    }));
-  const external = [...storedExternal, ...competitionExternalFromRecords];
+  const external = getEffectiveExternalLoads(data, { activeCategory, playerIds: ids })
+    .filter((item) => dateInRange(item.date, dates));
   const internalFallback = data.internalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
   const effectiveRpe = (item: DailyExternalLoadRecord) => (item.rpe && item.rpe > 0 ? item.rpe : item.movementModule === 'competencia' ? 8 : 0);
   const externalDayLoad = (items: DailyExternalLoadRecord[]) => items.reduce((sum, item) => sum + ((item.min ?? 0) * effectiveRpe(item)), 0);
@@ -286,7 +251,7 @@ export const buildWellnessCenter = (data: AppData, filters: GlobalFilters, activ
   const ids = playerIds(players);
   const { microcycle, dates } = getActiveRange(data, filters, activeCategory);
   const records = data.wellness.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
-  const today = data.wellness.filter((item) => ids.has(item.playerId) && item.date === filters.date);
+  const today = getWellnessRecordsForDate(data, filters.date, ids);
   const rows: WellnessPlayerRow[] = players.map((player) => {
     const playerRecords = records.filter((item) => item.playerId === player.id);
     const latest = byDateDesc(playerRecords)[0];

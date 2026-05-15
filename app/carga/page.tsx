@@ -19,7 +19,7 @@ export default function LoadCenterPage() {
   const session = getStaffSession();
   const activeCategory = isMasterRole(session) ? filters.category : session.category;
   const center = buildLoadCenter(data, filters, activeCategory);
-  const gpsEnabled = supportsGps(activeCategory);
+  const gpsEnabled = activeCategory === 'all' || supportsGps(activeCategory);
   const activePeriod = center.microcycle?.startDate && center.microcycle?.endDate
     ? `${center.microcycle.name} · ${formatDateShort(center.microcycle.startDate)} - ${formatDateShort(center.microcycle.endDate)}`
     : formatDateShort(filters.date);

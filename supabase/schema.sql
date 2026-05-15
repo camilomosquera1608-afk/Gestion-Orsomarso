@@ -130,6 +130,7 @@ create table if not exists public.daily_internal_loads (
   duration numeric not null default 0,
   movement_type text,
   movement_note text,
+  movement_module text,
   logged_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -166,6 +167,7 @@ create table if not exists public.daily_external_loads (
   session_type text,
   movement_type text,
   movement_note text,
+  movement_module text,
   logged_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -189,7 +191,7 @@ create table if not exists public.training_sessions (
   status text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (date, category)
+  unique (date, category, session_number)
 );
 
 create table if not exists public.session_players (
@@ -382,13 +384,18 @@ create table if not exists public.audit_events (
 create index if not exists idx_players_category on public.players(category);
 create index if not exists idx_players_status on public.players(status);
 create index if not exists idx_wellness_date_category on public.daily_wellness(date, category);
+create index if not exists idx_daily_wellness_player_date on public.daily_wellness(player_id, date);
 create index if not exists idx_internal_date_category on public.daily_internal_loads(date, category);
+create index if not exists idx_daily_internal_loads_player_date on public.daily_internal_loads(player_id, date);
 create index if not exists idx_external_date_category on public.daily_external_loads(date, category);
+create index if not exists idx_daily_external_loads_player_date on public.daily_external_loads(player_id, date);
 create index if not exists idx_sessions_date_category on public.training_sessions(date, category);
+create unique index if not exists ux_training_sessions_category_date_number on public.training_sessions(category, date, session_number);
 create index if not exists idx_matches_date_category on public.competition_matches(date, category);
 create unique index if not exists ux_competition_matches_category_date_opponent on public.competition_matches(category, date, lower(trim(opponent)));
 create unique index if not exists ux_microcycles_category_name on public.microcycles(category, lower(trim(name)));
 create index if not exists idx_competition_players_match on public.competition_players(match_id);
+create index if not exists idx_competition_players_player_match on public.competition_players(player_id, match_id);
 create index if not exists idx_competition_matches_lineup_formation on public.competition_matches(lineup_formation);
 create index if not exists idx_competition_matches_eyeball_stats on public.competition_matches using gin (eyeball_stats);
 create index if not exists idx_competition_matches_eyeball_first_half_stats on public.competition_matches using gin (eyeball_first_half_stats);

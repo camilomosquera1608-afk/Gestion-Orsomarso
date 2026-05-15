@@ -11,8 +11,9 @@ import { DataQualityPanel, EmptyState, OperationalAlertPanel, PlayerStatusCard, 
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
+import { averageWellness, getPlayerDayLoad } from '@/lib/utils';
 import { buildDailyOperations, formatDateShort } from '@/lib/operational-helpers';
+import { getEffectiveExternalLoads, getWellnessRecordsForDate } from '@/lib/relational-data';
 
 export default function HomePage() {
   const { data, filters, backendMode, syncStatus, forceSync } = useApp();
@@ -21,13 +22,15 @@ export default function HomePage() {
   const activeCategory = master ? filters.category : session.category;
   const ops = buildDailyOperations(data, filters, activeCategory);
 
+  const effectiveExternalToday = getEffectiveExternalLoads(data, { activeCategory, date: filters.date });
   const chartData = ops.players.map((player) => {
-    const wellness = data.wellness.find((x) => x.playerId === player.id && x.date === filters.date);
-    const internalLoad = data.internalLoads.find((x) => x.playerId === player.id && x.date === filters.date);
+    const wellness = getWellnessRecordsForDate(data, filters.date, new Set([player.id]))[0];
+    const internalLoads = data.internalLoads.filter((x) => x.playerId === player.id && x.date === filters.date);
+    const externalLoads = effectiveExternalToday.filter((x) => x.playerId === player.id);
     return {
       jugador: player.name.split(' ')[0],
       wellness: averageWellness(wellness),
-      carga: internalLoad ? calculateInternalLoad(internalLoad) : 0,
+      carga: getPlayerDayLoad(player.id, filters.date, { internalLoads, externalLoads }, { includeCompetitionExternal: true }),
     };
   });
 
@@ -139,8 +142,8 @@ export default function HomePage() {
         <SectionHeader eyebrow="Plantel" title="Seguimiento individual" />
         <div className="grid" style={{ gap: 12 }}>
           {ops.players.slice(0, 14).map((player) => {
-            const record = data.wellness.find((item) => item.playerId === player.id && item.date === filters.date);
-            const external = data.externalLoads.find((item) => item.playerId === player.id && item.date === filters.date);
+            const record = getWellnessRecordsForDate(data, filters.date, new Set([player.id]))[0];
+            const external = effectiveExternalToday.find((item) => item.playerId === player.id);
             return (
               <PlayerStatusCard
                 key={player.id}

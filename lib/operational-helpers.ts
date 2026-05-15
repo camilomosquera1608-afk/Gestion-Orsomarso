@@ -3,6 +3,7 @@ import { averageWellness, calculateInternalLoad, getPlayerDayLoad, groupAverage 
 import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performance-helpers';
 import { supportsGps } from './report-utils';
 import { getMicrocycleDayStatus } from './session-derived';
+import { getEffectiveExternalLoads, getInternalLoadsForDate, getWellnessRecordsForDate } from './relational-data';
 
 export type AlertLevel = 'critical' | 'warning' | 'info';
 
@@ -131,9 +132,9 @@ export const buildDailyOperations = (data: AppData, filters: GlobalFilters, acti
     ? findMicrocycleByDate(data.microcycles, date, filters.microcycleId, activeCategory)
     : data.microcycles.find((microcycle) => microcycle.id === filters.microcycleId);
 
-  const wellnessRecords = uniqueRecordsByPlayer(data.wellness.filter((record) => record.date === date && playerIds.has(record.playerId)));
-  const internalRecords = data.internalLoads.filter((record) => record.date === date && playerIds.has(record.playerId));
-  const externalRecords = data.externalLoads.filter((record) => record.date === date && playerIds.has(record.playerId));
+  const wellnessRecords = uniqueRecordsByPlayer(getWellnessRecordsForDate(data, date, playerIds));
+  const internalRecords = getInternalLoadsForDate(data, date, playerIds);
+  const externalRecords = getEffectiveExternalLoads(data, { activeCategory, date, playerIds });
   const sessionSummaries = data.trainingSessionSummaries.filter((summary) => summary.date === date && isSameCategory(activeCategory, summary.category));
   const matchesToday = data.competitionMatchSummaries.filter((match) => match.date === date && isSameCategory(activeCategory, match.category));
   const matchIds = new Set(matchesToday.map((match) => match.id));

@@ -1,6 +1,7 @@
 import type { AppData, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, NutritionRecord, Player, StrengthPlayerResponse, StrengthSession } from './types';
 import { averageWellness, calculateInternalLoad } from './utils';
 import { strengthLoad } from './strength';
+import { getEffectiveExternalLoadsForPlayer } from './relational-data';
 
 export type PeriodReportMetricRow = Record<string, string | number>;
 
@@ -185,7 +186,7 @@ export const buildPlayerPeriodReport = (data: AppData, playerId: string, startDa
 
   const wellnessRecords = data.wellness.filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
   const internalRecords = data.internalLoads.filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
-  const externalRecords = data.externalLoads.filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
+  const externalRecords = getEffectiveExternalLoadsForPlayer(data, playerId, { startDate, endDate, activeCategory: player.category ?? 'all' }).sort(byDateAsc);
   const competitionRecords = data.competitionRecords.filter((record) => record.playerId === playerId && inDateRange(record.date, startDate, endDate)).sort(byDateAsc);
   const strengthRows = strengthRowsForPlayer(data.strengthSessions ?? [], playerId, startDate, endDate);
   const evaluationRows = evaluationRowsForPlayer(data, playerId, startDate, endDate);

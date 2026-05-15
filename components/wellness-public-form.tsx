@@ -250,9 +250,11 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
 
           if (error) throw error;
         }
-      } else {
-        upsertWellness(payload);
       }
+
+      // Mantiene sincronizada la UI local del formulario y los módulos que estén
+      // abiertos en el mismo navegador mientras Supabase propaga el cambio.
+      upsertWellness(payload);
 
       if (showBodyMap && bodyIntensity > 0) {
         const bodyMapRecord: BodyMapRecord = {
