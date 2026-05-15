@@ -34,6 +34,7 @@ export default function AvailabilityPage() {
   const [status, setStatus] = useState<BodyMapStatus>('En seguimiento');
   const [restriction, setRestriction] = useState('');
   const [message, setMessage] = useState('');
+  const [bodyMapLoadWarning, setBodyMapLoadWarning] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -41,7 +42,10 @@ export default function AvailabilityPage() {
     const loadBodyRecords = async () => {
       const localRecords = readBodyMapRecords();
       if (!supabase || !tableSchemaSyncEnabled) {
-        if (active) setBodyRecords(mergeBodyMapRecords(localRecords));
+        if (active) {
+          setBodyMapLoadWarning('La sincronización remota está desactivada. Activa NEXT_PUBLIC_ENABLE_REMOTE_SYNC=true y NEXT_PUBLIC_REMOTE_SYNC_MODE=table_schema en Vercel para ver reportes enviados desde otros dispositivos.');
+          setBodyRecords(mergeBodyMapRecords(localRecords));
+        }
         return;
       }
 
@@ -54,11 +58,13 @@ export default function AvailabilityPage() {
 
       if (!active) return;
       if (error) {
-        console.warn('No se pudieron cargar mapas corporales remotos. Ejecuta el SQL V130_BODY_MAP_WELLNESS_STAFF.sql.', error.message);
+        console.warn('No se pudieron cargar mapas corporales remotos. Ejecuta el SQL V131_BODY_MAP_VISIBILITY_FIX.sql.', error.message);
+        setBodyMapLoadWarning('No se pudieron leer las alertas corporales remotas. Ejecuta SUPABASE_V131_BODY_MAP_VISIBILITY_FIX.sql en Supabase y vuelve a desplegar en Vercel.');
         setBodyRecords(mergeBodyMapRecords(localRecords));
         return;
       }
 
+      setBodyMapLoadWarning('');
       const remoteRecords = (remoteRows ?? []).map((row) => bodyMapRecordFromRemoteRow(row as Record<string, any>));
       setBodyRecords(mergeBodyMapRecords([...remoteRecords, ...localRecords]));
     };
@@ -182,9 +188,10 @@ export default function AvailabilityPage() {
         <KpiCard label="Lesionados" value={String(center.statusCounts.Lesionado)} tone="red" icon={<HeartPulse size={18} />} trend="Seguimiento médico" />
       </div>
 
-      {openBodyRecords.length ? (
-        <div className="card">
-          <SectionHeader eyebrow="Alertas corporales activas" title="Restricciones para decidir carga" subtitle="Se alimenta del wellness de jugadores y de los reportes del cuerpo técnico/fisioterapia." />
+      <div className="card">
+        <SectionHeader eyebrow="Alertas corporales activas" title="Restricciones para decidir carga" subtitle="Se alimenta del wellness de jugadores y de los reportes del cuerpo técnico/fisioterapia." />
+        {bodyMapLoadWarning ? <div className="soft-alert warning"><AlertTriangle size={16} /> {bodyMapLoadWarning}</div> : null}
+        {openBodyRecords.length ? (
           <div className="table-scroll"><table className="pro-table"><thead><tr><th>Jugador</th><th>Fecha</th><th>Zona</th><th>Tipo</th><th>Intensidad</th><th>Decisión</th><th>Restricción</th></tr></thead><tbody>
             {openBodyRecords.slice(0, 12).map((record) => {
               const player = data.players.find((item) => item.id === record.playerId);
@@ -200,8 +207,10 @@ export default function AvailabilityPage() {
               </tr>;
             })}
           </tbody></table></div>
-        </div>
-      ) : null}
+        ) : (
+          <EmptyState icon="check" title="Sin alertas corporales activas" text="Cuando un jugador reporte una zona corporal con intensidad mayor a 0 desde wellness, aparecerá aquí para el cuerpo técnico." />
+        )}
+      </div>
 
       <div className="card medical-command-card">
         <SectionHeader
