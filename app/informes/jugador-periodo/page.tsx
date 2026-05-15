@@ -614,15 +614,48 @@ export default function PlayerPeriodReportPage() {
     ...report.nutrition.map((record) => ({ seccion: 'Nutricion', fecha: record.date, peso: record.weight, talla: record.height, grasa: record.bodyFat, masa_muscular: record.muscleMassPercentage ?? '', imo: record.imo ?? '' })),
   ];
 
-  const competitionRows = uniqueBy(report.competition.slice(-10).reverse(), (record) => `${record.date}-${record.matchId ?? record.opponent ?? ''}-${record.minutesPlayed ?? ''}`).map((record) => ({
-    Fecha: formatPdfDate(record.date),
-    Rival: record.opponent,
-    Min: hasValidValue(record.minutesPlayed) ? formatMetric(record.minutesPlayed, ' min') : '',
-    G: hasValidValue(record.goals) ? record.goals : '',
-    A: hasValidValue(record.assists) ? record.assists : '',
-    PL: formatMetric(record.playerLoad, '', 0),
-    DCC: hasValidValue(record.dcc) ? record.dcc : '',
-  }));
+  const competitionColumns = [
+    'Fecha', 'Competencia', 'Rival', 'Rol', 'Min', 'Goles', 'Asist', 'TA', 'TR',
+    'Distancia', 'PL', 'm/min', 'HSR', 'Sprint', 'ACC', 'DCC', 'Sprints', 'RHIE', 'IMA', 'Vmax',
+    'Goles enc.', 'Goles evit.', 'Penaltis', 'Centros', 'Juego pies', 'Remates arco',
+    'Estado post', 'Médico', 'Tipo lesión', 'Observación',
+  ];
+  const competitionRows = uniqueBy(report.competition.slice().reverse(), (record) => `${record.date}-${record.matchId ?? record.opponent ?? ''}-${record.minutesPlayed ?? ''}`).map((record) => {
+    const minutesPlayed = asNumber(record.minutesPlayed);
+    const metersPerMinute = minutesPlayed > 0 && hasValidValue(record.totalDistance) ? asNumber(record.totalDistance) / minutesPlayed : 0;
+    return {
+      Fecha: formatPdfDate(record.date),
+      Competencia: record.competitionName ?? '',
+      Rival: record.opponent,
+      Rol: record.startingRole ?? '',
+      Min: hasValidValue(record.minutesPlayed) ? formatMetric(record.minutesPlayed, ' min') : '',
+      Goles: hasValidValue(record.goals) ? record.goals : '',
+      Asist: hasValidValue(record.assists) ? record.assists : '',
+      TA: hasValidValue(record.yellowCards) ? record.yellowCards : '',
+      TR: hasValidValue(record.redCards) ? record.redCards : '',
+      Distancia: formatMetric(record.totalDistance, ' m', 0),
+      PL: formatMetric(record.playerLoad, '', 0),
+      'm/min': metersPerMinute ? formatMetric(metersPerMinute, '', 1) : '',
+      HSR: formatMetric(record.hsr ?? record.highSpeedDistance, ' m', 0),
+      Sprint: formatMetric(record.sprintDistance, ' m', 0),
+      ACC: hasValidValue(record.acc) ? record.acc : '',
+      DCC: hasValidValue(record.dcc) ? record.dcc : '',
+      Sprints: hasValidValue(record.sprints) ? record.sprints : '',
+      RHIE: hasValidValue(record.rhie) ? record.rhie : '',
+      IMA: hasValidValue(record.ima) ? record.ima : '',
+      Vmax: formatMetric(record.maxVelocity, ' km/h', 1),
+      'Goles enc.': hasValidValue(record.goalsConceded) ? record.goalsConceded : '',
+      'Goles evit.': hasValidValue(record.goalsPrevented) ? record.goalsPrevented : '',
+      Penaltis: hasValidValue(record.penaltiesSaved) ? record.penaltiesSaved : '',
+      Centros: hasValidValue(record.crossesDefended) ? record.crossesDefended : '',
+      'Juego pies': hasValidValue(record.footworkActions) ? record.footworkActions : '',
+      'Remates arco': hasValidValue(record.shotsOnTarget) ? record.shotsOnTarget : '',
+      'Estado post': record.postCompetitionStatus ?? '',
+      Médico: record.medicalStatus ?? '',
+      'Tipo lesión': record.injuryKind ?? '',
+      Observación: record.medicalObservation ?? record.movementNote ?? '',
+    };
+  });
 
   const uniqueGpsRecords = deduplicateGpsSessions(report.external).slice(-12).reverse();
   const gpsTone = (value: unknown, values: number[]) => {
@@ -692,13 +725,31 @@ export default function PlayerPeriodReportPage() {
 
   const playerLoadPoints = pointSeries(report.external, (record) => record.playerLoad);
   const distancePoints = pointSeries(report.external, (record) => record.totalDistance);
+  const gpsEvolutionCharts = [
+    { title: 'GPS · Minutos', points: pointSeries(report.external, (record) => record.min), suffix: ' min', tone: 'blue' as Tone, icon: CalendarDays },
+    { title: 'GPS · Distancia', points: distancePoints, suffix: ' m', tone: 'green' as Tone, icon: Ruler },
+    { title: 'GPS · Player Load', points: playerLoadPoints, tone: 'cyan' as Tone, icon: Zap },
+    { title: 'GPS · m/min', points: report.external.map((record) => {
+      const min = asNumber(record.min);
+      const explicit = asNumber(record.distancePerMin);
+      return { label: record.date.slice(5), value: min > 0 ? asNumber(record.totalDistance) / min : explicit };
+    }).filter((point) => point.value !== 0), decimals: 1, tone: 'blue' as Tone, icon: Gauge },
+    { title: 'GPS · HSR', points: pointSeries(report.external, (record) => record.hsr ?? record.highSpeedDistance), suffix: ' m', tone: 'amber' as Tone, icon: Activity },
+    { title: 'GPS · Sprint', points: pointSeries(report.external, (record) => record.sprintDistance), suffix: ' m', tone: 'red' as Tone, icon: Activity },
+    { title: 'GPS · ACC', points: pointSeries(report.external, (record) => record.acc), tone: 'green' as Tone, icon: ChevronsUp },
+    { title: 'GPS · DCC', points: pointSeries(report.external, (record) => record.dcc), tone: 'amber' as Tone, icon: ChevronsDown },
+    { title: 'GPS · Sprints', points: pointSeries(report.external, (record) => record.sprints), tone: 'navy' as Tone, icon: Zap },
+    { title: 'GPS · RHIE', points: pointSeries(report.external, (record) => record.rhie), tone: 'cyan' as Tone, icon: Activity },
+    { title: 'GPS · IMA', points: pointSeries(report.external, (record) => record.ima), tone: 'blue' as Tone, icon: Gauge },
+    { title: 'GPS · Vmax', points: pointSeries(report.external, (record) => record.maxVelocity), suffix: ' km/h', decimals: 1, tone: 'green' as Tone, icon: Gauge },
+  ];
   const internalPoints = report.internal.map((record) => ({ label: record.date.slice(5), value: calculateInternalLoad(record) })).filter((point) => point.value !== 0);
   const wellnessPoints = report.wellness.map((record) => ({ label: record.date.slice(5), value: averageWellness(record) })).filter((point) => point.value !== 0);
   const weightPoints = pointSeries(report.nutrition, (record) => record.weight);
   const bodyFatPoints = pointSeries(report.nutrition, (record) => record.bodyFat);
   const cmjPoints = pointSeries(report.cmj, (record) => record.value);
   const fmsPoints = report.fms.map((record) => ({ label: record.date.slice(5), value: record.shoulderMobility + record.squat + record.legRaise + record.hurdleStep + record.lunge + record.trunkStability + record.rotaryStability })).filter((point) => point.value !== 0);
-  const hasEvolution = [playerLoadPoints, distancePoints, internalPoints, wellnessPoints, weightPoints, bodyFatPoints, cmjPoints, fmsPoints].some((points) => points.length >= 2);
+  const hasEvolution = [...gpsEvolutionCharts.map((chart) => chart.points), internalPoints, wellnessPoints, weightPoints, bodyFatPoints, cmjPoints, fmsPoints].some((points) => points.length >= 2);
   const hasSportMap = hasValidSectionData(matches, matchMinutes, goals, assists) || hasValidSectionData(totalDistance, playerLoad, hsr, sprint, acc, dcc, rhie);
   // V129: el informe del jugador es dossier/scouting; no incluye tabla GPS detallada.
   const hasDetails = Boolean(competitionRows.length);
@@ -829,8 +880,9 @@ export default function PlayerPeriodReportPage() {
           <div className="scout-page scout-page-evolution">
         <Section eyebrow="Evolución" title="Gráficos del período" className="scout-section-feature">
           <div className="scout-visual-grid">
-            <LineChartCard title="Player Load" points={playerLoadPoints} tone="cyan" icon={Zap} />
-            <LineChartCard title="Distancia" points={distancePoints} suffix=" m" tone="green" icon={Ruler} />
+            {gpsEvolutionCharts.map((chart) => (
+              <LineChartCard key={chart.title} title={chart.title} points={chart.points} suffix={chart.suffix ?? ''} decimals={chart.decimals ?? 0} tone={chart.tone} icon={chart.icon} />
+            ))}
             <LineChartCard title="Carga interna" points={internalPoints} suffix=" UA" tone="blue" icon={Activity} />
             <LineChartCard title="Wellness" points={wellnessPoints} decimals={1} tone="amber" icon={HeartPulse} />
             <LineChartCard title="Peso" points={weightPoints} suffix=" kg" decimals={1} tone="blue" icon={Scale} />
@@ -870,8 +922,8 @@ export default function PlayerPeriodReportPage() {
           <Section eyebrow="Detalle" title="Competencia del período">
             <div className="compact-blocks scout-detail-competition-only">
               <div>
-                <div className="scout-section-title scout-section-title-icon"><span>Competencia</span><h2><Trophy size={17} />Últimos partidos</h2></div>
-                <CompetitionPills rows={report.competition} />
+                <div className="scout-section-title scout-section-title-icon"><span>Competencia</span><h2><Trophy size={17} />Tabla completa por día</h2></div>
+                <DataTable columns={competitionColumns} rows={competitionRows} />
               </div>
             </div>
           </Section>

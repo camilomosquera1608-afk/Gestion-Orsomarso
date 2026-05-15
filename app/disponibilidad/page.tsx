@@ -14,7 +14,8 @@ import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { buildAvailabilityCenter } from '@/lib/strategic-helpers';
 import { formatDateShort } from '@/lib/operational-helpers';
-import { getBodyMapDecision, newBodyMapId, readBodyMapRecords, saveBodyMapRecords, type BodyMapRecord, type BodyMapRecordType, type BodyMapSide, type BodyMapStatus } from '@/lib/body-map';
+import { bodyMapRecordFromRemoteRow, bodyMapRecordToRemoteRow, getBodyMapDecision, mergeBodyMapRecords, newBodyMapId, readBodyMapRecords, REMOTE_BODY_MAP_TABLE, saveBodyMapRecords, type BodyMapRecord, type BodyMapRecordType, type BodyMapSide, type BodyMapStatus } from '@/lib/body-map';
+import { supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
 export default function AvailabilityPage() {
   const { data, filters } = useApp();
@@ -34,7 +35,41 @@ export default function AvailabilityPage() {
   const [restriction, setRestriction] = useState('');
   const [message, setMessage] = useState('');
 
-  useEffect(() => setBodyRecords(readBodyMapRecords()), []);
+  useEffect(() => {
+    let active = true;
+
+    const loadBodyRecords = async () => {
+      const localRecords = readBodyMapRecords();
+      if (!supabase || !tableSchemaSyncEnabled) {
+        if (active) setBodyRecords(mergeBodyMapRecords(localRecords));
+        return;
+      }
+
+      const { data: remoteRows, error } = await supabase
+        .from(REMOTE_BODY_MAP_TABLE)
+        .select('*')
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(250);
+
+      if (!active) return;
+      if (error) {
+        console.warn('No se pudieron cargar mapas corporales remotos. Ejecuta el SQL V130_BODY_MAP_WELLNESS_STAFF.sql.', error.message);
+        setBodyRecords(mergeBodyMapRecords(localRecords));
+        return;
+      }
+
+      const remoteRecords = (remoteRows ?? []).map((row) => bodyMapRecordFromRemoteRow(row as Record<string, any>));
+      setBodyRecords(mergeBodyMapRecords([...remoteRecords, ...localRecords]));
+    };
+
+    void loadBodyRecords();
+    const timer = supabase && tableSchemaSyncEnabled ? window.setInterval(() => { void loadBodyRecords(); }, 45000) : undefined;
+    return () => {
+      active = false;
+      if (timer) window.clearInterval(timer);
+    };
+  }, []);
   useEffect(() => {
     if (!selectedPlayerId && center.rows[0]?.player.id) setSelectedPlayerId(center.rows[0].player.id);
   }, [center.rows, selectedPlayerId]);
@@ -44,7 +79,7 @@ export default function AvailabilityPage() {
     .filter((record) => record.status !== 'Cerrado' && (activeCategory === 'all' || record.category === activeCategory || data.players.find((player) => player.id === record.playerId)?.category === activeCategory))
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [bodyRecords, activeCategory, data.players]);
 
-  const saveAvailabilityBodyMap = () => {
+  const saveAvailabilityBodyMap = async () => {
     if (!selectedPlayerId) return;
     const player = data.players.find((item) => item.id === selectedPlayerId);
     const decision = getBodyMapDecision({ region, type, intensity, limitation, increasesWithSprint: sprint, increasesWithChangeOfDirection: cod, status });
@@ -66,9 +101,22 @@ export default function AvailabilityPage() {
       status,
       createdAt: new Date().toISOString(),
     };
-    const next = [record, ...bodyRecords];
+    const next = mergeBodyMapRecords([record, ...bodyRecords]);
     saveBodyMapRecords(next);
     setBodyRecords(next);
+
+    if (supabase && tableSchemaSyncEnabled) {
+      const { data: remotePlayer } = await supabase
+        .from('players')
+        .select('id')
+        .eq('legacy_id', selectedPlayerId)
+        .maybeSingle();
+      const { error } = await supabase
+        .from(REMOTE_BODY_MAP_TABLE)
+        .upsert(bodyMapRecordToRemoteRow(record, remotePlayer?.id ?? null), { onConflict: 'legacy_id', ignoreDuplicates: false });
+      if (error) console.warn('No se pudo guardar mapa corporal remoto.', error.message);
+    }
+
     setMessage(`Disponibilidad registrada para ${player?.name ?? 'jugador'}: ${decision.decision}.`);
   };
 

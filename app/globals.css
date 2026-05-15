@@ -8724,3 +8724,109 @@ img[loading="lazy"] { background: var(--line-soft); }
   .session-report-document .sr-td-name { width: 34mm !important; max-width: 34mm !important; }
   .session-report-document .sr-bars-list > div > span:first-child { max-width: 32mm !important; overflow: hidden !important; text-overflow: ellipsis !important; }
 }
+
+
+/* V130 - Reporte jugador: valoraciones limpias y tabla completa de competencia */
+.player-evaluation-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.player-evaluation-card {
+  border: 1px solid #d8e1ee;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  break-inside: avoid;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, .045);
+}
+.player-evaluation-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #edf2f7;
+}
+.player-evaluation-head > span {
+  width: 34px;
+  height: 34px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: #1557d6;
+  background: #eaf2ff;
+  border: 1px solid #bfdbfe;
+}
+.player-evaluation-head strong {
+  display: block;
+  color: #06152f;
+  font-size: 14px;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+}
+.player-evaluation-head small {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.player-evaluation-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.player-evaluation-metrics div {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 14px;
+  padding: 9px;
+  display: grid;
+  gap: 3px;
+}
+.player-evaluation-metrics span {
+  color: #64748b;
+  font-size: 8.5px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.player-evaluation-metrics strong {
+  color: #06152f;
+  font-size: 15px;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.player-evaluation-note {
+  margin: 0;
+  padding: 10px 11px;
+  border-radius: 14px;
+  background: #eff6ff;
+  border-left: 4px solid #1557d6;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.player-evaluation-green .player-evaluation-head > span { color: #047857; background: #dcfce7; border-color: #bbf7d0; }
+.player-evaluation-dark .player-evaluation-head > span { color: #06152f; background: #e2e8f0; border-color: #cbd5e1; }
+.scout-detail-competition-only .fd-table-wrap { max-width: 100%; overflow-x: auto; }
+.scout-detail-competition-only .scout-table th,
+.scout-detail-competition-only .scout-table td { white-space: nowrap; }
+
+@media print {
+  .player-evaluation-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 2.2mm !important; }
+  .player-evaluation-card { padding: 2.6mm !important; border-radius: 4mm !important; gap: 2mm !important; }
+  .player-evaluation-head { gap: 1.8mm !important; padding-bottom: 1.8mm !important; }
+  .player-evaluation-head > span { width: 7mm !important; height: 7mm !important; border-radius: 2.6mm !important; }
+  .player-evaluation-head strong { font-size: 7.2pt !important; }
+  .player-evaluation-head small { font-size: 5.4pt !important; }
+  .player-evaluation-metrics { gap: 1.6mm !important; }
+  .player-evaluation-metrics div { padding: 1.6mm !important; border-radius: 2.5mm !important; }
+  .player-evaluation-metrics span { font-size: 4.9pt !important; }
+  .player-evaluation-metrics strong { font-size: 7pt !important; }
+  .player-evaluation-note { font-size: 5.6pt !important; padding: 1.8mm !important; border-radius: 2.8mm !important; }
+}

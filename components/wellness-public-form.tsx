@@ -7,7 +7,7 @@ import { useApp } from '@/context/app-context';
 import { categoryLabel } from '@/lib/labels';
 import { getTrafficLight } from '@/lib/rules';
 import { supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
-import { appendBodyMapRecord, getBodyMapDecision, newBodyMapId, type BodyMapRecordType, type BodyMapSide } from '@/lib/body-map';
+import { appendBodyMapRecord, bodyMapRecordToRemoteRow, getBodyMapDecision, newBodyMapId, REMOTE_BODY_MAP_TABLE, type BodyMapRecord, type BodyMapRecordType, type BodyMapSide } from '@/lib/body-map';
 import type { ClubCategory } from '@/lib/types';
 
 type WellnessFormState = {
@@ -255,7 +255,7 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
       }
 
       if (showBodyMap && bodyIntensity > 0) {
-        appendBodyMapRecord({
+        const bodyMapRecord: BodyMapRecord = {
           id: newBodyMapId(),
           playerId,
           date: recordDate,
@@ -272,7 +272,37 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
           action: `${bodyDecision.decision} · ${bodyDecision.pct}`,
           restriction: bodyDecision.restriction,
           createdAt: new Date().toISOString(),
-        });
+        };
+
+        appendBodyMapRecord(bodyMapRecord);
+
+        if (player.source === 'remote' && player.remoteId && supabase && tableSchemaSyncEnabled) {
+          const rpcResult = await supabase.rpc('submit_public_body_map_report', {
+            p_player_id: player.remoteId,
+            p_player_legacy_id: playerId,
+            p_date: recordDate,
+            p_category: payload.category,
+            p_type: bodyMapRecord.type,
+            p_region: bodyMapRecord.region,
+            p_side: bodyMapRecord.side,
+            p_intensity: bodyMapRecord.intensity,
+            p_limitation: bodyMapRecord.limitation,
+            p_increases_with_sprint: bodyMapRecord.increasesWithSprint ?? false,
+            p_increases_with_change_of_direction: bodyMapRecord.increasesWithChangeOfDirection ?? false,
+            p_action: bodyMapRecord.action ?? null,
+            p_restriction: bodyMapRecord.restriction ?? null,
+            p_legacy_id: bodyMapRecord.id,
+          });
+
+          if (rpcResult.error) {
+            const { error: directBodyMapError } = await supabase
+              .from(REMOTE_BODY_MAP_TABLE)
+              .upsert(bodyMapRecordToRemoteRow(bodyMapRecord, player.remoteId), { onConflict: 'legacy_id', ignoreDuplicates: false });
+            if (directBodyMapError) {
+              console.warn('No se pudo guardar mapa corporal remoto. Ejecuta el SQL V130_BODY_MAP_WELLNESS_STAFF.sql.', directBodyMapError.message);
+            }
+          }
+        }
       }
 
       setSelectedPlayerId(playerId);

@@ -31,6 +31,8 @@ export interface BodyMapRecord {
 const LOCAL_KEY = 'orsomarso-body-map-v2';
 const LEGACY_KEY = 'orsomarso-body-map-v1';
 
+export const REMOTE_BODY_MAP_TABLE = 'body_map_reports';
+
 export const BODY_REGIONS = [
   'Cuello', 'Hombro', 'Pectoral', 'Espalda alta', 'Lumbar', 'Abdomen/Core',
   'Cadera/Glúteo', 'Aductor', 'Isquiotibial', 'Cuádriceps', 'Rodilla', 'Gemelo/Sóleo',
@@ -95,6 +97,61 @@ export const saveBodyMapRecords = (records: BodyMapRecord[]) => {
 export const appendBodyMapRecord = (record: BodyMapRecord) => {
   const current = readBodyMapRecords();
   saveBodyMapRecords([record, ...current]);
+};
+
+export const bodyMapRecordFromRemoteRow = (row: Record<string, any>): BodyMapRecord => normalizeRecord({
+  id: String(row.legacy_id ?? row.id ?? newBodyMapId()),
+  playerId: String(row.player_legacy_id ?? row.player_id ?? ''),
+  date: row.date,
+  category: row.category,
+  source: row.source,
+  type: row.type,
+  region: row.region,
+  side: row.side,
+  intensity: row.intensity,
+  limitation: row.limitation,
+  increasesWithSprint: row.increases_with_sprint,
+  increasesWithChangeOfDirection: row.increases_with_change_of_direction,
+  mechanism: row.mechanism,
+  notes: row.notes,
+  action: row.action,
+  restriction: row.restriction,
+  loadAllowedPct: row.load_allowed_pct,
+  status: row.status,
+  createdAt: row.created_at,
+});
+
+export const bodyMapRecordToRemoteRow = (record: BodyMapRecord, remotePlayerId?: string | null): Record<string, unknown> => ({
+  legacy_id: record.id,
+  player_id: remotePlayerId ?? null,
+  player_legacy_id: record.playerId,
+  date: record.date,
+  category: record.category ?? null,
+  source: record.source,
+  type: record.type,
+  region: record.region,
+  side: record.side,
+  intensity: record.intensity,
+  limitation: record.limitation,
+  increases_with_sprint: record.increasesWithSprint ?? false,
+  increases_with_change_of_direction: record.increasesWithChangeOfDirection ?? false,
+  mechanism: record.mechanism ?? null,
+  notes: record.notes ?? null,
+  action: record.action ?? null,
+  restriction: record.restriction ?? null,
+  load_allowed_pct: record.loadAllowedPct ?? null,
+  status: record.status,
+  created_at: record.createdAt,
+  updated_at: new Date().toISOString(),
+});
+
+export const mergeBodyMapRecords = (records: BodyMapRecord[]): BodyMapRecord[] => {
+  const byId = new Map<string, BodyMapRecord>();
+  records.forEach((record) => {
+    if (!record?.id) return;
+    byId.set(record.id, record);
+  });
+  return Array.from(byId.values()).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 };
 
 export const bodyMapTone = (record: Pick<BodyMapRecord, 'intensity' | 'limitation' | 'type' | 'status'>) => {

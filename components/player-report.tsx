@@ -65,11 +65,61 @@ function ChartSection({ charts }: { charts: Array<{ title: string; suffix?: stri
   const clean = charts.filter((chart) => chart.points.length >= 2);
   if (!clean.length) return null;
   return (
-    <ReportSection icon={BarChart3} eyebrow="Evolución" title="Evolución de datos cargados">
+    <ReportSection icon={BarChart3} eyebrow="Evolución" title="Evolución diaria por métrica">
       <div className="pdf-chart-grid">
         {clean.map((chart) => <PdfEvolutionChart key={chart.title} title={chart.title} suffix={chart.suffix ?? ''} decimals={chart.decimals ?? 0} points={chart.points} />)}
       </div>
     </ReportSection>
+  );
+}
+
+type EvaluationGroup = {
+  title: string;
+  subtitle?: string;
+  icon?: typeof Activity;
+  tone?: 'blue' | 'green' | 'amber' | 'red' | 'neutral' | 'dark';
+  items: GridItem[];
+  note?: string;
+};
+
+function EvaluationCards({ groups }: { groups: EvaluationGroup[] }) {
+  const cleanGroups = groups
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .map((item) => ({ ...item, rendered: fmt(item.value, item.suffix ?? '', item.decimals) }))
+        .filter((item) => hasValidValue(item.rendered)),
+    }))
+    .filter((group) => group.items.length || hasValidValue(group.note));
+  if (!cleanGroups.length) return null;
+  return (
+    <div className="player-evaluation-cards">
+      {cleanGroups.map((group) => {
+        const Icon = group.icon ?? Scale;
+        return (
+          <article key={group.title} className={`player-evaluation-card player-evaluation-${group.tone ?? 'blue'}`}>
+            <div className="player-evaluation-head">
+              <span><Icon size={16} /></span>
+              <div>
+                <strong>{group.title}</strong>
+                {group.subtitle ? <small>{group.subtitle}</small> : null}
+              </div>
+            </div>
+            {group.items.length ? (
+              <div className="player-evaluation-metrics">
+                {group.items.map((item) => (
+                  <div key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.rendered}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {group.note ? <p className="player-evaluation-note">{getPdfSafeText(group.note)}</p> : null}
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -124,19 +174,82 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
     { label: 'Última valoración', value: latestNutrition?.date ?? latestCmj?.date ?? latestFms?.date ?? '', note: 'Control', tone: 'neutral' as const },
   ]);
 
+  const gpsCharts = gpsEnabled ? [
+    { title: 'GPS · Minutos', suffix: ' min', decimals: 0, points: chartPoints(validExternal, (row) => row.min) },
+    { title: 'GPS · Distancia total', suffix: ' m', decimals: 0, points: chartPoints(validExternal, (row) => row.totalDistance) },
+    { title: 'GPS · Player Load', decimals: 0, points: chartPoints(validExternal, (row) => row.playerLoad) },
+    { title: 'GPS · Alta velocidad', suffix: ' m', decimals: 0, points: chartPoints(validExternal, (row) => row.highSpeedDistance) },
+    { title: 'GPS · Sprint', suffix: ' m', decimals: 0, points: chartPoints(validExternal, (row) => row.sprintDistance) },
+    { title: 'GPS · ACC', decimals: 0, points: chartPoints(validExternal, (row) => row.acc) },
+    { title: 'GPS · DCC', decimals: 0, points: chartPoints(validExternal, (row) => row.dcc) },
+    { title: 'GPS · Sprints', decimals: 0, points: chartPoints(validExternal, (row) => row.sprints) },
+    { title: 'GPS · RHIE', decimals: 0, points: chartPoints(validExternal, (row) => row.rhie) },
+    { title: 'GPS · IMA', decimals: 0, points: chartPoints(validExternal, (row) => row.ima) },
+    { title: 'GPS · RPE', decimals: 1, points: chartPoints(validExternal, (row) => row.rpe) },
+  ] : [];
+
   const charts = [
     { title: 'Wellness', decimals: 1, points: chartPoints(validWellness, (row) => row.value) },
     { title: 'Carga interna', suffix: ' UA', decimals: 0, points: chartPoints(validInternal, (row) => row.load) },
+    ...gpsCharts,
     { title: 'Peso', suffix: ' kg', decimals: 1, points: chartPoints(validNutrition, (row) => row.weight) },
     { title: 'IMO', decimals: 1, points: chartPoints(validNutrition, (row) => row.imo) },
     { title: '% grasa', suffix: '%', decimals: 1, points: chartPoints(validNutrition, (row) => row.bodyFat) },
     { title: '% masa muscular', suffix: '%', decimals: 1, points: chartPoints(validNutrition, (row) => row.muscleMassPercentage) },
-    { title: 'Player Load', decimals: 0, points: chartPoints(validExternal, (row) => row.playerLoad) },
-    { title: 'Distancia', suffix: ' m', decimals: 0, points: chartPoints(validExternal, (row) => row.totalDistance) },
     { title: 'Minutos competencia', suffix: ' min', decimals: 0, points: chartPoints(validCompetition, (row) => row.minutesPlayed) },
     { title: 'CMJ', suffix: ' cm', decimals: 1, points: chartPoints(validCmj, (row) => row.value) },
     { title: 'FMS', suffix: ' pts', decimals: 0, points: chartPoints(validFms, (row) => row.total) },
   ];
+
+  const evaluationGroups: EvaluationGroup[] = [
+    latestNutrition ? {
+      title: 'Nutrición y composición',
+      subtitle: latestNutrition.date,
+      icon: Scale,
+      tone: 'blue',
+      items: [
+        { label: 'Talla', value: latestNutrition.height, suffix: ' cm' },
+        { label: 'Peso', value: latestNutrition.weight, suffix: ' kg', decimals: 1 },
+        { label: 'IMO', value: latestNutrition.imo, decimals: 1 },
+        { label: 'Sumatoria', value: latestNutrition.skinfoldSum, suffix: ' mm' },
+        { label: '% grasa', value: latestNutrition.bodyFat, suffix: '%', decimals: 1 },
+        { label: '% muscular', value: latestNutrition.muscleMassPercentage, suffix: '%', decimals: 1 },
+        { label: 'Rango grasa', value: latestNutrition.fatPercentageRange },
+        { label: 'Plan', value: nutritionPlan },
+      ],
+      note: latestNutrition.diagnosis,
+    } : null,
+    (latestCmj || latestNeuro) ? {
+      title: 'Neuromuscular',
+      subtitle: latestCmj?.date ?? latestNeuro?.date,
+      icon: Zap,
+      tone: 'green',
+      items: [
+        { label: 'CMJ', value: latestCmj?.value ?? latestNeuro?.cmj, suffix: ' cm', decimals: 1 },
+        { label: 'Potencia', value: latestCmj?.power },
+        { label: 'Asimetría', value: latestCmj?.asymmetry, suffix: '%', decimals: 1 },
+        { label: 'RSI', value: latestCmj?.rsi, decimals: 2 },
+        { label: 'SJ', value: latestNeuro?.sj, suffix: ' cm', decimals: 1 },
+        { label: 'Saltos reactivos', value: latestNeuro?.reactiveJumps },
+      ],
+    } : null,
+    latestFms ? {
+      title: 'FMS funcional',
+      subtitle: latestFms.date,
+      icon: ShieldCheck,
+      tone: 'dark',
+      items: [
+        { label: 'Total', value: latestFms.total, suffix: ' pts' },
+        { label: 'Shoulder', value: latestFms.shoulderMobility },
+        { label: 'Squat', value: latestFms.squat },
+        { label: 'Leg raise', value: latestFms.legRaise },
+        { label: 'Hurdle step', value: latestFms.hurdleStep },
+        { label: 'Lunge', value: latestFms.lunge },
+        { label: 'Trunk', value: latestFms.trunkStability },
+        { label: 'Rotary', value: latestFms.rotaryStability },
+      ],
+    } : null,
+  ].filter(Boolean) as EvaluationGroup[];
 
   return (
     <ReportLayout title="Informe individual del jugador" subtitle={player.name} category={playerCategory} generatedAt={generatedAt} className={`player-report-document ${className}`}>
@@ -224,42 +337,8 @@ export function PlayerReportTemplate({ player, category, generatedAt = new Date(
       ) : null}
 
       {hasEvaluations ? (
-        <ReportSection icon={Scale} eyebrow="Valoraciones" title="Nutrición, CMJ y FMS">
-          {latestNutrition ? (
-            <>
-              <MetricGrid items={[
-                { label: 'Fecha valoración', value: latestNutrition.date },
-                { label: 'Talla', value: latestNutrition.height, suffix: ' cm' },
-                { label: 'Peso', value: latestNutrition.weight, suffix: ' kg' },
-                { label: 'IMO', value: latestNutrition.imo, decimals: 1 },
-                { label: 'Sumatoria grasa', value: latestNutrition.skinfoldSum, suffix: ' mm' },
-                { label: '% grasa', value: latestNutrition.bodyFat, suffix: '%' },
-                { label: '% masa muscular', value: latestNutrition.muscleMassPercentage, suffix: '%' },
-                { label: 'Rango % grasa', value: latestNutrition.fatPercentageRange },
-                { label: 'Plan nutricional', value: nutritionPlan },
-              ]} />
-              {latestNutrition.diagnosis ? <p className="pdf-manual-note">{getPdfSafeText(latestNutrition.diagnosis)}</p> : null}
-            </>
-          ) : null}
-          {(latestCmj || latestNeuro || latestFms) ? (
-            <MetricGrid className="pdf-metric-grid-spaced" items={[
-              { label: 'CMJ', value: latestCmj?.value, suffix: ' cm' },
-              { label: 'Potencia CMJ', value: latestCmj?.power },
-              { label: 'Asimetría CMJ', value: latestCmj?.asymmetry, suffix: '%' },
-              { label: 'RSI', value: latestCmj?.rsi },
-              { label: 'CMJ neuromuscular', value: latestNeuro?.cmj, suffix: ' cm' },
-              { label: 'SJ', value: latestNeuro?.sj, suffix: ' cm' },
-              { label: 'Saltos reactivos', value: latestNeuro?.reactiveJumps },
-              { label: 'FMS total', value: latestFms?.total, suffix: ' pts' },
-              { label: 'Shoulder mobility', value: latestFms?.shoulderMobility },
-              { label: 'Squat', value: latestFms?.squat },
-              { label: 'Leg raise', value: latestFms?.legRaise },
-              { label: 'Hurdle step', value: latestFms?.hurdleStep },
-              { label: 'Lunge', value: latestFms?.lunge },
-              { label: 'Trunk stability', value: latestFms?.trunkStability },
-              { label: 'Rotary stability', value: latestFms?.rotaryStability },
-            ]} />
-          ) : null}
+        <ReportSection icon={Scale} eyebrow="Valoraciones" title="Valoraciones recientes" subtitle="Lectura limpia de nutrición, salto, neuromuscular y FMS.">
+          <EvaluationCards groups={evaluationGroups} />
         </ReportSection>
       ) : null}
 
