@@ -1,128 +1,292 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { AppHero } from '@/components/app-hero';
-import { GlobalFiltersBar } from '@/components/global-filters';
-import { KpiCard } from '@/components/kpi-card';
-import { EmptyState, SectionHeader, WeekCalendar, useConfirm } from '@/components/pro-ui';
-import { useApp } from '@/context/app-context';
-import { getStaffSession, isMasterRole } from '@/lib/auth';
-import { categoryLabel } from '@/lib/labels';
-import { averageWellness, calculateInternalLoad, groupAverage, getMicrocyclesForCategory, findMicrocycleByDate } from '@/lib/utils';
-import { buildMicrocycleWeek, getVisiblePlayers } from '@/lib/operational-helpers';
-import { getEffectiveExternalLoads, getRelatedPlayerIds, getWellnessRecordsForDate } from '@/lib/relational-data';
-import { supportsGps } from '@/lib/report-utils';
-import { findOverlappingMicrocycle } from '@/lib/operational-validation';
-import { buildAbruptLoadAlerts, buildDataInconsistencyAlerts, buildMicrocycleLogic, buildPlayerReadinessSemaphores, buildReturnToPlayAlerts, buildRoleLoadControl, buildSelfComparisonInsights, buildWeeklyMonotonyFatigue } from '@/lib/logic-insights';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { buildFosterTable } from '@/lib/sport-science';
+import { useEffect, useState } from "react";
+import { AppHero } from "@/components/app-hero";
+import { GlobalFiltersBar } from "@/components/global-filters";
+import { KpiCard } from "@/components/kpi-card";
+import {
+  EmptyState,
+  SectionHeader,
+  WeekCalendar,
+  useConfirm,
+} from "@/components/pro-ui";
+import { useApp } from "@/context/app-context";
+import { getStaffSession, isMasterRole } from "@/lib/auth";
+import { categoryLabel } from "@/lib/labels";
+import {
+  averageWellness,
+  calculateInternalLoad,
+  groupAverage,
+  getMicrocyclesForCategory,
+  findMicrocycleByDate,
+} from "@/lib/utils";
+import {
+  buildMicrocycleWeek,
+  getVisiblePlayers,
+} from "@/lib/operational-helpers";
+import {
+  countSessionLinkedRecords,
+  getEffectiveExternalLoads,
+  getRelatedPlayerIds,
+  getTrainingSessionsForMicrocycle,
+  getWellnessRecordsForDate,
+} from "@/lib/relational-data";
+import { supportsGps } from "@/lib/report-utils";
+import { findOverlappingMicrocycle } from "@/lib/operational-validation";
+import {
+  buildAbruptLoadAlerts,
+  buildDataInconsistencyAlerts,
+  buildMicrocycleLogic,
+  buildPlayerReadinessSemaphores,
+  buildReturnToPlayAlerts,
+  buildRoleLoadControl,
+  buildSelfComparisonInsights,
+  buildWeeklyMonotonyFatigue,
+} from "@/lib/logic-insights";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { buildFosterTable } from "@/lib/sport-science";
 
-const sessionLabels: Record<string, string> = { 'MD+1': 'Recuperación post partido', 'MD+2': 'Recuperación/reinicio', 'MD-5': 'Desarrollo base', 'MD-4': 'Carga alta controlada', 'MD-3': 'Estímulo principal', 'MD-2': 'Ajuste táctico', 'MD-1': 'Activación', MD: 'Partido' };
+const sessionLabels: Record<string, string> = {
+  "MD+1": "Recuperación post partido",
+  "MD+2": "Recuperación/reinicio",
+  "MD-5": "Desarrollo base",
+  "MD-4": "Carga alta controlada",
+  "MD-3": "Estímulo principal",
+  "MD-2": "Ajuste táctico",
+  "MD-1": "Activación",
+  MD: "Partido",
+};
 
 export default function MicrocicloPage() {
-  const { data, filters, setFilters, updateMicrocycle, deleteMicrocycle, deleteTrainingSessionSummary } = useApp();
+  const {
+    data,
+    filters,
+    setFilters,
+    updateMicrocycle,
+    deleteMicrocycle,
+    deleteTrainingSessionSummary,
+  } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
-  const effectiveCategory = (activeCategory === 'all' ? 'Sub20' : activeCategory) as 'Sub15' | 'Sub17' | 'Sub20';
+  const effectiveCategory = (
+    activeCategory === "all" ? "Sub20" : activeCategory
+  ) as "Sub15" | "Sub17" | "Sub20";
   const gpsEnabled = supportsGps(effectiveCategory);
   const youthSimple = !gpsEnabled;
-  const categoryMicrocycles = getMicrocyclesForCategory(data.microcycles, effectiveCategory);
-  const detectedMicrocycle = findMicrocycleByDate(data.microcycles, filters.date, filters.microcycleId, effectiveCategory);
-  const microcycle = detectedMicrocycle ?? categoryMicrocycles.find((x) => x.id === filters.microcycleId) ?? categoryMicrocycles[0] ?? { id: `mc-${effectiveCategory.toLowerCase()}-1`, name: 'Microciclo 1', category: effectiveCategory, startDate: '', endDate: '' };
+  const categoryMicrocycles = getMicrocyclesForCategory(
+    data.microcycles,
+    effectiveCategory,
+  );
+  const detectedMicrocycle = findMicrocycleByDate(
+    data.microcycles,
+    filters.date,
+    filters.microcycleId,
+    effectiveCategory,
+  );
+  const microcycle = detectedMicrocycle ??
+    categoryMicrocycles.find((x) => x.id === filters.microcycleId) ??
+    categoryMicrocycles[0] ?? {
+      id: `mc-${effectiveCategory.toLowerCase()}-1`,
+      name: "Microciclo 1",
+      category: effectiveCategory,
+      startDate: "",
+      endDate: "",
+    };
   const hasRange = Boolean(microcycle.startDate && microcycle.endDate);
   const weekDays = buildMicrocycleWeek(data, microcycle, effectiveCategory);
-  const [microcycleMessage, setMicrocycleMessage] = useState('');
+  const [microcycleMessage, setMicrocycleMessage] = useState("");
   const { confirm: showConfirm, ConfirmModal } = useConfirm();
   const saveMicrocycleDraft = (nextMicrocycle: typeof microcycle) => {
     const normalized = { ...nextMicrocycle, category: effectiveCategory };
     if (!normalized.name?.trim()) {
-      setMicrocycleMessage('El microciclo debe tener nombre.');
+      setMicrocycleMessage("El microciclo debe tener nombre.");
       return;
     }
-    if (normalized.startDate && normalized.endDate && normalized.startDate > normalized.endDate) {
-      setMicrocycleMessage('La fecha de inicio no puede ser posterior a la fecha de fin.');
+    if (
+      normalized.startDate &&
+      normalized.endDate &&
+      normalized.startDate > normalized.endDate
+    ) {
+      setMicrocycleMessage(
+        "La fecha de inicio no puede ser posterior a la fecha de fin.",
+      );
       return;
     }
     const overlap = findOverlappingMicrocycle(data.microcycles, normalized);
     if (overlap) {
-      setMicrocycleMessage('Ya existe un microciclo de esta categoría con el mismo nombre o con fechas solapadas.');
+      setMicrocycleMessage(
+        "Ya existe un microciclo de esta categoría con el mismo nombre o con fechas solapadas.",
+      );
       return;
     }
-    setMicrocycleMessage('Microciclo guardado.');
+    setMicrocycleMessage("Microciclo guardado.");
     updateMicrocycle(normalized);
   };
 
   useEffect(() => {
-    if (microcycle.id !== filters.microcycleId) setFilters({ microcycleId: microcycle.id });
+    if (microcycle.id !== filters.microcycleId)
+      setFilters({ microcycleId: microcycle.id });
   }, [filters.microcycleId, microcycle.id, setFilters]);
 
-  const players = getVisiblePlayers(data, { ...filters, category: effectiveCategory }, effectiveCategory);
-  const recordsInRange = (date: string) => hasRange && date >= microcycle.startDate && date <= microcycle.endDate;
-  const recordBelongsToMicrocycle = (date: string, microcycleId?: string) => hasRange ? recordsInRange(date) : (microcycleId ?? microcycle.id) === microcycle.id;
-  const sessionRecords = getEffectiveExternalLoads(data, { activeCategory: effectiveCategory })
-    .filter((x) => recordBelongsToMicrocycle(x.date, x.microcycleId))
-    .sort((a, b) => (a.date + (a.sessionNumber ?? 0)).localeCompare(b.date + (b.sessionNumber ?? 0)));
+  const players = getVisiblePlayers(
+    data,
+    { ...filters, category: effectiveCategory },
+    effectiveCategory,
+  );
+  const recordsInRange = (date: string) =>
+    hasRange && date >= microcycle.startDate && date <= microcycle.endDate;
+  const recordBelongsToMicrocycle = (date: string, microcycleId?: string) =>
+    hasRange
+      ? recordsInRange(date)
+      : (microcycleId ?? microcycle.id) === microcycle.id;
+  const microcycleSessions = getTrainingSessionsForMicrocycle(
+    data,
+    microcycle,
+    effectiveCategory,
+  );
+  const microcycleSessionIds = new Set(
+    microcycleSessions.map((session) => session.id),
+  );
+  const sessionRecords = getEffectiveExternalLoads(data, {
+    activeCategory: effectiveCategory,
+  })
+    .filter(
+      (x) =>
+        (x.sessionId && microcycleSessionIds.has(x.sessionId)) ||
+        recordBelongsToMicrocycle(x.date, x.microcycleId),
+    )
+    .sort((a, b) =>
+      (a.date + (a.sessionNumber ?? 0)).localeCompare(
+        b.date + (b.sessionNumber ?? 0),
+      ),
+    );
 
-  const uniqueDays = Array.from(new Set<string>(sessionRecords.map((record) => record.date))).filter((date) => !hasRange || recordsInRange(date));
+  const uniqueDays = Array.from(
+    new Set<string>(sessionRecords.map((record) => record.date)),
+  ).filter((date) => !hasRange || recordsInRange(date));
   const dayData = uniqueDays.map((date) => ({
     date: date.slice(5),
-    wellness: groupAverage(players.map((player) => averageWellness(getWellnessRecordsForDate(data, date, getRelatedPlayerIds(data.players, player.id))[0]))),
-    minutos: groupAverage(players.map((player) => {
-      const relatedIds = getRelatedPlayerIds(data.players, player.id);
-      return sessionRecords.find((x) => relatedIds.has(x.playerId) && x.date === date)?.min ?? 0;
-    })),
-    rpe: groupAverage(players.map((player) => {
-      const relatedIds = getRelatedPlayerIds(data.players, player.id);
-      return sessionRecords.find((x) => relatedIds.has(x.playerId) && x.date === date)?.rpe ?? 0;
-    })),
-    acc: groupAverage(players.map((player) => {
-      const relatedIds = getRelatedPlayerIds(data.players, player.id);
-      return sessionRecords.find((x) => relatedIds.has(x.playerId) && x.date === date)?.acc ?? 0;
-    })),
+    wellness: groupAverage(
+      players.map((player) =>
+        averageWellness(
+          getWellnessRecordsForDate(
+            data,
+            date,
+            getRelatedPlayerIds(data.players, player.id),
+          )[0],
+        ),
+      ),
+    ),
+    minutos: groupAverage(
+      players.map((player) => {
+        const relatedIds = getRelatedPlayerIds(data.players, player.id);
+        return (
+          sessionRecords.find(
+            (x) => relatedIds.has(x.playerId) && x.date === date,
+          )?.min ?? 0
+        );
+      }),
+    ),
+    rpe: groupAverage(
+      players.map((player) => {
+        const relatedIds = getRelatedPlayerIds(data.players, player.id);
+        return (
+          sessionRecords.find(
+            (x) => relatedIds.has(x.playerId) && x.date === date,
+          )?.rpe ?? 0
+        );
+      }),
+    ),
+    acc: groupAverage(
+      players.map((player) => {
+        const relatedIds = getRelatedPlayerIds(data.players, player.id);
+        return (
+          sessionRecords.find(
+            (x) => relatedIds.has(x.playerId) && x.date === date,
+          )?.acc ?? 0
+        );
+      }),
+    ),
   }));
 
   const availabilitySummary = {
-    disponibles: players.filter((p) => p.status === 'Disponible').length,
-    molestia: players.filter((p) => p.status === 'Molestia').length,
-    readaptacion: players.filter((p) => p.status === 'Readaptación').length,
-    lesionados: players.filter((p) => p.status === 'Lesionado').length,
+    disponibles: players.filter((p) => p.status === "Disponible").length,
+    molestia: players.filter((p) => p.status === "Molestia").length,
+    readaptacion: players.filter((p) => p.status === "Readaptación").length,
+    lesionados: players.filter((p) => p.status === "Lesionado").length,
   };
-  const playersWithoutRecords = players.filter((player) => !sessionRecords.some((record) => getRelatedPlayerIds(data.players, player.id).has(record.playerId)));
+  const playersWithoutRecords = players.filter(
+    (player) =>
+      !sessionRecords.some((record) =>
+        getRelatedPlayerIds(data.players, player.id).has(record.playerId),
+      ),
+  );
 
-  const accumulated = players.map((player) => {
-    const relatedIds = getRelatedPlayerIds(data.players, player.id);
-    const playerInternal = data.internalLoads.filter((x) => relatedIds.has(x.playerId) && (!hasRange || recordsInRange(x.date)));
-    const playerExternal = sessionRecords.filter((x) => relatedIds.has(x.playerId) && (!hasRange || recordsInRange(x.date)));
-    return {
-      jugador: player.name,
-      carga: playerInternal.reduce((acc, item) => acc + calculateInternalLoad(item), 0),
-      minutos: playerExternal.reduce((acc, item) => acc + (item.min ?? 0), 0),
-      rpe: groupAverage(playerExternal.map((item) => item.rpe ?? 0)),
-      acc: playerExternal.reduce((acc, item) => acc + (item.acc ?? 0), 0),
-    };
-  }).sort((a, b) => youthSimple ? b.minutos - a.minutos : b.acc - a.acc);
+  const accumulated = players
+    .map((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      const playerInternal = data.internalLoads.filter(
+        (x) =>
+          relatedIds.has(x.playerId) && (!hasRange || recordsInRange(x.date)),
+      );
+      const playerExternal = sessionRecords.filter(
+        (x) =>
+          relatedIds.has(x.playerId) && (!hasRange || recordsInRange(x.date)),
+      );
+      return {
+        jugador: player.name,
+        carga: playerInternal.reduce(
+          (acc, item) => acc + calculateInternalLoad(item),
+          0,
+        ),
+        minutos: playerExternal.reduce((acc, item) => acc + (item.min ?? 0), 0),
+        rpe: groupAverage(playerExternal.map((item) => item.rpe ?? 0)),
+        acc: playerExternal.reduce((acc, item) => acc + (item.acc ?? 0), 0),
+      };
+    })
+    .sort((a, b) => (youthSimple ? b.minutos - a.minutos : b.acc - a.acc));
 
   const deleteSessionFromMicrocycle = async (sessionId: string) => {
-    const target = data.trainingSessionSummaries.find((item) => item.id === sessionId);
+    const target = data.trainingSessionSummaries.find(
+      (item) => item.id === sessionId,
+    );
     if (!target) return;
+    const linked = countSessionLinkedRecords(data, target);
     const ok = await showConfirm({
-      title: `¿Eliminar sesión ${target.sessionNumber || '-'} del ${target.date}?`,
-      description: 'Se quitará la participación y carga asociada a esta sesión.',
+      title: `¿Eliminar sesión ${target.sessionNumber || "-"} del ${target.date}?`,
+      description: `Se borrará de la app y Supabase junto con ${linked.external} carga(s) GPS, ${linked.internal} carga(s) interna(s)${linked.competition ? ` y ${linked.competition} registro(s) de competencia vinculados` : ""}. No se borra perfil ni wellness diario del jugador.`,
       danger: true,
     });
     if (!ok) return;
     deleteTrainingSessionSummary(sessionId);
-    setMicrocycleMessage(`Sesión ${target.sessionNumber || '-'} eliminada correctamente.`);
+    setMicrocycleMessage(
+      `Sesión ${target.sessionNumber || "-"} eliminada correctamente.`,
+    );
   };
 
   const deleteCurrentMicrocycle = async () => {
     if (!microcycle?.id) return;
-    const usedBySessions = data.trainingSessionSummaries.filter((item) => item.microcycleId === microcycle.id).length;
-    const usedByLoads = data.externalLoads.filter((item) => item.microcycleId === microcycle.id).length;
-    const desc = usedBySessions || usedByLoads
-      ? `Este microciclo tiene ${usedBySessions} sesión(es) y ${usedByLoads} registro(s) asociados. Se quitará la asociación pero NO se borrarán los datos.`
-      : 'Esta acción no se puede deshacer.';
+    const usedBySessions = data.trainingSessionSummaries.filter(
+      (item) => item.microcycleId === microcycle.id,
+    ).length;
+    const usedByLoads = data.externalLoads.filter(
+      (item) => item.microcycleId === microcycle.id,
+    ).length;
+    const desc =
+      usedBySessions || usedByLoads
+        ? `Este microciclo tiene ${usedBySessions} sesión(es) y ${usedByLoads} registro(s) asociados. Se quitará la asociación pero NO se borrarán los datos.`
+        : "Esta acción no se puede deshacer.";
     const ok = await showConfirm({
       title: `¿Eliminar "${microcycle.name}"?`,
       description: desc,
@@ -130,121 +294,345 @@ export default function MicrocicloPage() {
     });
     if (!ok) return;
     deleteMicrocycle(microcycle.id);
-    setMicrocycleMessage("Microciclo eliminado. Las sesiones y cargas asociadas se conservaron.");
+    setMicrocycleMessage(
+      "Microciclo eliminado. Las sesiones y cargas asociadas se conservaron.",
+    );
   };
 
   const createNextMicrocycle = () => {
     const usedNumbers = categoryMicrocycles
-      .map((item) => item.weekNumber ?? Number(String(item.id).match(/(\d+)$/)?.[1]))
+      .map(
+        (item) =>
+          item.weekNumber ?? Number(String(item.id).match(/(\d+)$/)?.[1]),
+      )
       .filter((value) => Number.isFinite(value));
-    const nextNumber = (usedNumbers.length ? Math.max(...usedNumbers) : categoryMicrocycles.length) + 1;
+    const nextNumber =
+      (usedNumbers.length
+        ? Math.max(...usedNumbers)
+        : categoryMicrocycles.length) + 1;
     const id = `mc-${effectiveCategory.toLowerCase()}-${nextNumber}`;
-    updateMicrocycle({ id, name: `Microciclo ${nextNumber}`, category: effectiveCategory, startDate: '', endDate: '', weekNumber: nextNumber, status: 'activo' });
+    updateMicrocycle({
+      id,
+      name: `Microciclo ${nextNumber}`,
+      category: effectiveCategory,
+      startDate: "",
+      endDate: "",
+      weekNumber: nextNumber,
+      status: "activo",
+    });
     setFilters({ microcycleId: id });
   };
 
-  const microcycleLogic = buildMicrocycleLogic({ data, microcycle, players, category: effectiveCategory });
+  const microcycleLogic = buildMicrocycleLogic({
+    data,
+    microcycle,
+    players,
+    category: effectiveCategory,
+  });
   const microcycleReferenceDate = microcycle.endDate || filters.date;
-  const microcycleAbruptAlerts = buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
-  const microcycleMonotony = buildWeeklyMonotonyFatigue({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory });
-  const fosterRows = buildFosterTable(data, microcycleReferenceDate, effectiveCategory);
+  const microcycleAbruptAlerts = buildAbruptLoadAlerts({
+    players: data.players,
+    internalLoads: data.internalLoads,
+    externalLoads: data.externalLoads,
+    referenceDate: microcycleReferenceDate,
+    category: effectiveCategory,
+    limit: 5,
+  });
+  const microcycleMonotony = buildWeeklyMonotonyFatigue({
+    players: data.players,
+    internalLoads: data.internalLoads,
+    externalLoads: data.externalLoads,
+    referenceDate: microcycleReferenceDate,
+    category: effectiveCategory,
+  });
+  const fosterRows = buildFosterTable(
+    data,
+    microcycleReferenceDate,
+    effectiveCategory,
+  );
   const fosterAlerts = fosterRows.filter((row) => row.alert).length;
-  const fosterAvgMonotony = fosterRows.length ? fosterRows.reduce((sum, row) => sum + row.monotony, 0) / fosterRows.length : 0;
-  const microcycleReadiness = buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
-  const microcycleRoleAlerts = buildRoleLoadControl({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
-  const microcycleReturnAlerts = buildReturnToPlayAlerts({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
-  const microcycleSelfComparison = buildSelfComparisonInsights({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: microcycleReferenceDate, category: effectiveCategory, limit: 5 });
-  const microcycleInconsistencies = buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: '', category: effectiveCategory, limit: 5 });
+  const fosterAvgMonotony = fosterRows.length
+    ? fosterRows.reduce((sum, row) => sum + row.monotony, 0) / fosterRows.length
+    : 0;
+  const microcycleReadiness = buildPlayerReadinessSemaphores({
+    players: data.players,
+    wellness: data.wellness,
+    internalLoads: data.internalLoads,
+    externalLoads: data.externalLoads,
+    referenceDate: microcycleReferenceDate,
+    category: effectiveCategory,
+    limit: 5,
+  });
+  const microcycleRoleAlerts = buildRoleLoadControl({
+    players: data.players,
+    competitionRecords: data.competitionRecords,
+    internalLoads: data.internalLoads,
+    externalLoads: data.externalLoads,
+    referenceDate: microcycleReferenceDate,
+    category: effectiveCategory,
+    limit: 5,
+  });
+  const microcycleReturnAlerts = buildReturnToPlayAlerts({
+    players: data.players,
+    competitionRecords: data.competitionRecords,
+    internalLoads: data.internalLoads,
+    externalLoads: data.externalLoads,
+    referenceDate: microcycleReferenceDate,
+    category: effectiveCategory,
+    limit: 5,
+  });
+  const microcycleSelfComparison = buildSelfComparisonInsights({
+    players: data.players,
+    internalLoads: data.internalLoads,
+    externalLoads: data.externalLoads,
+    referenceDate: microcycleReferenceDate,
+    category: effectiveCategory,
+    limit: 5,
+  });
+  const microcycleInconsistencies = buildDataInconsistencyAlerts({
+    players: data.players,
+    internalLoads: data.internalLoads,
+    externalLoads: data.externalLoads,
+    competitionRecords: data.competitionRecords,
+    referenceDate: "",
+    category: effectiveCategory,
+    limit: 5,
+  });
 
-  const timeline = sessionRecords.reduce((acc, record) => {
-    const existing = acc.find((item) => item.date === record.date && item.sessionNumber === (record.sessionNumber ?? 1));
-    if (!existing) {
-      const bucket = sessionRecords.filter((x) => x.date === record.date && (x.sessionNumber ?? 1) === (record.sessionNumber ?? 1));
-      acc.push({
-        date: record.date,
-        sessionNumber: record.sessionNumber ?? 1,
-        sessionType: record.sessionType ?? '-',
-        avgRpe: groupAverage(bucket.map((x) => x.rpe ?? 0)),
-        avgMin: groupAverage(bucket.map((x) => x.min ?? 0)),
-        avgAcc: groupAverage(bucket.map((x) => x.acc ?? 0)),
-        players: bucket.length,
-      });
-    }
-    return acc;
-  }, [] as Array<{date:string;sessionNumber:number;sessionType:string;avgRpe:number;avgMin:number;avgAcc:number;players:number}>);
+  const timeline = microcycleSessions.map((session) => {
+    const bucket = sessionRecords.filter(
+      (x) =>
+        (x.sessionId && x.sessionId === session.id) ||
+        (x.date === session.date &&
+          (x.sessionNumber ?? session.sessionNumber) === session.sessionNumber),
+    );
+    return {
+      date: session.date,
+      sessionNumber: session.sessionNumber ?? 1,
+      sessionType: session.sessionType ?? "-",
+      avgRpe: groupAverage(bucket.map((x) => x.rpe ?? 0)),
+      avgMin: groupAverage(bucket.map((x) => x.min ?? 0)),
+      avgAcc: groupAverage(bucket.map((x) => x.acc ?? 0)),
+      players: bucket.length,
+    };
+  });
 
   return (
     <div className="grid">
-      <AppHero heroClass="hero-microciclo" title="Planificación semanal" subtitle={`${categoryLabel(effectiveCategory)} · microciclo independiente por categoría${gpsEnabled ? ' · GPS Catapult' : ''}`} />
+      <AppHero
+        heroClass="hero-microciclo"
+        title="Planificación semanal"
+        subtitle={`${categoryLabel(effectiveCategory)} · microciclo independiente por categoría${gpsEnabled ? " · GPS Catapult" : ""}`}
+      />
       <GlobalFiltersBar />
       <div className="card">
-        <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span className="section-eyebrow">Planificación</span><h3 style={{ margin: 0 }}>Datos del microciclo</h3>
-          <div className="btn-row"><button type="button" className="btn secondary" onClick={createNextMicrocycle}>Crear microciclo</button><button type="button" className="btn danger" onClick={deleteCurrentMicrocycle}>Eliminar microciclo</button></div>
+        <div
+          className="btn-row"
+          style={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span className="section-eyebrow">Planificación</span>
+          <h3 style={{ margin: 0 }}>Datos del microciclo</h3>
+          <div className="btn-row">
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={createNextMicrocycle}
+            >
+              Crear microciclo
+            </button>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={deleteCurrentMicrocycle}
+            >
+              Eliminar microciclo
+            </button>
+          </div>
         </div>
-        <div className="summary-chip" style={{ marginBottom: 12 }}>Define nombre, categoría y rango. Cada categoría tiene su propio microciclo activo.</div>
-        {microcycleMessage ? <div className="empty" style={{ marginBottom: 12 }}>{microcycleMessage}</div> : null}
+        <div className="summary-chip" style={{ marginBottom: 12 }}>
+          Define nombre, categoría y rango. Cada categoría tiene su propio
+          microciclo activo.
+        </div>
+        {microcycleMessage ? (
+          <div className="empty" style={{ marginBottom: 12 }}>
+            {microcycleMessage}
+          </div>
+        ) : null}
         <div className="grid grid-4">
           <div className="field">
             <label>Nombre</label>
-            <input className="input" value={microcycle.name} onChange={(e) => saveMicrocycleDraft({ ...microcycle, category: effectiveCategory, name: e.target.value })} />
+            <input
+              className="input"
+              value={microcycle.name}
+              onChange={(e) =>
+                saveMicrocycleDraft({
+                  ...microcycle,
+                  category: effectiveCategory,
+                  name: e.target.value,
+                })
+              }
+            />
           </div>
           <div className="field">
             <label>Categoría</label>
-            <input className="input" value={categoryLabel(microcycle.category ?? effectiveCategory)} readOnly />
+            <input
+              className="input"
+              value={categoryLabel(microcycle.category ?? effectiveCategory)}
+              readOnly
+            />
           </div>
           <div className="field">
             <label>Semana</label>
-            <input className="input" type="number" value={microcycle.weekNumber ?? ''} onChange={(e) => saveMicrocycleDraft({ ...microcycle, category: effectiveCategory, weekNumber: Number(e.target.value) || undefined })} />
+            <input
+              className="input"
+              type="number"
+              value={microcycle.weekNumber ?? ""}
+              onChange={(e) =>
+                saveMicrocycleDraft({
+                  ...microcycle,
+                  category: effectiveCategory,
+                  weekNumber: Number(e.target.value) || undefined,
+                })
+              }
+            />
           </div>
           <div className="field">
             <label>Fecha de inicio</label>
-            <input className="input" type="date" value={microcycle.startDate ?? ''} onChange={(e) => saveMicrocycleDraft({ ...microcycle, category: effectiveCategory, startDate: e.target.value })} />
+            <input
+              className="input"
+              type="date"
+              value={microcycle.startDate ?? ""}
+              onChange={(e) =>
+                saveMicrocycleDraft({
+                  ...microcycle,
+                  category: effectiveCategory,
+                  startDate: e.target.value,
+                })
+              }
+            />
           </div>
           <div className="field">
             <label>Fecha de fin</label>
-            <input className="input" type="date" value={microcycle.endDate ?? ''} onChange={(e) => saveMicrocycleDraft({ ...microcycle, category: effectiveCategory, endDate: e.target.value })} />
+            <input
+              className="input"
+              type="date"
+              value={microcycle.endDate ?? ""}
+              onChange={(e) =>
+                saveMicrocycleDraft({
+                  ...microcycle,
+                  category: effectiveCategory,
+                  endDate: e.target.value,
+                })
+              }
+            />
           </div>
         </div>
         <div className="muted-line" style={{ marginTop: 12 }}>
           {hasRange
             ? `Rango activo del ${microcycle.name}: ${microcycle.startDate} a ${microcycle.endDate}.`
-            : 'Este microciclo aún no tiene rango de fechas. Asigna inicio y fin para que aparezca correctamente en Diario y Sesión.'}
+            : "Este microciclo aún no tiene rango de fechas. Asigna inicio y fin para que aparezca correctamente en Diario y Sesión."}
         </div>
       </div>
       <div className="grid grid-4">
-        <KpiCard label="Microciclo activo" value={microcycle.name} tone="blue" trend={hasRange ? 'Rango asignado' : 'Pendiente de fechas'} />
-        <KpiCard label="Wellness promedio" value={groupAverage(dayData.map((d) => d.wellness)).toFixed(1)} tone="green" trend="Promedio del rango" />
-        <KpiCard label="MIN acumulados" value={accumulated.reduce((acc, item) => acc + item.minutos, 0).toFixed(0)} tone="dark" trend="Volumen semanal" />
-        <KpiCard label={youthSimple ? 'RPE promedio' : 'ACC acumulado'} value={youthSimple ? groupAverage(accumulated.map((x) => x.rpe)).toFixed(1) : accumulated.reduce((acc, item) => acc + item.acc, 0).toFixed(0)} tone="amber" trend="Indicador de carga" />
-        <KpiCard label="Monotonía media" value={fosterAvgMonotony ? fosterAvgMonotony.toFixed(2) : '—'} tone={fosterAlerts ? 'red' : 'green'} trend={`${fosterAlerts} jugador(es) >2.0`} />
+        <KpiCard
+          label="Microciclo activo"
+          value={microcycle.name}
+          tone="blue"
+          trend={hasRange ? "Rango asignado" : "Pendiente de fechas"}
+        />
+        <KpiCard
+          label="Wellness promedio"
+          value={groupAverage(dayData.map((d) => d.wellness)).toFixed(1)}
+          tone="green"
+          trend="Promedio del rango"
+        />
+        <KpiCard
+          label="MIN acumulados"
+          value={accumulated
+            .reduce((acc, item) => acc + item.minutos, 0)
+            .toFixed(0)}
+          tone="dark"
+          trend="Volumen semanal"
+        />
+        <KpiCard
+          label={youthSimple ? "RPE promedio" : "ACC acumulado"}
+          value={
+            youthSimple
+              ? groupAverage(accumulated.map((x) => x.rpe)).toFixed(1)
+              : accumulated.reduce((acc, item) => acc + item.acc, 0).toFixed(0)
+          }
+          tone="amber"
+          trend="Indicador de carga"
+        />
+        <KpiCard
+          label="Monotonía media"
+          value={fosterAvgMonotony ? fosterAvgMonotony.toFixed(2) : "—"}
+          tone={fosterAlerts ? "red" : "green"}
+          trend={`${fosterAlerts} jugador(es) >2.0`}
+        />
       </div>
 
       <div className="grid grid-4">
-        <KpiCard label="Disponibles" value={String(availabilitySummary.disponibles)} />
-        <KpiCard label="Molestia" value={String(availabilitySummary.molestia)} />
-        <KpiCard label="Readaptación" value={String(availabilitySummary.readaptacion)} />
-        <KpiCard label="Lesionados" value={String(availabilitySummary.lesionados)} />
+        <KpiCard
+          label="Disponibles"
+          value={String(availabilitySummary.disponibles)}
+        />
+        <KpiCard
+          label="Molestia"
+          value={String(availabilitySummary.molestia)}
+        />
+        <KpiCard
+          label="Readaptación"
+          value={String(availabilitySummary.readaptacion)}
+        />
+        <KpiCard
+          label="Lesionados"
+          value={String(availabilitySummary.lesionados)}
+        />
       </div>
 
-
       <div className="card">
-        <SectionHeader eyebrow="Foster 1998" title="Monotonía y strain por jugador" subtitle="Monotonía = carga media semanal / desviación estándar. Strain = carga total semanal × monotonía. Alerta si monotonía > 2.0." />
+        <SectionHeader
+          eyebrow="Foster 1998"
+          title="Monotonía y strain por jugador"
+          subtitle="Monotonía = carga media semanal / desviación estándar. Strain = carga total semanal × monotonía. Alerta si monotonía > 2.0."
+        />
         <div className="table-scroll">
           <table className="pro-table compact-table">
             <thead>
-              <tr><th>Jugador</th><th>Carga 7d</th><th>Media</th><th>DE</th><th>Monotonía</th><th>Strain</th><th>Lectura</th></tr>
+              <tr>
+                <th>Jugador</th>
+                <th>Carga 7d</th>
+                <th>Media</th>
+                <th>DE</th>
+                <th>Monotonía</th>
+                <th>Strain</th>
+                <th>Lectura</th>
+              </tr>
             </thead>
             <tbody>
               {fosterRows.slice(0, 12).map((row) => (
                 <tr key={row.playerId}>
-                  <td><strong>{row.name}</strong></td>
+                  <td>
+                    <strong>{row.name}</strong>
+                  </td>
                   <td>{row.totalLoad} UA</td>
                   <td>{row.meanLoad}</td>
                   <td>{row.stdDev}</td>
-                  <td><strong>{row.monotony}</strong></td>
+                  <td>
+                    <strong>{row.monotony}</strong>
+                  </td>
                   <td>{row.strain}</td>
-                  <td><span className={`status-badge ui-tone-${row.tone}`}>{row.label}</span></td>
+                  <td>
+                    <span className={`status-badge ui-tone-${row.tone}`}>
+                      {row.label}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -254,85 +642,199 @@ export default function MicrocicloPage() {
 
       <div className="grid grid-2">
         <div className="card compact-card">
-          <SectionHeader eyebrow="Lógica de microciclo" title="Planificado vs ejecutado" subtitle="Control automático de carga, contenidos y distribución semanal." />
+          <SectionHeader
+            eyebrow="Lógica de microciclo"
+            title="Planificado vs ejecutado"
+            subtitle="Control automático de carga, contenidos y distribución semanal."
+          />
           <div className="grid" style={{ gap: 8 }}>
             {microcycleLogic.insights.map((insight) => (
-              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
-                <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
+              <div
+                key={insight.id}
+                className={`alert-item tone-${insight.tone === "red" ? "red" : insight.tone === "yellow" ? "yellow" : "blue"}`}
+              >
+                <strong>{insight.title}</strong>{" "}
+                {insight.value ? `· ${insight.value}` : ""}
+                <br />
+                {insight.description}
               </div>
             ))}
-            <div className={`alert-item tone-${microcycleMonotony.tone === 'red' ? 'red' : microcycleMonotony.tone === 'yellow' ? 'yellow' : 'green'}`}>
-              <strong>{microcycleMonotony.title}</strong> · {microcycleMonotony.value}<br />{microcycleMonotony.description}
+            <div
+              className={`alert-item tone-${microcycleMonotony.tone === "red" ? "red" : microcycleMonotony.tone === "yellow" ? "yellow" : "green"}`}
+            >
+              <strong>{microcycleMonotony.title}</strong> ·{" "}
+              {microcycleMonotony.value}
+              <br />
+              {microcycleMonotony.description}
             </div>
           </div>
         </div>
         <div className="card compact-card">
-          <SectionHeader eyebrow="Carga aguda" title="Aumentos bruscos y disponibilidad" subtitle="Detecta incrementos, semáforo integral y riesgo de fatiga." />
+          <SectionHeader
+            eyebrow="Carga aguda"
+            title="Aumentos bruscos y disponibilidad"
+            subtitle="Detecta incrementos, semáforo integral y riesgo de fatiga."
+          />
           <div className="grid" style={{ gap: 8 }}>
-            {[...microcycleAbruptAlerts, ...microcycleReadiness.filter((row) => row.tone !== 'green').map((row) => ({ id: `mc-ready-${row.playerId}`, title: `${row.name}: ${row.label}`, tone: row.tone, value: `${Math.round(row.score)}%`, description: row.detail }))].slice(0, 6).map((alert) => (
-              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : alert.tone === 'yellow' ? 'yellow' : 'green'}`}>
-                <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
+            {[
+              ...microcycleAbruptAlerts,
+              ...microcycleReadiness
+                .filter((row) => row.tone !== "green")
+                .map((row) => ({
+                  id: `mc-ready-${row.playerId}`,
+                  title: `${row.name}: ${row.label}`,
+                  tone: row.tone,
+                  value: `${Math.round(row.score)}%`,
+                  description: row.detail,
+                })),
+            ]
+              .slice(0, 6)
+              .map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`alert-item tone-${alert.tone === "red" ? "red" : alert.tone === "yellow" ? "yellow" : "green"}`}
+                >
+                  <strong>{alert.title}</strong>{" "}
+                  {alert.value ? `· ${alert.value}` : ""}
+                  <br />
+                  {alert.description}
+                </div>
+              ))}
+            {![
+              ...microcycleAbruptAlerts,
+              ...microcycleReadiness.filter((row) => row.tone !== "green"),
+            ].length ? (
+              <div className="empty">
+                Sin aumentos bruscos ni semáforos de riesgo para este
+                microciclo.
               </div>
-            ))}
-            {![...microcycleAbruptAlerts, ...microcycleReadiness.filter((row) => row.tone !== 'green')].length ? <div className="empty">Sin aumentos bruscos ni semáforos de riesgo para este microciclo.</div> : null}
+            ) : null}
           </div>
         </div>
       </div>
 
       <div className="grid grid-2">
         <div className="card compact-card">
-          <SectionHeader eyebrow="Rol competitivo" title="Control por rol y retorno" subtitle="Diferencia titulares, rotación, retorno y readaptación." />
+          <SectionHeader
+            eyebrow="Rol competitivo"
+            title="Control por rol y retorno"
+            subtitle="Diferencia titulares, rotación, retorno y readaptación."
+          />
           <div className="grid" style={{ gap: 8 }}>
-            {[...microcycleReturnAlerts, ...microcycleRoleAlerts].slice(0, 6).map((alert) => (
-              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : alert.tone === 'yellow' ? 'yellow' : 'blue'}`}>
-                <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
+            {[...microcycleReturnAlerts, ...microcycleRoleAlerts]
+              .slice(0, 6)
+              .map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`alert-item tone-${alert.tone === "red" ? "red" : alert.tone === "yellow" ? "yellow" : "blue"}`}
+                >
+                  <strong>{alert.title}</strong>{" "}
+                  {alert.value ? `· ${alert.value}` : ""}
+                  <br />
+                  {alert.description}
+                </div>
+              ))}
+            {![...microcycleReturnAlerts, ...microcycleRoleAlerts].length ? (
+              <div className="empty">
+                Sin alertas de rol competitivo o retorno progresivo.
               </div>
-            ))}
-            {![...microcycleReturnAlerts, ...microcycleRoleAlerts].length ? <div className="empty">Sin alertas de rol competitivo o retorno progresivo.</div> : null}
+            ) : null}
           </div>
         </div>
         <div className="card compact-card">
-          <SectionHeader eyebrow="Calidad y comparación" title="Historial individual e incoherencias" subtitle="Cruza al jugador contra su propio promedio y detecta datos atípicos." />
+          <SectionHeader
+            eyebrow="Calidad y comparación"
+            title="Historial individual e incoherencias"
+            subtitle="Cruza al jugador contra su propio promedio y detecta datos atípicos."
+          />
           <div className="grid" style={{ gap: 8 }}>
-            {[...microcycleInconsistencies, ...microcycleSelfComparison].slice(0, 6).map((alert) => (
-              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : alert.tone === 'yellow' ? 'yellow' : 'blue'}`}>
-                <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
+            {[...microcycleInconsistencies, ...microcycleSelfComparison]
+              .slice(0, 6)
+              .map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`alert-item tone-${alert.tone === "red" ? "red" : alert.tone === "yellow" ? "yellow" : "blue"}`}
+                >
+                  <strong>{alert.title}</strong>{" "}
+                  {alert.value ? `· ${alert.value}` : ""}
+                  <br />
+                  {alert.description}
+                </div>
+              ))}
+            {![...microcycleInconsistencies, ...microcycleSelfComparison]
+              .length ? (
+              <div className="empty">
+                Sin incoherencias ni desviaciones individuales relevantes.
               </div>
-            ))}
-            {![...microcycleInconsistencies, ...microcycleSelfComparison].length ? <div className="empty">Sin incoherencias ni desviaciones individuales relevantes.</div> : null}
+            ) : null}
           </div>
         </div>
       </div>
 
       <div className="card">
-        <SectionHeader eyebrow="Calendario" title="Semana operativa del microciclo" subtitle="Días, sesiones, competencia y completitud de registros por fecha." />
-        {weekDays.length ? <WeekCalendar days={weekDays} onDeleteSession={deleteSessionFromMicrocycle} /> : <EmptyState title="Microciclo sin rango de fechas" text="Asigna fecha de inicio y fin para construir el calendario semanal." />}
+        <SectionHeader
+          eyebrow="Calendario"
+          title="Semana operativa del microciclo"
+          subtitle="Días, sesiones, competencia y completitud de registros por fecha."
+        />
+        {weekDays.length ? (
+          <WeekCalendar
+            days={weekDays}
+            onDeleteSession={deleteSessionFromMicrocycle}
+          />
+        ) : (
+          <EmptyState
+            title="Microciclo sin rango de fechas"
+            text="Asigna fecha de inicio y fin para construir el calendario semanal."
+          />
+        )}
       </div>
 
       <div className="card">
-        <SectionHeader eyebrow="Semana" title="Timeline del microciclo" subtitle="Sesiones detectadas dentro del rango asignado." />
+        <SectionHeader
+          eyebrow="Semana"
+          title="Timeline del microciclo"
+          subtitle="Solo se listan sesiones dentro del rango y categoría del microciclo activo."
+        />
         <div className="timeline-grid">
           {timeline.map((item) => (
-            <div key={`${item.date}-${item.sessionNumber}`} className="timeline-card">
+            <div
+              key={`${item.date}-${item.sessionNumber}`}
+              className="timeline-card"
+            >
               <div className="timeline-date">{item.date}</div>
               <strong>Sesión {item.sessionNumber}</strong>
-              <div className="muted-line">{item.sessionType} · {sessionLabels[item.sessionType] ?? 'Sin etiqueta'}</div>
+              <div className="muted-line">
+                {item.sessionType} ·{" "}
+                {sessionLabels[item.sessionType] ?? "Sin etiqueta"}
+              </div>
               <div className="timeline-metrics">
                 <span>MIN {item.avgMin.toFixed(0)}</span>
                 <span>RPE {item.avgRpe.toFixed(1)}</span>
-                {!youthSimple ? <span>ACC {item.avgAcc.toFixed(0)}</span> : null}
+                {!youthSimple ? (
+                  <span>ACC {item.avgAcc.toFixed(0)}</span>
+                ) : null}
                 <span>{item.players} jugadores</span>
               </div>
             </div>
           ))}
-          {!timeline.length ? <EmptyState title="No hay sesiones cargadas" text="Cuando guardes sesiones dentro del rango, aparecerán en esta planificación." /> : null}
+          {!timeline.length ? (
+            <EmptyState
+              title="No hay sesiones cargadas"
+              text="Cuando guardes sesiones dentro del rango, aparecerán en esta planificación."
+            />
+          ) : null}
         </div>
       </div>
 
       <div className="grid grid-2">
         <div className="card">
-          <SectionHeader eyebrow="Control de carga" title="Tendencia diaria del microciclo" subtitle="Lectura acumulada de bienestar y minutos." />
-          <div style={{ width: '100%', height: 320 }}>
+          <SectionHeader
+            eyebrow="Control de carga"
+            title="Tendencia diaria del microciclo"
+            subtitle="Lectura acumulada de bienestar y minutos."
+          />
+          <div style={{ width: "100%", height: 320 }}>
             <ResponsiveContainer>
               <LineChart data={dayData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -340,22 +842,44 @@ export default function MicrocicloPage() {
                 <YAxis yAxisId="left" />
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip />
-                <Line yAxisId="left" type="monotone" dataKey="wellness" stroke="#1d4ed8" name="Wellness" strokeWidth={3} />
-                <Line yAxisId="right" type="monotone" dataKey="minutos" stroke="#60a5fa" name="MIN" strokeWidth={3} />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="wellness"
+                  stroke="#1d4ed8"
+                  name="Wellness"
+                  strokeWidth={3}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="minutos"
+                  stroke="#60a5fa"
+                  name="MIN"
+                  strokeWidth={3}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
         <div className="card">
-          <SectionHeader eyebrow="Métrica principal" title={youthSimple ? 'RPE por día' : 'ACC por día'} subtitle="Comportamiento por día del microciclo." />
-          <div style={{ width: '100%', height: 320 }}>
+          <SectionHeader
+            eyebrow="Métrica principal"
+            title={youthSimple ? "RPE por día" : "ACC por día"}
+            subtitle="Comportamiento por día del microciclo."
+          />
+          <div style={{ width: "100%", height: 320 }}>
             <ResponsiveContainer>
               <BarChart data={dayData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey={youthSimple ? 'rpe' : 'acc'} fill="#1d4ed8" radius={[8, 8, 0, 0]} />
+                <Bar
+                  dataKey={youthSimple ? "rpe" : "acc"}
+                  fill="#1d4ed8"
+                  radius={[8, 8, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -363,24 +887,90 @@ export default function MicrocicloPage() {
       </div>
 
       <div className="card">
-        <SectionHeader eyebrow="Alertas" title="Alertas del microciclo" subtitle="Disponibilidad y registros faltantes." />
+        <SectionHeader
+          eyebrow="Alertas"
+          title="Alertas del microciclo"
+          subtitle="Disponibilidad y registros faltantes."
+        />
         <div className="grid" style={{ gap: 10 }}>
-          {players.filter((player) => player.status === 'Lesionado').map((player) => <div key={player.id} className="alert-item tone-red">{player.name} tiene lesión activa.</div>)}
-          {playersWithoutRecords.map((player) => <div key={`missing-${player.id}`} className="alert-item tone-yellow">{player.name} no tiene registros en este microciclo.</div>)}
-          {!players.filter((player) => player.status === 'Lesionado').length && !playersWithoutRecords.length ? <div className="empty">Sin alertas relevantes.</div> : null}
+          {players
+            .filter((player) => player.status === "Lesionado")
+            .map((player) => (
+              <div key={player.id} className="alert-item tone-red">
+                {player.name} tiene lesión activa.
+              </div>
+            ))}
+          {playersWithoutRecords.map((player) => (
+            <div
+              key={`missing-${player.id}`}
+              className="alert-item tone-yellow"
+            >
+              {player.name} no tiene registros en este microciclo.
+            </div>
+          ))}
+          {!players.filter((player) => player.status === "Lesionado").length &&
+          !playersWithoutRecords.length ? (
+            <div className="empty">Sin alertas relevantes.</div>
+          ) : null}
         </div>
       </div>
 
       <div className="card table-wrap">
-        <SectionHeader eyebrow="Control" title="Jugadores sin registros en el microciclo" />
-        {playersWithoutRecords.length ? <table><thead><tr><th>Jugador</th><th>Posición</th><th>Estado</th></tr></thead><tbody>{playersWithoutRecords.map((player) => <tr key={player.id}><td>{player.name}</td><td>{player.position}</td><td>{player.status}</td></tr>)}</tbody></table> : <div className="empty">Todos los jugadores tienen registros.</div>}
+        <SectionHeader
+          eyebrow="Control"
+          title="Jugadores sin registros en el microciclo"
+        />
+        {playersWithoutRecords.length ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Jugador</th>
+                <th>Posición</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {playersWithoutRecords.map((player) => (
+                <tr key={player.id}>
+                  <td>{player.name}</td>
+                  <td>{player.position}</td>
+                  <td>{player.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="empty">Todos los jugadores tienen registros.</div>
+        )}
       </div>
 
       <div className="card table-wrap">
-        <SectionHeader eyebrow="Ranking" title="Ranking del microciclo" subtitle="Carga acumulada por jugador." />
+        <SectionHeader
+          eyebrow="Ranking"
+          title="Ranking del microciclo"
+          subtitle="Carga acumulada por jugador."
+        />
         <table>
-          <thead><tr><th>Jugador</th><th>MIN acumulados</th><th>RPE promedio</th>{!youthSimple ? <th>ACC acumulado</th> : null}<th>Carga interna</th></tr></thead>
-          <tbody>{accumulated.map((item) => <tr key={item.jugador}><td>{item.jugador}</td><td>{item.minutos}</td><td>{item.rpe}</td>{!youthSimple ? <td>{item.acc}</td> : null}<td>{item.carga}</td></tr>)}</tbody>
+          <thead>
+            <tr>
+              <th>Jugador</th>
+              <th>MIN acumulados</th>
+              <th>RPE promedio</th>
+              {!youthSimple ? <th>ACC acumulado</th> : null}
+              <th>Carga interna</th>
+            </tr>
+          </thead>
+          <tbody>
+            {accumulated.map((item) => (
+              <tr key={item.jugador}>
+                <td>{item.jugador}</td>
+                <td>{item.minutos}</td>
+                <td>{item.rpe}</td>
+                {!youthSimple ? <td>{item.acc}</td> : null}
+                <td>{item.carga}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
       {ConfirmModal}

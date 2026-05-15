@@ -51,7 +51,10 @@ import {
   microcycleBelongsToCategory,
 } from "@/lib/utils";
 import { findOverlappingMicrocycle } from "@/lib/operational-validation";
-import { normalizeSharedDataLinks } from "@/lib/relational-data";
+import {
+  normalizeSharedDataLinks,
+  recordMatchesTrainingSession,
+} from "@/lib/relational-data";
 import { normalizeAppData } from "@/lib/performance-helpers";
 import {
   AppData,
@@ -175,7 +178,7 @@ const hydrateData = (stored: Partial<AppData> | null): AppData =>
 
 const isMeaningfulValue = (value: unknown) => {
   if (value === null || value === undefined) return false;
-  if (typeof value === 'string') return value.trim() !== '';
+  if (typeof value === "string") return value.trim() !== "";
   if (Array.isArray(value)) return value.length > 0;
   return true;
 };
@@ -200,16 +203,22 @@ const normalizedKeyPart = (value: unknown) =>
 const buildMergeKey = (...parts: unknown[]) =>
   parts.map(normalizedKeyPart).join("::");
 
-const isPlainObjectRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value && typeof value === 'object' && !Array.isArray(value));
+const isPlainObjectRecord = (
+  value: unknown,
+): value is Record<string, unknown> =>
+  Boolean(value && typeof value === "object" && !Array.isArray(value));
 
 const mergeByKeys = <T extends Record<string, unknown>>(
   remote: T[] | undefined,
   local: T[] | undefined,
   keyFns: Array<(item: T) => string | null | undefined>,
 ): T[] => {
-  const remoteRows = (Array.isArray(remote) ? remote : []).filter(isPlainObjectRecord) as T[];
-  const localRows = (Array.isArray(local) ? local : []).filter(isPlainObjectRecord) as T[];
+  const remoteRows = (Array.isArray(remote) ? remote : []).filter(
+    isPlainObjectRecord,
+  ) as T[];
+  const localRows = (Array.isArray(local) ? local : []).filter(
+    isPlainObjectRecord,
+  ) as T[];
   if (!localRows.length) return remoteRows;
   const localByKey = new Map<string, T>();
   localRows.forEach((item) => {
@@ -261,7 +270,9 @@ const mergeCompetitionMatches = (
 ): CompetitionMatchSummary[] =>
   mergeByKeys(
     (local?.length ? local : remote) as unknown as Record<string, unknown>[],
-    (local?.length ? remote : local) as unknown as Record<string, unknown>[] | undefined,
+    (local?.length ? remote : local) as unknown as
+      | Record<string, unknown>[]
+      | undefined,
     [
       (item) => (item.id ? String(item.id) : null),
       (item) =>
@@ -277,7 +288,9 @@ const mergeCompetitionRecords = (
 ): CompetitionRecord[] =>
   mergeByKeys(
     (local?.length ? local : remote) as unknown as Record<string, unknown>[],
-    (local?.length ? remote : local) as unknown as Record<string, unknown>[] | undefined,
+    (local?.length ? remote : local) as unknown as
+      | Record<string, unknown>[]
+      | undefined,
     [
       (item) => (item.id ? String(item.id) : null),
       (item) =>
@@ -304,7 +317,8 @@ const mergeByIdPreferLocal = <T extends { id: string }>(
     const current = (byId.get(item.id) ?? {}) as Record<string, unknown>;
     const merged: Record<string, unknown> = { ...current };
     Object.entries(item as Record<string, unknown>).forEach(([key, value]) => {
-      if (isMeaningfulValue(value) || !isMeaningfulValue(merged[key])) merged[key] = value;
+      if (isMeaningfulValue(value) || !isMeaningfulValue(merged[key]))
+        merged[key] = value;
     });
     byId.set(item.id, merged as T);
   });
@@ -312,37 +326,56 @@ const mergeByIdPreferLocal = <T extends { id: string }>(
 };
 
 const normalizePlayerMergeText = (value: unknown) =>
-  String(value ?? '')
+  String(value ?? "")
     .trim()
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
 
-const playerMergeKeys = (player: Player) => [
-  player.id ? `id:${player.id}` : '',
-  player.documentId ? `doc:${normalizePlayerMergeText(player.documentId)}` : '',
-  player.name ? `name:${normalizePlayerMergeText(player.category)}:${normalizePlayerMergeText(player.name)}` : '',
-].filter(Boolean);
+const playerMergeKeys = (player: Player) =>
+  [
+    player.id ? `id:${player.id}` : "",
+    player.documentId
+      ? `doc:${normalizePlayerMergeText(player.documentId)}`
+      : "",
+    player.name
+      ? `name:${normalizePlayerMergeText(player.category)}:${normalizePlayerMergeText(player.name)}`
+      : "",
+  ].filter(Boolean);
 
-const mergePlayersPreferLocal = (remote: Player[] | undefined, local: Player[] | undefined): Player[] => {
-  const rows = [...(Array.isArray(remote) ? remote : []), ...(Array.isArray(local) ? local : [])];
+const mergePlayersPreferLocal = (
+  remote: Player[] | undefined,
+  local: Player[] | undefined,
+): Player[] => {
+  const rows = [
+    ...(Array.isArray(remote) ? remote : []),
+    ...(Array.isArray(local) ? local : []),
+  ];
   const groups = new Map<string, Player>();
   const aliases = new Map<string, string>();
 
   rows.forEach((player) => {
     if (!player?.id) return;
     const keys = playerMergeKeys(player);
-    const groupKey = keys.map((key) => aliases.get(key)).find(Boolean) ?? keys[0] ?? `id:${player.id}`;
+    const groupKey =
+      keys.map((key) => aliases.get(key)).find(Boolean) ??
+      keys[0] ??
+      `id:${player.id}`;
     const existing = groups.get(groupKey);
     const merged = existing
-      ? (mergeObjectWithLocalFallback(player as unknown as Record<string, unknown>, existing as unknown as Record<string, unknown>) as unknown as Player)
+      ? (mergeObjectWithLocalFallback(
+          player as unknown as Record<string, unknown>,
+          existing as unknown as Record<string, unknown>,
+        ) as unknown as Player)
       : player;
     groups.set(groupKey, merged);
     keys.forEach((key) => aliases.set(key, groupKey));
   });
 
-  return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return Array.from(groups.values()).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 };
 
 const buildCompetitionExternalLoad = (
@@ -377,13 +410,13 @@ const buildCompetitionExternalLoad = (
     sprintDistance: record.sprintDistance,
     maxVelocity: record.maxVelocity,
     playerLoad: record.playerLoad,
-    participation: 'Completa',
-    sessionType: 'MD',
+    participation: "Completa",
+    sessionType: "MD",
     category: record.category ?? match.category,
     baseCategory: record.baseCategory,
     actingCategory: record.actingCategory ?? record.category ?? match.category,
-    movementType: record.movementType ?? 'base',
-    movementModule: 'competencia',
+    movementType: record.movementType ?? "base",
+    movementModule: "competencia",
     loggedBy: record.loggedBy,
   };
 };
@@ -439,7 +472,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const remote = await Promise.race([
       fetchSupabaseTablesAppData(supabase),
       new Promise<{ ok: false; reason: string }>((resolve) =>
-        setTimeout(() => resolve({ ok: false, reason: `timeout-${source}` }), source === "manual" ? 9000 : 6500),
+        setTimeout(
+          () => resolve({ ok: false, reason: `timeout-${source}` }),
+          source === "manual" ? 9000 : 6500,
+        ),
       ),
     ]);
     if (!remote.ok) {
@@ -522,10 +558,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Players: merge remote + local to avoid losing ficha edits if Supabase
       // has not persisted a newer column yet. Remote fields stay primary,
       // local fills gaps and preserves local-only players.
-      players: mergePlayersPreferLocal(
-        remoteHydrated.players,
-        current.players,
-      ),
+      players: mergePlayersPreferLocal(remoteHydrated.players, current.players),
     };
 
     const normalizedNext = normalizeSharedDataLinks(next);
@@ -578,14 +611,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Local-first: los guardados pequeños no deben bloquear la interfaz ni
       // dejar visible el estado "sincronizando" por varios segundos.
       setSyncStatus(scope === "all" ? "syncing" : "ready");
-      const releaseSyncIndicator = setTimeout(() => {
-        setSyncStatus((current) => (current === "syncing" ? "ready" : current));
-      }, scope === "all" ? 3200 : 900);
+      const releaseSyncIndicator = setTimeout(
+        () => {
+          setSyncStatus((current) =>
+            current === "syncing" ? "ready" : current,
+          );
+        },
+        scope === "all" ? 3200 : 900,
+      );
       const session = getStaffSession();
       const scopedData = filterAppDataForSession(nextData, session);
       const saveOperation =
         scope === "players"
-          ? saveSupabasePlayersAppData(supabase, scopedData, { onlyPlayerIds: options.playerIds })
+          ? saveSupabasePlayersAppData(supabase, scopedData, {
+              onlyPlayerIds: options.playerIds,
+            })
           : scope === "evaluations"
             ? saveSupabaseEvaluationsAppData(supabase, scopedData)
             : scope === "competition"
@@ -597,7 +637,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const saveWithTimeout = Promise.race([
         saveOperation,
         new Promise<{ ok: false; reason: string }>((resolve) =>
-          setTimeout(() => resolve({ ok: false, reason: "timeout" }), timeoutMs),
+          setTimeout(
+            () => resolve({ ok: false, reason: "timeout" }),
+            timeoutMs,
+          ),
         ),
       ]);
       const result = await saveWithTimeout;
@@ -609,9 +652,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         skipRemoteRefreshUntilRef.current = postSaveBlock;
       }
       if (!result.ok) {
-        console.warn('[Orsomarso] Guardado remoto no confirmado; se conserva respaldo local.', result.reason);
+        console.warn(
+          "[Orsomarso] Guardado remoto no confirmado; se conserva respaldo local.",
+          result.reason,
+        );
       }
-      setSyncStatus(result.ok || result.reason === "timeout" ? "ready" : "error");
+      setSyncStatus(
+        result.ok || result.reason === "timeout" ? "ready" : "error",
+      );
     } else if (hasSupabaseConfig && legacyAppStateSyncEnabled) {
       setSyncStatus("syncing");
       const result = await saveRemoteAppState(nextData);
@@ -780,7 +828,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             ),
             // Players: merge remote + local to avoid wiping ficha edits
             // while new Supabase columns are being added.
-            players: mergePlayersPreferLocal(remoteData.players, localData?.players),
+            players: mergePlayersPreferLocal(
+              remoteData.players,
+              localData?.players,
+            ),
           };
 
           const normalizedMerged = normalizeSharedDataLinks(merged);
@@ -876,18 +927,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
 
     const syncOnResume = () => {
-      if (document.visibilityState === "visible" && Date.now() - lastRemotePullRef.current > 45000) {
+      if (
+        document.visibilityState === "visible" &&
+        Date.now() - lastRemotePullRef.current > 45000
+      ) {
         // Use 'poll' so the skipRemoteRefresh timer is respected after saves.
         scheduleRemoteRefresh("poll");
       }
     };
 
     const syncOnFocus = () => {
-      if (Date.now() - lastRemotePullRef.current > 45000) scheduleRemoteRefresh("poll");
+      if (Date.now() - lastRemotePullRef.current > 45000)
+        scheduleRemoteRefresh("poll");
     };
 
     const syncOnOnline = () => {
-      if (Date.now() - lastRemotePullRef.current > 45000) scheduleRemoteRefresh("poll");
+      if (Date.now() - lastRemotePullRef.current > 45000)
+        scheduleRemoteRefresh("poll");
     };
 
     document.addEventListener("visibilitychange", syncOnResume);
@@ -1610,57 +1666,73 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         void deleteRemoteLegacy("fms_records", recordId);
       },
       addCompetitionRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          competitionRecords: [
-            record,
-            ...prev.competitionRecords.filter(
-              (item) =>
-                !(
-                  item.id === record.id ||
-                  (item.matchId === record.matchId &&
-                    item.playerId === record.playerId)
-                ),
-            ),
-          ],
-        }), 'competition'),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            competitionRecords: [
+              record,
+              ...prev.competitionRecords.filter(
+                (item) =>
+                  !(
+                    item.id === record.id ||
+                    (item.matchId === record.matchId &&
+                      item.playerId === record.playerId)
+                  ),
+              ),
+            ],
+          }),
+          "competition",
+        ),
       updateCompetitionRecord: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          competitionRecords: prev.competitionRecords.map((item) =>
-            item.id === record.id ? record : item,
-          ),
-        }), 'competition'),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            competitionRecords: prev.competitionRecords.map((item) =>
+              item.id === record.id ? record : item,
+            ),
+          }),
+          "competition",
+        ),
       deleteCompetitionRecord: (recordId) => {
-        const currentRecord = dataRef.current.competitionRecords.find((item) => item.id === recordId);
-        applyMutation((prev) => ({
-          ...prev,
-          competitionRecords: prev.competitionRecords.filter(
-            (item) => item.id !== recordId,
-          ),
-          externalLoads: prev.externalLoads.filter(
-            (item) => item.id !== `comp-load-${currentRecord?.matchId ?? ''}-${currentRecord?.playerId ?? ''}`,
-          ),
-        }), 'competition');
+        const currentRecord = dataRef.current.competitionRecords.find(
+          (item) => item.id === recordId,
+        );
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            competitionRecords: prev.competitionRecords.filter(
+              (item) => item.id !== recordId,
+            ),
+            externalLoads: prev.externalLoads.filter(
+              (item) =>
+                item.id !==
+                `comp-load-${currentRecord?.matchId ?? ""}-${currentRecord?.playerId ?? ""}`,
+            ),
+          }),
+          "competition",
+        );
         void deleteRemoteLegacy("competition_players", recordId);
       },
       upsertCompetitionMatchSummary: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          competitionMatchSummaries: [
-            record,
-            ...prev.competitionMatchSummaries.filter(
-              (item) =>
-                !(
-                  item.id === record.id ||
-                  (item.date === record.date &&
-                    item.category === record.category &&
-                    item.opponent.trim().toLowerCase() ===
-                      record.opponent.trim().toLowerCase())
-                ),
-            ),
-          ],
-        }), 'competition'),
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            competitionMatchSummaries: [
+              record,
+              ...prev.competitionMatchSummaries.filter(
+                (item) =>
+                  !(
+                    item.id === record.id ||
+                    (item.date === record.date &&
+                      item.category === record.category &&
+                      item.opponent.trim().toLowerCase() ===
+                        record.opponent.trim().toLowerCase())
+                  ),
+              ),
+            ],
+          }),
+          "competition",
+        ),
 
       // Guarda el partido y toda su planilla en una sola mutacion.
       // Evita que Supabase devuelva primero solo el encabezado del partido
@@ -1683,16 +1755,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             opponent: record.opponent,
             competitionName: record.competitionName,
             category: item.category ?? record.category,
-            movementModule: 'competencia' as const,
+            movementModule: "competencia" as const,
           }));
           const competitionExternalLoads = normalizedRecords
             .map((item) => buildCompetitionExternalLoad(record, item))
             .filter(Boolean) as DailyExternalLoadRecord[];
-          const competitionLoadIds = new Set(competitionExternalLoads.map((item) => item.id));
+          const competitionLoadIds = new Set(
+            competitionExternalLoads.map((item) => item.id),
+          );
           const sameCompetitionLoad = (item: DailyExternalLoadRecord) => {
             if (competitionLoadIds.has(item.id)) return true;
-            if (item.movementModule !== 'competencia' && !item.id.startsWith('comp-load-')) return false;
-            return item.sessionId === record.id || (item.date === record.date && normalizedRecords.some((row) => row.playerId === item.playerId));
+            if (
+              item.movementModule !== "competencia" &&
+              !item.id.startsWith("comp-load-")
+            )
+              return false;
+            return (
+              item.sessionId === record.id ||
+              (item.date === record.date &&
+                normalizedRecords.some((row) => row.playerId === item.playerId))
+            );
           };
           return {
             ...prev,
@@ -1715,23 +1797,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             ],
             externalLoads: [
               ...competitionExternalLoads,
-              ...prev.externalLoads.filter((item) => !sameCompetitionLoad(item)),
+              ...prev.externalLoads.filter(
+                (item) => !sameCompetitionLoad(item),
+              ),
             ],
           };
-        }, 'competition'),
+        }, "competition"),
       deleteCompetitionMatchSummary: (matchId) => {
-        applyMutation((prev) => ({
-          ...prev,
-          competitionMatchSummaries: prev.competitionMatchSummaries.filter(
-            (item) => item.id !== matchId,
-          ),
-          competitionRecords: prev.competitionRecords.filter(
-            (item) => item.matchId !== matchId,
-          ),
-          externalLoads: prev.externalLoads.filter(
-            (item) => !(item.sessionId === matchId && (item.movementModule === 'competencia' || item.id.startsWith('comp-load-'))),
-          ),
-        }), 'competition');
+        applyMutation(
+          (prev) => ({
+            ...prev,
+            competitionMatchSummaries: prev.competitionMatchSummaries.filter(
+              (item) => item.id !== matchId,
+            ),
+            competitionRecords: prev.competitionRecords.filter(
+              (item) => item.matchId !== matchId,
+            ),
+            externalLoads: prev.externalLoads.filter(
+              (item) =>
+                !(
+                  item.sessionId === matchId &&
+                  (item.movementModule === "competencia" ||
+                    item.id.startsWith("comp-load-"))
+                ),
+            ),
+          }),
+          "competition",
+        );
         void deleteRemoteLegacy("competition_matches", matchId);
       },
 
@@ -1762,19 +1854,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         applyMutation((prev) => {
           const matchesSession = (item: {
             sessionId?: string;
-            date: string;
+            date?: string;
             category?: string;
             actingCategory?: string;
             sessionNumber?: number;
-          }) => {
-            if (item.sessionId === record.id) return true;
-            return (
-              item.date === record.date &&
-              (item.category ?? item.actingCategory) === record.category &&
-              (item.sessionNumber ?? record.sessionNumber) ===
-                record.sessionNumber
-            );
-          };
+            movementModule?: string;
+          }) => recordMatchesTrainingSession(item, record);
 
           return {
             ...prev,
@@ -1807,20 +1892,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         );
         const matchesSession = (item: {
           sessionId?: string;
-          date: string;
+          date?: string;
           category?: string;
           actingCategory?: string;
           sessionNumber?: number;
-        }) => {
-          if (item.sessionId === sessionId) return true;
-          if (!target) return false;
-          return (
-            item.date === target.date &&
-            (item.category ?? item.actingCategory) === target.category &&
-            (item.sessionNumber ?? target.sessionNumber) ===
-              target.sessionNumber
-          );
-        };
+          movementModule?: string;
+        }) => Boolean(target && recordMatchesTrainingSession(item, target));
         applyMutation((prev) => ({
           ...prev,
           trainingSessionSummaries: prev.trainingSessionSummaries.filter(
@@ -1831,6 +1908,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           ),
           internalLoads: prev.internalLoads.filter(
             (item) => !matchesSession(item),
+          ),
+          competitionRecords: prev.competitionRecords.filter(
+            (item) => item.matchId !== sessionId,
+          ),
+          competitionMatchSummaries: prev.competitionMatchSummaries.filter(
+            (item) => item.id !== sessionId,
           ),
         }));
         if (target && hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
@@ -1859,6 +1942,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             .filter((item) => matchesSession(item))
             .forEach((item) => {
               void deleteRemoteLegacy("daily_internal_loads", item.id);
+            });
+          current.competitionRecords
+            .filter((item) => item.matchId === sessionId)
+            .forEach((item) => {
+              void deleteRemoteLegacy("competition_records", item.id);
+            });
+          current.competitionMatchSummaries
+            .filter((item) => item.id === sessionId)
+            .forEach((item) => {
+              void deleteRemoteLegacy("competition_matches", item.id);
             });
         }
       },

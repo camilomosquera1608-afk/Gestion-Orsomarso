@@ -12,14 +12,24 @@ import type {
   Player,
   StrengthPlayerAdjustment,
   StrengthPlayerResponse,
-} from './types';
-import { isGoalkeeper } from './performance-helpers';
+  TrainingSessionSummary,
+} from "./types";
+import { isGoalkeeper } from "./performance-helpers";
 
-const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase();
+const normalize = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
 
-const normalizePlayerName = (value: unknown) => normalize(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+const normalizePlayerName = (value: unknown) =>
+  normalize(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
 
-export const playerIdentityKeys = (player?: Pick<Player, 'id' | 'name' | 'category' | 'documentId'> | null) => {
+export const playerIdentityKeys = (
+  player?: Pick<Player, "id" | "name" | "category" | "documentId"> | null,
+) => {
   if (!player) return [];
   const keys = new Set<string>();
   const documentKey = normalize(player.documentId);
@@ -31,10 +41,14 @@ export const playerIdentityKeys = (player?: Pick<Player, 'id' | 'name' | 'catego
   return Array.from(keys).filter(Boolean);
 };
 
-export const playerIdentityKey = (player?: Pick<Player, 'id' | 'name' | 'category' | 'documentId'> | null) => {
-  if (!player) return '';
-  const keys = playerIdentityKeys(player).filter((key) => !key.startsWith('id:'));
-  return keys[0] ?? (player.id ? `id:${player.id}` : '');
+export const playerIdentityKey = (
+  player?: Pick<Player, "id" | "name" | "category" | "documentId"> | null,
+) => {
+  if (!player) return "";
+  const keys = playerIdentityKeys(player).filter(
+    (key) => !key.startsWith("id:"),
+  );
+  return keys[0] ?? (player.id ? `id:${player.id}` : "");
 };
 
 const buildPlayerIdentityAliasMap = (players: Player[]) => {
@@ -44,7 +58,10 @@ const buildPlayerIdentityAliasMap = (players: Player[]) => {
   players.forEach((player) => {
     const keys = playerIdentityKeys(player);
     const existingGroup = keys.map((key) => aliases.get(key)).find(Boolean);
-    const groupKey = existingGroup ?? keys.find((key) => !key.startsWith('id:')) ?? `id:${player.id}`;
+    const groupKey =
+      existingGroup ??
+      keys.find((key) => !key.startsWith("id:")) ??
+      `id:${player.id}`;
     const current = groups.get(groupKey) ?? [];
     current.push(player);
     groups.set(groupKey, current);
@@ -58,7 +75,9 @@ const buildPlayerIdentityAliasMap = (players: Player[]) => {
     changed = false;
     players.forEach((player) => {
       const keys = playerIdentityKeys(player);
-      const groupKeys = Array.from(new Set(keys.map((key) => aliases.get(key)).filter(Boolean))) as string[];
+      const groupKeys = Array.from(
+        new Set(keys.map((key) => aliases.get(key)).filter(Boolean)),
+      ) as string[];
       if (groupKeys.length <= 1) return;
       const target = groupKeys[0];
       groupKeys.slice(1).forEach((source) => {
@@ -67,7 +86,9 @@ const buildPlayerIdentityAliasMap = (players: Player[]) => {
         const targetPlayers = groups.get(target) ?? [];
         groups.set(target, [...targetPlayers, ...sourcePlayers]);
         groups.delete(source);
-        sourcePlayers.forEach((item) => playerIdentityKeys(item).forEach((key) => aliases.set(key, target)));
+        sourcePlayers.forEach((item) =>
+          playerIdentityKeys(item).forEach((key) => aliases.set(key, target)),
+        );
         changed = true;
       });
     });
@@ -80,106 +101,325 @@ export const getRelatedPlayerIds = (players: Player[], playerId: string) => {
   const player = players.find((item) => item.id === playerId);
   if (!player) return new Set([playerId]);
   const { aliases, groups } = buildPlayerIdentityAliasMap(players);
-  const groupKey = playerIdentityKeys(player).map((key) => aliases.get(key)).find(Boolean);
-  const related = groupKey ? groups.get(groupKey) ?? [] : [];
+  const groupKey = playerIdentityKeys(player)
+    .map((key) => aliases.get(key))
+    .find(Boolean);
+  const related = groupKey ? (groups.get(groupKey) ?? []) : [];
   return new Set((related.length ? related : [player]).map((item) => item.id));
 };
 
-export const getRelatedPlayerIdSet = (allPlayers: Player[], visiblePlayers: Player[]) => {
+export const getRelatedPlayerIdSet = (
+  allPlayers: Player[],
+  visiblePlayers: Player[],
+) => {
   const ids = new Set<string>();
-  visiblePlayers.forEach((player) => getRelatedPlayerIds(allPlayers, player.id).forEach((id) => ids.add(id)));
+  visiblePlayers.forEach((player) =>
+    getRelatedPlayerIds(allPlayers, player.id).forEach((id) => ids.add(id)),
+  );
   return ids;
 };
 
-const recordCountForPlayer = (data: Pick<AppData, 'wellness' | 'internalLoads' | 'externalLoads' | 'competitionRecords'>, playerId: string) =>
+const recordCountForPlayer = (
+  data: Pick<
+    AppData,
+    "wellness" | "internalLoads" | "externalLoads" | "competitionRecords"
+  >,
+  playerId: string,
+) =>
   (data.wellness ?? []).filter((item) => item.playerId === playerId).length +
-  (data.internalLoads ?? []).filter((item) => item.playerId === playerId).length +
-  (data.externalLoads ?? []).filter((item) => item.playerId === playerId).length +
-  (data.competitionRecords ?? []).filter((item) => item.playerId === playerId).length;
+  (data.internalLoads ?? []).filter((item) => item.playerId === playerId)
+    .length +
+  (data.externalLoads ?? []).filter((item) => item.playerId === playerId)
+    .length +
+  (data.competitionRecords ?? []).filter((item) => item.playerId === playerId)
+    .length;
 
-const playerCompletenessScore = (player: Player) => [
-  player.documentId,
-  player.birthDate,
-  player.jerseyNumber,
-  player.phone,
-  player.height,
-  player.weight,
-  player.dominantFoot,
-  player.competitiveRole,
-  player.photoUrl || player.photo,
-  player.medicalNotes,
-].filter((value) => value !== undefined && value !== null && String(value).trim() !== '').length;
+const playerCompletenessScore = (player: Player) =>
+  [
+    player.documentId,
+    player.birthDate,
+    player.jerseyNumber,
+    player.phone,
+    player.height,
+    player.weight,
+    player.dominantFoot,
+    player.competitiveRole,
+    player.photoUrl || player.photo,
+    player.medicalNotes,
+  ].filter(
+    (value) =>
+      value !== undefined && value !== null && String(value).trim() !== "",
+  ).length;
 
 const mergePlayerGroup = (canonical: Player, group: Player[]): Player => {
-  const merged: Record<string, unknown> = { ...(canonical as unknown as Record<string, unknown>) };
+  const merged: Record<string, unknown> = {
+    ...(canonical as unknown as Record<string, unknown>),
+  };
   group.forEach((player) => {
-    Object.entries(player as unknown as Record<string, unknown>).forEach(([key, value]) => {
-      if (key === 'id') return;
-      const current = merged[key];
-      const hasCurrent = hasMeaningfulValue(current);
-      const hasValue = hasMeaningfulValue(value);
-      if (!hasCurrent && hasValue) merged[key] = value;
-    });
+    Object.entries(player as unknown as Record<string, unknown>).forEach(
+      ([key, value]) => {
+        if (key === "id") return;
+        const current = merged[key];
+        const hasCurrent = hasMeaningfulValue(current);
+        const hasValue = hasMeaningfulValue(value);
+        if (!hasCurrent && hasValue) merged[key] = value;
+      },
+    );
   });
   merged.id = canonical.id;
-  merged.categoryHistory = Array.from(new Set(group.flatMap((player) => [player.category, ...(player.categoryHistory ?? [])]).filter(Boolean))) as ClubCategory[];
+  merged.categoryHistory = Array.from(
+    new Set(
+      group
+        .flatMap((player) => [
+          player.category,
+          ...(player.categoryHistory ?? []),
+        ])
+        .filter(Boolean),
+    ),
+  ) as ClubCategory[];
   return merged as unknown as Player;
 };
 
-export const getCanonicalPlayers = (data: AppData, sourcePlayers?: Player[]) => {
+export const getCanonicalPlayers = (
+  data: AppData,
+  sourcePlayers?: Player[],
+) => {
   const players = sourcePlayers ?? data.players;
   const { groups } = buildPlayerIdentityAliasMap(players);
 
-  return Array.from(groups.values()).map((group) => {
-    const canonical = group.slice().sort((a, b) => {
-      const recordDelta = recordCountForPlayer(data, b.id) - recordCountForPlayer(data, a.id);
-      if (recordDelta) return recordDelta;
-      const completenessDelta = playerCompletenessScore(b) - playerCompletenessScore(a);
-      if (completenessDelta) return completenessDelta;
-      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
-    })[0];
-    return mergePlayerGroup(canonical, group);
-  }).sort((a, b) => a.name.localeCompare(b.name));
+  return Array.from(groups.values())
+    .map((group) => {
+      const canonical = group.slice().sort((a, b) => {
+        const recordDelta =
+          recordCountForPlayer(data, b.id) - recordCountForPlayer(data, a.id);
+        if (recordDelta) return recordDelta;
+        const completenessDelta =
+          playerCompletenessScore(b) - playerCompletenessScore(a);
+        if (completenessDelta) return completenessDelta;
+        return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+      })[0];
+      return mergePlayerGroup(canonical, group);
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 };
 
-export const uniqueWellnessByPlayerIdentityDate = (players: Player[], records: DailyWellnessRecord[]) => {
+export const isDateWithinRange = (
+  date: string | undefined,
+  startDate?: string,
+  endDate?: string,
+) =>
+  Boolean(date && startDate && endDate && date >= startDate && date <= endDate);
+
+export const trainingSessionBelongsToMicrocycle = (
+  session: Pick<TrainingSessionSummary, "date" | "category" | "microcycleId">,
+  microcycle?: Pick<
+    import("./types").Microcycle,
+    "id" | "category" | "startDate" | "endDate"
+  > | null,
+  activeCategory: string = "all",
+) => {
+  if (!microcycle) return recordBelongsToCategory([], activeCategory, session);
+  const categoryOk =
+    sameCategory(activeCategory, session.category) &&
+    sameCategory(microcycle.category ?? activeCategory, session.category);
+  if (!categoryOk) return false;
+  if (session.microcycleId && session.microcycleId === microcycle.id)
+    return (
+      isDateWithinRange(
+        session.date,
+        microcycle.startDate,
+        microcycle.endDate,
+      ) ||
+      !microcycle.startDate ||
+      !microcycle.endDate
+    );
+  return isDateWithinRange(
+    session.date,
+    microcycle.startDate,
+    microcycle.endDate,
+  );
+};
+
+export const getTrainingSessionsForMicrocycle = (
+  data: Pick<AppData, "trainingSessionSummaries">,
+  microcycle?: Pick<
+    import("./types").Microcycle,
+    "id" | "category" | "startDate" | "endDate"
+  > | null,
+  activeCategory: string = "all",
+) =>
+  (data.trainingSessionSummaries ?? [])
+    .filter((session) =>
+      trainingSessionBelongsToMicrocycle(session, microcycle, activeCategory),
+    )
+    .sort((a, b) =>
+      `${a.date}-${a.sessionNumber}`.localeCompare(
+        `${b.date}-${b.sessionNumber}`,
+      ),
+    );
+
+export const findMicrocycleForSession = (
+  microcycles: AppData["microcycles"],
+  session: Pick<TrainingSessionSummary, "date" | "category" | "microcycleId">,
+) => {
+  const byId = session.microcycleId
+    ? microcycles.find((microcycle) => microcycle.id === session.microcycleId)
+    : undefined;
+  if (
+    byId &&
+    trainingSessionBelongsToMicrocycle(session, byId, session.category ?? "all")
+  )
+    return byId;
+  return microcycles.find((microcycle) =>
+    trainingSessionBelongsToMicrocycle(
+      session,
+      microcycle,
+      session.category ?? microcycle.category ?? "all",
+    ),
+  );
+};
+
+const sessionNaturalKey = (
+  date?: string,
+  category?: string,
+  sessionNumber?: number | string,
+) =>
+  date && category && sessionNumber !== undefined && sessionNumber !== null
+    ? `${normalizeDate(date)}::${normalizeCategoryKey(category)}::${Number(sessionNumber) || 1}`
+    : "";
+
+export const recordMatchesTrainingSession = (
+  record: {
+    sessionId?: string;
+    date?: string;
+    category?: string;
+    actingCategory?: string;
+    sessionNumber?: number;
+    movementModule?: string;
+  },
+  session: Pick<
+    TrainingSessionSummary,
+    "id" | "date" | "category" | "sessionNumber"
+  >,
+) => {
+  if (record.sessionId === session.id) return true;
+  if (record.movementModule === "competencia") return false;
+  return (
+    sessionNaturalKey(
+      record.date,
+      record.category ?? record.actingCategory,
+      record.sessionNumber ?? session.sessionNumber,
+    ) ===
+    sessionNaturalKey(session.date, session.category, session.sessionNumber)
+  );
+};
+
+export const countSessionLinkedRecords = (
+  data: AppData,
+  session: TrainingSessionSummary,
+) => ({
+  external: (data.externalLoads ?? []).filter((record) =>
+    recordMatchesTrainingSession(record, session),
+  ).length,
+  internal: (data.internalLoads ?? []).filter((record) =>
+    recordMatchesTrainingSession(record, session),
+  ).length,
+  competition: (data.competitionRecords ?? []).filter(
+    (record) => record.matchId === session.id,
+  ).length,
+});
+
+export const uniqueWellnessByPlayerIdentityDate = (
+  players: Player[],
+  records: DailyWellnessRecord[],
+) => {
   const byKey = new Map<string, DailyWellnessRecord>();
   records.forEach((record) => {
     const player = players.find((item) => item.id === record.playerId);
-    const identity = player ? playerIdentityKey(player) : `id:${record.playerId}`;
+    const identity = player
+      ? playerIdentityKey(player)
+      : `id:${record.playerId}`;
     const key = `${identity}::${record.date}`;
     const existing = byKey.get(key);
-    const score = [record.sleep, record.fatigue, record.stress, record.musclePain, record.mood].filter((value) => Number(value) > 0).length;
-    const existingScore = existing ? [existing.sleep, existing.fatigue, existing.stress, existing.musclePain, existing.mood].filter((value) => Number(value) > 0).length : -1;
-    if (!existing || score > existingScore || (score === existingScore && String(record.id).localeCompare(String(existing.id)) > 0)) byKey.set(key, record);
+    const score = [
+      record.sleep,
+      record.fatigue,
+      record.stress,
+      record.musclePain,
+      record.mood,
+    ].filter((value) => Number(value) > 0).length;
+    const existingScore = existing
+      ? [
+          existing.sleep,
+          existing.fatigue,
+          existing.stress,
+          existing.musclePain,
+          existing.mood,
+        ].filter((value) => Number(value) > 0).length
+      : -1;
+    if (
+      !existing ||
+      score > existingScore ||
+      (score === existingScore &&
+        String(record.id).localeCompare(String(existing.id)) > 0)
+    )
+      byKey.set(key, record);
   });
   return Array.from(byKey.values());
 };
 
-export const isAllCategory = (category?: string | null) => !category || category === 'all';
+export const isAllCategory = (category?: string | null) =>
+  !category || category === "all";
 
-export const sameCategory = (activeCategory: string, itemCategory?: string | null) =>
-  isAllCategory(activeCategory) || !itemCategory || itemCategory === activeCategory;
+export const sameCategory = (
+  activeCategory: string,
+  itemCategory?: string | null,
+) =>
+  isAllCategory(activeCategory) ||
+  !itemCategory ||
+  itemCategory === activeCategory;
 
-export const playerCategory = (players: Player[], playerId: string): ClubCategory | undefined =>
+export const playerCategory = (
+  players: Player[],
+  playerId: string,
+): ClubCategory | undefined =>
   players.find((player) => player.id === playerId)?.category;
 
 export const recordCategory = (
   players: Player[],
-  record: { playerId?: string; category?: ClubCategory; actingCategory?: ClubCategory; baseCategory?: ClubCategory },
+  record: {
+    playerId?: string;
+    category?: ClubCategory;
+    actingCategory?: ClubCategory;
+    baseCategory?: ClubCategory;
+  },
 ): ClubCategory | undefined =>
-  record.category ?? record.actingCategory ?? record.baseCategory ?? (record.playerId ? playerCategory(players, record.playerId) : undefined);
+  record.category ??
+  record.actingCategory ??
+  record.baseCategory ??
+  (record.playerId ? playerCategory(players, record.playerId) : undefined);
 
 export const recordBelongsToCategory = (
   players: Player[],
   activeCategory: string,
-  record: { playerId?: string; category?: ClubCategory; actingCategory?: ClubCategory; baseCategory?: ClubCategory },
+  record: {
+    playerId?: string;
+    category?: ClubCategory;
+    actingCategory?: ClubCategory;
+    baseCategory?: ClubCategory;
+  },
 ) => sameCategory(activeCategory, recordCategory(players, record));
 
-export const isCompetitionExternalLoad = (record: Pick<DailyExternalLoadRecord, 'id' | 'movementModule'>) =>
-  record.movementModule === 'competencia' || String(record.id ?? '').startsWith('comp-load-') || String(record.id ?? '').startsWith('competition-');
+export const isCompetitionExternalLoad = (
+  record: Pick<DailyExternalLoadRecord, "id" | "movementModule">,
+) =>
+  record.movementModule === "competencia" ||
+  String(record.id ?? "").startsWith("comp-load-") ||
+  String(record.id ?? "").startsWith("competition-");
 
-export const hasGpsValue = (record: Partial<DailyExternalLoadRecord> | Partial<CompetitionRecord>) =>
+export const hasGpsValue = (
+  record: Partial<DailyExternalLoadRecord> | Partial<CompetitionRecord>,
+) =>
   Number(record.totalDistance ?? 0) > 0 ||
   Number(record.playerLoad ?? 0) > 0 ||
   Number(record.highSpeedDistance ?? record.hsr ?? 0) > 0 ||
@@ -217,26 +457,35 @@ export const competitionRecordToExternalLoad = (
     sprintDistance: record.sprintDistance,
     maxVelocity: record.maxVelocity,
     playerLoad: record.playerLoad,
-    participation: 'Completa',
-    sessionType: 'MD',
+    participation: "Completa",
+    sessionType: "MD",
     category: record.category ?? player?.category,
     baseCategory: record.baseCategory,
-    actingCategory: record.actingCategory ?? record.category ?? player?.category,
-    movementType: record.movementType ?? 'base',
+    actingCategory:
+      record.actingCategory ?? record.category ?? player?.category,
+    movementType: record.movementType ?? "base",
     movementNote: record.movementNote,
-    movementModule: 'competencia',
+    movementModule: "competencia",
     loggedBy: record.loggedBy,
   };
 };
 
-const externalIdentityKeys = (record: DailyExternalLoadRecord) => [
-  record.id ? `id:${record.id}` : '',
-  record.sessionId ? `session:${record.sessionId}:${record.playerId}` : '',
-  record.sessionId ? `session-date:${record.sessionId}:${record.playerId}:${record.date}` : '',
-  isCompetitionExternalLoad(record) ? `competition:${record.playerId}:${record.date}` : '',
-].filter(Boolean);
+const externalIdentityKeys = (record: DailyExternalLoadRecord) =>
+  [
+    record.id ? `id:${record.id}` : "",
+    record.sessionId ? `session:${record.sessionId}:${record.playerId}` : "",
+    record.sessionId
+      ? `session-date:${record.sessionId}:${record.playerId}:${record.date}`
+      : "",
+    isCompetitionExternalLoad(record)
+      ? `competition:${record.playerId}:${record.date}`
+      : "",
+  ].filter(Boolean);
 
-export const mergeExternalLoads = (stored: DailyExternalLoadRecord[], derived: DailyExternalLoadRecord[]) => {
+export const mergeExternalLoads = (
+  stored: DailyExternalLoadRecord[],
+  derived: DailyExternalLoadRecord[],
+) => {
   const usedKeys = new Set<string>();
   const output: DailyExternalLoadRecord[] = [];
 
@@ -253,36 +502,56 @@ export const mergeExternalLoads = (stored: DailyExternalLoadRecord[], derived: D
 };
 
 export const getEffectiveExternalLoads = (
-  data: Pick<AppData, 'externalLoads' | 'competitionRecords' | 'players'>,
-  options: { includeDerivedCompetition?: boolean; activeCategory?: string; date?: string; playerIds?: Set<string> } = {},
+  data: Pick<AppData, "externalLoads" | "competitionRecords" | "players">,
+  options: {
+    includeDerivedCompetition?: boolean;
+    activeCategory?: string;
+    date?: string;
+    playerIds?: Set<string>;
+  } = {},
 ): DailyExternalLoadRecord[] => {
-  const { includeDerivedCompetition = true, activeCategory = 'all', date, playerIds } = options;
-  const stored = (data.externalLoads ?? []).filter((record) =>
-    (!date || record.date === date) &&
-    (!playerIds || playerIds.has(record.playerId)) &&
-    recordBelongsToCategory(data.players ?? [], activeCategory, record),
+  const {
+    includeDerivedCompetition = true,
+    activeCategory = "all",
+    date,
+    playerIds,
+  } = options;
+  const stored = (data.externalLoads ?? []).filter(
+    (record) =>
+      (!date || record.date === date) &&
+      (!playerIds || playerIds.has(record.playerId)) &&
+      recordBelongsToCategory(data.players ?? [], activeCategory, record),
   );
 
   if (!includeDerivedCompetition) return stored;
 
   const derived = (data.competitionRecords ?? [])
-    .filter((record) =>
-      (!date || record.date === date) &&
-      (!playerIds || playerIds.has(record.playerId)) &&
-      recordBelongsToCategory(data.players ?? [], activeCategory, record),
+    .filter(
+      (record) =>
+        (!date || record.date === date) &&
+        (!playerIds || playerIds.has(record.playerId)) &&
+        recordBelongsToCategory(data.players ?? [], activeCategory, record),
     )
-    .map((record) => competitionRecordToExternalLoad(record, data.players ?? []))
+    .map((record) =>
+      competitionRecordToExternalLoad(record, data.players ?? []),
+    )
     .filter(Boolean) as DailyExternalLoadRecord[];
 
   return mergeExternalLoads(stored, derived);
 };
 
 export const getEffectiveExternalLoadsForPlayer = (
-  data: Pick<AppData, 'externalLoads' | 'competitionRecords' | 'players'>,
+  data: Pick<AppData, "externalLoads" | "competitionRecords" | "players">,
   playerId: string,
-  options: { startDate?: string; endDate?: string; date?: string; activeCategory?: string } = {},
-) => getEffectiveExternalLoads(data, {
-    activeCategory: options.activeCategory ?? 'all',
+  options: {
+    startDate?: string;
+    endDate?: string;
+    date?: string;
+    activeCategory?: string;
+  } = {},
+) =>
+  getEffectiveExternalLoads(data, {
+    activeCategory: options.activeCategory ?? "all",
     date: options.date,
     playerIds: new Set([playerId]),
   }).filter((record) => {
@@ -296,78 +565,205 @@ export const uniqueWellnessByPlayerDate = (records: DailyWellnessRecord[]) => {
   records.forEach((record) => {
     const key = `${record.playerId}::${record.date}::${normalize(record.category)}`;
     const existing = byKey.get(key);
-    if (!existing || String(record.id).localeCompare(String(existing.id)) > 0) byKey.set(key, record);
+    if (!existing || String(record.id).localeCompare(String(existing.id)) > 0)
+      byKey.set(key, record);
   });
   return Array.from(byKey.values());
 };
 
 export const getWellnessRecordsForDate = (
-  data: Pick<AppData, 'wellness'> & Partial<Pick<AppData, 'players'>>,
+  data: Pick<AppData, "wellness"> & Partial<Pick<AppData, "players">>,
   date: string,
   playerIds?: Set<string>,
 ) => {
-  const filtered = (data.wellness ?? []).filter((record) => record.date === date && (!playerIds || playerIds.has(record.playerId)));
-  return data.players?.length ? uniqueWellnessByPlayerIdentityDate(data.players, filtered) : uniqueWellnessByPlayerDate(filtered);
+  const filtered = (data.wellness ?? []).filter(
+    (record) =>
+      record.date === date && (!playerIds || playerIds.has(record.playerId)),
+  );
+  return data.players?.length
+    ? uniqueWellnessByPlayerIdentityDate(data.players, filtered)
+    : uniqueWellnessByPlayerDate(filtered);
 };
 
 export const getInternalLoadsForDate = (
-  data: Pick<AppData, 'internalLoads'>,
+  data: Pick<AppData, "internalLoads">,
   date: string,
   playerIds?: Set<string>,
 ): DailyInternalLoadRecord[] =>
-  (data.internalLoads ?? []).filter((record) => record.date === date && (!playerIds || playerIds.has(record.playerId)));
+  (data.internalLoads ?? []).filter(
+    (record) =>
+      record.date === date && (!playerIds || playerIds.has(record.playerId)),
+  );
 
 export interface SharedDataDiagnostic {
   id: string;
-  severity: 'ok' | 'warning' | 'error';
+  severity: "ok" | "warning" | "error";
   title: string;
   detail: string;
 }
 
-export const buildSharedDataDiagnostics = (data: AppData): SharedDataDiagnostic[] => {
+export const buildSharedDataDiagnostics = (
+  data: AppData,
+): SharedDataDiagnostic[] => {
   const playerIds = new Set(data.players.map((player) => player.id));
   const identityCounts = data.players.reduce((acc, player) => {
     const key = playerIdentityKey(player);
     acc.set(key, (acc.get(key) ?? 0) + 1);
     return acc;
   }, new Map<string, number>());
-  const duplicatePlayerIdentities = Array.from(identityCounts.values()).filter((count) => count > 1).length;
+  const duplicatePlayerIdentities = Array.from(identityCounts.values()).filter(
+    (count) => count > 1,
+  ).length;
   const knownMicrocycleIds = new Set(data.microcycles.map((item) => item.id));
-  const sessionIds = new Set(data.trainingSessionSummaries.map((item) => item.id));
-  const matchIds = new Set(data.competitionMatchSummaries.map((item) => item.id));
+  const sessionIds = new Set(
+    data.trainingSessionSummaries.map((item) => item.id),
+  );
+  const matchIds = new Set(
+    data.competitionMatchSummaries.map((item) => item.id),
+  );
   const effectiveExternal = getEffectiveExternalLoads(data);
 
-  const orphanWellness = data.wellness.filter((record) => !playerIds.has(record.playerId)).length;
-  const orphanInternal = data.internalLoads.filter((record) => !playerIds.has(record.playerId)).length;
-  const orphanExternal = data.externalLoads.filter((record) => !playerIds.has(record.playerId)).length;
-  const orphanCompetition = data.competitionRecords.filter((record) => !playerIds.has(record.playerId)).length;
-  const unresolvedSessions = data.trainingSessionSummaries.filter((session) => session.microcycleId && !knownMicrocycleIds.has(session.microcycleId)).length;
-  const internalWithoutSession = data.internalLoads.filter((record) => record.sessionId && !sessionIds.has(record.sessionId)).length;
-  const externalWithoutSession = data.externalLoads.filter((record) => record.sessionId && !sessionIds.has(record.sessionId) && !isCompetitionExternalLoad(record)).length;
-  const competitionWithoutMatch = data.competitionRecords.filter((record) => record.matchId && !matchIds.has(record.matchId)).length;
-  const derivedCompetitionLoads = effectiveExternal.filter((record) => isCompetitionExternalLoad(record)).length;
+  const orphanWellness = data.wellness.filter(
+    (record) => !playerIds.has(record.playerId),
+  ).length;
+  const orphanInternal = data.internalLoads.filter(
+    (record) => !playerIds.has(record.playerId),
+  ).length;
+  const orphanExternal = data.externalLoads.filter(
+    (record) => !playerIds.has(record.playerId),
+  ).length;
+  const orphanCompetition = data.competitionRecords.filter(
+    (record) => !playerIds.has(record.playerId),
+  ).length;
+  const unresolvedSessions = data.trainingSessionSummaries.filter(
+    (session) =>
+      session.microcycleId && !knownMicrocycleIds.has(session.microcycleId),
+  ).length;
+  const sessionsOutsideMicrocycle = data.trainingSessionSummaries.filter(
+    (session) => {
+      const microcycle = data.microcycles.find(
+        (item) => item.id === session.microcycleId,
+      );
+      return Boolean(
+        microcycle &&
+        !trainingSessionBelongsToMicrocycle(
+          session,
+          microcycle,
+          session.category ?? "all",
+        ),
+      );
+    },
+  ).length;
+  const internalWithoutSession = data.internalLoads.filter(
+    (record) => record.sessionId && !sessionIds.has(record.sessionId),
+  ).length;
+  const externalWithoutSession = data.externalLoads.filter(
+    (record) =>
+      record.sessionId &&
+      !sessionIds.has(record.sessionId) &&
+      !isCompetitionExternalLoad(record),
+  ).length;
+  const competitionWithoutMatch = data.competitionRecords.filter(
+    (record) => record.matchId && !matchIds.has(record.matchId),
+  ).length;
+  const derivedCompetitionLoads = effectiveExternal.filter((record) =>
+    isCompetitionExternalLoad(record),
+  ).length;
 
-  const item = (id: string, count: number, title: string, ok: string, bad: string, severity: SharedDataDiagnostic['severity'] = 'warning'): SharedDataDiagnostic => ({
+  const item = (
+    id: string,
+    count: number,
+    title: string,
+    ok: string,
+    bad: string,
+    severity: SharedDataDiagnostic["severity"] = "warning",
+  ): SharedDataDiagnostic => ({
     id,
-    severity: count === 0 ? 'ok' : severity,
+    severity: count === 0 ? "ok" : severity,
     title,
-    detail: count === 0 ? ok : bad.replace('{count}', String(count)),
+    detail: count === 0 ? ok : bad.replace("{count}", String(count)),
   });
 
   return [
-    item('duplicate-player-identities', duplicatePlayerIdentities, 'Jugadores duplicados por identidad', 'No se detectan jugadores repetidos por nombre/categoría o documento.', '{count} identidades de jugador están duplicadas. La app las unifica para lectura, pero conviene limpiar la plantilla.', 'warning'),
-    item('wellness-player-link', orphanWellness, 'Wellness ↔ jugadores', 'Todos los wellness están asociados a jugadores.', '{count} wellness no tienen jugador válido.', 'error'),
-    item('internal-player-link', orphanInternal, 'Carga interna ↔ jugadores', 'Toda la carga interna está asociada a jugadores.', '{count} cargas internas no tienen jugador válido.', 'error'),
-    item('external-player-link', orphanExternal, 'GPS/carga externa ↔ jugadores', 'Toda la carga externa está asociada a jugadores.', '{count} cargas externas no tienen jugador válido.', 'error'),
-    item('competition-player-link', orphanCompetition, 'Competencia ↔ jugadores', 'Todos los registros de competencia están asociados a jugadores.', '{count} registros de competencia no tienen jugador válido.', 'error'),
-    item('microcycle-session-link', unresolvedSessions, 'Microciclo ↔ sesión', 'Las sesiones apuntan a microciclos válidos.', '{count} sesiones apuntan a microciclos inexistentes.'),
-    item('internal-session-link', internalWithoutSession, 'Carga interna ↔ sesión', 'Las cargas internas con sesión apuntan a una sesión válida.', '{count} cargas internas apuntan a sesiones inexistentes.'),
-    item('external-session-link', externalWithoutSession, 'GPS ↔ sesión', 'Las cargas externas con sesión apuntan a una sesión válida.', '{count} cargas externas apuntan a sesiones inexistentes.'),
-    item('competition-match-link', competitionWithoutMatch, 'Competencia ↔ partido', 'Todas las planillas apuntan a partidos válidos.', '{count} registros de competencia apuntan a partidos inexistentes.'),
+    item(
+      "duplicate-player-identities",
+      duplicatePlayerIdentities,
+      "Jugadores duplicados por identidad",
+      "No se detectan jugadores repetidos por nombre/categoría o documento.",
+      "{count} identidades de jugador están duplicadas. La app las unifica para lectura, pero conviene limpiar la plantilla.",
+      "warning",
+    ),
+    item(
+      "wellness-player-link",
+      orphanWellness,
+      "Wellness ↔ jugadores",
+      "Todos los wellness están asociados a jugadores.",
+      "{count} wellness no tienen jugador válido.",
+      "error",
+    ),
+    item(
+      "internal-player-link",
+      orphanInternal,
+      "Carga interna ↔ jugadores",
+      "Toda la carga interna está asociada a jugadores.",
+      "{count} cargas internas no tienen jugador válido.",
+      "error",
+    ),
+    item(
+      "external-player-link",
+      orphanExternal,
+      "GPS/carga externa ↔ jugadores",
+      "Toda la carga externa está asociada a jugadores.",
+      "{count} cargas externas no tienen jugador válido.",
+      "error",
+    ),
+    item(
+      "competition-player-link",
+      orphanCompetition,
+      "Competencia ↔ jugadores",
+      "Todos los registros de competencia están asociados a jugadores.",
+      "{count} registros de competencia no tienen jugador válido.",
+      "error",
+    ),
+    item(
+      "microcycle-session-link",
+      unresolvedSessions,
+      "Microciclo ↔ sesión",
+      "Las sesiones apuntan a microciclos válidos.",
+      "{count} sesiones apuntan a microciclos inexistentes.",
+    ),
+    item(
+      "session-range-link",
+      sessionsOutsideMicrocycle,
+      "Sesiones dentro del microciclo",
+      "Todas las sesiones están dentro del rango y categoría de su microciclo.",
+      "{count} sesiones están fuera del rango/categoría de su microciclo.",
+    ),
+    item(
+      "internal-session-link",
+      internalWithoutSession,
+      "Carga interna ↔ sesión",
+      "Las cargas internas con sesión apuntan a una sesión válida.",
+      "{count} cargas internas apuntan a sesiones inexistentes.",
+    ),
+    item(
+      "external-session-link",
+      externalWithoutSession,
+      "GPS ↔ sesión",
+      "Las cargas externas con sesión apuntan a una sesión válida.",
+      "{count} cargas externas apuntan a sesiones inexistentes.",
+    ),
+    item(
+      "competition-match-link",
+      competitionWithoutMatch,
+      "Competencia ↔ partido",
+      "Todas las planillas apuntan a partidos válidos.",
+      "{count} registros de competencia apuntan a partidos inexistentes.",
+    ),
     {
-      id: 'competition-load-bridge',
-      severity: 'ok',
-      title: 'Competencia ↔ carga externa',
+      id: "competition-load-bridge",
+      severity: "ok",
+      title: "Competencia ↔ carga externa",
       detail: `${derivedCompetitionLoads} registros de competencia quedan disponibles para centros de carga, reportes y riesgo.`,
     },
   ];
@@ -376,22 +772,26 @@ export const buildSharedDataDiagnostics = (data: AppData): SharedDataDiagnostic[
 const valueMeaningScore = (record: Record<string, unknown>): number =>
   Object.values(record).reduce<number>((score, value) => {
     if (value === undefined || value === null) return score;
-    if (typeof value === 'number') return score + (Number.isFinite(value) && value !== 0 ? 2 : 0);
-    if (typeof value === 'string') return score + (value.trim() ? 1 : 0);
+    if (typeof value === "number")
+      return score + (Number.isFinite(value) && value !== 0 ? 2 : 0);
+    if (typeof value === "string") return score + (value.trim() ? 1 : 0);
     if (Array.isArray(value)) return score + value.length;
-    if (typeof value === 'object') return score + 1;
+    if (typeof value === "object") return score + 1;
     return score + 1;
   }, 0);
 
 const hasMeaningfulValue = (value: unknown) => {
   if (value === undefined || value === null) return false;
-  if (typeof value === 'string') return value.trim() !== '';
+  if (typeof value === "string") return value.trim() !== "";
   if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'number') return Number.isFinite(value) && value !== 0;
+  if (typeof value === "number") return Number.isFinite(value) && value !== 0;
   return true;
 };
 
-const mergeSharedRecord = <T extends Record<string, unknown>>(current: T | undefined, incoming: T): T => {
+const mergeSharedRecord = <T extends Record<string, unknown>>(
+  current: T | undefined,
+  incoming: T,
+): T => {
   if (!current) return incoming;
   const currentScore = valueMeaningScore(current);
   const incomingScore = valueMeaningScore(incoming);
@@ -399,7 +799,8 @@ const mergeSharedRecord = <T extends Record<string, unknown>>(current: T | undef
   const fallback = incomingScore >= currentScore ? current : incoming;
   const merged: Record<string, unknown> = { ...fallback, ...primary };
   Object.entries(fallback).forEach(([key, value]) => {
-    if (!hasMeaningfulValue(merged[key]) && hasMeaningfulValue(value)) merged[key] = value;
+    if (!hasMeaningfulValue(merged[key]) && hasMeaningfulValue(value))
+      merged[key] = value;
   });
   return merged as T;
 };
@@ -413,7 +814,10 @@ const dedupeSharedRecords = <T extends Record<string, unknown>>(
 
   records.forEach((record) => {
     const keys = keyFns.map((fn) => fn(record)).filter(Boolean) as string[];
-    const primaryKey = keys.map((key) => aliases.get(key)).find(Boolean) ?? keys[0] ?? JSON.stringify(record);
+    const primaryKey =
+      keys.map((key) => aliases.get(key)).find(Boolean) ??
+      keys[0] ??
+      JSON.stringify(record);
     const next = mergeSharedRecord(byKey.get(primaryKey), record);
     byKey.set(primaryKey, next);
     keys.forEach((key) => aliases.set(key, primaryKey));
@@ -422,16 +826,24 @@ const dedupeSharedRecords = <T extends Record<string, unknown>>(
   return Array.from(byKey.values());
 };
 
-const remapPlayerRecord = <T extends { playerId: string }>(record: T, idMap: Map<string, string>): T => ({
+const remapPlayerRecord = <T extends { playerId: string }>(
+  record: T,
+  idMap: Map<string, string>,
+): T => ({
   ...record,
   playerId: idMap.get(record.playerId) ?? record.playerId,
 });
 
-const normalizeDate = (value: unknown) => String(value ?? '').slice(0, 10);
+const normalizeDate = (value: unknown) => String(value ?? "").slice(0, 10);
 const normalizeCategoryKey = (value: unknown) => normalize(value);
 
-const mapStrengthPlayerIds = (ids: string[] | undefined, idMap: Map<string, string>) =>
-  Array.from(new Set((ids ?? []).map((id) => idMap.get(id) ?? id).filter(Boolean)));
+const mapStrengthPlayerIds = (
+  ids: string[] | undefined,
+  idMap: Map<string, string>,
+) =>
+  Array.from(
+    new Set((ids ?? []).map((id) => idMap.get(id) ?? id).filter(Boolean)),
+  );
 
 export const normalizeSharedDataLinks = (data: AppData): AppData => {
   const originalPlayers = data.players ?? [];
@@ -441,73 +853,183 @@ export const normalizeSharedDataLinks = (data: AppData): AppData => {
   const { groups } = buildPlayerIdentityAliasMap(originalPlayers);
   Array.from(groups.values()).forEach((group) => {
     const groupIds = new Set(group.map((player) => player.id));
-    const canonical = canonicalPlayers.find((player) => groupIds.has(player.id)) ?? group[0];
+    const canonical =
+      canonicalPlayers.find((player) => groupIds.has(player.id)) ?? group[0];
     group.forEach((player) => idMap.set(player.id, canonical.id));
   });
 
   const wellness = dedupeSharedRecords(
-    (data.wellness ?? []).map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+    (data.wellness ?? []).map((record) =>
+      remapPlayerRecord(record, idMap),
+    ) as unknown as Record<string, unknown>[],
     [
-      (item) => item.playerId && item.date ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category)}` : undefined,
-      (item) => item.id ? `id:${item.id}` : undefined,
+      (item) =>
+        item.playerId && item.date
+          ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category)}`
+          : undefined,
+      (item) => (item.id ? `id:${item.id}` : undefined),
     ],
   ) as unknown as DailyWellnessRecord[];
 
   const internalLoads = dedupeSharedRecords(
-    (data.internalLoads ?? []).map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+    (data.internalLoads ?? []).map((record) =>
+      remapPlayerRecord(record, idMap),
+    ) as unknown as Record<string, unknown>[],
     [
-      (item) => item.sessionId && item.playerId ? `session:${item.sessionId}:${item.playerId}` : undefined,
-      (item) => item.playerId && item.date && item.sessionNumber ? `daily-session:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category ?? item.actingCategory)}:${item.sessionNumber}` : undefined,
-      (item) => item.id ? `id:${item.id}` : undefined,
+      (item) =>
+        item.sessionId && item.playerId
+          ? `session:${item.sessionId}:${item.playerId}`
+          : undefined,
+      (item) =>
+        item.playerId && item.date && item.sessionNumber
+          ? `daily-session:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category ?? item.actingCategory)}:${item.sessionNumber}`
+          : undefined,
+      (item) => (item.id ? `id:${item.id}` : undefined),
     ],
   ) as unknown as DailyInternalLoadRecord[];
 
   const externalLoads = dedupeSharedRecords(
-    (data.externalLoads ?? []).map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+    (data.externalLoads ?? []).map((record) =>
+      remapPlayerRecord(record, idMap),
+    ) as unknown as Record<string, unknown>[],
     [
-      (item) => item.sessionId && item.playerId ? `session:${item.sessionId}:${item.playerId}:${normalize(item.movementModule)}` : undefined,
-      (item) => item.playerId && item.date && item.sessionNumber ? `daily-session:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category ?? item.actingCategory)}:${item.sessionNumber}:${normalize(item.movementModule)}` : undefined,
-      (item) => item.id ? `id:${item.id}` : undefined,
+      (item) =>
+        item.sessionId && item.playerId
+          ? `session:${item.sessionId}:${item.playerId}:${normalize(item.movementModule)}`
+          : undefined,
+      (item) =>
+        item.playerId && item.date && item.sessionNumber
+          ? `daily-session:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category ?? item.actingCategory)}:${item.sessionNumber}:${normalize(item.movementModule)}`
+          : undefined,
+      (item) => (item.id ? `id:${item.id}` : undefined),
     ],
   ) as unknown as DailyExternalLoadRecord[];
 
   const competitionRecords = dedupeSharedRecords(
-    (data.competitionRecords ?? []).map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+    (data.competitionRecords ?? []).map((record) =>
+      remapPlayerRecord(record, idMap),
+    ) as unknown as Record<string, unknown>[],
     [
-      (item) => item.matchId && item.playerId ? `match:${item.matchId}:${item.playerId}` : undefined,
-      (item) => item.playerId && item.date && item.opponent ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalize(item.opponent)}` : undefined,
-      (item) => item.id ? `id:${item.id}` : undefined,
+      (item) =>
+        item.matchId && item.playerId
+          ? `match:${item.matchId}:${item.playerId}`
+          : undefined,
+      (item) =>
+        item.playerId && item.date && item.opponent
+          ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalize(item.opponent)}`
+          : undefined,
+      (item) => (item.id ? `id:${item.id}` : undefined),
     ],
   ) as unknown as CompetitionRecord[];
 
-  const dedupeEvaluation = <T extends CMJRecord | NutritionRecord | NeuromuscularRecord | FMSRecord>(records: T[]) =>
+  const sessionMicrocycleId = (session: TrainingSessionSummary) =>
+    findMicrocycleForSession(data.microcycles ?? [], session)?.id ??
+    session.microcycleId ??
+    "";
+  const trainingSessionSummaries = dedupeSharedRecords(
+    (data.trainingSessionSummaries ?? []).map((session) => ({
+      ...session,
+      microcycleId: sessionMicrocycleId(session),
+    })) as unknown as Record<string, unknown>[],
+    [
+      (item) => (item.id ? `id:${item.id}` : undefined),
+      (item) =>
+        item.date && item.category && item.sessionNumber
+          ? `natural:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category)}:${item.sessionNumber}`
+          : undefined,
+    ],
+  ) as unknown as TrainingSessionSummary[];
+
+  const sessionById = new Map(
+    trainingSessionSummaries.map((session) => [session.id, session]),
+  );
+  const sessionByNaturalKey = new Map(
+    trainingSessionSummaries.map((session) => [
+      sessionNaturalKey(session.date, session.category, session.sessionNumber),
+      session,
+    ]),
+  );
+  const alignLoadWithSession = <
+    T extends DailyInternalLoadRecord | DailyExternalLoadRecord,
+  >(
+    record: T,
+  ): T => {
+    if ((record as DailyExternalLoadRecord).movementModule === "competencia")
+      return record;
+    const linked =
+      (record.sessionId ? sessionById.get(record.sessionId) : undefined) ??
+      sessionByNaturalKey.get(
+        sessionNaturalKey(
+          record.date,
+          record.category ?? record.actingCategory,
+          record.sessionNumber,
+        ),
+      );
+    if (!linked) return record;
+    return {
+      ...record,
+      sessionId: linked.id,
+      microcycleId: linked.microcycleId || record.microcycleId,
+      sessionNumber: linked.sessionNumber ?? record.sessionNumber,
+      category: (record.category ?? linked.category) as T["category"],
+      actingCategory: (record.actingCategory ??
+        linked.category) as T["actingCategory"],
+    };
+  };
+
+  const alignedInternalLoads = internalLoads.map((record) =>
+    alignLoadWithSession(record),
+  );
+  const alignedExternalLoads = externalLoads.map((record) =>
+    alignLoadWithSession(record),
+  );
+
+  const dedupeEvaluation = <
+    T extends CMJRecord | NutritionRecord | NeuromuscularRecord | FMSRecord,
+  >(
+    records: T[],
+  ) =>
     dedupeSharedRecords(
-      records.map((record) => remapPlayerRecord(record, idMap)) as unknown as Record<string, unknown>[],
+      records.map((record) =>
+        remapPlayerRecord(record, idMap),
+      ) as unknown as Record<string, unknown>[],
       [
-        (item) => item.playerId && item.date ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category)}` : undefined,
-        (item) => item.id ? `id:${item.id}` : undefined,
+        (item) =>
+          item.playerId && item.date
+            ? `natural:${item.playerId}:${normalizeDate(item.date)}:${normalizeCategoryKey(item.category)}`
+            : undefined,
+        (item) => (item.id ? `id:${item.id}` : undefined),
       ],
     ) as unknown as T[];
 
   const strengthSessions = (data.strengthSessions ?? []).map((session) => ({
     ...session,
     playerIds: mapStrengthPlayerIds(session.playerIds, idMap),
-    excludedPlayerIds: session.excludedPlayerIds ? mapStrengthPlayerIds(session.excludedPlayerIds, idMap) : session.excludedPlayerIds,
-    adjustments: session.adjustments?.map((item: StrengthPlayerAdjustment) => ({ ...item, playerId: idMap.get(item.playerId) ?? item.playerId })),
-    responses: session.responses?.map((item: StrengthPlayerResponse) => ({ ...item, playerId: idMap.get(item.playerId) ?? item.playerId })),
+    excludedPlayerIds: session.excludedPlayerIds
+      ? mapStrengthPlayerIds(session.excludedPlayerIds, idMap)
+      : session.excludedPlayerIds,
+    adjustments: session.adjustments?.map((item: StrengthPlayerAdjustment) => ({
+      ...item,
+      playerId: idMap.get(item.playerId) ?? item.playerId,
+    })),
+    responses: session.responses?.map((item: StrengthPlayerResponse) => ({
+      ...item,
+      playerId: idMap.get(item.playerId) ?? item.playerId,
+    })),
   }));
 
   return {
     ...data,
     players: canonicalPlayers,
     wellness,
-    internalLoads,
-    externalLoads,
+    internalLoads: alignedInternalLoads,
+    externalLoads: alignedExternalLoads,
     competitionRecords,
     cmjRecords: dedupeEvaluation(data.cmjRecords ?? []),
     nutritionRecords: dedupeEvaluation(data.nutritionRecords ?? []),
     neuromuscularRecords: dedupeEvaluation(data.neuromuscularRecords ?? []),
     fmsRecords: dedupeEvaluation(data.fmsRecords ?? []),
+    trainingSessionSummaries,
     strengthSessions,
   };
 };

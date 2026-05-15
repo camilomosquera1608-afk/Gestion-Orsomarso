@@ -32,12 +32,12 @@ const isoDate = (value?: string | null): string | null => {
   const isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (isoMatch) {
     const [, yyyy, mm, dd] = isoMatch;
-    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
   }
   const slashMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (slashMatch) {
     const [, dd, mm, yyyy] = slashMatch;
-    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
   }
   return null;
 };
@@ -126,15 +126,16 @@ const stripColumns = (rows: DbRow[], columns: Set<string>): DbRow[] =>
       ) as DbRow,
   );
 
-
 const stripColumnsForConstraint = (
   table: string,
   error: unknown,
 ): string | null => {
-  const message = String((error as { message?: unknown } | null)?.message ?? '').toLowerCase();
-  if (!message.includes('check constraint')) return null;
-  if (table === 'nutrition_records' && message.includes('fat_percentage_range'))
-    return 'fat_percentage_range';
+  const message = String(
+    (error as { message?: unknown } | null)?.message ?? "",
+  ).toLowerCase();
+  if (!message.includes("check constraint")) return null;
+  if (table === "nutrition_records" && message.includes("fat_percentage_range"))
+    return "fat_percentage_range";
   return null;
 };
 
@@ -150,8 +151,8 @@ const directUpdateOrInsertRow = async (
 
   const existing = await supabase
     .from(table)
-    .select('id')
-    .eq('legacy_id', row.legacy_id)
+    .select("id")
+    .eq("legacy_id", row.legacy_id)
     .limit(1)
     .maybeSingle();
 
@@ -159,7 +160,7 @@ const directUpdateOrInsertRow = async (
     const { error } = await supabase
       .from(table)
       .update(row)
-      .eq('id', existing.data.id);
+      .eq("id", existing.data.id);
     return error ? { ok: false, error } : { ok: true };
   }
 
@@ -226,7 +227,8 @@ const upsertRows = async (
       }
 
       const rowConstrainedColumn = stripColumnsForConstraint(table, rowError);
-      const missingColumn = missingColumnFromError(rowError) ?? rowConstrainedColumn;
+      const missingColumn =
+        missingColumnFromError(rowError) ?? rowConstrainedColumn;
       if (missingColumn && !strippedColumns.has(missingColumn)) {
         strippedColumns.add(missingColumn);
         row = stripColumns([originalRow], strippedColumns)[0];
@@ -248,7 +250,9 @@ const upsertRows = async (
         continue;
       }
 
-      errors.push(`${row.legacy_id ?? "?"}: ${directResult.error?.message ?? 'error'}`);
+      errors.push(
+        `${row.legacy_id ?? "?"}: ${directResult.error?.message ?? "error"}`,
+      );
       break;
     }
   }
@@ -538,7 +542,11 @@ export const fetchSupabaseTablesAppData = async (
       actingCategory: row.acting_category ?? undefined,
       movementType: row.movement_type ?? undefined,
       movementNote: row.movement_note ?? undefined,
-      movementModule: row.movement_module ?? (String(row.legacy_id ?? row.id).startsWith('comp-load-') ? 'competencia' : undefined),
+      movementModule:
+        row.movement_module ??
+        (String(row.legacy_id ?? row.id).startsWith("comp-load-")
+          ? "competencia"
+          : undefined),
       loggedBy: row.logged_by ?? undefined,
     }));
 
@@ -577,7 +585,11 @@ export const fetchSupabaseTablesAppData = async (
       actingCategory: row.acting_category ?? undefined,
       movementType: row.movement_type ?? undefined,
       movementNote: row.movement_note ?? undefined,
-      movementModule: row.movement_module ?? (String(row.legacy_id ?? row.id).startsWith('comp-load-') ? 'competencia' : undefined),
+      movementModule:
+        row.movement_module ??
+        (String(row.legacy_id ?? row.id).startsWith("comp-load-")
+          ? "competencia"
+          : undefined),
       loggedBy: row.logged_by ?? undefined,
     }));
 
@@ -968,6 +980,8 @@ export const deleteSupabaseTrainingSessionCascade = async (
         .from("daily_external_loads")
         .delete()
         .in("session_id", ids);
+      await supabase.from("competition_records").delete().in("match_id", ids);
+      await supabase.from("competition_matches").delete().in("id", ids);
       await supabase.from("training_sessions").delete().in("id", ids);
     }
 
@@ -1020,7 +1034,6 @@ export const deleteSupabaseTrainingSessionCascade = async (
     };
   }
 };
-
 
 const toPlayerRows = (players: Player[]): DbRow[] =>
   players.map((player) => ({
@@ -1079,15 +1092,16 @@ const toPlayerRows = (players: Player[]): DbRow[] =>
     ),
   }));
 
-
 const normalizeOpponent = (value: unknown) =>
-  String(value ?? '').trim().toLowerCase();
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
 
 const upsertCompetitionMatchRows = async (
   supabase: SupabaseClient,
   rows: DbRow[],
 ): Promise<void> => {
-  const result = await upsertRows(supabase, 'competition_matches', rows);
+  const result = await upsertRows(supabase, "competition_matches", rows);
   if (result.savedCount === rows.length) return;
 
   for (const originalRow of rows) {
@@ -1095,17 +1109,17 @@ const upsertCompetitionMatchRows = async (
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const existingByLegacy = row.legacy_id
         ? await supabase
-            .from('competition_matches')
-            .select('id')
-            .eq('legacy_id', row.legacy_id)
+            .from("competition_matches")
+            .select("id")
+            .eq("legacy_id", row.legacy_id)
             .limit(1)
             .maybeSingle()
-        : { data: null, error: null } as any;
+        : ({ data: null, error: null } as any);
       if (!existingByLegacy.error && existingByLegacy.data?.id) {
         const { error } = await supabase
-          .from('competition_matches')
+          .from("competition_matches")
           .update(row)
-          .eq('id', existingByLegacy.data.id);
+          .eq("id", existingByLegacy.data.id);
         if (!error) break;
         const missing = missingColumnFromError(error);
         if (missing) {
@@ -1115,19 +1129,21 @@ const upsertCompetitionMatchRows = async (
       }
 
       const natural = await supabase
-        .from('competition_matches')
-        .select('id, opponent')
-        .eq('date', row.date)
-        .eq('category', row.category);
+        .from("competition_matches")
+        .select("id, opponent")
+        .eq("date", row.date)
+        .eq("category", row.category);
       if (!natural.error) {
         const match = ((natural.data ?? []) as DbRow[]).find(
-          (item) => normalizeOpponent(item.opponent) === normalizeOpponent(row.opponent),
+          (item) =>
+            normalizeOpponent(item.opponent) ===
+            normalizeOpponent(row.opponent),
         );
         if (match?.id) {
           const { error } = await supabase
-            .from('competition_matches')
+            .from("competition_matches")
             .update(row)
-            .eq('id', match.id);
+            .eq("id", match.id);
           if (!error) break;
           const missing = missingColumnFromError(error);
           if (missing) {
@@ -1137,14 +1153,17 @@ const upsertCompetitionMatchRows = async (
         }
       }
 
-      const { error } = await supabase.from('competition_matches').insert(row);
+      const { error } = await supabase.from("competition_matches").insert(row);
       if (!error) break;
       const missing = missingColumnFromError(error);
       if (missing) {
         row = stripColumns([row], new Set([missing]))[0];
         continue;
       }
-      console.warn('[Supabase] competition_matches fallback failed:', error.message);
+      console.warn(
+        "[Supabase] competition_matches fallback failed:",
+        error.message,
+      );
       break;
     }
   }
@@ -1156,18 +1175,22 @@ const competitionExternalLoadRows = (
   playerCategoryById: Record<string, ClubCategory>,
 ): DbRow[] =>
   data.externalLoads
-    .filter((record) =>
-      (record.movementModule === 'competencia' || String(record.id).startsWith('comp-load-')) &&
-      supportsGps(record.category ?? playerCategoryById[record.playerId]) &&
-      playerUuid(record.playerId) &&
-      isoDate(record.date),
+    .filter(
+      (record) =>
+        (record.movementModule === "competencia" ||
+          String(record.id).startsWith("comp-load-")) &&
+        supportsGps(record.category ?? playerCategoryById[record.playerId]) &&
+        playerUuid(record.playerId) &&
+        isoDate(record.date),
     )
     .map((record) => ({
       legacy_id: record.id,
       player_id: playerUuid(record.playerId),
       microcycle_id: null,
       date: isoDate(record.date),
-      category: category(record.category ?? playerCategoryById[record.playerId]),
+      category: category(
+        record.category ?? playerCategoryById[record.playerId],
+      ),
       base_category: record.baseCategory ?? null,
       acting_category: record.actingCategory ?? null,
       session_number: record.sessionNumber ?? null,
@@ -1185,11 +1208,11 @@ const competitionExternalLoadRows = (
       sprint_distance: record.sprintDistance ?? null,
       max_velocity: record.maxVelocity ?? null,
       player_load: record.playerLoad ?? null,
-      participation: record.participation ?? 'Completa',
-      session_type: record.sessionType ?? 'MD',
+      participation: record.participation ?? "Completa",
+      session_type: record.sessionType ?? "MD",
       movement_type: record.movementType ?? null,
       movement_note: record.movementNote ?? null,
-      movement_module: 'competencia',
+      movement_module: "competencia",
       logged_by: record.loggedBy ?? null,
     }));
 
@@ -1197,8 +1220,8 @@ const upsertCompetitionTables = async (
   supabase: SupabaseClient,
   data: AppData,
 ): Promise<void> => {
-  await upsertRows(supabase, 'players', toPlayerRows(data.players));
-  const playerMap = await fetchLegacyIdMap(supabase, 'players');
+  await upsertRows(supabase, "players", toPlayerRows(data.players));
+  const playerMap = await fetchLegacyIdMap(supabase, "players");
   const playerCategoryById = Object.fromEntries(
     data.players.map((player) => [player.id, category(player.category)]),
   ) as Record<string, ClubCategory>;
@@ -1210,7 +1233,7 @@ const upsertCompetitionTables = async (
       legacy_id: record.id,
       date: isoDate(record.date),
       category: category(record.category),
-      competition_name: record.competitionName ?? 'Partido oficial',
+      competition_name: record.competitionName ?? "Partido oficial",
       opponent: record.opponent,
       venue: record.venue ?? null,
       goals_for: record.goalsFor ?? null,
@@ -1229,30 +1252,43 @@ const upsertCompetitionTables = async (
   await upsertCompetitionMatchRows(supabase, matchRows);
 
   const matchRowsRes = await supabase
-    .from('competition_matches')
-    .select('id, legacy_id, date, category, opponent');
+    .from("competition_matches")
+    .select("id, legacy_id, date, category, opponent");
   if (matchRowsRes.error) throw matchRowsRes.error;
 
-  const normalizeMatchKey = (date?: string | null, cat?: string | null, opponent?: string | null) =>
-    `${date ?? ''}::${cat ?? ''}::${normalizeOpponent(opponent)}`;
+  const normalizeMatchKey = (
+    date?: string | null,
+    cat?: string | null,
+    opponent?: string | null,
+  ) => `${date ?? ""}::${cat ?? ""}::${normalizeOpponent(opponent)}`;
   const matchLegacyMap: LegacyMap = {};
   const matchKeyMap: LegacyMap = {};
   ((matchRowsRes.data ?? []) as DbRow[]).forEach((row) => {
     if (row.legacy_id) matchLegacyMap[String(row.legacy_id)] = String(row.id);
-    matchKeyMap[normalizeMatchKey(row.date, row.category, row.opponent)] = String(row.id);
+    matchKeyMap[normalizeMatchKey(row.date, row.category, row.opponent)] =
+      String(row.id);
   });
   const localMatchById = Object.fromEntries(
     data.competitionMatchSummaries.map((match) => [match.id, match]),
   );
   const matchUuid = (record: CompetitionRecord) => {
-    if (record.matchId && matchLegacyMap[record.matchId]) return matchLegacyMap[record.matchId];
+    if (record.matchId && matchLegacyMap[record.matchId])
+      return matchLegacyMap[record.matchId];
     const local = record.matchId ? localMatchById[record.matchId] : undefined;
-    return matchKeyMap[normalizeMatchKey(local?.date ?? record.date, local?.category ?? record.category, local?.opponent ?? record.opponent)] ?? null;
+    return (
+      matchKeyMap[
+        normalizeMatchKey(
+          local?.date ?? record.date,
+          local?.category ?? record.category,
+          local?.opponent ?? record.opponent,
+        )
+      ] ?? null
+    );
   };
 
   await upsertRows(
     supabase,
-    'competition_players',
+    "competition_players",
     data.competitionRecords
       .filter((record) => matchUuid(record) && playerUuid(record.playerId))
       .map((record) => ({
@@ -1271,25 +1307,65 @@ const upsertCompetitionTables = async (
         penalties_saved: record.penaltiesSaved ?? null,
         crosses_defended: record.crossesDefended ?? null,
         footwork_actions: record.footworkActions ?? null,
-        medical_status: record.medicalStatus ?? 'Sin lesión',
+        medical_status: record.medicalStatus ?? "Sin lesión",
         injury_kind: record.injuryKind ?? null,
         medical_observation: record.medicalObservation ?? null,
-        acc: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.acc ?? null) : null,
-        dcc: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.dcc ?? null) : null,
-        sprints: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.sprints ?? null) : null,
-        rhie: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.rhie ?? null) : null,
-        ima: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.ima ?? null) : null,
-        total_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.totalDistance ?? null) : null,
-        high_speed_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.highSpeedDistance ?? record.hsr ?? null) : null,
-        hsr: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.hsr ?? record.highSpeedDistance ?? null) : null,
-        sprint_distance: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.sprintDistance ?? null) : null,
-        max_velocity: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.maxVelocity ?? null) : null,
-        player_load: supportsGps(record.category ?? playerCategoryById[record.playerId]) ? (record.playerLoad ?? null) : null,
+        acc: supportsGps(record.category ?? playerCategoryById[record.playerId])
+          ? (record.acc ?? null)
+          : null,
+        dcc: supportsGps(record.category ?? playerCategoryById[record.playerId])
+          ? (record.dcc ?? null)
+          : null,
+        sprints: supportsGps(
+          record.category ?? playerCategoryById[record.playerId],
+        )
+          ? (record.sprints ?? null)
+          : null,
+        rhie: supportsGps(
+          record.category ?? playerCategoryById[record.playerId],
+        )
+          ? (record.rhie ?? null)
+          : null,
+        ima: supportsGps(record.category ?? playerCategoryById[record.playerId])
+          ? (record.ima ?? null)
+          : null,
+        total_distance: supportsGps(
+          record.category ?? playerCategoryById[record.playerId],
+        )
+          ? (record.totalDistance ?? null)
+          : null,
+        high_speed_distance: supportsGps(
+          record.category ?? playerCategoryById[record.playerId],
+        )
+          ? (record.highSpeedDistance ?? record.hsr ?? null)
+          : null,
+        hsr: supportsGps(record.category ?? playerCategoryById[record.playerId])
+          ? (record.hsr ?? record.highSpeedDistance ?? null)
+          : null,
+        sprint_distance: supportsGps(
+          record.category ?? playerCategoryById[record.playerId],
+        )
+          ? (record.sprintDistance ?? null)
+          : null,
+        max_velocity: supportsGps(
+          record.category ?? playerCategoryById[record.playerId],
+        )
+          ? (record.maxVelocity ?? null)
+          : null,
+        player_load: supportsGps(
+          record.category ?? playerCategoryById[record.playerId],
+        )
+          ? (record.playerLoad ?? null)
+          : null,
         logged_by: record.loggedBy ?? null,
       })),
   );
 
-  await upsertRows(supabase, 'daily_external_loads', competitionExternalLoadRows(data, playerUuid, playerCategoryById));
+  await upsertRows(
+    supabase,
+    "daily_external_loads",
+    competitionExternalLoadRows(data, playerUuid, playerCategoryById),
+  );
 };
 
 const upsertEvaluationTables = async (
@@ -1407,7 +1483,11 @@ export const saveSupabasePlayersAppData = async (
     const playersToSave = onlyIds.size
       ? data.players.filter((player) => onlyIds.has(player.id))
       : data.players;
-    const result = await upsertRows(supabase, "players", toPlayerRows(playersToSave));
+    const result = await upsertRows(
+      supabase,
+      "players",
+      toPlayerRows(playersToSave),
+    );
     if (playersToSave.length > 0 && result.savedCount === 0) {
       return { ok: false, reason: "save_players_failed" };
     }
@@ -1427,7 +1507,9 @@ export const saveSupabaseEvaluationsAppData = async (
 ): Promise<SyncResult> => {
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) {
-    console.error("[Supabase] saveSupabaseEvaluationsAppData: not authenticated");
+    console.error(
+      "[Supabase] saveSupabaseEvaluationsAppData: not authenticated",
+    );
     return { ok: false, reason: "not_authenticated" };
   }
 
@@ -1443,15 +1525,16 @@ export const saveSupabaseEvaluationsAppData = async (
   }
 };
 
-
 export const saveSupabaseCompetitionAppData = async (
   supabase: SupabaseClient,
   data: AppData,
 ): Promise<SyncResult> => {
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) {
-    console.error('[Supabase] saveSupabaseCompetitionAppData: not authenticated');
-    return { ok: false, reason: 'not_authenticated' };
+    console.error(
+      "[Supabase] saveSupabaseCompetitionAppData: not authenticated",
+    );
+    return { ok: false, reason: "not_authenticated" };
   }
 
   try {
@@ -1460,7 +1543,7 @@ export const saveSupabaseCompetitionAppData = async (
   } catch (error) {
     return {
       ok: false,
-      reason: isAuthError(error) ? 'not_authorized' : 'save_competition_failed',
+      reason: isAuthError(error) ? "not_authorized" : "save_competition_failed",
       error,
     };
   }
@@ -1573,7 +1656,9 @@ export const saveSupabaseTablesAppData = async (
           player_id: playerUuid(record.playerId),
           microcycle_id: microcycleUuid(record.microcycleId),
           date: isoDate(record.date),
-          category: category(record.category ?? playerCategoryById[record.playerId]),
+          category: category(
+            record.category ?? playerCategoryById[record.playerId],
+          ),
           base_category: record.baseCategory ?? null,
           acting_category: record.actingCategory ?? null,
           session_number: record.sessionNumber ?? null,
@@ -1740,7 +1825,9 @@ export const saveSupabaseTablesAppData = async (
             player_id: playerUuid(record.playerId),
             microcycle_id: microcycleUuid(record.microcycleId),
             date: isoDate(record.date),
-            category: category(record.category ?? playerCategoryById[record.playerId]),
+            category: category(
+              record.category ?? playerCategoryById[record.playerId],
+            ),
             base_category: record.baseCategory ?? null,
             acting_category: record.actingCategory ?? null,
             session_number: record.sessionNumber ?? null,

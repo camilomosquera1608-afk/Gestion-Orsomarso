@@ -36,7 +36,13 @@ import {
 } from "@/lib/types";
 import { findMicrocycleByDate, groupAverage } from "@/lib/utils";
 import { buildDailyOperations } from "@/lib/operational-helpers";
-import { getCanonicalPlayers, getRelatedPlayerIds, getRelatedPlayerIdSet, getWellnessRecordsForDate } from "@/lib/relational-data";
+import {
+  getCanonicalPlayers,
+  getRelatedPlayerIds,
+  getRelatedPlayerIdSet,
+  getTrainingSessionsForMicrocycle,
+  getWellnessRecordsForDate,
+} from "@/lib/relational-data";
 import { supportsGps } from "@/lib/report-utils";
 import { findDuplicateTrainingSession } from "@/lib/operational-validation";
 import {
@@ -46,7 +52,20 @@ import {
   getInternalLoadsForSession,
 } from "@/lib/session-derived";
 import { CsvImporter } from "@/components/csv-importer";
-import { buildAbruptLoadAlerts, buildAvailabilityIndex, buildDataInconsistencyAlerts, buildLoadWellnessRelation, buildPlayerReadinessSemaphores, buildPositionComparisonInsights, buildRoleLoadControl, buildReturnToPlayAlerts, buildSelfComparisonInsights, buildSessionTypeLoadControl, buildWeeklyMonotonyFatigue, wellnessReadiness } from "@/lib/logic-insights";
+import {
+  buildAbruptLoadAlerts,
+  buildAvailabilityIndex,
+  buildDataInconsistencyAlerts,
+  buildLoadWellnessRelation,
+  buildPlayerReadinessSemaphores,
+  buildPositionComparisonInsights,
+  buildRoleLoadControl,
+  buildReturnToPlayAlerts,
+  buildSelfComparisonInsights,
+  buildSessionTypeLoadControl,
+  buildWeeklyMonotonyFatigue,
+  wellnessReadiness,
+} from "@/lib/logic-insights";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const SESSION_TYPES: {
@@ -64,7 +83,9 @@ const SESSION_TYPES: {
   { value: "MD", label: "MD", color: "#111827" },
 ];
 const normalizeSessionType = (value?: string | null): TrainingSessionType =>
-  SESSION_TYPES.some((item) => item.value === value) ? (value as TrainingSessionType) : "MD-3";
+  SESSION_TYPES.some((item) => item.value === value)
+    ? (value as TrainingSessionType)
+    : "MD-3";
 const PARTICIPATION_OPTIONS: SessionParticipation[] = [
   "Completa",
   "Parcial",
@@ -288,11 +309,14 @@ export default function SesionEntrenamientoPage() {
     filters.date,
     activeCat,
     editingId,
+    activeMcId,
   );
   const dateSummary = getSessionForDateAndCategory(
     data,
     filters.date,
     activeCat,
+    undefined,
+    activeMcId,
   );
 
   useEffect(() => {
@@ -347,13 +371,14 @@ export default function SesionEntrenamientoPage() {
     data.trainingSessionSummaries,
   ]); // eslint-disable-line
 
-  const sessionHistory = useMemo(
-    () =>
-      data.trainingSessionSummaries
-        .filter((i) => i.category === activeCat)
-        .sort((a, b) => b.date.localeCompare(a.date)),
-    [data.trainingSessionSummaries, activeCat],
-  );
+  const sessionHistory = useMemo(() => {
+    const scoped = detectedMc
+      ? getTrainingSessionsForMicrocycle(data, detectedMc, activeCat)
+      : data.trainingSessionSummaries.filter(
+          (i) => i.category === activeCat && !i.microcycleId,
+        );
+    return scoped.sort((a, b) => b.date.localeCompare(a.date));
+  }, [data, detectedMc, activeCat]);
   const HIST_PAGE_SIZE = 12;
   const histPages = Math.ceil(sessionHistory.length / HIST_PAGE_SIZE);
   const histSlice = sessionHistory.slice(
@@ -363,7 +388,11 @@ export default function SesionEntrenamientoPage() {
 
   // Players & rows
   const sessionPlayers = useMemo(
-    () => getCanonicalPlayers(data, data.players.filter((p) => p.category === sourceCat)),
+    () =>
+      getCanonicalPlayers(
+        data,
+        data.players.filter((p) => p.category === sourceCat),
+      ),
     [data.players, sourceCat],
   );
   const existingRecs = useMemo(
@@ -505,24 +534,44 @@ export default function SesionEntrenamientoPage() {
   const reportRows = selectedRows.length
     ? selectedRows
     : rows.filter((r) =>
-        existingRecs.some((rec) => getRelatedPlayerIds(data.players, r.player.id).has(rec.playerId)),
+        existingRecs.some((rec) =>
+          getRelatedPlayerIds(data.players, r.player.id).has(rec.playerId),
+        ),
       );
   const absentPlayers = sessionPlayers.filter(
     (p) => !reportRows.some((r) => r.player.id === p.id),
   );
   const sessionPlayerIds = getRelatedPlayerIdSet(data.players, sessionPlayers);
-  const sessWellness = getWellnessRecordsForDate(data, filters.date, sessionPlayerIds);
+  const sessWellness = getWellnessRecordsForDate(
+    data,
+    filters.date,
+    sessionPlayerIds,
+  );
 
   const sessionLoadMetrics = useMemo(() => {
     const avgMinutes = groupAverage(selectedRows.map((r) => r.min));
     const avgRpe = groupAverage(selectedRows.map((r) => r.rpe));
-    const avgInternalLoad = groupAverage(selectedRows.map((r) => r.min * r.rpe));
+    const avgInternalLoad = groupAverage(
+      selectedRows.map((r) => r.min * r.rpe),
+    );
     const avgDistance = groupAverage(selectedRows.map((r) => r.totalDistance));
     const avgAcc = groupAverage(selectedRows.map((r) => r.acc));
     const avgDcc = groupAverage(selectedRows.map((r) => r.dcc));
     const avgPlayerLoad = groupAverage(selectedRows.map((r) => r.playerLoad));
-    const wellnessReadinessAvg = groupAverage(sessWellness.map((record) => wellnessReadiness(record)));
-    return { avgMinutes, avgRpe, avgInternalLoad, avgDistance, avgAcc, avgDcc, avgPlayerLoad, wellnessReadiness: wellnessReadinessAvg, individualLoads: selectedRows.map((r) => r.min * r.rpe) };
+    const wellnessReadinessAvg = groupAverage(
+      sessWellness.map((record) => wellnessReadiness(record)),
+    );
+    return {
+      avgMinutes,
+      avgRpe,
+      avgInternalLoad,
+      avgDistance,
+      avgAcc,
+      avgDcc,
+      avgPlayerLoad,
+      wellnessReadiness: wellnessReadinessAvg,
+      individualLoads: selectedRows.map((r) => r.min * r.rpe),
+    };
   }, [selectedRows, sessWellness]);
 
   const sessionTypeLoadControl = useMemo(
@@ -531,47 +580,190 @@ export default function SesionEntrenamientoPage() {
   );
 
   const abruptLoadAlerts = useMemo(
-    () => buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 5 }),
-    [data.players, data.internalLoads, data.externalLoads, filters.date, activeCat],
+    () =>
+      buildAbruptLoadAlerts({
+        players: data.players,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        referenceDate: filters.date,
+        category: activeCat,
+        limit: 5,
+      }),
+    [
+      data.players,
+      data.internalLoads,
+      data.externalLoads,
+      filters.date,
+      activeCat,
+    ],
   );
 
   const loadWellnessRelations = useMemo(
-    () => buildLoadWellnessRelation({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, date: filters.date, category: activeCat, limit: 5 }),
-    [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCat],
+    () =>
+      buildLoadWellnessRelation({
+        players: data.players,
+        wellness: data.wellness,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        date: filters.date,
+        category: activeCat,
+        limit: 5,
+      }),
+    [
+      data.players,
+      data.wellness,
+      data.internalLoads,
+      data.externalLoads,
+      filters.date,
+      activeCat,
+    ],
   );
 
   const readinessRows = useMemo(
-    () => buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 6 }),
-    [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCat],
+    () =>
+      buildPlayerReadinessSemaphores({
+        players: data.players,
+        wellness: data.wellness,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        referenceDate: filters.date,
+        category: activeCat,
+        limit: 6,
+      }),
+    [
+      data.players,
+      data.wellness,
+      data.internalLoads,
+      data.externalLoads,
+      filters.date,
+      activeCat,
+    ],
   );
   const availabilityIndex = useMemo(
-    () => buildAvailabilityIndex({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat }),
-    [data.players, data.wellness, data.internalLoads, data.externalLoads, filters.date, activeCat],
+    () =>
+      buildAvailabilityIndex({
+        players: data.players,
+        wellness: data.wellness,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        referenceDate: filters.date,
+        category: activeCat,
+      }),
+    [
+      data.players,
+      data.wellness,
+      data.internalLoads,
+      data.externalLoads,
+      filters.date,
+      activeCat,
+    ],
   );
   const selfComparisonInsights = useMemo(
-    () => buildSelfComparisonInsights({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 4 }),
-    [data.players, data.internalLoads, data.externalLoads, filters.date, activeCat],
+    () =>
+      buildSelfComparisonInsights({
+        players: data.players,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        referenceDate: filters.date,
+        category: activeCat,
+        limit: 4,
+      }),
+    [
+      data.players,
+      data.internalLoads,
+      data.externalLoads,
+      filters.date,
+      activeCat,
+    ],
   );
   const positionComparisonInsights = useMemo(
-    () => buildPositionComparisonInsights({ players: data.players, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 4 }),
+    () =>
+      buildPositionComparisonInsights({
+        players: data.players,
+        externalLoads: data.externalLoads,
+        referenceDate: filters.date,
+        category: activeCat,
+        limit: 4,
+      }),
     [data.players, data.externalLoads, filters.date, activeCat],
   );
   const dataInconsistencyAlerts = useMemo(
-    () => buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: filters.date, category: activeCat, limit: 6 }),
-    [data.players, data.internalLoads, data.externalLoads, data.competitionRecords, filters.date, activeCat],
+    () =>
+      buildDataInconsistencyAlerts({
+        players: data.players,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        competitionRecords: data.competitionRecords,
+        referenceDate: filters.date,
+        category: activeCat,
+        limit: 6,
+      }),
+    [
+      data.players,
+      data.internalLoads,
+      data.externalLoads,
+      data.competitionRecords,
+      filters.date,
+      activeCat,
+    ],
   );
 
   const roleLoadInsights = useMemo(
-    () => buildRoleLoadControl({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 4 }),
-    [data.players, data.competitionRecords, data.internalLoads, data.externalLoads, filters.date, activeCat],
+    () =>
+      buildRoleLoadControl({
+        players: data.players,
+        competitionRecords: data.competitionRecords,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        referenceDate: filters.date,
+        category: activeCat,
+        limit: 4,
+      }),
+    [
+      data.players,
+      data.competitionRecords,
+      data.internalLoads,
+      data.externalLoads,
+      filters.date,
+      activeCat,
+    ],
   );
   const returnToPlayAlerts = useMemo(
-    () => buildReturnToPlayAlerts({ players: data.players, competitionRecords: data.competitionRecords, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat, limit: 4 }),
-    [data.players, data.competitionRecords, data.internalLoads, data.externalLoads, filters.date, activeCat],
+    () =>
+      buildReturnToPlayAlerts({
+        players: data.players,
+        competitionRecords: data.competitionRecords,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        referenceDate: filters.date,
+        category: activeCat,
+        limit: 4,
+      }),
+    [
+      data.players,
+      data.competitionRecords,
+      data.internalLoads,
+      data.externalLoads,
+      filters.date,
+      activeCat,
+    ],
   );
   const weeklyMonotonyInsight = useMemo(
-    () => buildWeeklyMonotonyFatigue({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: activeCat }),
-    [data.players, data.internalLoads, data.externalLoads, filters.date, activeCat],
+    () =>
+      buildWeeklyMonotonyFatigue({
+        players: data.players,
+        internalLoads: data.internalLoads,
+        externalLoads: data.externalLoads,
+        referenceDate: filters.date,
+        category: activeCat,
+      }),
+    [
+      data.players,
+      data.internalLoads,
+      data.externalLoads,
+      filters.date,
+      activeCat,
+    ],
   );
 
   const mcNotice = filters.date
@@ -601,6 +793,33 @@ export default function SesionEntrenamientoPage() {
       return next;
     });
     flash(`Aplicado a ${selectedRows.length} jugadores.`, "success");
+  };
+
+  const applyPreset = (preset: {
+    label: string;
+    min: number;
+    rpe: number;
+    participation?: SessionParticipation;
+  }) => {
+    markRowsDirty();
+    setRowStates((prev) => {
+      const next = { ...prev };
+      rows
+        .filter((r) => r.selected)
+        .forEach((r) => {
+          next[r.player.id] = {
+            ...(next[r.player.id] ?? DEFAULT_ROW),
+            min: preset.min,
+            rpe: preset.rpe,
+            participation: preset.participation ?? "Completa",
+          };
+        });
+      return next;
+    });
+    flash(
+      `${preset.label} aplicado a ${selectedRows.length} jugadores.`,
+      "success",
+    );
   };
 
   // Select all / none / by position
@@ -811,7 +1030,7 @@ export default function SesionEntrenamientoPage() {
     const ok = await confirm({
       title: `¿Eliminar sesión ${t.sessionNumber || "-"} del ${t.date}?`,
       description:
-        "Se eliminará la participación y carga de todos los jugadores.",
+        "Se eliminará la sesión y toda su carga interna/GPS vinculada. No se borra wellness ni perfil del jugador.",
       danger: true,
     });
     if (!ok) return;
@@ -1181,12 +1400,23 @@ export default function SesionEntrenamientoPage() {
         <div className="grid grid-2">
           <div className="card compact-card">
             <div className="section-eyebrow">Lógica de carga</div>
-            <h3 style={{ margin: "4px 0 8px" }}>{sessionTypeLoadControl.title}</h3>
-            <div className={`alert-item tone-${sessionTypeLoadControl.tone === "red" ? "red" : sessionTypeLoadControl.tone === "yellow" ? "yellow" : "green"}`}>
-              <strong>{sessionTypeLoadControl.value}</strong> · {sessionTypeLoadControl.description}
+            <h3 style={{ margin: "4px 0 8px" }}>
+              {sessionTypeLoadControl.title}
+            </h3>
+            <div
+              className={`alert-item tone-${sessionTypeLoadControl.tone === "red" ? "red" : sessionTypeLoadControl.tone === "yellow" ? "yellow" : "green"}`}
+            >
+              <strong>{sessionTypeLoadControl.value}</strong> ·{" "}
+              {sessionTypeLoadControl.description}
             </div>
-            <div className={`alert-item tone-${availabilityIndex.tone === "red" ? "red" : availabilityIndex.tone === "yellow" ? "yellow" : "green"}`} style={{ marginTop: 8 }}>
-              <strong>{availabilityIndex.title}</strong> · {availabilityIndex.value}<br />{availabilityIndex.description}
+            <div
+              className={`alert-item tone-${availabilityIndex.tone === "red" ? "red" : availabilityIndex.tone === "yellow" ? "yellow" : "green"}`}
+              style={{ marginTop: 8 }}
+            >
+              <strong>{availabilityIndex.title}</strong> ·{" "}
+              {availabilityIndex.value}
+              <br />
+              {availabilityIndex.description}
             </div>
           </div>
           <div className="card compact-card">
@@ -1194,11 +1424,20 @@ export default function SesionEntrenamientoPage() {
             <h3 style={{ margin: "4px 0 8px" }}>Disponibilidad individual</h3>
             <div className="grid" style={{ gap: 8 }}>
               {readinessRows.slice(0, 5).map((row) => (
-                <div key={row.playerId} className={`alert-item tone-${row.tone === "red" ? "red" : row.tone === "yellow" ? "yellow" : "green"}`}>
-                  <strong>{row.name}</strong> · {row.label} · {Math.round(row.score)}%<br />{row.detail}
+                <div
+                  key={row.playerId}
+                  className={`alert-item tone-${row.tone === "red" ? "red" : row.tone === "yellow" ? "yellow" : "green"}`}
+                >
+                  <strong>{row.name}</strong> · {row.label} ·{" "}
+                  {Math.round(row.score)}%<br />
+                  {row.detail}
                 </div>
               ))}
-              {!readinessRows.length ? <div className="empty">Sin datos suficientes para calcular semáforo integral.</div> : null}
+              {!readinessRows.length ? (
+                <div className="empty">
+                  Sin datos suficientes para calcular semáforo integral.
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1206,28 +1445,65 @@ export default function SesionEntrenamientoPage() {
         <div className="grid grid-2">
           <div className="card compact-card">
             <div className="section-eyebrow">Alertas automáticas</div>
-            <h3 style={{ margin: "4px 0 8px" }}>Aumento brusco, wellness e incoherencias</h3>
+            <h3 style={{ margin: "4px 0 8px" }}>
+              Aumento brusco, wellness e incoherencias
+            </h3>
             <div className="grid" style={{ gap: 8 }}>
-              {[...dataInconsistencyAlerts, ...abruptLoadAlerts, ...loadWellnessRelations].slice(0, 5).map((alert) => (
-                <div key={alert.id} className={`alert-item tone-${alert.tone === "red" ? "red" : alert.tone === "yellow" ? "yellow" : "blue"}`}>
-                  <strong>{alert.title}</strong>{alert.value ? ` · ${alert.value}` : ""}<br />{alert.description}
+              {[
+                ...dataInconsistencyAlerts,
+                ...abruptLoadAlerts,
+                ...loadWellnessRelations,
+              ]
+                .slice(0, 5)
+                .map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`alert-item tone-${alert.tone === "red" ? "red" : alert.tone === "yellow" ? "yellow" : "blue"}`}
+                  >
+                    <strong>{alert.title}</strong>
+                    {alert.value ? ` · ${alert.value}` : ""}
+                    <br />
+                    {alert.description}
+                  </div>
+                ))}
+              {![
+                ...dataInconsistencyAlerts,
+                ...abruptLoadAlerts,
+                ...loadWellnessRelations,
+              ].length ? (
+                <div className="empty">
+                  Sin alertas críticas de carga, wellness o coherencia para la
+                  fecha activa.
                 </div>
-              ))}
-              {![...dataInconsistencyAlerts, ...abruptLoadAlerts, ...loadWellnessRelations].length ? (
-                <div className="empty">Sin alertas críticas de carga, wellness o coherencia para la fecha activa.</div>
               ) : null}
             </div>
           </div>
           <div className="card compact-card">
             <div className="section-eyebrow">Comparaciones inteligentes</div>
-            <h3 style={{ margin: "4px 0 8px" }}>Jugador vs sí mismo y posición</h3>
+            <h3 style={{ margin: "4px 0 8px" }}>
+              Jugador vs sí mismo y posición
+            </h3>
             <div className="grid" style={{ gap: 8 }}>
-              {[...selfComparisonInsights, ...positionComparisonInsights].slice(0, 5).map((insight) => (
-                <div key={insight.id} className={`alert-item tone-${insight.tone === "red" ? "red" : insight.tone === "yellow" ? "yellow" : "blue"}`}>
-                  <strong>{insight.title}</strong>{insight.value ? ` · ${insight.value}` : ""}<br />{insight.description}
+              {[...selfComparisonInsights, ...positionComparisonInsights]
+                .slice(0, 5)
+                .map((insight) => (
+                  <div
+                    key={insight.id}
+                    className={`alert-item tone-${insight.tone === "red" ? "red" : insight.tone === "yellow" ? "yellow" : "blue"}`}
+                  >
+                    <strong>{insight.title}</strong>
+                    {insight.value ? ` · ${insight.value}` : ""}
+                    <br />
+                    {insight.description}
+                  </div>
+                ))}
+              {![...selfComparisonInsights, ...positionComparisonInsights]
+                .length ? (
+                <div className="empty">
+                  Sin desviaciones relevantes frente al historial individual o
+                  pares de posición.
                 </div>
-              ))}
-              {![...selfComparisonInsights, ...positionComparisonInsights].length ? <div className="empty">Sin desviaciones relevantes frente al historial individual o pares de posición.</div> : null}
+              ) : null}
             </div>
           </div>
         </div>
@@ -1235,24 +1511,47 @@ export default function SesionEntrenamientoPage() {
         <div className="grid grid-2">
           <div className="card compact-card">
             <div className="section-eyebrow">Retorno, rol y competencia</div>
-            <h3 style={{ margin: "4px 0 8px" }}>Control individual por contexto</h3>
+            <h3 style={{ margin: "4px 0 8px" }}>
+              Control individual por contexto
+            </h3>
             <div className="grid" style={{ gap: 8 }}>
-              {[...returnToPlayAlerts, ...roleLoadInsights].slice(0, 5).map((insight) => (
-                <div key={insight.id} className={`alert-item tone-${insight.tone === "red" ? "red" : insight.tone === "yellow" ? "yellow" : "blue"}`}>
-                  <strong>{insight.title}</strong>{insight.value ? ` · ${insight.value}` : ""}<br />{insight.description}
+              {[...returnToPlayAlerts, ...roleLoadInsights]
+                .slice(0, 5)
+                .map((insight) => (
+                  <div
+                    key={insight.id}
+                    className={`alert-item tone-${insight.tone === "red" ? "red" : insight.tone === "yellow" ? "yellow" : "blue"}`}
+                  >
+                    <strong>{insight.title}</strong>
+                    {insight.value ? ` · ${insight.value}` : ""}
+                    <br />
+                    {insight.description}
+                  </div>
+                ))}
+              {![...returnToPlayAlerts, ...roleLoadInsights].length ? (
+                <div className="empty">
+                  Sin alertas de retorno o rol competitivo para la fecha activa.
                 </div>
-              ))}
-              {![...returnToPlayAlerts, ...roleLoadInsights].length ? <div className="empty">Sin alertas de retorno o rol competitivo para la fecha activa.</div> : null}
+              ) : null}
             </div>
           </div>
           <div className="card compact-card">
             <div className="section-eyebrow">Microciclo</div>
-            <h3 style={{ margin: "4px 0 8px" }}>Monotonía, strain y decisión semanal</h3>
-            <div className={`alert-item tone-${weeklyMonotonyInsight.tone === "red" ? "red" : weeklyMonotonyInsight.tone === "yellow" ? "yellow" : "green"}`}>
-              <strong>{weeklyMonotonyInsight.title}</strong> · {weeklyMonotonyInsight.value}<br />{weeklyMonotonyInsight.description}
+            <h3 style={{ margin: "4px 0 8px" }}>
+              Monotonía, strain y decisión semanal
+            </h3>
+            <div
+              className={`alert-item tone-${weeklyMonotonyInsight.tone === "red" ? "red" : weeklyMonotonyInsight.tone === "yellow" ? "yellow" : "green"}`}
+            >
+              <strong>{weeklyMonotonyInsight.title}</strong> ·{" "}
+              {weeklyMonotonyInsight.value}
+              <br />
+              {weeklyMonotonyInsight.description}
             </div>
             <p className="muted-line" style={{ marginTop: 8 }}>
-              Esta lectura ayuda a evitar semanas planas de carga, picos no progresivos y decisiones iguales para jugadores con respuestas distintas.
+              Esta lectura ayuda a evitar semanas planas de carga, picos no
+              progresivos y decisiones iguales para jugadores con respuestas
+              distintas.
             </p>
           </div>
         </div>
@@ -1396,7 +1695,14 @@ export default function SesionEntrenamientoPage() {
               </button>
             </div>
             {/* Global apply */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
               <input
                 className="input"
                 type="number"
@@ -1426,6 +1732,42 @@ export default function SesionEntrenamientoPage() {
                 disabled={!selectedRows.length}
               >
                 <Zap size={12} /> Aplicar a seleccionados
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "6px 12px", fontSize: 12, height: 38 }}
+                disabled={!selectedRows.length}
+                onClick={() => applyPreset({ label: "Base", min: 70, rpe: 4 })}
+              >
+                Base 70/4
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "6px 12px", fontSize: 12, height: 38 }}
+                disabled={!selectedRows.length}
+                onClick={() =>
+                  applyPreset({ label: "Recuperación", min: 35, rpe: 3 })
+                }
+              >
+                Rec 35/3
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "6px 12px", fontSize: 12, height: 38 }}
+                disabled={!selectedRows.length}
+                onClick={() =>
+                  applyPreset({
+                    label: "No participa",
+                    min: 0,
+                    rpe: 0,
+                    participation: "No participa",
+                  })
+                }
+              >
+                No participa
               </button>
             </div>
           </div>

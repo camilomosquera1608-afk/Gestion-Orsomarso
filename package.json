@@ -1,6 +1,6 @@
 {
   "name": "orsomarso-performance-app",
-  "version": "134.0.0",
+  "version": "135.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
