@@ -1,14 +1,31 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Activity, BarChart3, Bell, Briefcase, CalendarDays, ChevronDown,
-  Dumbbell, FileText, Gauge, HeartPulse, Medal,
-  Settings, ShieldCheck, TimerReset, Trophy, TrendingUp, Utensils,
-  UserRoundPlus, Users, LogOut, Menu, Home, type LucideIcon } from 'lucide-react';
+  Activity,
+  BarChart3,
+  Briefcase,
+  CalendarDays,
+  ChevronDown,
+  Database,
+  Dumbbell,
+  FileText,
+  Gauge,
+  HeartPulse,
+  Home,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  TimerReset,
+  TrendingUp,
+  Trophy,
+  UserRoundPlus,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
 import { hasAdministrationAccess } from '@/lib/access-control';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
@@ -27,7 +44,8 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
       items: [
         { href: '/', label: 'Inicio', icon: Home },
         { href: '/diario', label: 'Diario operativo', icon: Gauge },
-      ] },
+      ],
+    },
     {
       label: 'Planificación',
       icon: TimerReset,
@@ -35,48 +53,58 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/plan-diario', label: 'Plan diario', icon: CalendarDays },
         { href: '/microciclo', label: 'Microciclo', icon: Activity },
         { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
-        { href: '/fuerza', label: 'Fuerza', icon: Dumbbell },
         { href: '/competencia', label: 'Competencia', icon: Trophy },
-        { href: '/alimentacion', label: 'Alimentación', icon: Utensils },
-      ] },
+        { href: '/fuerza', label: 'Fuerza', icon: Dumbbell },
+      ],
+    },
     {
-      label: 'Rendimiento',
-      icon: Dumbbell,
+      label: 'Control de carga',
+      icon: TrendingUp,
       items: [
-        { href: '/carga', label: 'Centro de carga', icon: Dumbbell },
-        { href: '/rendimiento-equipo', label: 'Rendimiento equipo', icon: BarChart3 },
+        { href: '/carga', label: 'Resumen carga/riesgo', icon: Gauge },
+        { href: '/riesgo', label: 'Riesgo detallado', icon: TrendingUp },
         { href: '/wellness', label: 'Wellness', icon: ShieldCheck },
         { href: '/disponibilidad', label: 'Disponibilidad', icon: HeartPulse },
-          { href: '/riesgo', label: 'Riesgo', icon: TrendingUp },
-      ] },
+        { href: '/adherencia', label: 'Calidad del dato', icon: Database },
+      ],
+    },
     {
-      label: 'Plantilla',
+      label: 'Jugadores',
       icon: Users,
       items: [
-        { href: '/jugadores', label: 'Jugadores', icon: Users },
+        { href: '/jugadores', label: 'Plantilla', icon: Users },
         { href: '/registro', label: 'Nuevo registro', icon: UserRoundPlus },
         { href: '/valoraciones', label: 'Valoraciones', icon: BarChart3 },
-      ] },
+      ],
+    },
     {
-      label: 'Análisis',
+      label: 'Informes',
       icon: FileText,
       items: [
         { href: '/informes', label: 'Centro informes', icon: Briefcase },
-        { href: '/reporte-jugador', label: 'Reporte jugador', icon: FileText },
-        { href: '/informes/grupo', label: 'Informes grupo', icon: Briefcase },
-        { href: '/adherencia', label: 'Adherencia', icon: Gauge },
-        { href: '/ranking', label: 'Ranking', icon: Medal },
-      ] },
-    ...(isAdmin ? [{
-      label: 'Sistema',
-      icon: Settings,
-      items: [
-        { href: '/administracion', label: 'Administración', icon: ShieldCheck },
-        { href: '/configuracion', label: 'Configuración', icon: Settings },
-      ] }] : [{
-      label: 'Config',
-      icon: Settings,
-      items: [{ href: '/configuracion', label: 'Configuración', icon: Settings }] }]),
+        { href: '/informes/jugador-periodo', label: 'Informe individual', icon: FileText },
+        { href: '/informes/grupo', label: 'Informe grupo', icon: Briefcase },
+        { href: '/informes/semanal', label: 'Informe semanal', icon: CalendarDays },
+      ],
+    },
+    ...(isAdmin
+      ? [
+          {
+            label: 'Sistema',
+            icon: Settings,
+            items: [
+              { href: '/administracion', label: 'Administración', icon: ShieldCheck },
+              { href: '/configuracion', label: 'Configuración', icon: Settings },
+            ],
+          },
+        ]
+      : [
+          {
+            label: 'Sistema',
+            icon: Settings,
+            items: [{ href: '/configuracion', label: 'Configuración', icon: Settings }],
+          },
+        ]),
   ];
 };
 
@@ -116,10 +144,9 @@ export function TopNav() {
 
   const syncDot = syncStatus === 'syncing' ? '#f59e0b' : syncStatus === 'error' ? '#ef4444' : '#22c55e';
 
-  // Close on outside click
   useEffect(() => {
-    const handler = (e: globalThis.MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+    const handler = (event: globalThis.MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(event.target as Node)) {
         setOpenGroup(null);
       }
     };
@@ -127,12 +154,10 @@ export function TopNav() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Close on route change
   useEffect(() => { setOpenGroup(null); }, [pathname]);
 
   return (
     <nav className="tnav" ref={navRef}>
-      {/* Brand */}
       <Link href="/" className="tnav-brand">
         <div className="tnav-crest">
           <Image src="/orsomarso-crest.jpg" alt="Orsomarso SC" width={28} height={28} priority />
@@ -142,7 +167,6 @@ export function TopNav() {
         </div>
       </Link>
 
-      {/* Groups */}
       <div className="tnav-groups">
         {groups.map((group) => {
           const GroupIcon = group.icon;
@@ -167,7 +191,6 @@ export function TopNav() {
         })}
       </div>
 
-      {/* Right side — user + sync */}
       <div className="tnav-right">
         <div className="tnav-sync" title={syncStatus}>
           <span className="tnav-sync-dot" style={{ background: syncDot }} />
@@ -197,5 +220,4 @@ export function TopNav() {
   );
 }
 
-// Mobile nav stays the same - imported from sidebar.tsx
 export { MobileNavigation } from './sidebar';

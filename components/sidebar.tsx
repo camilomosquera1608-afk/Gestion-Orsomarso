@@ -10,6 +10,7 @@ import {
   BarChart3,
   Bell,
   Briefcase,
+  Database,
   ChevronDown,
   ChevronRight,
   Dumbbell,
@@ -51,38 +52,36 @@ const staffGroups = [
     items: [
       { href: "/plan-diario", label: "Plan diario", icon: CalendarDays },
       { href: "/microciclo", label: "Microciclo", icon: Activity },
-      { href: "/plan-diario", label: "Plan", icon: CalendarDays },
       { href: "/sesion-entrenamiento", label: "Sesión", icon: TimerReset },
-      { href: "/fuerza", label: "Fuerza", icon: Dumbbell },
       { href: "/competencia", label: "Competencia", icon: Trophy },
-      { href: "/alimentacion", label: "Alimentación", icon: Utensils },
+      { href: "/fuerza", label: "Fuerza", icon: Dumbbell },
     ],
   },
   {
-    title: "Rendimiento",
+    title: "Control de carga",
     items: [
-      { href: "/carga", label: "Centro de carga", icon: Dumbbell },
+      { href: "/carga", label: "Resumen carga/riesgo", icon: Gauge },
+      { href: "/riesgo", label: "Riesgo detallado", icon: TrendingUp },
       { href: "/wellness", label: "Wellness", icon: ShieldCheck },
       { href: "/disponibilidad", label: "Disponibilidad", icon: HeartPulse },
-      { href: "/riesgo", label: "Riesgo", icon: TrendingUp },
+      { href: "/adherencia", label: "Calidad del dato", icon: Database },
     ],
   },
   {
-    title: "Plantilla",
+    title: "Jugadores",
     items: [
-      { href: "/jugadores", label: "Jugadores", icon: Users },
+      { href: "/jugadores", label: "Plantilla", icon: Users },
       { href: "/registro", label: "Nuevo registro", icon: UserRoundPlus },
       { href: "/valoraciones", label: "Valoraciones", icon: BarChart3 },
     ],
   },
   {
-    title: "Análisis",
+    title: "Informes",
     items: [
       { href: "/informes", label: "Centro informes", icon: Briefcase },
-      { href: "/reporte-jugador", label: "Reporte jugador", icon: FileText },
-      { href: "/informes/grupo", label: "Informes grupo", icon: Briefcase },
-      { href: "/adherencia", label: "Adherencia", icon: Gauge },
-      { href: "/ranking", label: "Ranking", icon: Medal },
+      { href: "/informes/jugador-periodo", label: "Informe individual", icon: FileText },
+      { href: "/informes/grupo", label: "Informe grupo", icon: Briefcase },
+      { href: "/informes/semanal", label: "Informe semanal", icon: CalendarDays },
     ],
   },
   {
@@ -259,9 +258,9 @@ export const MobileNavigation = () => {
   const primaryItems = [
     { href: "/", label: "Inicio", icon: Home },
     { href: "/jugadores", label: "Jugadores", icon: Users },
-    { href: "/valoraciones", label: "Valoraciones", icon: BarChart3 },
+    { href: "/carga", label: "Carga", icon: Gauge },
     { href: "/plan-diario", label: "Plan", icon: CalendarDays },
-    { href: "/sesion-entrenamiento", label: "Sesión", icon: TimerReset },
+    { href: "/competencia", label: "Partido", icon: Trophy },
   ];
 
   return (
