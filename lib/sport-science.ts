@@ -1,4 +1,5 @@
 import type { AppData, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, Player } from './types';
+import { getPlayerDayLoad } from './utils';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 const num = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -57,11 +58,8 @@ export const externalLoadValue = (record?: DailyExternalLoadRecord) => {
   return num(record.playerLoad) + (num(record.totalDistance) / 10) + num(record.acc) + num(record.dcc) + (num(record.sprints) * 4) + num(record.rhie);
 };
 
-export const playerDayLoad = (data: Pick<AppData, 'internalLoads' | 'externalLoads'>, playerId: string, date: string) => {
-  const internal = data.internalLoads.filter((record) => record.playerId === playerId && record.date === date).reduce((sum, record) => sum + internalLoadValue(record), 0);
-  if (internal > 0) return internal;
-  return data.externalLoads.filter((record) => record.playerId === playerId && record.date === date).reduce((sum, record) => sum + externalLoadValue(record), 0);
-};
+export const playerDayLoad = (data: Pick<AppData, 'internalLoads' | 'externalLoads'> & Partial<Pick<AppData, 'competitionRecords'>>, playerId: string, date: string) =>
+  getPlayerDayLoad(playerId, date, data, { includeCompetitionExternal: true, includeCompetitionRecords: true });
 
 const mean = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 const standardDeviation = (values: number[]) => {

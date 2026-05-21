@@ -1,6 +1,7 @@
 import type { AppData, DailyExternalLoadRecord, Player } from './types';
 import type { BodyMapRecord } from './body-map';
 import { BODY_REGION_RISK } from './body-map';
+import { getPlayerDayLoad } from './utils';
 
 export type PredictiveRiskTone = 'green' | 'amber' | 'red';
 
@@ -18,7 +19,15 @@ export interface PredictiveRiskResult {
   alerts: string[];
   metrics: {
     arc: number;
+    acwr: number;
+    acuteLoad: number;
+    chronicWeeklyLoad: number;
+    monotony: number;
+    strain: number;
     negativeWellnessStreak: number;
+    wellnessToday?: number;
+    wellnessBaseline?: number;
+    wellnessDelta?: number;
     daysWithoutVelocityExposure?: number;
     abruptReturn: boolean;
     highPain?: number;
@@ -35,6 +44,14 @@ const keyRegions = new Set(['Isquiotibial', 'Aductor', 'Gemelo/Sóleo', 'Aquiles
 const num = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const mean = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const round = (value: number, digits = 2) => Number(value.toFixed(digits));
+
+const standardDeviation = (values: number[]) => {
+  if (values.length < 2) return 0;
+  const avg = mean(values);
+  const variance = values.reduce((sum, value) => sum + Math.pow(value - avg, 2), 0) / values.length;
+  return Math.sqrt(variance);
+};
 
 const toDate = (value: string) => {
   const parsed = new Date(`${value}T00:00:00`);
@@ -48,11 +65,6 @@ const dayDiff = (date: string, referenceDate: string) => {
   return Math.round((b.getTime() - a.getTime()) / MS_DAY);
 };
 
-const inWindow = (date: string, referenceDate: string, minDays: number, maxDays: number) => {
-  const diff = dayDiff(date, referenceDate);
-  return diff >= minDays && diff <= maxDays;
-};
-
 const dateMinus = (referenceDate: string, days: number) => {
   const base = toDate(referenceDate);
   if (!base) return referenceDate;
@@ -60,38 +72,58 @@ const dateMinus = (referenceDate: string, days: number) => {
   return next.toISOString().slice(0, 10);
 };
 
+const inWindow = (date: string, referenceDate: string, minDays: number, maxDays: number) => {
+  const diff = dayDiff(date, referenceDate);
+  return diff >= minDays && diff <= maxDays;
+};
+
 const wellnessAverage = (record?: { sleep: number; fatigue: number; stress: number; musclePain: number; mood: number }) => {
   if (!record) return undefined;
   return (num(record.sleep) + num(record.fatigue) + num(record.stress) + num(record.musclePain) + num(record.mood)) / 5;
 };
 
-const internalLoad = (record: { duration: number; rpe: number }) => num(record.duration) * num(record.rpe);
+const playerDailyLoad = (data: AppData, playerId: string, date: string) =>
+  getPlayerDayLoad(playerId, date, data, { includeCompetitionExternal: true, includeCompetitionRecords: true });
 
-const recordLoad = (record: DailyExternalLoadRecord) => {
-  const rpeLoad = num(record.rpe) * num(record.min);
-  if (rpeLoad > 0) return rpeLoad;
-  return num(record.playerLoad) + (num(record.totalDistance) / 10) + num(record.acc) + num(record.dcc) + (num(record.sprints) * 4) + num(record.rhie);
+const windowDates = (referenceDate: string, minDays: number, maxDays: number) =>
+  Array.from({ length: maxDays - minDays + 1 }, (_, index) => dateMinus(referenceDate, minDays + index));
+
+const loadWindow = (data: AppData, playerId: string, referenceDate: string, minDays: number, maxDays: number) =>
+  windowDates(referenceDate, minDays, maxDays)
+    .reduce((sum, date) => sum + playerDailyLoad(data, playerId, date), 0);
+
+const dailyLoadWindow = (data: AppData, playerId: string, referenceDate: string, days: number) =>
+  Array.from({ length: days }, (_, index) => playerDailyLoad(data, playerId, dateMinus(referenceDate, days - 1 - index)));
+
+const computeAcwrMetrics = (data: AppData, player: Player, date: string) => {
+  const acuteLoad = loadWindow(data, player.id, date, 0, 6);
+  const priorWeeks = [
+    loadWindow(data, player.id, date, 7, 13),
+    loadWindow(data, player.id, date, 14, 20),
+    loadWindow(data, player.id, date, 21, 27),
+    loadWindow(data, player.id, date, 28, 34),
+  ].filter((value) => value > 0);
+  const prior28 = priorWeeks.reduce((sum, value) => sum + value, 0);
+  const chronicWeeklyLoad = priorWeeks.length >= 2
+    ? mean(priorWeeks)
+    : prior28 > 0
+      ? prior28 / 4
+      : num(player.targetWeeklyLoad);
+  const acwr = chronicWeeklyLoad > 0 ? round(acuteLoad / chronicWeeklyLoad, 2) : 0;
+  return { acuteLoad: round(acuteLoad, 0), chronicWeeklyLoad: round(chronicWeeklyLoad, 0), acwr };
 };
 
-export const neuromuscularLoad = (record?: Pick<DailyExternalLoadRecord, 'acc' | 'dcc' | 'sprints' | 'rhie'>) => {
-  if (!record) return 0;
-  return num(record.acc) + num(record.dcc) + (num(record.sprints) * 4) + num(record.rhie);
-};
+export const computeArcRatio = (data: AppData, player: Player, date: string) =>
+  computeAcwrMetrics(data, player, date).acwr;
 
-const weeklyLoad = (data: AppData, playerId: string, referenceDate: string, minDays: number, maxDays: number) => {
-  const internal = data.internalLoads
-    .filter((record) => record.playerId === playerId && inWindow(record.date, referenceDate, minDays, maxDays));
-  if (internal.length) return internal.reduce((sum, record) => sum + internalLoad(record), 0);
-  return data.externalLoads
-    .filter((record) => record.playerId === playerId && inWindow(record.date, referenceDate, minDays, maxDays))
-    .reduce((sum, record) => sum + recordLoad(record), 0);
-};
-
-export const computeArcRatio = (data: AppData, player: Player, date: string) => {
-  const acute = weeklyLoad(data, player.id, date, 0, 6);
-  const chronic4w = weeklyLoad(data, player.id, date, 7, 34);
-  const chronicWeekly = chronic4w > 0 ? chronic4w / 4 : num(player.targetWeeklyLoad);
-  return chronicWeekly > 0 ? Number((acute / chronicWeekly).toFixed(2)) : 0;
+const computeMonotonyMetrics = (data: AppData, player: Player, date: string) => {
+  const dailyLoads = dailyLoadWindow(data, player.id, date, 7);
+  const totalLoad = dailyLoads.reduce((sum, value) => sum + value, 0);
+  const avg = mean(dailyLoads);
+  const sd = standardDeviation(dailyLoads);
+  const monotony = sd > 0 ? avg / sd : totalLoad > 0 ? 9.99 : 0;
+  const strain = totalLoad * monotony;
+  return { monotony: round(monotony, 2), strain: round(strain, 0) };
 };
 
 const baselineWellness = (data: AppData, player: Player, date: string) => {
@@ -134,28 +166,41 @@ const hasVelocityExposure = (record: DailyExternalLoadRecord, player: Player) =>
   return false;
 };
 
+const velocityDose = (record: DailyExternalLoadRecord) =>
+  num(record.highSpeedDistance ?? record.hsr) + num(record.sprintDistance) + (num(record.sprints) * 10);
+
 const velocityAbsenceAndReturn = (data: AppData, player: Player, date: string) => {
-  const today = data.externalLoads.find((record) => record.playerId === player.id && record.date === date);
+  const todayRecords = data.externalLoads.filter((record) => record.playerId === player.id && record.date === date);
   const prior = data.externalLoads
     .filter((record) => record.playerId === player.id && record.date < date)
     .sort((a, b) => b.date.localeCompare(a.date));
   const lastExposure = prior.find((record) => hasVelocityExposure(record, player));
   const daysWithoutVelocityExposure = lastExposure ? dayDiff(lastExposure.date, date) - 1 : undefined;
-  const todayExposure = today ? hasVelocityExposure(today, player) : false;
-  const todayHs = num(today?.highSpeedDistance ?? today?.hsr) + num(today?.sprintDistance) + (num(today?.sprints) * 10);
-  const prior28 = prior.filter((record) => inWindow(record.date, date, 1, 28));
-  const priorExposureAvg = mean(prior28.map((record) => num(record.highSpeedDistance ?? record.hsr) + num(record.sprintDistance) + (num(record.sprints) * 10)).filter((value) => value > 0));
+  const todayExposure = todayRecords.some((record) => hasVelocityExposure(record, player));
+  const todayHs = todayRecords.reduce((sum, record) => sum + velocityDose(record), 0);
+  const prior28ByDate = new Map<string, number>();
+  prior
+    .filter((record) => inWindow(record.date, date, 1, 28))
+    .forEach((record) => prior28ByDate.set(record.date, (prior28ByDate.get(record.date) ?? 0) + velocityDose(record)));
+  const priorExposureAvg = mean(Array.from(prior28ByDate.values()).filter((value) => value > 0));
   const abruptByVolume = priorExposureAvg > 0 ? todayHs >= priorExposureAvg * 1.5 : todayHs > 0;
   const abruptReturn = Boolean(daysWithoutVelocityExposure !== undefined && daysWithoutVelocityExposure > 7 && todayExposure && abruptByVolume);
   return { daysWithoutVelocityExposure, abruptReturn };
 };
 
+export const neuromuscularLoad = (record?: Pick<DailyExternalLoadRecord, 'acc' | 'dcc' | 'sprints' | 'rhie'>) => {
+  if (!record) return 0;
+  return num(record.acc) + num(record.dcc) + (num(record.sprints) * 4) + num(record.rhie);
+};
+
 const readaptationProgression = (data: AppData, player: Player, date: string) => {
-  const today = data.externalLoads.find((record) => record.playerId === player.id && record.date === date);
-  const neuromuscularToday = neuromuscularLoad(today);
-  const previous14 = data.externalLoads
-    .filter((record) => record.playerId === player.id && inWindow(record.date, date, 1, 14))
-    .map(neuromuscularLoad)
+  const neuromuscularToday = data.externalLoads
+    .filter((record) => record.playerId === player.id && record.date === date)
+    .reduce((sum, record) => sum + neuromuscularLoad(record), 0);
+  const previous14 = windowDates(date, 1, 14)
+    .map((day) => data.externalLoads
+      .filter((record) => record.playerId === player.id && record.date === day)
+      .reduce((sum, record) => sum + neuromuscularLoad(record), 0))
     .filter((value) => value > 0);
   const neuromuscularPreviousMax = previous14.length ? Math.max(...previous14) : 0;
   const previousAvg = mean(previous14);
@@ -176,10 +221,37 @@ export const computePredictiveRisk = (args: {
   const factors: PredictiveRiskFactor[] = [];
   const alerts: string[] = [];
 
-  const arc = computeArcRatio(data, player, date);
+  const acwrMetrics = computeAcwrMetrics(data, player, date);
+  const arc = acwrMetrics.acwr;
   if (arc > 1.5) {
-    factors.push({ key: 'arc-high', label: `ARC ${arc.toFixed(2)} > 1.5`, points: 25 });
-    alerts.push('Carga aguda alta frente a su carga habitual.');
+    factors.push({ key: 'acwr-high', label: `ACWR ${arc.toFixed(2)} > 1.50`, points: 25 });
+    alerts.push('Carga aguda muy alta frente a su carga habitual.');
+  } else if (arc > 1.3) {
+    factors.push({ key: 'acwr-caution', label: `ACWR ${arc.toFixed(2)} entre 1.31 y 1.50`, points: 12 });
+    alerts.push('Incremento relevante de carga aguda frente a su base.');
+  } else if (arc > 0 && arc < 0.8) {
+    factors.push({ key: 'acwr-low', label: `ACWR ${arc.toFixed(2)} < 0.80`, points: 8 });
+    alerts.push('Carga reciente baja: vigilar subexposición si se acerca competencia.');
+  }
+
+  const monotonyMetrics = computeMonotonyMetrics(data, player, date);
+  if (monotonyMetrics.monotony >= 2.5 || monotonyMetrics.strain >= 6000) {
+    factors.push({ key: 'monotony-strain-high', label: `Monotonía ${monotonyMetrics.monotony.toFixed(2)} · strain ${monotonyMetrics.strain}`, points: 18 });
+    alerts.push('Distribución semanal monótona o strain alto: posible acumulación de fatiga.');
+  } else if (monotonyMetrics.monotony >= 2 || monotonyMetrics.strain >= 4000) {
+    factors.push({ key: 'monotony-strain-caution', label: `Monotonía ${monotonyMetrics.monotony.toFixed(2)} · strain ${monotonyMetrics.strain}`, points: 10 });
+    alerts.push('Monotonía/strain semanal en zona de control.');
+  }
+
+  const baseline = baselineWellness(data, player, date);
+  const todayWellness = wellnessAverage(data.wellness.find((item) => item.playerId === player.id && item.date === date));
+  const wellnessDelta = todayWellness !== undefined && baseline ? round(todayWellness - baseline, 1) : undefined;
+  if (todayWellness !== undefined && todayWellness < 3) {
+    factors.push({ key: 'wellness-low-today', label: `Wellness ${todayWellness.toFixed(1)}/5`, points: 15 });
+    alerts.push('Readiness subjetivo bajo en el día.');
+  } else if (wellnessDelta !== undefined && wellnessDelta <= -0.7) {
+    factors.push({ key: 'wellness-drop', label: `Wellness ${wellnessDelta.toFixed(1)} vs línea base`, points: 10 });
+    alerts.push('Caída relevante de wellness frente a su línea base.');
   }
 
   const streak = negativeWellnessStreak(data, player, date);
@@ -218,7 +290,15 @@ export const computePredictiveRisk = (args: {
     alerts,
     metrics: {
       arc,
+      acwr: arc,
+      acuteLoad: acwrMetrics.acuteLoad,
+      chronicWeeklyLoad: acwrMetrics.chronicWeeklyLoad,
+      monotony: monotonyMetrics.monotony,
+      strain: monotonyMetrics.strain,
       negativeWellnessStreak: streak,
+      wellnessToday: todayWellness !== undefined ? round(todayWellness, 1) : undefined,
+      wellnessBaseline: baseline ? round(baseline, 1) : undefined,
+      wellnessDelta,
       daysWithoutVelocityExposure: velocity.daysWithoutVelocityExposure,
       abruptReturn: velocity.abruptReturn,
       highPain: pain?.intensity,

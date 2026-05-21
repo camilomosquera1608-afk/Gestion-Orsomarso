@@ -101,36 +101,38 @@ const daysBetween = (a: string, b: string) => {
   return Math.round((db.getTime() - da.getTime()) / 86400000);
 };
 
-export const getPlayerDailyInternalLoad = (playerId: string, date: string, internalLoads: DailyInternalLoadRecord[], externalLoads: DailyExternalLoadRecord[]) =>
-  getPlayerDayLoad(playerId, date, { internalLoads, externalLoads });
+export const getPlayerDailyInternalLoad = (playerId: string, date: string, internalLoads: DailyInternalLoadRecord[], externalLoads: DailyExternalLoadRecord[], competitionRecords: CompetitionRecord[] = []) =>
+  getPlayerDayLoad(playerId, date, { internalLoads, externalLoads, competitionRecords }, { includeCompetitionExternal: true, includeCompetitionRecords: true });
 
 export const buildAbruptLoadAlerts = (params: {
   players: Player[];
   internalLoads: DailyInternalLoadRecord[];
   externalLoads: DailyExternalLoadRecord[];
+  competitionRecords?: CompetitionRecord[];
   referenceDate: string;
   category?: ClubCategory | 'all';
   limit?: number;
 }): LogicInsight[] => {
-  const { players, internalLoads, externalLoads, referenceDate, category = 'all', limit = 8 } = params;
+  const { players, internalLoads, externalLoads, competitionRecords = [], referenceDate, category = 'all', limit = 8 } = params;
   const scopedPlayers = players.filter((player) => category === 'all' || !category || player.category === category);
   const rows = scopedPlayers.map((player) => {
     const dates = Array.from(new Set([
       ...internalLoads.filter((load) => load.playerId === player.id).map((load) => load.date),
       ...externalLoads.filter((load) => load.playerId === player.id).map((load) => load.date),
+      ...competitionRecords.filter((load) => load.playerId === player.id).map((load) => load.date),
     ])).filter((date) => !referenceDate || date <= referenceDate);
     const current = dates
       .filter((date) => {
         const diff = daysBetween(date, referenceDate);
         return diff >= 0 && diff <= 6;
       })
-      .reduce((sum, date) => sum + getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads), 0);
+      .reduce((sum, date) => sum + getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads, competitionRecords), 0);
     const previous = dates
       .filter((date) => {
         const diff = daysBetween(date, referenceDate);
         return diff >= 7 && diff <= 13;
       })
-      .reduce((sum, date) => sum + getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads), 0);
+      .reduce((sum, date) => sum + getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads, competitionRecords), 0);
     const increase = previous > 0 ? ((current - previous) / previous) * 100 : current > 0 ? 100 : 0;
     return { player, current, previous, increase };
   });
@@ -154,16 +156,17 @@ export const buildLoadWellnessRelation = (params: {
   wellness: DailyWellnessRecord[];
   internalLoads: DailyInternalLoadRecord[];
   externalLoads: DailyExternalLoadRecord[];
+  competitionRecords?: CompetitionRecord[];
   date: string;
   category?: ClubCategory | 'all';
   limit?: number;
 }): LogicInsight[] => {
-  const { players, wellness, internalLoads, externalLoads, date, category = 'all', limit = 6 } = params;
+  const { players, wellness, internalLoads, externalLoads, competitionRecords = [], date, category = 'all', limit = 6 } = params;
   return players
     .filter((player) => category === 'all' || !category || player.category === category)
     .map((player) => {
       const ready = wellnessReadiness(wellness.find((record) => record.playerId === player.id && record.date === date));
-      const load = getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads);
+      const load = getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads, competitionRecords);
       return { player, ready, load };
     })
     .filter((row) => row.load >= 300 || (row.ready > 0 && row.ready < 3))
@@ -209,9 +212,11 @@ const getPlayerDatesUntil = (
   referenceDate: string,
   internalLoads: DailyInternalLoadRecord[],
   externalLoads: DailyExternalLoadRecord[],
+  competitionRecords: CompetitionRecord[] = [],
 ) => Array.from(new Set([
   ...internalLoads.filter((load) => load.playerId === playerId).map((load) => load.date),
   ...externalLoads.filter((load) => load.playerId === playerId).map((load) => load.date),
+  ...competitionRecords.filter((load) => load.playerId === playerId).map((load) => load.date),
 ])).filter((date) => !referenceDate || date <= referenceDate).sort();
 
 const getPlayerLoadWindow = (
@@ -221,12 +226,13 @@ const getPlayerLoadWindow = (
   maxDiff: number,
   internalLoads: DailyInternalLoadRecord[],
   externalLoads: DailyExternalLoadRecord[],
-) => getPlayerDatesUntil(playerId, referenceDate, internalLoads, externalLoads)
+  competitionRecords: CompetitionRecord[] = [],
+) => getPlayerDatesUntil(playerId, referenceDate, internalLoads, externalLoads, competitionRecords)
   .filter((date) => {
     const diff = daysBetween(date, referenceDate);
     return diff >= minDiff && diff <= maxDiff;
   })
-  .reduce((sum, date) => sum + getPlayerDailyInternalLoad(playerId, date, internalLoads, externalLoads), 0);
+  .reduce((sum, date) => sum + getPlayerDailyInternalLoad(playerId, date, internalLoads, externalLoads, competitionRecords), 0);
 
 export interface PlayerReadinessRow {
   playerId: string;
@@ -243,11 +249,12 @@ export const buildPlayerReadinessSemaphores = (params: {
   wellness: DailyWellnessRecord[];
   internalLoads: DailyInternalLoadRecord[];
   externalLoads: DailyExternalLoadRecord[];
+  competitionRecords?: CompetitionRecord[];
   referenceDate: string;
   category?: ClubCategory | 'all';
   limit?: number;
 }): PlayerReadinessRow[] => {
-  const { players, wellness, internalLoads, externalLoads, referenceDate, category = 'all', limit = 12 } = params;
+  const { players, wellness, internalLoads, externalLoads, competitionRecords = [], referenceDate, category = 'all', limit = 12 } = params;
   const acwrFactor = (ratio: number) => {
     if (!ratio) return 0.6;
     if (ratio >= 0.8 && ratio <= 1.3) return 1;
@@ -264,11 +271,13 @@ export const buildPlayerReadinessSemaphores = (params: {
       const ready = wellnessReadiness(latestWellness);
       const playerInternal = internalLoads.filter((record) => relatedIds.has(record.playerId));
       const playerExternal = externalLoads.filter((record) => relatedIds.has(record.playerId));
-      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, playerInternal, playerExternal)), 0);
+      const playerCompetition = competitionRecords.filter((record) => relatedIds.has(record.playerId));
+      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, playerInternal, playerExternal, playerCompetition)), 0);
       const previousLoads = [
-        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 7, 13, playerInternal, playerExternal)), 0),
-        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 14, 20, playerInternal, playerExternal)), 0),
-        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 21, 27, playerInternal, playerExternal)), 0),
+        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 7, 13, playerInternal, playerExternal, playerCompetition)), 0),
+        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 14, 20, playerInternal, playerExternal, playerCompetition)), 0),
+        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 21, 27, playerInternal, playerExternal, playerCompetition)), 0),
+        Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 28, 34, playerInternal, playerExternal, playerCompetition)), 0),
       ].filter((value) => value > 0);
       const chronic = previousLoads.length ? previousLoads.reduce((sum, value) => sum + value, 0) / previousLoads.length : 0;
       const ratio = chronic > 0 ? currentLoad / chronic : 0;
@@ -295,6 +304,7 @@ export const buildAvailabilityIndex = (params: {
   wellness: DailyWellnessRecord[];
   internalLoads: DailyInternalLoadRecord[];
   externalLoads: DailyExternalLoadRecord[];
+  competitionRecords?: CompetitionRecord[];
   referenceDate: string;
   category?: ClubCategory | 'all';
 }): LogicInsight => {
@@ -329,7 +339,7 @@ export const buildRoleLoadControl = (params: {
         .filter((record) => relatedIds.has(record.playerId) && (!referenceDate || record.date <= referenceDate))
         .sort(compareDateDesc)
         .slice(0, 5);
-      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, internalLoads.filter((record) => relatedIds.has(record.playerId)), externalLoads.filter((record) => relatedIds.has(record.playerId)))), 0);
+      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, internalLoads.filter((record) => relatedIds.has(record.playerId)), externalLoads.filter((record) => relatedIds.has(record.playerId)), competitionRecords.filter((record) => relatedIds.has(record.playerId)))), 0);
       if (recentMatches.length < 5) {
         return { player, role: 'Muestra insuficiente', currentLoad, avgMinutes: 0, tone: 'blue' as InsightTone, description: `Solo hay ${recentMatches.length}/5 partidos de referencia. No se aplican umbrales por rol hasta completar muestra mínima.` };
       }
@@ -392,8 +402,9 @@ export const buildReturnToPlayAlerts = (params: {
       const relatedIds = getRelatedPlayerIds(players, player.id);
       const playerInternal = internalLoads.filter((record) => relatedIds.has(record.playerId));
       const playerExternal = externalLoads.filter((record) => relatedIds.has(record.playerId));
-      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, playerInternal, playerExternal)), 0);
-      const previousLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 7, 13, playerInternal, playerExternal)), 0);
+      const playerCompetition = competitionRecords.filter((record) => relatedIds.has(record.playerId));
+      const currentLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 0, 6, playerInternal, playerExternal, playerCompetition)), 0);
+      const previousLoad = Math.max(...Array.from(relatedIds).map((id) => getPlayerLoadWindow(id, referenceDate, 7, 13, playerInternal, playerExternal, playerCompetition)), 0);
       const lastMatch = latestByDate(competitionRecords.filter((record) => relatedIds.has(record.playerId) && (!referenceDate || record.date <= referenceDate)));
       const increase = previousLoad > 0 ? ((currentLoad - previousLoad) / previousLoad) * 100 : currentLoad > 0 ? 100 : 0;
       const hasRtpStatus = player.status === 'Readaptación' || player.status === 'Molestia' || player.status === 'Lesionado' || lastMatch?.medicalStatus === 'Lesionado' || recentlyReturned(player);
@@ -416,14 +427,15 @@ export const buildWeeklyMonotonyFatigue = (params: {
   players: Player[];
   internalLoads: DailyInternalLoadRecord[];
   externalLoads: DailyExternalLoadRecord[];
+  competitionRecords?: CompetitionRecord[];
   referenceDate: string;
   category?: ClubCategory | 'all';
 }): LogicInsight => {
-  const { players, internalLoads, externalLoads, referenceDate, category = 'all' } = params;
+  const { players, internalLoads, externalLoads, competitionRecords = [], referenceDate, category = 'all' } = params;
   const scoped = players.filter((player) => category === 'all' || !category || player.category === category);
   const dailyLoads = Array.from({ length: 7 }, (_, index) => {
     const date = dateMinusDays(referenceDate, 6 - index);
-    return scoped.reduce((sum, player) => sum + getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads), 0);
+    return scoped.reduce((sum, player) => sum + getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads, competitionRecords), 0);
   });
   const totalLoad = dailyLoads.reduce((sum, value) => sum + value, 0);
   const avg = dailyLoads.reduce((sum, value) => sum + value, 0) / dailyLoads.length;
@@ -432,7 +444,7 @@ export const buildWeeklyMonotonyFatigue = (params: {
     return Math.sqrt(variance);
   })();
   const monotony = sd > 0 ? avg / sd : avg > 0 ? 9.99 : 0;
-  const playersWithData = scoped.filter((player) => dailyLoads.some((_, index) => getPlayerDailyInternalLoad(player.id, dateMinusDays(referenceDate, 6 - index), internalLoads, externalLoads) > 0)).length || 1;
+  const playersWithData = scoped.filter((player) => dailyLoads.some((_, index) => getPlayerDailyInternalLoad(player.id, dateMinusDays(referenceDate, 6 - index), internalLoads, externalLoads, competitionRecords) > 0)).length || 1;
   const strain = totalLoad * monotony;
   const strainPerCapita = strain / playersWithData;
   const tone: InsightTone = monotony >= 2.2 || strainPerCapita >= 6000 ? 'red' : monotony >= 1.5 || strainPerCapita >= 4000 ? 'yellow' : 'green';
@@ -449,17 +461,18 @@ export const buildSelfComparisonInsights = (params: {
   players: Player[];
   internalLoads: DailyInternalLoadRecord[];
   externalLoads: DailyExternalLoadRecord[];
+  competitionRecords?: CompetitionRecord[];
   referenceDate: string;
   category?: ClubCategory | 'all';
   limit?: number;
 }): LogicInsight[] => {
-  const { players, internalLoads, externalLoads, referenceDate, category = 'all', limit = 8 } = params;
+  const { players, internalLoads, externalLoads, competitionRecords = [], referenceDate, category = 'all', limit = 8 } = params;
   return players
     .filter((player) => category === 'all' || !category || player.category === category)
     .map((player) => {
-      const todayLoad = getPlayerDailyInternalLoad(player.id, referenceDate, internalLoads, externalLoads);
-      const historyDates = getPlayerDatesUntil(player.id, referenceDate, internalLoads, externalLoads).filter((date) => date < referenceDate).slice(-28);
-      const rawBaseline = historyDates.map((date) => getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads)).filter((value) => value > 0);
+      const todayLoad = getPlayerDailyInternalLoad(player.id, referenceDate, internalLoads, externalLoads, competitionRecords);
+      const historyDates = getPlayerDatesUntil(player.id, referenceDate, internalLoads, externalLoads, competitionRecords).filter((date) => date < referenceDate).slice(-28);
+      const rawBaseline = historyDates.map((date) => getPlayerDailyInternalLoad(player.id, date, internalLoads, externalLoads, competitionRecords)).filter((value) => value > 0);
       const avg = rawBaseline.length ? rawBaseline.reduce((sum, value) => sum + value, 0) / rawBaseline.length : 0;
       const sd = rawBaseline.length > 1 ? Math.sqrt(rawBaseline.reduce((sum, value) => sum + Math.pow(value - avg, 2), 0) / rawBaseline.length) : 0;
       const baselineValues = rawBaseline.filter((value) => sd === 0 || value <= avg + (2 * sd));
@@ -671,7 +684,7 @@ export const buildEvaluationLogic = (params: { data: AppData; players: Player[];
     }
     if (cmj[0] && cmj[1]) {
       const delta = cmj[0].value - cmj[1].value;
-      const prev5Load = Array.from({ length: 5 }, (_, index) => getPlayerDailyInternalLoad(player.id, dateMinusDays(safeDateText(cmj[0].date), index + 1), data.internalLoads, data.externalLoads)).reduce((sum, value) => sum + value, 0);
+      const prev5Load = Array.from({ length: 5 }, (_, index) => getPlayerDailyInternalLoad(player.id, dateMinusDays(safeDateText(cmj[0].date), index + 1), data.internalLoads, data.externalLoads, data.competitionRecords)).reduce((sum, value) => sum + value, 0);
       if (Math.abs(delta) >= 2) {
         insights.push({
           id: `eval-cmj-${player.id}`,
@@ -753,8 +766,9 @@ export const buildMicrocycleLogic = (params: {
   const sessions = data.trainingSessionSummaries.filter((session) => session.category === category && belongs(session.microcycleId, session.date));
   const external = data.externalLoads.filter((record) => (record.category === category || playerIds.has(record.playerId)) && belongs(record.microcycleId, record.date));
   const internal = data.internalLoads.filter((record) => (record.category === category || playerIds.has(record.playerId)) && belongs(record.microcycleId, record.date));
-  const dates = Array.from(new Set([...internal.map((record) => record.date), ...external.map((record) => record.date)])).sort();
-  const loads = dates.reduce((sum, date) => sum + players.reduce((acc, player) => acc + getPlayerDailyInternalLoad(player.id, date, internal, external), 0), 0);
+  const competition = data.competitionRecords.filter((record) => playerIds.has(record.playerId) && inRange(record.date));
+  const dates = Array.from(new Set([...internal.map((record) => record.date), ...external.map((record) => record.date), ...competition.map((record) => record.date)])).sort();
+  const loads = dates.reduce((sum, date) => sum + players.reduce((acc, player) => acc + getPlayerDailyInternalLoad(player.id, date, internal, external, competition), 0), 0);
   const typeCount = sessions.reduce<Record<string, number>>((acc, session) => {
     const label = trainingTypeLabel[session.sessionType] ?? 'Sin tipo';
     acc[label] = (acc[label] ?? 0) + 1;

@@ -1,5 +1,5 @@
 import type { AppData, ClubCategory, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, GlobalFilters, Player, PlayerStatus } from './types';
-import { averageWellness, calculateInternalLoad, computeWellnessScore, getPlayerDayLoad, groupAverage } from './utils';
+import { averageWellness, calculateExternalLoad, calculateInternalLoad, computeWellnessScore, externalLoadHasInternalPair, getPlayerDayLoad, groupAverage } from './utils';
 import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performance-helpers';
 import { addDays, buildDailyOperations, eachDateInRange, formatDateShort, getVisiblePlayers, isSameCategory, type OperationalAlert } from './operational-helpers';
 import { supportsGps } from './report-utils';
@@ -143,8 +143,31 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
   const external = getEffectiveExternalLoads(data, { activeCategory, playerIds: ids })
     .filter((item) => dateInRange(item.date, dates));
   const internalFallback = data.internalLoads.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates));
-  const effectiveRpe = (item: DailyExternalLoadRecord) => (item.rpe && item.rpe > 0 ? item.rpe : item.movementModule === 'competencia' ? 8 : 0);
-  const externalDayLoad = (items: DailyExternalLoadRecord[]) => items.reduce((sum, item) => sum + ((item.min ?? 0) * effectiveRpe(item)), 0);
+  const effectiveRpe = (item: DailyExternalLoadRecord) => {
+    const rpe = Number(item.rpe ?? 0);
+    if (Number.isFinite(rpe) && rpe > 0) return rpe;
+    return item.movementModule === 'competencia' ? 8 : 0;
+  };
+  const internalHasExternalPair = (internal: DailyInternalLoadRecord, externalItems: DailyExternalLoadRecord[]) =>
+    externalItems.some((externalItem) => externalLoadHasInternalPair(externalItem, [internal]));
+  const internalOnlyRows = (internalItems: DailyInternalLoadRecord[], externalItems: DailyExternalLoadRecord[]) =>
+    internalItems.filter((internal) => !internalHasExternalPair(internal, externalItems));
+  const loadForRecords = (internalItems: DailyInternalLoadRecord[], externalItems: DailyExternalLoadRecord[]) => {
+    const internalLoad = internalItems.reduce((sum, item) => sum + calculateInternalLoad(item), 0);
+    const externalOnlyLoad = externalItems
+      .filter((item) => !externalLoadHasInternalPair(item, internalItems))
+      .reduce((sum, item) => sum + calculateExternalLoad(item), 0);
+    return internalLoad + externalOnlyLoad;
+  };
+  const minutesForRecords = (internalItems: DailyInternalLoadRecord[], externalItems: DailyExternalLoadRecord[]) =>
+    externalItems.reduce((sum, item) => sum + (item.min ?? 0), 0) +
+    internalOnlyRows(internalItems, externalItems).reduce((sum, item) => sum + (item.duration ?? 0), 0);
+  const rpeValuesForRecords = (internalItems: DailyInternalLoadRecord[], externalItems: DailyExternalLoadRecord[]) => [
+    ...internalItems.map((item) => item.rpe ?? 0),
+    ...externalItems
+      .filter((item) => !externalLoadHasInternalPair(item, internalItems))
+      .map(effectiveRpe),
+  ].filter((value) => value > 0);
 
   const rows: LoadPlayerRow[] = players.map((player) => {
     const relatedIds = getRelatedPlayerIds(data.players, player.id);
@@ -152,18 +175,26 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
     const playerInternalFallback = internalFallback.filter((item) => relatedIds.has(item.playerId));
     const internalLoad = dates.reduce((sum, date) => {
       const dayExternal = playerExternal.filter((item) => item.date === date);
-      const derivedExternal = externalDayLoad(dayExternal);
-      if (derivedExternal > 0) return sum + derivedExternal;
-      return sum + Math.max(...Array.from(relatedIds).map((id) => getPlayerDayLoad(id, date, { internalLoads: playerInternalFallback, externalLoads: playerExternal }, { includeCompetitionExternal: true })), 0);
+      const dayInternal = playerInternalFallback.filter((item) => item.date === date);
+      return sum + loadForRecords(dayInternal, dayExternal);
     }, 0);
-    const minutes = playerExternal.reduce((acc, item) => acc + (item.min ?? 0), 0);
+    const minutes = dates.reduce((sum, date) => {
+      const dayExternal = playerExternal.filter((item) => item.date === date);
+      const dayInternal = playerInternalFallback.filter((item) => item.date === date);
+      return sum + minutesForRecords(dayInternal, dayExternal);
+    }, 0);
+    const rpeValues = dates.flatMap((date) => {
+      const dayExternal = playerExternal.filter((item) => item.date === date);
+      const dayInternal = playerInternalFallback.filter((item) => item.date === date);
+      return rpeValuesForRecords(dayInternal, dayExternal);
+    });
     const status = exposure(minutes, internalLoad);
     const totalDistance = playerExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0);
     return {
       player,
       internalLoad,
       minutes,
-      avgRpe: groupAverage(playerExternal.map(effectiveRpe).filter((value) => value > 0)),
+      avgRpe: groupAverage(rpeValues),
       acc: playerExternal.reduce((acc, item) => acc + (item.acc ?? 0), 0),
       dcc: playerExternal.reduce((acc, item) => acc + (item.dcc ?? 0), 0),
       rhie: playerExternal.reduce((acc, item) => acc + (item.rhie ?? 0), 0),
@@ -187,22 +218,39 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
     const derivedInternalLoad = players.reduce((sum, player) => {
       const relatedIds = getRelatedPlayerIds(data.players, player.id);
       const playerDayExternal = dayExternal.filter((item) => relatedIds.has(item.playerId));
-      const externalLoad = externalDayLoad(playerDayExternal);
-      if (externalLoad > 0) return sum + externalLoad;
-      return sum + Math.max(...Array.from(relatedIds).map((id) => getPlayerDayLoad(id, date, { internalLoads: dayInternalFallback.filter((item) => relatedIds.has(item.playerId)), externalLoads: playerDayExternal }, { includeCompetitionExternal: true })), 0);
+      const playerDayInternal = dayInternalFallback.filter((item) => relatedIds.has(item.playerId));
+      return sum + loadForRecords(playerDayInternal, playerDayExternal);
     }, 0);
-    const fallbackInternalLoad = derivedInternalLoad;
+    const dayMinutes = players.reduce((sum, player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      const playerDayExternal = dayExternal.filter((item) => relatedIds.has(item.playerId));
+      const playerDayInternal = dayInternalFallback.filter((item) => relatedIds.has(item.playerId));
+      return sum + minutesForRecords(playerDayInternal, playerDayExternal);
+    }, 0);
+    const dayRpeValues = players.flatMap((player) => {
+      const relatedIds = getRelatedPlayerIds(data.players, player.id);
+      const playerDayExternal = dayExternal.filter((item) => relatedIds.has(item.playerId));
+      const playerDayInternal = dayInternalFallback.filter((item) => relatedIds.has(item.playerId));
+      return rpeValuesForRecords(playerDayInternal, playerDayExternal);
+    });
     return {
       date: formatDateShort(date),
-      min: dayExternal.reduce((acc, item) => acc + (item.min ?? 0), 0),
+      min: dayMinutes,
       totalDistance: dayExternal.reduce((acc, item) => acc + (item.totalDistance ?? 0), 0),
       playerLoad: dayExternal.reduce((acc, item) => acc + (item.playerLoad ?? 0), 0),
       hsr: dayExternal.reduce((acc, item) => acc + (item.highSpeedDistance ?? item.hsr ?? 0), 0),
       sprints: dayExternal.reduce((acc, item) => acc + (item.sprints ?? 0), 0),
-      rpe: groupAverage(dayExternal.map(effectiveRpe).filter((value) => value > 0)),
-      carga: dayExternal.length ? derivedInternalLoad : fallbackInternalLoad,
+      rpe: groupAverage(dayRpeValues),
+      carga: derivedInternalLoad,
     };
   });
+
+  const allRpeValues = dates.flatMap((date) =>
+    rpeValuesForRecords(
+      internalFallback.filter((item) => item.date === date),
+      external.filter((item) => item.date === date),
+    ),
+  );
 
   return {
     microcycle,
@@ -214,7 +262,7 @@ export const buildLoadCenter = (data: AppData, filters: GlobalFilters, activeCat
     totals: {
       internalLoad: rows.reduce((acc, row) => acc + row.internalLoad, 0),
       minutes: rows.reduce((acc, row) => acc + row.minutes, 0),
-      avgRpe: groupAverage(external.map(effectiveRpe).filter((value) => value > 0)),
+      avgRpe: groupAverage(allRpeValues),
       playersWithLoad: rows.filter((row) => row.minutes > 0 || row.internalLoad > 0).length,
       totalDistance: rows.reduce((acc, row) => acc + row.totalDistance, 0),
       playerLoad: rows.reduce((acc, row) => acc + row.playerLoad, 0),
@@ -404,8 +452,8 @@ export const buildGlobalAlertCenter = (data: AppData, filters: GlobalFilters, ac
 
 // ─── ACWR: Ratio carga aguda / crónica ────────────────────────────────────
 // Estándar de prevención de lesiones en fútbol profesional.
-// Aguda = carga últimos 7 días. Crónica = promedio de 4 semanas (28 días).
-// Zona segura: 0.8 – 1.3. Fuera de ese rango = riesgo de lesión.
+// Aguda = carga últimos 7 días. Crónica = promedio semanal de las 4 semanas previas.
+// Zona objetivo: 0.8-1.3. Precaución: 1.31-1.50 o <0.8. Riesgo alto: >1.50.
 
 export type AcwrZone = 'safe' | 'warning' | 'danger' | 'no_data';
 
@@ -416,7 +464,7 @@ export interface AcwrRow {
   ratio: number;       // acute / chronic
   zone: AcwrZone;
   zoneLabel: string;
-  weeklyLoads: number[]; // Carga por semana [w4_antiguo, w3, w2, w1_reciente]
+  weeklyLoads: number[]; // Carga por semana [w5_base, w4, w3, w2, w1_reciente]
 }
 
 const getCompetitionDayLoad = (data: AppData, playerId: string, date: string) => {
@@ -432,9 +480,7 @@ const getCompetitionDayLoad = (data: AppData, playerId: string, date: string) =>
 const getWeekLoad = (data: AppData, playerId: string, endDate: string, days: number): number => {
   const dailyLoads = Array.from({ length: days }, (_, index) => {
     const date = addDays(endDate, -(days - 1 - index));
-    const trainingLoad = getPlayerDayLoad(playerId, date, data);
-    const competitionLoad = getCompetitionDayLoad(data, playerId, date);
-    return trainingLoad + competitionLoad;
+    return getPlayerDayLoad(playerId, date, data, { includeCompetitionExternal: true, includeCompetitionRecords: true });
   });
   return dailyLoads.reduce((sum, value) => sum + value, 0);
 };
@@ -450,17 +496,18 @@ export const buildAcwrData = (data: AppData, activeCategory: string, referenceDa
     const w2 = getWeekLoad(data, player.id, addDays(today, -7), 7);
     const w3 = getWeekLoad(data, player.id, addDays(today, -14), 7);
     const w4 = getWeekLoad(data, player.id, addDays(today, -21), 7);
+    const w5 = getWeekLoad(data, player.id, addDays(today, -28), 7);
     const acute = w1;
-    const weeksWithData = [w4, w3, w2, w1].filter((w) => w > 0);
-    const chronic = weeksWithData.length >= 2 ? weeksWithData.reduce((a, b) => a + b, 0) / weeksWithData.length : 0;
+    const chronicWeeks = [w2, w3, w4, w5].filter((w) => w > 0);
+    const chronic = chronicWeeks.length >= 2 ? chronicWeeks.reduce((a, b) => a + b, 0) / chronicWeeks.length : 0;
     const ratio = chronic > 0 ? Number((acute / chronic).toFixed(2)) : 0;
     const zone: AcwrZone = chronic === 0 || acute === 0
       ? 'no_data'
-      : ratio < 0.8 ? 'warning'
-      : ratio <= 1.3 ? 'safe'
-      : 'danger';
-    const zoneLabel = zone === 'safe' ? 'Zona segura' : zone === 'warning' ? 'Sub-carga' : zone === 'danger' ? 'Riesgo' : 'Sin datos';
-    return { player, acute, chronic, ratio, zone, zoneLabel, weeklyLoads: [w4, w3, w2, w1] };
+      : ratio > 1.5 ? 'danger'
+      : ratio < 0.8 || ratio > 1.3 ? 'warning'
+      : 'safe';
+    const zoneLabel = zone === 'safe' ? 'Zona objetivo' : zone === 'warning' ? (ratio < 0.8 ? 'Sub-carga' : 'Precaución') : zone === 'danger' ? 'Riesgo alto' : 'Sin datos';
+    return { player, acute, chronic, ratio, zone, zoneLabel, weeklyLoads: [w5, w4, w3, w2, w1] };
   }).sort((a, b) => {
     const order: AcwrZone[] = ['danger', 'warning', 'safe', 'no_data'];
     return order.indexOf(a.zone) - order.indexOf(b.zone) || b.ratio - a.ratio;
@@ -539,7 +586,7 @@ export const buildMonotonyStrain = (data: AppData, microcycleId: string, activeC
     : [...new Set(data.trainingSessionSummaries.filter((session) => session.microcycleId === microcycleId).map((session) => session.date))].sort();
   const players = data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory);
 
-  const dailyLoads = dates.map((date) => players.reduce((sum, player) => sum + getPlayerDayLoad(player.id, date, data), 0));
+  const dailyLoads = dates.map((date) => players.reduce((sum, player) => sum + getPlayerDayLoad(player.id, date, data, { includeCompetitionExternal: true, includeCompetitionRecords: true }), 0));
 
   if (dailyLoads.length === 0 || dailyLoads.every((load) => load === 0)) {
     return { dailyLoads, mean: 0, stdDev: 0, monotony: 0, strain: 0, totalLoad: 0, verdict: 'optimal', verdictLabel: 'Sin datos' };

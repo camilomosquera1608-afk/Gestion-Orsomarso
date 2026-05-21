@@ -55,6 +55,22 @@ const inWindow = (date: string, referenceDate: string, minDays: number, maxDays:
   return diff >= minDays && diff <= maxDays;
 };
 
+const dateMinus = (referenceDate: string, days: number) => {
+  const base = toDate(referenceDate);
+  if (!base) return referenceDate;
+  const next = new Date(base.getTime() - days * 86400000);
+  return next.toISOString().slice(0, 10);
+};
+
+const windowDates = (referenceDate: string, minDays: number, maxDays: number) =>
+  Array.from({ length: maxDays - minDays + 1 }, (_, index) => dateMinus(referenceDate, minDays + index));
+
+const effectiveDayLoad = (data: AppData, playerId: string, date: string) =>
+  getPlayerDayLoad(playerId, date, data, { includeCompetitionExternal: true, includeCompetitionRecords: true });
+
+const loadWindow = (data: AppData, playerId: string, referenceDate: string, minDays: number, maxDays: number) =>
+  windowDates(referenceDate, minDays, maxDays).reduce((sum, day) => sum + effectiveDayLoad(data, playerId, day), 0);
+
 const latestByDate = <T extends { date: string }>(items: T[], referenceDate: string) =>
   items.filter((item) => item.date <= referenceDate).sort((a, b) => b.date.localeCompare(a.date))[0];
 
@@ -133,17 +149,28 @@ export const computePlayerScientificLoadDecision = (args: {
   const wellnessDelta = wellnessToday && baseline ? Number((wellnessToday - baseline).toFixed(1)) : 0;
 
   const internal7 = data.internalLoads.filter((record) => record.playerId === player.id && inWindow(record.date, date, 0, 6));
-  const internal28 = data.internalLoads.filter((record) => record.playerId === player.id && inWindow(record.date, date, 0, 27));
   const external7 = data.externalLoads.filter((record) => record.playerId === player.id && inWindow(record.date, date, 0, 6));
-  const external28 = data.externalLoads.filter((record) => record.playerId === player.id && inWindow(record.date, date, 0, 27));
+  const external28 = data.externalLoads.filter((record) => record.playerId === player.id && inWindow(record.date, date, 1, 28));
 
-  const loadToday = getPlayerDayLoad(player.id, date, data);
-  const load7d = internal7.length ? sumInternalLoad(internal7) : external7.reduce((sum, item) => sum + safeNumber(item.rpe) * safeNumber(item.min), 0);
-  const load28 = internal28.length ? sumInternalLoad(internal28) : external28.reduce((sum, item) => sum + safeNumber(item.rpe) * safeNumber(item.min), 0);
-  const chronicWeeklyLoad = load28 > 0 ? load28 / 4 : safeNumber(player.targetWeeklyLoad);
+  const loadToday = effectiveDayLoad(data, player.id, date);
+  const load7d = loadWindow(data, player.id, date, 0, 6);
+  const chronicWeeks = [
+    loadWindow(data, player.id, date, 7, 13),
+    loadWindow(data, player.id, date, 14, 20),
+    loadWindow(data, player.id, date, 21, 27),
+    loadWindow(data, player.id, date, 28, 34),
+  ].filter((value) => value > 0);
+  const chronicWeeklyLoad = chronicWeeks.length >= 2
+    ? mean(chronicWeeks)
+    : chronicWeeks.length === 1
+      ? chronicWeeks[0] / 4
+      : safeNumber(player.targetWeeklyLoad);
   const acuteChronicRatio = chronicWeeklyLoad > 0 ? Number((load7d / chronicWeeklyLoad).toFixed(2)) : 0;
 
-  const minutes7d = external7.reduce((sum, item) => sum + safeNumber(item.min), 0);
+  const internalMinutes7d = internal7.reduce((sum, item) => sum + safeNumber(item.duration), 0);
+  const externalMinutes7d = external7.reduce((sum, item) => sum + safeNumber(item.min), 0);
+  const competitionMinutes7d = data.competitionRecords.filter((record) => record.playerId === player.id && inWindow(record.date, date, 0, 6)).reduce((sum, item) => sum + safeNumber(item.minutesPlayed), 0);
+  const minutes7d = Math.max(internalMinutes7d, externalMinutes7d, competitionMinutes7d);
   const hsr7d = external7.reduce((sum, item) => sum + safeNumber(item.highSpeedDistance ?? item.hsr), 0);
   const sprint7d = external7.reduce((sum, item) => sum + safeNumber(item.sprintDistance) + safeNumber(item.sprints) * 10, 0);
   const velocity = getVelocityExposure(data.externalLoads, player, date);
@@ -201,14 +228,14 @@ export const computePlayerScientificLoadDecision = (args: {
     reasons.push(`Caída leve frente a línea base (${wellnessDelta.toFixed(1)}).`);
   }
 
-  if (acuteChronicRatio > 1.6) {
+  if (acuteChronicRatio > 1.5) {
     score -= 25;
-    reasons.push(`Carga 7d muy superior a habitual (ACR ${acuteChronicRatio}).`);
+    reasons.push(`Carga 7d muy superior a habitual (ACWR ${acuteChronicRatio}).`);
   } else if (acuteChronicRatio > 1.3) {
     score -= 12;
-    reasons.push(`Incremento de carga 7d vs habitual (ACR ${acuteChronicRatio}).`);
+    reasons.push(`Incremento de carga 7d vs habitual (ACWR ${acuteChronicRatio}).`);
   } else if (acuteChronicRatio > 0 && acuteChronicRatio < 0.75) {
-    reasons.push(`Carga reciente baja frente a habitual (ACR ${acuteChronicRatio}): vigilar subestimulación.`);
+    reasons.push(`Carga reciente baja frente a habitual (ACWR ${acuteChronicRatio}): vigilar subestimulación.`);
     nextFocus.push('Planificar estímulo compensatorio/progresivo si está disponible.');
   }
 
@@ -275,7 +302,7 @@ export const computePlayerScientificLoadDecision = (args: {
     reasons.push('MD+1 con baja o nula carga competitiva: necesita compensatorio si está sin dolor.');
   }
 
-  const availableSignals = [wellnessToday > 0, latestRpe !== undefined, latestExternal !== undefined, chronicWeeklyLoad > 0, player.status !== undefined, !latestBody || latestBody.status !== undefined].filter(Boolean).length;
+  const availableSignals = [wellnessToday > 0, latestRpe !== undefined, loadToday > 0 || load7d > 0, chronicWeeklyLoad > 0, player.status !== undefined, !latestBody || latestBody.status !== undefined].filter(Boolean).length;
   const dataQuality = Math.round((availableSignals / 6) * 100);
   const confidence: DecisionConfidence = dataQuality >= 80 ? 'Alta' : dataQuality >= 50 ? 'Media' : 'Baja';
 

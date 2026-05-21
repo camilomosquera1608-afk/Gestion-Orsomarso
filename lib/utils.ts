@@ -1,8 +1,51 @@
-import { AppData, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord } from './types';
+import { AppData, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord } from './types';
 export { findMicrocycleByDate, getMicrocyclesForCategory, microcycleBelongsToCategory } from './performance-helpers';
 import { findMicrocycleByDate } from './performance-helpers';
 
-export const calculateInternalLoad = (record: DailyInternalLoadRecord) => record.rpe * record.duration;
+const safeLoadNumber = (value?: number) => {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+export const calculateInternalLoad = (record: DailyInternalLoadRecord) =>
+  safeLoadNumber(record.rpe) * safeLoadNumber(record.duration);
+
+export const isCompetitionExternalLoad = (record: DailyExternalLoadRecord) =>
+  record.movementModule === 'competencia' ||
+  String(record.id ?? '').startsWith('comp-load-') ||
+  String(record.id ?? '').startsWith('competition-');
+
+const externalLoadRpe = (record: DailyExternalLoadRecord) => {
+  const rpe = safeLoadNumber(record.rpe);
+  if (rpe > 0) return rpe;
+  return isCompetitionExternalLoad(record) ? 8 : 0;
+};
+
+export const calculateExternalLoad = (record: DailyExternalLoadRecord) =>
+  safeLoadNumber(record.min) * externalLoadRpe(record);
+
+export const calculateCompetitionRecordLoad = (record: CompetitionRecord) =>
+  safeLoadNumber(record.minutesPlayed) * 8;
+
+const loadCategoryKey = (record: { category?: string; actingCategory?: string; baseCategory?: string }) =>
+  String(record.category ?? record.actingCategory ?? record.baseCategory ?? '').trim();
+
+const sameSessionLoad = (external: DailyExternalLoadRecord, internal: DailyInternalLoadRecord) => {
+  if (external.sessionId && internal.sessionId) return external.sessionId === internal.sessionId;
+  if (!external.date || !internal.date || external.date !== internal.date) return false;
+  if (external.sessionNumber === undefined || internal.sessionNumber === undefined) return false;
+  if (Number(external.sessionNumber) !== Number(internal.sessionNumber)) return false;
+  const externalCategory = loadCategoryKey(external);
+  const internalCategory = loadCategoryKey(internal);
+  return !externalCategory || !internalCategory || externalCategory === internalCategory;
+};
+
+export const externalLoadHasInternalPair = (
+  external: DailyExternalLoadRecord,
+  internalLoads: DailyInternalLoadRecord[],
+) =>
+  !isCompetitionExternalLoad(external) &&
+  internalLoads.some((internal) => sameSessionLoad(external, internal));
 
 const clampWellnessItem = (value?: number) => {
   const numeric = Number(value ?? 0);
@@ -30,18 +73,26 @@ export const averageWellness = (record?: DailyWellnessRecord) => computeWellness
 export const getPlayerDayLoad = (
   playerId: string,
   date: string,
-  data: { internalLoads?: DailyInternalLoadRecord[]; externalLoads?: DailyExternalLoadRecord[] },
-  options: { includeCompetitionExternal?: boolean } = {},
+  data: { internalLoads?: DailyInternalLoadRecord[]; externalLoads?: DailyExternalLoadRecord[]; competitionRecords?: CompetitionRecord[] },
+  options: { includeCompetitionExternal?: boolean; includeCompetitionRecords?: boolean } = {},
 ) => {
   const internal = (data.internalLoads ?? []).filter((load) => load.playerId === playerId && load.date === date);
-  if (internal.length) return internal.reduce((sum, load) => sum + calculateInternalLoad(load), 0);
-  const external = (data.externalLoads ?? []).filter((load) =>
-    load.playerId === playerId
-    && load.date === date
-    && (options.includeCompetitionExternal || load.movementModule !== 'competencia')
-  );
-  if (external.length) return external.reduce((sum, load) => sum + ((load.min ?? 0) * (load.rpe ?? 0)), 0);
-  return 0;
+  const allExternalForDay = (data.externalLoads ?? []).filter((load) => load.playerId === playerId && load.date === date);
+  const external = allExternalForDay.filter((load) => options.includeCompetitionExternal || !isCompetitionExternalLoad(load));
+
+  const internalLoad = internal.reduce((sum, load) => sum + calculateInternalLoad(load), 0);
+  const externalOnlyLoad = external
+    .filter((load) => !externalLoadHasInternalPair(load, internal))
+    .reduce((sum, load) => sum + calculateExternalLoad(load), 0);
+
+  const hasCompetitionExternal = allExternalForDay.some(isCompetitionExternalLoad);
+  const competitionRecordLoad = options.includeCompetitionRecords && !hasCompetitionExternal
+    ? (data.competitionRecords ?? [])
+      .filter((record) => record.playerId === playerId && record.date === date)
+      .reduce((sum, record) => sum + calculateCompetitionRecordLoad(record), 0)
+    : 0;
+
+  return internalLoad + externalOnlyLoad + competitionRecordLoad;
 };
 
 export const getUniqueDates = (data: AppData) => {
