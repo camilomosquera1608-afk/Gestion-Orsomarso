@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "preflight": "node scripts/preflight-check.mjs"
+    "preflight": "node scripts/preflight-check.mjs",
+    "test:load-risk": "node scripts/run-load-risk-tests.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.56.0",

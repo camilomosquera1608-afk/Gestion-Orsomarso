@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".tmp/load-risk-tests",
+    "module": "commonjs",
+    "target": "ES2020",
+    "moduleResolution": "node",
+    "jsx": "react-jsx",
+    "incremental": false,
+    "tsBuildInfoFile": ".tmp/load-risk-tests.tsbuildinfo"
+  },
+  "include": [
+    "scripts/load-risk-engine.test.ts",
+    "lib/load-risk-engine.ts",
+    "lib/utils.ts",
+    "lib/performance-helpers.ts",
+    "lib/types.ts",
+    "lib/body-map.ts"
+  ]
+}

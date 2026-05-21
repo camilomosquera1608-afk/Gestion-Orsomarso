@@ -4,6 +4,7 @@ import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performa
 import { addDays, buildDailyOperations, eachDateInRange, formatDateShort, getVisiblePlayers, isSameCategory, type OperationalAlert } from './operational-helpers';
 import { supportsGps } from './report-utils';
 import { getEffectiveExternalLoads, getRelatedPlayerIds, getRelatedPlayerIdSet, getWellnessRecordsForDate, uniqueWellnessByPlayerIdentityDate } from './relational-data';
+import { computePlayerLoadRiskProfile, computeMonotonyStrain as computeEngineMonotonyStrain } from './load-risk-engine';
 
 export type UiHealthTone = 'green' | 'amber' | 'red' | 'blue' | 'neutral' | 'dark';
 
@@ -492,22 +493,24 @@ export const buildAcwrData = (data: AppData, activeCategory: string, referenceDa
   );
 
   return players.map((player) => {
-    const w1 = getWeekLoad(data, player.id, today, 7);
-    const w2 = getWeekLoad(data, player.id, addDays(today, -7), 7);
-    const w3 = getWeekLoad(data, player.id, addDays(today, -14), 7);
-    const w4 = getWeekLoad(data, player.id, addDays(today, -21), 7);
-    const w5 = getWeekLoad(data, player.id, addDays(today, -28), 7);
-    const acute = w1;
-    const chronicWeeks = [w2, w3, w4, w5].filter((w) => w > 0);
-    const chronic = chronicWeeks.length >= 2 ? chronicWeeks.reduce((a, b) => a + b, 0) / chronicWeeks.length : 0;
-    const ratio = chronic > 0 ? Number((acute / chronic).toFixed(2)) : 0;
-    const zone: AcwrZone = chronic === 0 || acute === 0
-      ? 'no_data'
-      : ratio > 1.5 ? 'danger'
-      : ratio < 0.8 || ratio > 1.3 ? 'warning'
-      : 'safe';
-    const zoneLabel = zone === 'safe' ? 'Zona objetivo' : zone === 'warning' ? (ratio < 0.8 ? 'Sub-carga' : 'Precaución') : zone === 'danger' ? 'Riesgo alto' : 'Sin datos';
-    return { player, acute, chronic, ratio, zone, zoneLabel, weeklyLoads: [w5, w4, w3, w2, w1] };
+    const profile = computePlayerLoadRiskProfile({ data, player, date: today });
+    const metric = profile.acwr.primary;
+    const zone: AcwrZone = metric.zone === 'danger'
+      ? 'danger'
+      : metric.zone === 'target'
+        ? 'safe'
+        : metric.zone === 'no_data'
+          ? 'no_data'
+          : 'warning';
+    return {
+      player,
+      acute: metric.acute,
+      chronic: metric.chronic,
+      ratio: metric.rolling,
+      zone,
+      zoneLabel: metric.zoneLabel,
+      weeklyLoads: metric.weeklyLoads,
+    };
   }).sort((a, b) => {
     const order: AcwrZone[] = ['danger', 'warning', 'safe', 'no_data'];
     return order.indexOf(a.zone) - order.indexOf(b.zone) || b.ratio - a.ratio;
@@ -592,15 +595,9 @@ export const buildMonotonyStrain = (data: AppData, microcycleId: string, activeC
     return { dailyLoads, mean: 0, stdDev: 0, monotony: 0, strain: 0, totalLoad: 0, verdict: 'optimal', verdictLabel: 'Sin datos' };
   }
 
-  const mean = dailyLoads.reduce((a, b) => a + b, 0) / dailyLoads.length;
-  const variance = dailyLoads.reduce((acc, load) => acc + Math.pow(load - mean, 2), 0) / dailyLoads.length;
-  const stdDev = Math.sqrt(variance);
-  const monotony = stdDev > 0 ? Number((mean / stdDev).toFixed(2)) : 9.99;
-  const totalLoad = dailyLoads.reduce((a, b) => a + b, 0);
-  const strain = Number((totalLoad * monotony).toFixed(0));
+  const metric = computeEngineMonotonyStrain(dailyLoads);
+  const verdict = metric.monotony < 2 ? 'optimal' : metric.monotony < 2.5 ? 'acceptable' : 'high';
+  const verdictLabel = verdict === 'optimal' ? 'Optimo' : verdict === 'acceptable' ? 'Revisar' : 'Alto riesgo';
 
-  const verdict = monotony < 2 ? 'optimal' : monotony < 2.5 ? 'acceptable' : 'high';
-  const verdictLabel = verdict === 'optimal' ? 'Óptimo' : verdict === 'acceptable' ? 'Revisar' : 'Alto riesgo';
-
-  return { dailyLoads, mean: Number(mean.toFixed(0)), stdDev: Number(stdDev.toFixed(0)), monotony, strain, totalLoad: Number(totalLoad.toFixed(0)), verdict, verdictLabel };
+  return { dailyLoads: metric.dailyLoads, mean: metric.meanLoad, stdDev: metric.stdDev, monotony: metric.monotony, strain: metric.strain, totalLoad: metric.totalLoad, verdict, verdictLabel };
 };

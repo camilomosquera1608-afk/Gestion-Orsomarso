@@ -1,5 +1,6 @@
 import type { AppData, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, Player } from './types';
 import { getPlayerDayLoad } from './utils';
+import { computeMonotonyStrain as computeEngineMonotonyStrain, computePlayerLoadRiskProfile } from './load-risk-engine';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 const num = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -96,26 +97,20 @@ export interface FosterPlayerMetrics {
 
 export const computeFosterPlayerMetrics = (data: AppData, player: Player, referenceDate: string, days = 7): FosterPlayerMetrics => {
   const dailyLoads = Array.from({ length: days }, (_, index) => playerDayLoad(data, player.id, dateMinusDays(referenceDate, days - 1 - index)));
-  const totalLoad = dailyLoads.reduce((sum, value) => sum + value, 0);
-  const meanLoad = mean(dailyLoads);
-  const stdDev = standardDeviation(dailyLoads);
-  const monotony = stdDev > 0 ? meanLoad / stdDev : totalLoad > 0 ? 9.99 : 0;
-  const strain = totalLoad * monotony;
-  const alert = monotony > 2;
-  const tone: FosterPlayerMetrics['tone'] = monotony > 2.5 ? 'red' : monotony > 2 ? 'amber' : 'green';
-  const label = totalLoad === 0 ? 'Sin carga' : alert ? 'Monotonía alta' : 'Distribución adecuada';
+  const metric = computeEngineMonotonyStrain(dailyLoads);
+  const alert = metric.monotony > 2;
   return {
     playerId: player.id,
     name: player.name,
-    dailyLoads: dailyLoads.map((value) => round(value)),
-    totalLoad: round(totalLoad),
-    meanLoad: round(meanLoad),
-    stdDev: round(stdDev),
-    monotony: round(monotony, 2),
-    strain: round(strain),
+    dailyLoads: metric.dailyLoads,
+    totalLoad: metric.totalLoad,
+    meanLoad: metric.meanLoad,
+    stdDev: metric.stdDev,
+    monotony: metric.monotony,
+    strain: metric.strain,
     alert,
-    tone,
-    label,
+    tone: metric.tone,
+    label: metric.label,
   };
 };
 
@@ -162,25 +157,25 @@ const buildMetric = (variable: DynamicVariable, label: string, values: number[],
 };
 
 export const computeDynamicThresholds = (data: AppData, player: Player, referenceDate: string, lookbackDays = 56) => {
-  const wellnessValues = data.wellness
-    .filter((record) => record.playerId === player.id && inWindow(record.date, referenceDate, 1, lookbackDays))
-    .map(wellnessAverage)
-    .filter((value): value is number => value !== undefined);
-  const rpeValues = data.internalLoads
-    .filter((record) => record.playerId === player.id && inWindow(record.date, referenceDate, 1, lookbackDays))
-    .map((record) => num(record.rpe))
-    .filter((value) => value > 0);
-  const loadValues = Array.from({ length: lookbackDays }, (_, index) => playerDayLoad(data, player.id, dateMinusDays(referenceDate, lookbackDays - index)))
-    .filter((value) => value > 0);
-
-  const todayWellness = wellnessAverage(data.wellness.find((record) => record.playerId === player.id && record.date === referenceDate));
-  const todayRpe = data.internalLoads.find((record) => record.playerId === player.id && record.date === referenceDate)?.rpe;
-  const todayLoad = playerDayLoad(data, player.id, referenceDate) || undefined;
-
+  const profile = computePlayerLoadRiskProfile({ data, player, date: referenceDate });
+  const adapt = (variable: DynamicVariable, label: string, metric: typeof profile.thresholds.srpe): DynamicThresholdMetric => ({
+    variable,
+    label,
+    count: metric.count,
+    p10: metric.p10,
+    p90: metric.p90,
+    mean: metric.mean,
+    sd: metric.sd,
+    today: metric.today,
+    zScore: metric.zScore,
+    outsideNormal: metric.outsideNormal,
+    tone: metric.tone,
+    message: metric.message,
+  });
   return {
-    wellness: buildMetric('wellness', 'Wellness', wellnessValues, todayWellness),
-    rpe: buildMetric('rpe', 'RPE', rpeValues, todayRpe),
-    load: buildMetric('load', 'Carga', loadValues, todayLoad),
+    wellness: adapt('wellness', 'Wellness', profile.thresholds.wellness),
+    rpe: adapt('rpe', 'RPE', profile.thresholds.rpe),
+    load: adapt('load', 'Carga', profile.thresholds.srpe),
   };
 };
 
