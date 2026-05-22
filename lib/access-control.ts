@@ -1,7 +1,7 @@
 import type { AppData, ClubCategory } from '@/lib/types';
 import type { StaffSession } from '@/lib/auth';
 
-export type PlatformRole = 'admin' | 'category_admin' | 'director' | 'preparador' | 'medico' | 'analista' | 'valorador' | 'solo_lectura';
+export type PlatformRole = 'admin' | 'category_admin' | 'director' | 'secretaria_tecnica' | 'scout' | 'entrenador' | 'preparador' | 'medico' | 'analista' | 'valorador' | 'solo_lectura';
 export type CategoryScope = 'ALL' | 'U15' | 'U17' | 'U20' | ClubCategory;
 export type AccessLevel = 'full' | 'write' | 'read';
 
@@ -38,6 +38,9 @@ export const ROLE_LABELS: Record<PlatformRole, string> = {
   admin: 'Administrador',
   category_admin: 'Administrador de categoría',
   director: 'Dirección',
+  secretaria_tecnica: 'Secretaría técnica',
+  scout: 'Scout',
+  entrenador: 'Entrenador',
   preparador: 'Preparador físico',
   medico: 'Área médica',
   analista: 'Analista',
@@ -74,6 +77,9 @@ export const normalizePlatformRole = (role?: string | null): PlatformRole => {
   if (['admin', 'administracion', 'administrador', 'administrador_general', 'master', 'maestro', 'super_admin', 'owner'].includes(value)) return 'admin';
   if (['category_admin', 'categoria_admin', 'administrador_de_categoria', 'admin_categoria', 'categoria'].includes(value)) return 'category_admin';
   if (['director', 'direccion', 'director_deportivo'].includes(value)) return 'director';
+  if (['secretaria_tecnica', 'secretaria', 'secretario_tecnico', 'secretaria_deportiva'].includes(value)) return 'secretaria_tecnica';
+  if (['scout', 'scouting', 'ojeador'].includes(value)) return 'scout';
+  if (['entrenador', 'tecnico', 'cuerpo_tecnico'].includes(value)) return 'entrenador';
   if (['preparador', 'preparador_fisico', 'fisio', 'pf'].includes(value)) return 'preparador';
   if (['medico', 'area_medica', 'medicina', 'medical'].includes(value)) return 'medico';
   if (['analista', 'analisis', 'analysis'].includes(value)) return 'analista';
@@ -159,6 +165,71 @@ export const getSessionAccessSnapshot = (session: StaffSession | null | undefine
 
 export const hasAdministrationAccess = (session: StaffSession | null | undefined) => getSessionAccessSnapshot(session).canAccessAdmin;
 
+export type TechnicalSecretariatPermission =
+  | 'secretaria_tecnica.view'
+  | 'secretaria_tecnica.players.view'
+  | 'secretaria_tecnica.reports.view'
+  | 'secretaria_tecnica.reports.create'
+  | 'secretaria_tecnica.reports.edit'
+  | 'secretaria_tecnica.scouting.view'
+  | 'secretaria_tecnica.scouting.manage'
+  | 'secretaria_tecnica.selecciones.view'
+  | 'secretaria_tecnica.selecciones.create'
+  | 'secretaria_tecnica.selecciones.edit'
+  | 'secretaria_tecnica.capture_map.view'
+  | 'secretaria_tecnica.capture_map.manage'
+  | 'secretaria_tecnica.decisions.view'
+  | 'secretaria_tecnica.decisions.create'
+  | 'secretaria_tecnica.sensitive.view';
+
+const TECHNICAL_SECRETARIAT_PERMISSIONS_BY_ROLE: Record<PlatformRole, TechnicalSecretariatPermission[]> = {
+  admin: [
+    'secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.reports.create', 'secretaria_tecnica.reports.edit',
+    'secretaria_tecnica.scouting.view', 'secretaria_tecnica.scouting.manage', 'secretaria_tecnica.selecciones.view', 'secretaria_tecnica.selecciones.create', 'secretaria_tecnica.selecciones.edit',
+    'secretaria_tecnica.capture_map.view', 'secretaria_tecnica.capture_map.manage', 'secretaria_tecnica.decisions.view', 'secretaria_tecnica.decisions.create', 'secretaria_tecnica.sensitive.view',
+  ],
+  category_admin: [
+    'secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.reports.create', 'secretaria_tecnica.reports.edit',
+    'secretaria_tecnica.scouting.view', 'secretaria_tecnica.scouting.manage', 'secretaria_tecnica.selecciones.view', 'secretaria_tecnica.selecciones.create', 'secretaria_tecnica.selecciones.edit',
+    'secretaria_tecnica.capture_map.view', 'secretaria_tecnica.capture_map.manage', 'secretaria_tecnica.decisions.view', 'secretaria_tecnica.decisions.create',
+  ],
+  director: [
+    'secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.reports.create', 'secretaria_tecnica.reports.edit',
+    'secretaria_tecnica.scouting.view', 'secretaria_tecnica.scouting.manage', 'secretaria_tecnica.selecciones.view', 'secretaria_tecnica.selecciones.create', 'secretaria_tecnica.selecciones.edit',
+    'secretaria_tecnica.capture_map.view', 'secretaria_tecnica.capture_map.manage', 'secretaria_tecnica.decisions.view', 'secretaria_tecnica.decisions.create', 'secretaria_tecnica.sensitive.view',
+  ],
+  secretaria_tecnica: [
+    'secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.reports.create', 'secretaria_tecnica.reports.edit',
+    'secretaria_tecnica.scouting.view', 'secretaria_tecnica.scouting.manage', 'secretaria_tecnica.selecciones.view', 'secretaria_tecnica.selecciones.create', 'secretaria_tecnica.selecciones.edit',
+    'secretaria_tecnica.capture_map.view', 'secretaria_tecnica.capture_map.manage', 'secretaria_tecnica.decisions.view', 'secretaria_tecnica.decisions.create',
+  ],
+  scout: [
+    'secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.reports.create',
+    'secretaria_tecnica.scouting.view', 'secretaria_tecnica.scouting.manage', 'secretaria_tecnica.selecciones.view', 'secretaria_tecnica.capture_map.view', 'secretaria_tecnica.capture_map.manage',
+  ],
+  entrenador: [
+    'secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.scouting.view', 'secretaria_tecnica.selecciones.view', 'secretaria_tecnica.capture_map.view', 'secretaria_tecnica.decisions.view',
+  ],
+  analista: [
+    'secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.reports.create', 'secretaria_tecnica.scouting.view', 'secretaria_tecnica.capture_map.view',
+  ],
+  valorador: [
+    'secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.reports.create', 'secretaria_tecnica.scouting.view', 'secretaria_tecnica.capture_map.view',
+  ],
+  preparador: ['secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.reports.view', 'secretaria_tecnica.selecciones.view', 'secretaria_tecnica.capture_map.view'],
+  medico: ['secretaria_tecnica.view', 'secretaria_tecnica.players.view', 'secretaria_tecnica.selecciones.view'],
+  solo_lectura: [],
+};
+
+export const hasTechnicalSecretariatPermission = (session: StaffSession | null | undefined, permission: TechnicalSecretariatPermission = 'secretaria_tecnica.view') => {
+  const snapshot = getSessionAccessSnapshot(session);
+  if (!snapshot.isAuthenticated) return false;
+  if (snapshot.canAccessAdmin) return true;
+  return TECHNICAL_SECRETARIAT_PERMISSIONS_BY_ROLE[snapshot.normalizedRole]?.includes(permission) ?? false;
+};
+
+export const hasTechnicalSecretariatAccess = (session: StaffSession | null | undefined) => hasTechnicalSecretariatPermission(session, 'secretaria_tecnica.view');
+
 export const canWrite = (session: StaffSession | null | undefined) => getSessionAccessSnapshot(session).canWrite;
 
 export const canReadAllCategories = (session: StaffSession | null | undefined) => getSessionAccessSnapshot(session).canReadAll;
@@ -242,6 +313,12 @@ export const filterAppDataForSession = (data: AppData, session: StaffSession): A
       adjustments: strength.adjustments?.filter((item) => allowedPlayerIds.has(item.playerId)),
       responses: strength.responses?.filter((item) => allowedPlayerIds.has(item.playerId)),
     })),
+    technicalProfiles: (data.technicalProfiles ?? []).filter((item) => allowedPlayerIds.has(item.playerId)),
+    technicalReports: (data.technicalReports ?? []).filter((item) => allowedPlayerIds.has(item.playerId)),
+    scoutFollowUps: (data.scoutFollowUps ?? []).filter((item) => allowedPlayerIds.has(item.playerId)),
+    selectionCallRecords: (data.selectionCallRecords ?? []).filter((item) => allowedPlayerIds.has(item.playerId)),
+    playerCaptureLocations: (data.playerCaptureLocations ?? []).filter((item) => allowedPlayerIds.has(item.playerId)),
+    technicalDecisions: (data.technicalDecisions ?? []).filter((item) => allowedPlayerIds.has(item.playerId)),
     microcycles: data.microcycles,
   };
 };

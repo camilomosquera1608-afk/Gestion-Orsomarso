@@ -203,6 +203,12 @@ export const normalizeAppData = (stored: Partial<AppData> | null | undefined, fa
       status: record.status ?? 'Planificada',
       category: record.category ?? 'Sub20',
     })),
+    technicalProfiles: pickArray<AppData['technicalProfiles'][number], 'technicalProfiles'>(stored, fallback, 'technicalProfiles'),
+    technicalReports: pickArray<AppData['technicalReports'][number], 'technicalReports'>(stored, fallback, 'technicalReports'),
+    scoutFollowUps: pickArray<AppData['scoutFollowUps'][number], 'scoutFollowUps'>(stored, fallback, 'scoutFollowUps'),
+    selectionCallRecords: pickArray<AppData['selectionCallRecords'][number], 'selectionCallRecords'>(stored, fallback, 'selectionCallRecords'),
+    playerCaptureLocations: pickArray<AppData['playerCaptureLocations'][number], 'playerCaptureLocations'>(stored, fallback, 'playerCaptureLocations'),
+    technicalDecisions: pickArray<AppData['technicalDecisions'][number], 'technicalDecisions'>(stored, fallback, 'technicalDecisions'),
     microcycles,
   };
 };

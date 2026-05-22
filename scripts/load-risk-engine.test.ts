@@ -23,6 +23,12 @@ const emptyData = (player: Player): AppData => ({
   trainingSessionSummaries: [],
   microcycles: [],
   strengthSessions: [],
+  technicalProfiles: [],
+  technicalReports: [],
+  scoutFollowUps: [],
+  selectionCallRecords: [],
+  playerCaptureLocations: [],
+  technicalDecisions: [],
 });
 
 const player: Player = {

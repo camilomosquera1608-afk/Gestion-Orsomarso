@@ -73,6 +73,12 @@ import {
   TrainingSessionSummary,
   StrengthSession,
   StrengthPlayerResponse,
+  TechnicalProfile,
+  TechnicalReport,
+  ScoutFollowUp,
+  SelectionCallRecord,
+  PlayerCaptureLocation,
+  TechnicalDecision,
 } from "@/lib/types";
 
 interface AppContextValue {
@@ -126,6 +132,12 @@ interface AppContextValue {
     response: StrengthPlayerResponse,
   ) => void;
   deleteStrengthSession: (sessionId: string) => void;
+  upsertTechnicalProfile: (record: TechnicalProfile) => void;
+  upsertTechnicalReport: (record: TechnicalReport) => void;
+  upsertScoutFollowUp: (record: ScoutFollowUp) => void;
+  upsertSelectionCallRecord: (record: SelectionCallRecord) => void;
+  upsertPlayerCaptureLocation: (record: PlayerCaptureLocation) => void;
+  upsertTechnicalDecision: (record: TechnicalDecision) => void;
   updateMicrocycle: (record: Microcycle) => void;
   deleteMicrocycle: (microcycleId: string) => void;
   backendMode: "supabase" | "local";
@@ -555,6 +567,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         remoteHydrated.strengthSessions ?? [],
         current.strengthSessions ?? [],
       ),
+      technicalProfiles: mergeByIdWithLocalFallback(remoteHydrated.technicalProfiles ?? [], current.technicalProfiles ?? []),
+      technicalReports: mergeByIdWithLocalFallback(remoteHydrated.technicalReports ?? [], current.technicalReports ?? []),
+      scoutFollowUps: mergeByIdWithLocalFallback(remoteHydrated.scoutFollowUps ?? [], current.scoutFollowUps ?? []),
+      selectionCallRecords: mergeByIdWithLocalFallback(remoteHydrated.selectionCallRecords ?? [], current.selectionCallRecords ?? []),
+      playerCaptureLocations: mergeByIdWithLocalFallback(remoteHydrated.playerCaptureLocations ?? [], current.playerCaptureLocations ?? []),
+      technicalDecisions: mergeByIdWithLocalFallback(remoteHydrated.technicalDecisions ?? [], current.technicalDecisions ?? []),
       // Players: merge remote + local to avoid losing ficha edits if Supabase
       // has not persisted a newer column yet. Remote fields stay primary,
       // local fills gaps and preserves local-only players.
@@ -826,6 +844,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               remoteData.strengthSessions ?? [],
               localData?.strengthSessions,
             ),
+            technicalProfiles: mergeArrays(remoteData.technicalProfiles ?? [], localData?.technicalProfiles),
+            technicalReports: mergeArrays(remoteData.technicalReports ?? [], localData?.technicalReports),
+            scoutFollowUps: mergeArrays(remoteData.scoutFollowUps ?? [], localData?.scoutFollowUps),
+            selectionCallRecords: mergeArrays(remoteData.selectionCallRecords ?? [], localData?.selectionCallRecords),
+            playerCaptureLocations: mergeArrays(remoteData.playerCaptureLocations ?? [], localData?.playerCaptureLocations),
+            technicalDecisions: mergeArrays(remoteData.technicalDecisions ?? [], localData?.technicalDecisions),
             // Players: merge remote + local to avoid wiping ficha edits
             // while new Supabase columns are being added.
             players: mergePlayersPreferLocal(
@@ -1107,6 +1131,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         "microcycles",
         "trainingSessionSummaries",
         "competitionMatchSummaries",
+        "technicalProfiles",
+        "technicalReports",
+        "scoutFollowUps",
+        "selectionCallRecords",
+        "playerCaptureLocations",
+        "technicalDecisions",
       ];
       const hasAnyKnownKey = knownKeys.some((key) =>
         Array.isArray(parsed[key]),
@@ -1338,6 +1368,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           competitionRecords: prev.competitionRecords.filter(
             (x) => x.playerId !== playerId,
           ),
+          technicalProfiles: (prev.technicalProfiles ?? []).filter((x) => x.playerId !== playerId),
+          technicalReports: (prev.technicalReports ?? []).filter((x) => x.playerId !== playerId),
+          scoutFollowUps: (prev.scoutFollowUps ?? []).filter((x) => x.playerId !== playerId),
+          selectionCallRecords: (prev.selectionCallRecords ?? []).filter((x) => x.playerId !== playerId),
+          playerCaptureLocations: (prev.playerCaptureLocations ?? []).filter((x) => x.playerId !== playerId),
+          technicalDecisions: (prev.technicalDecisions ?? []).filter((x) => x.playerId !== playerId),
           strengthSessions: (prev.strengthSessions ?? []).map((session) => ({
             ...session,
             playerIds: session.playerIds.filter((id) => id !== playerId),
@@ -1998,6 +2034,59 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           void deleteRemoteLegacy("strength_sessions", sessionId);
         }
       },
+      upsertTechnicalProfile: (record) =>
+        applyMutation((prev) => ({
+          ...prev,
+          technicalProfiles: [
+            record,
+            ...(prev.technicalProfiles ?? []).filter((item) => item.playerId !== record.playerId),
+          ],
+        })),
+      upsertTechnicalReport: (record) =>
+        applyMutation((prev) => ({
+          ...prev,
+          technicalReports: [
+            record,
+            ...(prev.technicalReports ?? []).filter((item) => item.id !== record.id),
+          ],
+        })),
+      upsertScoutFollowUp: (record) =>
+        applyMutation((prev) => ({
+          ...prev,
+          scoutFollowUps: [
+            record,
+            ...(prev.scoutFollowUps ?? []).filter((item) => item.playerId !== record.playerId),
+          ],
+        })),
+      upsertSelectionCallRecord: (record) =>
+        applyMutation((prev) => ({
+          ...prev,
+          selectionCallRecords: [
+            record,
+            ...(prev.selectionCallRecords ?? []).filter((item) => item.id !== record.id),
+          ],
+        })),
+      upsertPlayerCaptureLocation: (record) =>
+        applyMutation((prev) => {
+          const nextLocations = (prev.playerCaptureLocations ?? []).map((item) =>
+            record.isPrimary && item.playerId === record.playerId ? { ...item, isPrimary: false } : item,
+          );
+          return {
+            ...prev,
+            playerCaptureLocations: [
+              record,
+              ...nextLocations.filter((item) => item.id !== record.id),
+            ],
+          };
+        }),
+      upsertTechnicalDecision: (record) =>
+        applyMutation((prev) => ({
+          ...prev,
+          technicalDecisions: [
+            record,
+            ...(prev.technicalDecisions ?? []).filter((item) => item.id !== record.id),
+          ],
+        })),
       updateMicrocycle: (record) => {
         const normalizedRecord = {
           ...record,
