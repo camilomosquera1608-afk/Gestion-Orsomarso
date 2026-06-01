@@ -111,3 +111,8 @@ export const groupAverage = (values: number[]) => {
 
 export const getAutoMicrocycleId = (microcycles: AppData['microcycles'], date: string, fallback = '', category?: string) =>
   findMicrocycleByDate(microcycles, date, fallback, category)?.id ?? fallback;
+
+// Utility function to merge Tailwind CSS classes
+export function cn(...classes: (string | undefined | null | false)[]): string {
+  return classes.filter(Boolean).join(' ');
+}
