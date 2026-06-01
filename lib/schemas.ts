@@ -246,6 +246,124 @@ export const GlobalFiltersSchema = z.object({
   microcycleId: z.string().optional(),
 });
 
+// International Scouting Schemas
+export const LeagueSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  country: z.string(),
+  tier: z.enum(['top', 'mid', 'low']),
+  wyscoutId: z.string().optional(),
+});
+
+export const ExternalPlayerSchema = z.object({
+  id: z.string(),
+  wyscoutId: z.string().optional(),
+  name: z.string(),
+  age: z.number(),
+  birthDate: z.string().optional(),
+  nationality: z.string(),
+  currentClub: z.string(),
+  league: z.string(),
+  leagueCountry: z.string(),
+  position: PositionSchema,
+  secondaryPositions: z.array(PositionSchema).optional(),
+  dominantFoot: DominantFootSchema.optional(),
+  height: z.number().optional(),
+  weight: z.number().optional(),
+  marketValue: z.number().optional(),
+  contractExpiry: z.string().optional(),
+  photoUrl: z.string().optional(),
+  
+  // Performance metrics from Wyscout
+  matchesPlayed: z.number().optional(),
+  minutesPlayed: z.number().optional(),
+  goals: z.number().optional(),
+  assists: z.number().optional(),
+  yellowCards: z.number().optional(),
+  redCards: z.number().optional(),
+  
+  // Advanced metrics
+  totalDistance: z.number().optional(),
+  highSpeedDistance: z.number().optional(),
+  sprintDistance: z.number().optional(),
+  maxVelocity: z.number().optional(),
+  
+  // Technical metrics (Wyscout specific)
+  passAccuracy: z.number().optional(),
+  keyPasses: z.number().optional(),
+  crosses: z.number().optional(),
+  dribbles: z.number().optional(),
+  shots: z.number().optional(),
+  shotsOnTarget: z.number().optional(),
+  
+  // Defensive metrics
+  tackles: z.number().optional(),
+  interceptions: z.number().optional(),
+  clearances: z.number().optional(),
+  
+  // Physical metrics
+  acceleration: z.number().optional(),
+  topSpeed: z.number().optional(),
+  
+  // Scouting metadata
+  scoutStatus: z.enum(['none', 'watching', 'shortlisted', 'contacted', 'rejected']).default('none'),
+  scoutNotes: z.string().optional(),
+  scoutRating: z.number().min(1).max(10).optional(),
+  lastUpdated: z.string(),
+  dataSource: z.enum(['wyscout', 'manual', 'transfermarkt', 'other']).default('wyscout'),
+});
+
+export const PlayerComparisonSchema = z.object({
+  id: z.string(),
+  internalPlayerId: z.string().optional(),
+  externalPlayerId: z.string(),
+  comparisonDate: z.string(),
+  
+  // Comparison scores
+  technicalScore: z.number().min(0).max(100),
+  physicalScore: z.number().min(0).max(100),
+  tacticalScore: z.number().min(0).max(100),
+  overallScore: z.number().min(0).max(100),
+  
+  // Detailed metrics comparison
+  metricsComparison: z.object({
+    distance: z.object({ internal: z.number(), external: z.number(), difference: z.number() }),
+    highSpeedDistance: z.object({ internal: z.number(), external: z.number(), difference: z.number() }),
+    maxVelocity: z.object({ internal: z.number(), external: z.number(), difference: z.number() }),
+    goalsPer90: z.object({ internal: z.number(), external: z.number(), difference: z.number() }),
+    assistsPer90: z.object({ internal: z.number(), external: z.number(), difference: z.number() }),
+  }).optional(),
+  
+  // Recommendation
+  recommendation: z.enum(['upgrade', 'similar', 'downgrade', 'insufficient_data']),
+  notes: z.string().optional(),
+  createdBy: z.string(),
+  createdAt: z.string(),
+});
+
+export const ScoutingSearchFiltersSchema = z.object({
+  name: z.string().optional(),
+  position: z.array(PositionSchema).optional(),
+  ageMin: z.number().min(14).max(40).optional(),
+  ageMax: z.number().min(14).max(40).optional(),
+  nationality: z.array(z.string()).optional(),
+  league: z.array(z.string()).optional(),
+  leagueCountry: z.array(z.string()).optional(),
+  marketValueMin: z.number().optional(),
+  marketValueMax: z.number().optional(),
+  dominantFoot: z.array(DominantFootSchema).optional(),
+  scoutStatus: z.array(z.enum(['none', 'watching', 'shortlisted', 'contacted', 'rejected'])).optional(),
+  minMatchesPlayed: z.number().optional(),
+  minMinutesPlayed: z.number().optional(),
+});
+
+export const WyscoutImportConfigSchema = z.object({
+  leagueIds: z.array(z.string()),
+  season: z.string(),
+  includeMetrics: z.array(z.enum(['basic', 'technical', 'physical', 'defensive'])).default(['basic']),
+  playerLimit: z.number().optional(),
+});
+
 // Type exports
 export type Player = z.infer<typeof PlayerSchema>;
 export type DailyWellnessRecord = z.infer<typeof DailyWellnessRecordSchema>;
@@ -256,3 +374,8 @@ export type TechnicalProfile = z.infer<typeof TechnicalProfileSchema>;
 export type TechnicalReport = z.infer<typeof TechnicalReportSchema>;
 export type ScoutFollowUp = z.infer<typeof ScoutFollowUpSchema>;
 export type GlobalFilters = z.infer<typeof GlobalFiltersSchema>;
+export type League = z.infer<typeof LeagueSchema>;
+export type ExternalPlayer = z.infer<typeof ExternalPlayerSchema>;
+export type PlayerComparison = z.infer<typeof PlayerComparisonSchema>;
+export type ScoutingSearchFilters = z.infer<typeof ScoutingSearchFiltersSchema>;
+export type WyscoutImportConfig = z.infer<typeof WyscoutImportConfigSchema>;

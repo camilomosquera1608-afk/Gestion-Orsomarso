@@ -18,6 +18,7 @@ export const TECHNICAL_MODULE_LINKS = [
   { href: '/secretaria-tecnica/jugadores', label: 'Jugadores' },
   { href: '/secretaria-tecnica/reportes', label: 'Reportes técnicos' },
   { href: '/secretaria-tecnica/scouting', label: 'Scouting' },
+  { href: '/secretaria-tecnica/scouting-internacional', label: 'Scouting Internacional' },
   { href: '/secretaria-tecnica/selecciones', label: 'Llamados a Selección' },
   { href: '/secretaria-tecnica/mapa-captacion', label: 'Mapa de Captación' },
   { href: '/secretaria-tecnica/decisiones', label: 'Decisiones' },
