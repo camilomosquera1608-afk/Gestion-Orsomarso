@@ -41,29 +41,24 @@ export function PlayerComparison() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-          Comparativa de Jugadores
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Compara jugadores externos (Wyscout) con jugadores internos del club
+    <div className="grid" style={{ gap: 16 }}>
+      <div className="card">
+        <span className="section-eyebrow">Comparativa</span>
+        <h3 style={{ margin: '0 0 8px' }}>Jugador externo vs plantel</h3>
+        <p className="muted-line" style={{ marginBottom: 16 }}>
+          Compara jugadores de la base Wyscout/local con jugadores del club.
         </p>
 
-        {/* Player Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* External Player Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Jugador Externo (Wyscout)
-            </label>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 16 }}>
+          <label className="field">
+            <span className="field-label">Jugador externo (Wyscout)</span>
             <select
               value={selectedExternalPlayer?.id || ''}
               onChange={(e) => {
                 const player = externalPlayers.find((p) => p.id === e.target.value);
                 setSelectedExternalPlayer(player || null);
               }}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="select"
             >
               <option value="">Seleccionar jugador externo...</option>
               {externalPlayers.map((player) => (
@@ -72,20 +67,17 @@ export function PlayerComparison() {
                 </option>
               ))}
             </select>
-          </div>
+          </label>
 
-          {/* Internal Player Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Jugador Interno (Orsomarso)
-            </label>
+          <label className="field">
+            <span className="field-label">Jugador interno (Orsomarso)</span>
             <select
               value={selectedInternalPlayer?.id || ''}
               onChange={(e) => {
                 const player = players.find((p) => p.id === e.target.value);
                 setSelectedInternalPlayer(player || null);
               }}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="select"
             >
               <option value="">Seleccionar jugador interno...</option>
               {players.map((player) => (
@@ -94,14 +86,13 @@ export function PlayerComparison() {
                 </option>
               ))}
             </select>
-          </div>
+          </label>
         </div>
 
         <AccessibleButton
           variant="primary"
           onClick={handleCompare}
           disabled={!selectedExternalPlayer || !selectedInternalPlayer}
-          className="w-full"
           ariaLabel="Comparar jugadores seleccionados"
         >
           <BarChart3 size={16} className="mr-2" />

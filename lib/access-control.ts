@@ -280,6 +280,11 @@ const byCategory = <T extends { category?: ClubCategory }>(items: T[], session: 
   return items.filter((item) => canAccessCategory(session, item.category));
 };
 
+/**
+ * category (ficha): categoría del jugador en plantilla — permisos y listados de roster.
+ * actingCategory (actividad): categoría en la que registró carga/wellness ese día (préstamo, convocatoria).
+ * Los filtros globales `filters.category` vs `filters.actingCategory` siguen la misma distinción.
+ */
 const byPlayerCategory = <T extends { playerId: string; category?: ClubCategory }>(items: T[], playerCategoryById: Record<string, ClubCategory | undefined>, session: StaffSession) => {
   if (canReadAllCategories(session)) return items;
   return items.filter((item) => canAccessCategory(session, item.category ?? playerCategoryById[item.playerId]));

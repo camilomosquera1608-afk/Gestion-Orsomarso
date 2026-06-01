@@ -13,9 +13,9 @@ import { categoryLabel, calcAge, formatBirthDateForDisplay, normalizeBirthDateIn
 import { ClubCategory, CompetitiveRole, DominantFoot, LoadTolerance, Player, PlayerStatus, Position } from '@/lib/types';
 import { averageWellness, calculateInternalLoad, groupAverage } from '@/lib/utils';
 import { readBodyMapRecords, type BodyMapRecord } from '@/lib/body-map';
-import { computePlayerScientificLoadDecision } from '@/lib/scientific-load';
+import { buildPlayerDecisionContext } from '@/lib/player-decision';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { computeBanisterMetrics, computeDynamicThresholds } from '@/lib/sport-science';
+import { computeBanisterMetrics } from '@/lib/sport-science';
 import { getRelatedPlayerIds } from '@/lib/relational-data';
 
 const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Lesionado'];
@@ -130,14 +130,15 @@ export default function PlayerProfilePage() {
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   const sessionTypeForDecision = latestExternal?.sessionType ?? 'MD-3';
-  const scientificDecision = computePlayerScientificLoadDecision({
+  const playerDecision = buildPlayerDecisionContext({
     player,
     data,
     date: latestDate,
     sessionType: sessionTypeForDecision,
     bodyRecords: bodyMapRecords,
   });
-  const dynamicThresholds = computeDynamicThresholds(data, player, latestDate);
+  const scientificDecision = playerDecision.scientific;
+  const dynamicThresholds = playerDecision.dynamicThresholds;
   const banister = computeBanisterMetrics(data, player, latestDate);
 
   const alerts = [

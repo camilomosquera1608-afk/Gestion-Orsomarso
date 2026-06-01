@@ -285,6 +285,7 @@ export const ContextTopBar = ({
   category,
   mode,
   syncStatus,
+  validationMessage,
 }: {
   date: string;
   microcycle: string;
@@ -292,8 +293,10 @@ export const ContextTopBar = ({
   mode: string;
   // FIX #4: syncStatus expuesto en el context bar para feedback visual claro
   syncStatus?: 'idle' | 'syncing' | 'ready' | 'error';
+  validationMessage?: string | null;
 }) => (
-  <div className="top-context-bar no-print">
+  <div className="top-context-stack no-print">
+  <div className="top-context-bar">
     <div className="top-context-item"><span>Fecha activa</span><strong>{date}</strong></div>
     <div className="top-context-item"><span>Microciclo</span><strong>{microcycle}</strong></div>
     <div className="top-context-item"><span>Categoría</span><strong>{category}</strong></div>
@@ -313,6 +316,12 @@ export const ContextTopBar = ({
       <Link className="btn secondary btn-compact" href="/registro"><PlusCircle size={15} />Nuevo registro</Link>
       <Link className="btn secondary btn-compact" href="/configuracion"><Database size={15} />Respaldo</Link>
     </div>
+  </div>
+  {validationMessage ? (
+    <div className="top-context-validation" role="alert">
+      {validationMessage}
+    </div>
+  ) : null}
   </div>
 );
 

@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'r
 import Image from 'next/image';
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   CalendarDays,
   ChevronsDown,
@@ -41,6 +42,9 @@ import {
 } from '@/lib/report-utils';
 import type { ClubCategory, CMJRecord, CompetitionRecord, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, FMSRecord, NutritionRecord, Player } from '@/lib/types';
 import { getCanonicalPlayers, getEffectiveExternalLoads, getRelatedPlayerIds, uniqueWellnessByPlayerIdentityDate } from '@/lib/relational-data';
+import { buildPlayerReportDecisionSnapshot } from '@/lib/report-snapshot';
+import { readBodyMapRecords } from '@/lib/body-map';
+import { riskToneLabel } from '@/lib/predictive-risk';
 
 type Tone = 'blue' | 'cyan' | 'green' | 'amber' | 'red' | 'navy';
 type ChartPoint = { label: string; value: number };
@@ -530,6 +534,16 @@ export default function PlayerPeriodReportPage() {
   const selectedPlayerId = filters.playerId === 'all' ? categoryPlayers[0]?.id ?? data.players[0]?.id ?? '' : filters.playerId;
   const player = data.players.find((item) => item.id === selectedPlayerId) ?? categoryPlayers[0] ?? data.players[0];
 
+  const decisionSnapshot = useMemo(() => {
+    if (!player) return null;
+    return buildPlayerReportDecisionSnapshot({
+      data,
+      player,
+      date: endDate,
+      bodyRecords: readBodyMapRecords(),
+    });
+  }, [data, player, endDate]);
+
   const report = useMemo(() => {
     if (!player) return null;
     const relatedIds = getRelatedPlayerIds(data.players, player.id);
@@ -609,6 +623,16 @@ export default function PlayerPeriodReportPage() {
 
   const csvRows = [
     { seccion: 'Ficha', jugador: player.name, categoria: categoryLabel(category), posicion: player.position, periodo_inicio: startDate, periodo_fin: endDate },
+    ...(decisionSnapshot
+      ? [{
+          seccion: 'Decision fin periodo',
+          fecha: endDate,
+          decision_carga: decisionSnapshot.scientific.state,
+          riesgo_perfil: decisionSnapshot.profile.riskScore,
+          riesgo_predictivo: decisionSnapshot.predictive.score,
+          acwr: decisionSnapshot.profile.acwr.primary.rolling,
+        }]
+      : []),
     ...report.wellness.map((record) => ({ seccion: 'Wellness', fecha: record.date, promedio: averageWellness(record) })),
     ...report.internal.map((record) => ({ seccion: 'Carga interna', fecha: record.date, duracion: record.duration, rpe: record.rpe, carga: calculateInternalLoad(record) })),
     ...report.external.map((record) => ({ seccion: 'GPS / Carga externa', fecha: record.date, minutos: record.min, distancia: record.totalDistance ?? '', player_load: record.playerLoad ?? '', hsr: record.hsr ?? record.highSpeedDistance ?? '', sprint: record.sprintDistance ?? '', acc: record.acc, dcc: record.dcc, rhie: record.rhie })),
@@ -794,7 +818,7 @@ export default function PlayerPeriodReportPage() {
           <label className="field"><span>Desde</span><input className="input" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
           <label className="field"><span>Hasta</span><input className="input" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
           <div className="btn-row align-end">
-            <button type="button" className="btn secondary" onClick={() => downloadCsv(`reporte-jugador-${player.name.replaceAll(' ', '_')}-${startDate}-${endDate}.csv`, csvRows)}><Download size={16} /> CSV</button>
+            <button type="button" className="btn secondary" onClick={() => downloadCsv(`reporte-jugador-${player.name.replaceAll(' ', '_')}-${startDate}-${endDate}.csv`, csvRows as Record<string, string | number>[])}><Download size={16} /> CSV</button>
             <button type="button" className="btn" onClick={openPrintDossier}><FileText size={16} /> Exportar PDF</button>
           </div>
         </div>
@@ -842,6 +866,13 @@ export default function PlayerPeriodReportPage() {
             { icon: HeartPulse, label: 'Wellness', value: wellnessAverage, note: latestWellness?.date ? `Último: ${formatPdfDate(latestWellness.date)}` : undefined, tone: toneForValue('wellness', wellnessAverage), decimals: 1 },
             { icon: Scale, label: 'Peso valoración', value: latestNutrition?.weight, suffix: ' kg', note: latestNutrition?.date ? formatPdfDate(latestNutrition.date) : undefined, tone: 'blue', decimals: 1 },
             { icon: Dumbbell, label: 'CMJ', value: cmjValue, suffix: ' cm', note: latestCmj?.date ? formatPdfDate(latestCmj.date) : latestNeuro?.date ? formatPdfDate(latestNeuro.date) : undefined, tone: 'green', decimals: 1 },
+            ...(decisionSnapshot
+              ? [
+                  { icon: Gauge, label: 'Decisión carga', value: decisionSnapshot.scientific.state, note: `Cierre ${formatPdfDate(endDate)}`, tone: 'navy' as Tone },
+                  { icon: AlertTriangle, label: 'Riesgo perfil', value: decisionSnapshot.profile.riskScore, note: riskToneLabel(decisionSnapshot.predictive.tone), tone: (decisionSnapshot.profile.riskTone === 'red' ? 'red' : decisionSnapshot.profile.riskTone === 'amber' ? 'amber' : 'green') as Tone },
+                  { icon: Percent, label: 'ACWR', value: decisionSnapshot.profile.acwr.primary.rolling, decimals: 2, note: 'Al cierre del período', tone: 'blue' as Tone },
+                ]
+              : []),
           ]} />
           {gpsSessions ? <div className="scout-gps-average-strip"><KpiGrid items={gpsAverageItems.slice(0, 5).map((item) => ({ icon: item.icon, label: item.label, value: item.value, suffix: item.suffix, decimals: item.decimals, note: 'prom/sesión', tone: 'blue' }))} /></div> : null}
         </Section>

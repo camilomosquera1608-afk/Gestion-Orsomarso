@@ -1,66 +1,23 @@
 import type { AppData, DailyExternalLoadRecord, DailyInternalLoadRecord, DailyWellnessRecord, Player } from './types';
-import { getPlayerDayLoad } from './utils';
-import { computeMonotonyStrain as computeEngineMonotonyStrain, computePlayerLoadRiskProfile } from './load-risk-engine';
+import { dateMinusDays, datePlusDays, dateRange, daysBetween, inDateWindow, MS_DAY, toDate } from './dates';
+import { externalLoadValue, getPlayerDayLoad, internalLoadValue, playerDayLoad } from './load-metrics';
+import { averageWellness, computeWellnessScore } from './wellness-metrics';
+import { computeMonotonyStrain as computeEngineMonotonyStrain, type LoadRiskProfile } from './load-risk-engine';
 
-const MS_DAY = 24 * 60 * 60 * 1000;
+export { dateMinusDays, datePlusDays, dateRange, daysBetween, toDate } from './dates';
+export { externalLoadValue, internalLoadValue, playerDayLoad } from './load-metrics';
+
 const num = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const round = (value: number, digits = 0) => Number(value.toFixed(digits));
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-export const toDate = (value: string) => {
-  const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-};
-
-export const dateMinusDays = (referenceDate: string, days: number) => {
-  const parsed = toDate(referenceDate);
-  if (!parsed) return referenceDate;
-  const next = new Date(parsed.getTime() - days * MS_DAY);
-  return next.toISOString().slice(0, 10);
-};
-
-export const datePlusDays = (referenceDate: string, days: number) => dateMinusDays(referenceDate, -days);
-
-export const daysBetween = (date: string, referenceDate: string) => {
-  const a = toDate(date);
-  const b = toDate(referenceDate);
-  if (!a || !b) return 9999;
-  return Math.round((b.getTime() - a.getTime()) / MS_DAY);
-};
-
-export const dateRange = (startDate: string, endDate: string) => {
-  const start = toDate(startDate);
-  const end = toDate(endDate);
-  if (!start || !end || start > end) return [];
-  const dates: string[] = [];
-  for (let ts = start.getTime(); ts <= end.getTime(); ts += MS_DAY) dates.push(new Date(ts).toISOString().slice(0, 10));
-  return dates;
-};
-
-const inWindow = (date: string, referenceDate: string, minDays: number, maxDays: number) => {
-  const diff = daysBetween(date, referenceDate);
-  return diff >= minDays && diff <= maxDays;
-};
-
+/** @deprecated Usar computeWellnessScore / averageWellness de wellness-metrics */
 export const wellnessAverage = (record?: Pick<DailyWellnessRecord, 'sleep' | 'fatigue' | 'stress' | 'musclePain' | 'mood'>) => {
-  if (!record) return undefined;
-  return (num(record.sleep) + num(record.fatigue) + num(record.stress) + num(record.musclePain) + num(record.mood)) / 5;
+  const score = computeWellnessScore(record);
+  return score > 0 ? score : undefined;
 };
 
-export const internalLoadValue = (record?: Pick<DailyInternalLoadRecord, 'duration' | 'rpe'>) => {
-  if (!record) return 0;
-  return num(record.duration) * num(record.rpe);
-};
-
-export const externalLoadValue = (record?: DailyExternalLoadRecord) => {
-  if (!record) return 0;
-  const rpeLoad = num(record.rpe) * num(record.min);
-  if (rpeLoad > 0) return rpeLoad;
-  return num(record.playerLoad) + (num(record.totalDistance) / 10) + num(record.acc) + num(record.dcc) + (num(record.sprints) * 4) + num(record.rhie);
-};
-
-export const playerDayLoad = (data: Pick<AppData, 'internalLoads' | 'externalLoads'> & Partial<Pick<AppData, 'competitionRecords'>>, playerId: string, date: string) =>
-  getPlayerDayLoad(playerId, date, data, { includeCompetitionExternal: true, includeCompetitionRecords: true });
+const inWindow = inDateWindow;
 
 const mean = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 const standardDeviation = (values: number[]) => {
@@ -156,8 +113,9 @@ const buildMetric = (variable: DynamicVariable, label: string, values: number[],
   return { variable, label, count: clean.length, p10: p10 !== undefined ? round(p10, 1) : undefined, p90: p90 !== undefined ? round(p90, 1) : undefined, mean: round(avg, 1), sd: round(sd, 1), today: today !== undefined ? round(today, 1) : undefined, zScore: zScore !== undefined ? round(zScore, 2) : undefined, outsideNormal, tone, message };
 };
 
-export const computeDynamicThresholds = (data: AppData, player: Player, referenceDate: string, lookbackDays = 56) => {
-  const profile = computePlayerLoadRiskProfile({ data, player, date: referenceDate });
+export const computeDynamicThresholds = (
+  profile: LoadRiskProfile,
+): Record<'wellness' | 'rpe' | 'load', DynamicThresholdMetric> => {
   const adapt = (variable: DynamicVariable, label: string, metric: typeof profile.thresholds.srpe): DynamicThresholdMetric => ({
     variable,
     label,

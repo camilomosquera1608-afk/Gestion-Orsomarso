@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { AlertTriangle, Activity, HeartPulse, ShieldCheck, TrendingUp, Users } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
@@ -16,7 +17,10 @@ import {
   buildWeeklyMonotonyFatigue,
   type LogicInsight,
 } from '@/lib/logic-insights';
+import { buildPlayerDecisionContext } from '@/lib/player-decision';
+import { getCanonicalPlayers } from '@/lib/relational-data';
 import { buildAcwrData } from '@/lib/strategic-helpers';
+import { riskToneLabel } from '@/lib/predictive-risk';
 
 const toneClass = (tone: string): 'red' | 'amber' | 'green' | 'blue' => tone === 'red' ? 'red' : tone === 'yellow' ? 'amber' : tone === 'green' ? 'green' : 'blue';
 
@@ -100,6 +104,27 @@ export default function InjuryRiskPage() {
     category: activeCategory as any,
   });
   const acwr = buildAcwrData(data, activeCategory, referenceDate);
+  const scopedPlayers = useMemo(
+    () =>
+      getCanonicalPlayers(
+        data,
+        data.players.filter(
+          (player) => activeCategory === 'all' || player.category === activeCategory,
+        ),
+      ),
+    [data, activeCategory],
+  );
+  const decisionHighlights = useMemo(
+    () =>
+      scopedPlayers
+        .map((player) => ({
+          player,
+          ctx: buildPlayerDecisionContext({ data, player, date: referenceDate }),
+        }))
+        .sort((a, b) => b.ctx.profile.riskScore - a.ctx.profile.riskScore)
+        .slice(0, 10),
+    [data, scopedPlayers, referenceDate],
+  );
   const red = readiness.filter((row) => row.tone === 'red').length;
   const yellow = readiness.filter((row) => row.tone === 'yellow').length;
   const green = readiness.filter((row) => row.tone === 'green').length;
@@ -173,6 +198,38 @@ export default function InjuryRiskPage() {
       <div className="grid grid-2">
         <InsightList title="Retorno progresivo" subtitle="Control para lesionados, molestias o readaptación." items={rtp} />
         <InsightList title="Monotonía semanal" subtitle="Distribución de carga y posible fatiga acumulada." items={[monotony]} />
+      </div>
+
+      <div className="card">
+        <SectionHeader
+          eyebrow="Motor unificado"
+          title="Decisión científica + predictiva"
+          subtitle="Misma lógica que plan diario y ficha individual (buildPlayerDecisionContext)."
+        />
+        <div className="table-wrap">
+          <table className="professional-table">
+            <thead>
+              <tr>
+                <th>Jugador</th>
+                <th>Riesgo perfil</th>
+                <th>Decisión carga</th>
+                <th>Predictivo</th>
+                <th>ACWR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {decisionHighlights.map(({ player, ctx }) => (
+                <tr key={player.id}>
+                  <td><strong>{player.name}</strong></td>
+                  <td><StatusBadge text={`${ctx.profile.riskScore}`} tone={ctx.profile.riskTone} /></td>
+                  <td>{ctx.scientific.state}</td>
+                  <td><StatusBadge text={riskToneLabel(ctx.predictive.tone)} tone={ctx.predictive.tone} /></td>
+                  <td>{ctx.profile.acwr.primary.rolling.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

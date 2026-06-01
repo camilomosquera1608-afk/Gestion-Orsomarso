@@ -1,28 +1,13 @@
 # Orsomarso Performance App
 
-Versión limpia: **v105 - Informes dossier premium + hotfix Administración**
+Versión: **v135.3** — domain-commands ampliado, decisión unificada en helpers, scouting UI alineada
 
-Este paquete contiene solo los archivos necesarios para trabajar la aplicación en desarrollo y producción:
+Este paquete contiene los archivos necesarios para desarrollo y producción:
 
-- `app/`
-- `components/`
-- `context/`
-- `lib/`
-- `public/`
-- `scripts/`
-- `supabase/`
-- archivos de configuración de Next.js, TypeScript, npm y entorno
-
-No incluye:
-
-- `node_modules/`
-- `.next/`
-- cachés de compilación
-- scripts Python antiguos
-- notebooks
-- zips de versiones anteriores
-- documentos README de versiones viejas
-- archivos temporales
+- `app/` — rutas Next.js (incluye `app/api/wyscout` proxy)
+- `components/`, `context/`, `lib/`, `stores/`
+- `public/`, `scripts/`, `supabase/`
+- configuración Next.js, TypeScript y npm
 
 ## Ejecutar localmente
 
@@ -31,45 +16,47 @@ npm install
 npm run dev
 ```
 
-Abrir:
+Abrir `http://localhost:3000`
 
-```text
-http://localhost:3000
-```
-
-## Verificar producción
+## Verificar (CI local)
 
 ```bash
 npm run build
+npm test
+npm run test:load-risk
 ```
 
 ## Supabase
 
-Para un proyecto Supabase nuevo, usar:
+Esquema consolidado:
 
-```text
-SUPABASE_RUN_THIS.sql
-```
+- `supabase/schema.sql`
+- `supabase/sql/RUN_THIS_IN_SUPABASE.sql`
 
-El esquema consolidado también está en:
-
-```text
-supabase/schema.sql
-```
-
-Si ya tienes la base de datos actualizada desde las versiones anteriores, esta entrega no requiere una nueva migración obligatoria.
+Migraciones históricas por versión: `sql/archive/` (scripts `SUPABASE_V*.sql`).
 
 ## Variables de entorno
 
-Copia `.env.example` o `.env.vercel.example` a `.env.local` y completa tus variables reales de Supabase.
+Copia `.env.example` a `.env.local` (no commitear secretos).
+
+- Supabase: URL y claves de servicio según `.env.example`
+- Wyscout (opcional, solo servidor): `WYSCOUT_API_KEY` en `.env.local`
+  - Con clave: `POST /api/wyscout` proxy hacia la API real (`lib/wyscout-api.ts`)
+  - Sin clave: respuesta mock para desarrollo; la UI de scouting sigue operativa
+  - Jugadores externos: persistencia local vía `stores/scouting-store` (Zustand + `localStorage`), independiente de `AppData`/Supabase por ahora
+
+## Arquitectura de dominio (v135+)
+
+- `lib/domain-commands.ts` — escrituras puras (wellness, cargas externas/internas, sesiones, competencia, evaluaciones CMJ/nutrición/neuro/FMS)
+- `lib/domain-validation.ts` — Zod y duplicados
+- `lib/player-decision.ts` — `buildPlayerDecisionContext` (perfil + predictivo + científico)
+- `lib/report-snapshot.ts` — mismo DTO para informes PDF
+- `lib/sync-merge-policies.ts` — políticas local/remoto documentadas
+- `category` (ficha) vs `actingCategory` (actividad) — ver comentarios en `lib/access-control.ts`
 
 ## Nota de estabilidad
 
-Este paquete mantiene la línea de producción segura:
-
-- Supabase con tablas separadas.
-- Sin `app_state` legacy.
-- Sin mock-data automático en producción.
-- Roles y permisos activos.
-- Realtime/autosave sin cambios intencionales.
-- Administración restaurada para sesiones admin/master válidas.
+- Supabase con tablas separadas (sin `app_state` legacy)
+- Sin mock-data automático en producción
+- Roles y permisos activos
+- Administración: panel de fusión sync y conflictos locales

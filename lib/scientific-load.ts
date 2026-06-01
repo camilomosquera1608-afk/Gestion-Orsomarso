@@ -1,7 +1,8 @@
 import type { AppData, Player, TrainingSessionType } from './types';
 import type { BodyMapRecord } from './body-map';
 import { getBodyMapDecision } from './body-map';
-import { computePlayerLoadRiskProfile, daysBetween } from './load-risk-engine';
+import { daysBetween } from './dates';
+import { computePlayerLoadRiskProfile } from './load-risk-engine';
 
 export type LoadDecisionState = 'Carga completa' | 'Control preventivo' | 'Carga reducida' | 'Trabajo modificado' | 'No campo' | 'Compensatorio';
 export type DecisionConfidence = 'Alta' | 'Media' | 'Baja';

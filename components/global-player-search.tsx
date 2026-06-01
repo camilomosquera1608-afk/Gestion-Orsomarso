@@ -52,14 +52,14 @@ export function GlobalPlayerSearch() {
   const scoutStatuses = ['none', 'watching', 'shortlisted', 'contacted', 'rejected'];
 
   return (
-    <div className="space-y-6">
-      {/* Search Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Búsqueda Global de Jugadores
-          </h2>
-          <div className="flex items-center gap-2">
+    <div className="grid" style={{ gap: 16 }}>
+      <div className="card">
+        <div className="toolbar">
+          <div>
+            <span className="section-eyebrow">Scouting</span>
+            <h3 style={{ margin: 0 }}>Búsqueda global de jugadores</h3>
+          </div>
+          <div className="btn-row">
             <AccessibleButton
               variant="secondary"
               size="sm"
@@ -84,8 +84,8 @@ export function GlobalPlayerSearch() {
         </div>
 
         {/* Main Search Bar */}
-        <div className="flex gap-4">
-          <div className="flex-1">
+        <div className="btn-row" style={{ alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
             <AccessibleInput
               label="Nombre del jugador"
               value={searchFilters.name || ''}
@@ -111,13 +111,12 @@ export function GlobalPlayerSearch() {
         {/* Advanced Filters */}
         {showFilters && (
           <FadeIn>
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="grid" style={{ marginTop: 16, gap: 12, paddingTop: 16, borderTop: '1px solid var(--border)', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
               {/* Position Filter */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Posición
-                </label>
-                <select
+                <label className="field">
+                  <span className="field-label">Posición</span>
+                  <select
                   value={searchFilters.position?.[0] || ''}
                   onChange={(e) =>
                     setSearchFilters({
@@ -125,7 +124,7 @@ export function GlobalPlayerSearch() {
                       position: e.target.value ? [e.target.value as any] : undefined,
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="select"
                 >
                   <option value="">Todas las posiciones</option>
                   {positions.map((pos) => (
@@ -134,6 +133,7 @@ export function GlobalPlayerSearch() {
                     </option>
                   ))}
                 </select>
+                </label>
               </div>
 
               {/* Age Range */}

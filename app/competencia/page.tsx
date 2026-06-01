@@ -20,6 +20,7 @@ import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-im
 import { CsvImporter } from '@/components/csv-importer';
 import { supportsGps } from '@/lib/report-utils';
 import { buildCompetitionLogic, buildDataInconsistencyAlerts, buildReturnToPlayAlerts, buildRoleLoadControl } from '@/lib/logic-insights';
+import { getCanonicalPlayers } from '@/lib/relational-data';
 
 const categories: ClubCategory[] = ['Sub15', 'Sub17', 'Sub20'];
 const starterOptions: CompetitionPlayerRole[] = ['Titular', 'Suplente'];
@@ -316,7 +317,10 @@ export default function CompetenciaPage() {
   const [matchPlayerDrafts, setMatchPlayerDrafts] = useState<MatchPlayerDraftMap>({});
   const [isSavingMatchPlayers, setIsSavingMatchPlayers] = useState(false);
 
-  const playersBySource = useMemo(() => data.players.filter((player) => player.category === sourceCategory), [data.players, sourceCategory]);
+  const playersBySource = useMemo(
+    () => getCanonicalPlayers(data, data.players.filter((player) => player.category === sourceCategory)),
+    [data, sourceCategory],
+  );
   const gpsPlayersForImport = useMemo(() => playersBySource.filter((player) => !isGoalkeeper(player)), [playersBySource]);
   // Fix #5: rivals known from existing match history — no more hardcoded list
   const knownRivalsFromHistory = useMemo(() => {

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
@@ -9,15 +10,25 @@ import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { buildAbruptLoadAlerts, buildAvailabilityIndex, buildDataInconsistencyAlerts, buildIntelligentRanking, buildPlayerReadinessSemaphores, buildPositionComparisonInsights, buildSelfComparisonInsights } from '@/lib/logic-insights';
 import type { ClubCategory } from '@/lib/types';
+import { getCanonicalPlayers } from '@/lib/relational-data';
 
 export default function RankingPage() {
   const { data, filters, isLoading } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
-  const players = data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory);
+  const players = useMemo(
+    () =>
+      getCanonicalPlayers(
+        data,
+        data.players.filter(
+          (player) => activeCategory === 'all' || player.category === activeCategory,
+        ),
+      ),
+    [data, activeCategory],
+  );
   const rankingCategory = (activeCategory === 'all' ? 'all' : activeCategory) as ClubCategory | 'all';
-  const intelligentRanking = buildIntelligentRanking({ data, players: data.players, referenceDate: filters.date, category: rankingCategory, limit: 10 });
+  const intelligentRanking = buildIntelligentRanking({ data, players, referenceDate: filters.date, category: rankingCategory, limit: 10 });
   const abruptLoadRanking = buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
   const readinessRanking = buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 8 });
   const availabilityIndex = buildAvailabilityIndex({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory });

@@ -14,7 +14,7 @@ import { categoryLabel, calcAge } from '@/lib/labels';
 import { PlayerStatus } from '@/lib/types';
 import { averageWellness, calculateInternalLoad } from '@/lib/utils';
 import { getVisiblePlayers } from '@/lib/operational-helpers';
-import { getRelatedPlayerIds } from '@/lib/relational-data';
+import { getCanonicalPlayers, getRelatedPlayerIds } from '@/lib/relational-data';
 
 const statuses: PlayerStatus[] = ['Disponible', 'Molestia', 'Readaptación', 'Lesionado'];
 
@@ -26,7 +26,10 @@ export default function JugadoresPage() {
   const canEditPlayers = canWrite(session);
   const canDeleteRosterPlayers = canDeletePlayers(session);
   const activeCategory = master ? filters.category : session.category;
-  const players = getVisiblePlayers(data, filters, activeCategory);
+  const players = getCanonicalPlayers(
+    data,
+    getVisiblePlayers(data, filters, activeCategory),
+  );
   const statusSummary = {
     disponibles: players.filter((player) => player.status === 'Disponible').length,
     molestia: players.filter((player) => player.status === 'Molestia').length,

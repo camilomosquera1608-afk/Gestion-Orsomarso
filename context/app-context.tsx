@@ -50,7 +50,37 @@ import {
   getMicrocyclesForCategory,
   microcycleBelongsToCategory,
 } from "@/lib/utils";
-import { findOverlappingMicrocycle } from "@/lib/operational-validation";
+import {
+  addExternalLoad as commandAddExternalLoad,
+  addInternalLoad as commandAddInternalLoad,
+  addWellness as commandAddWellness,
+  deleteCMJRecord as commandDeleteCMJRecord,
+  deleteExternalLoad as commandDeleteExternalLoad,
+  deleteFMSRecord as commandDeleteFMSRecord,
+  deleteNeuromuscularRecord as commandDeleteNeuromuscularRecord,
+  deleteNutritionRecord as commandDeleteNutritionRecord,
+  saveCompetitionMatchBundle as commandSaveCompetitionMatchBundle,
+  saveTrainingSessionBundle as commandSaveTrainingSessionBundle,
+  updateCMJRecord as commandUpdateCMJRecord,
+  updateExternalLoad as commandUpdateExternalLoad,
+  updateFMSRecord as commandUpdateFMSRecord,
+  updateMicrocycleInData,
+  updateNeuromuscularRecord as commandUpdateNeuromuscularRecord,
+  updateNutritionRecord as commandUpdateNutritionRecord,
+  upsertCMJRecord as commandUpsertCMJRecord,
+  upsertCompetitionMatchSummary as commandUpsertCompetitionMatchSummary,
+  upsertFMSRecord as commandUpsertFMSRecord,
+  upsertInternalLoad as commandUpsertInternalLoad,
+  upsertNeuromuscularRecord as commandUpsertNeuromuscularRecord,
+  upsertNutritionRecord as commandUpsertNutritionRecord,
+  upsertTrainingSessionSummary as commandUpsertTrainingSessionSummary,
+  upsertWellness as commandUpsertWellness,
+} from "@/lib/domain-commands";
+import {
+  computeSyncMergeConflicts,
+  type SyncMergeConflictNote,
+} from "@/lib/sync-merge-summary";
+import { todayInputDate } from "@/lib/dates";
 import {
   normalizeSharedDataLinks,
   recordMatchesTrainingSession,
@@ -157,18 +187,13 @@ interface AppContextValue {
   pushLocalToRemote: () => Promise<void>;
   canEdit: boolean;
   permissionMessage: string;
+  writeValidationMessage: string | null;
+  clearWriteValidationMessage: () => void;
+  syncMergeConflicts: SyncMergeConflictNote[];
 }
 
-const getTodayInputDate = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
 const getDefaultFilters = (): GlobalFilters => ({
-  date: getTodayInputDate(),
+  date: todayInputDate(),
   microcycleId: "",
   playerId: "all",
   position: "all",
@@ -390,53 +415,12 @@ const mergePlayersPreferLocal = (
   );
 };
 
-const buildCompetitionExternalLoad = (
-  match: CompetitionMatchSummary,
-  record: CompetitionRecord,
-): DailyExternalLoadRecord | null => {
-  const hasGps =
-    (record.playerLoad ?? 0) > 0 ||
-    (record.totalDistance ?? 0) > 0 ||
-    (record.highSpeedDistance ?? record.hsr ?? 0) > 0 ||
-    (record.sprintDistance ?? 0) > 0 ||
-    (record.acc ?? 0) > 0 ||
-    (record.dcc ?? 0) > 0 ||
-    (record.sprints ?? 0) > 0 ||
-    (record.rhie ?? 0) > 0;
-  if (!hasGps && (record.minutesPlayed ?? 0) <= 0) return null;
-  return {
-    id: `comp-load-${match.id}-${record.playerId}`,
-    sessionId: match.id,
-    playerId: record.playerId,
-    date: match.date || record.date,
-    min: record.minutesPlayed ?? 0,
-    acc: record.acc ?? 0,
-    dcc: record.dcc ?? 0,
-    sprints: record.sprints ?? 0,
-    rhie: record.rhie ?? 0,
-    ima: record.ima ?? 0,
-    rpe: 8,
-    totalDistance: record.totalDistance,
-    highSpeedDistance: record.highSpeedDistance ?? record.hsr,
-    hsr: record.hsr ?? record.highSpeedDistance,
-    sprintDistance: record.sprintDistance,
-    maxVelocity: record.maxVelocity,
-    playerLoad: record.playerLoad,
-    participation: "Completa",
-    sessionType: "MD",
-    category: record.category ?? match.category,
-    baseCategory: record.baseCategory,
-    actingCategory: record.actingCategory ?? record.category ?? match.category,
-    movementType: record.movementType ?? "base",
-    movementModule: "competencia",
-    loggedBy: record.loggedBy,
-  };
-};
-
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [data, setData] = useState<AppData>(initialData);
   const [filters, setFiltersState] = useState<GlobalFilters>(defaultFilters);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [writeValidationMessage, setWriteValidationMessage] = useState<string | null>(null);
+  const [syncMergeConflicts, setSyncMergeConflicts] = useState<SyncMergeConflictNote[]>([]);
   const [syncStatus, setSyncStatus] = useState<
     "idle" | "syncing" | "ready" | "error"
   >("idle");
@@ -580,6 +564,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const normalizedNext = normalizeSharedDataLinks(next);
+    setSyncMergeConflicts(computeSyncMergeConflicts(remoteHydrated, current));
     const currentSnapshot = JSON.stringify(dataRef.current);
     const nextSnapshot = JSON.stringify(normalizedNext);
     if (currentSnapshot !== nextSnapshot) {
@@ -685,6 +670,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setSyncStatus("ready");
     }
+  };
+
+  const rejectDomainWrite = (message: string) => {
+    setWriteValidationMessage(message);
+    setSyncStatus("error");
   };
 
   const applyMutation = (
@@ -894,7 +884,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const session = getStaffSession();
       sessionRef.current = session;
-      const today = getTodayInputDate();
+      const today = todayInputDate();
       const category = getAllowedCategory(session);
       const activeCategory = isMasterRole(session) ? "all" : category;
       const currentMicrocycles = dataRef.current.microcycles;
@@ -1436,59 +1426,51 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             void deleteRemoteLegacy("competition_players", x.id);
           });
       },
-      addWellness: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          wellness: [record, ...prev.wellness],
-        })),
-      upsertWellness: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          wellness: [
-            record,
-            ...prev.wellness.filter(
-              (item) =>
-                !(
-                  item.playerId === record.playerId && item.date === record.date
-                ),
-            ),
-          ],
-        })),
-      addInternalLoad: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          internalLoads: [record, ...prev.internalLoads],
-        })),
-      upsertInternalLoad: (record) =>
-        applyMutation((prev) => {
-          const normalizedRecord = {
-            ...record,
-            microcycleId: record.microcycleId ?? filters.microcycleId,
-            sessionNumber: record.sessionNumber ?? filters.sessionNumber,
-          };
-          return {
-            ...prev,
-            internalLoads: [
-              normalizedRecord,
-              ...prev.internalLoads.filter((item) => {
-                const sameId = item.id === normalizedRecord.id;
-                const sameSessionPlayer =
-                  !!normalizedRecord.sessionId &&
-                  item.sessionId === normalizedRecord.sessionId &&
-                  item.playerId === normalizedRecord.playerId;
-                const sameDatePlayerSession =
-                  item.playerId === normalizedRecord.playerId &&
-                  item.date === normalizedRecord.date &&
-                  (item.category ?? item.actingCategory) ===
-                    (normalizedRecord.category ??
-                      normalizedRecord.actingCategory) &&
-                  (item.sessionNumber ?? filters.sessionNumber) ===
-                    (normalizedRecord.sessionNumber ?? filters.sessionNumber);
-                return !(sameId || sameSessionPlayer || sameDatePlayerSession);
-              }),
-            ],
-          };
-        }),
+      addWellness: (record) => {
+        const result = commandAddWellness(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
+      },
+      upsertWellness: (record) => {
+        const result = commandUpsertWellness(dataRef.current, record, {
+          excludeId: record.id,
+        });
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
+      },
+      addInternalLoad: (record) => {
+        const result = commandAddInternalLoad(dataRef.current, record, {
+          microcycleId: filters.microcycleId,
+          sessionNumber: filters.sessionNumber,
+        });
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
+      },
+      upsertInternalLoad: (record) => {
+        const result = commandUpsertInternalLoad(dataRef.current, record, {
+          excludeId: record.id,
+          microcycleId: filters.microcycleId,
+          sessionNumber: filters.sessionNumber,
+        });
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
+      },
       updateInternalLoad: (record) =>
         applyMutation((prev) => ({
           ...prev,
@@ -1505,200 +1487,151 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }));
         void deleteRemoteLegacy("daily_internal_loads", recordId);
       },
-      addExternalLoad: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          externalLoads: [
-            {
-              ...record,
-              microcycleId: record.microcycleId ?? filters.microcycleId,
-              sessionNumber: record.sessionNumber ?? filters.sessionNumber,
-              sessionType: record.sessionType ?? "MD-3",
-              participation: record.participation ?? "Completa",
-            },
-            ...prev.externalLoads,
-          ],
-        })),
-      updateExternalLoad: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          externalLoads: prev.externalLoads.map((item) =>
-            item.id === record.id ? record : item,
-          ),
-        })),
+      addExternalLoad: (record) => {
+        const result = commandAddExternalLoad(dataRef.current, record, {
+          microcycleId: filters.microcycleId,
+          sessionNumber: filters.sessionNumber,
+        });
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
+      },
+      updateExternalLoad: (record) => {
+        const result = commandUpdateExternalLoad(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
+      },
       deleteExternalLoad: (recordId) => {
-        applyMutation((prev) => ({
-          ...prev,
-          externalLoads: prev.externalLoads.filter(
-            (item) => item.id !== recordId,
-          ),
-        }));
+        const result = commandDeleteExternalLoad(dataRef.current, recordId);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
         void deleteRemoteLegacy("daily_external_loads", recordId);
       },
 
-      // FIX #1: addCMJRecord ahora es un upsert — evita duplicados por jugador+fecha.
-      // Antes hacía [record, ...prev] sin filtrar, creando registros repetidos
-      // si el usuario guardaba dos veces en el mismo día.
-      addCMJRecord: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            cmjRecords: [
-              record,
-              ...prev.cmjRecords.filter(
-                (item) =>
-                  !(
-                    item.id !== record.id &&
-                    item.playerId === record.playerId &&
-                    item.date === record.date
-                  ),
-              ),
-            ],
-          }),
-          "evaluations",
-        ),
-      updateCMJRecord: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            cmjRecords: prev.cmjRecords.map((item) =>
-              item.id === record.id ? record : item,
-            ),
-          }),
-          "evaluations",
-        ),
+      addCMJRecord: (record) => {
+        const result = commandUpsertCMJRecord(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
+      },
+      updateCMJRecord: (record) => {
+        const result = commandUpdateCMJRecord(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
+      },
       deleteCMJRecord: (recordId) => {
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            cmjRecords: prev.cmjRecords.filter((item) => item.id !== recordId),
-          }),
-          "evaluations",
-        );
+        const result = commandDeleteCMJRecord(dataRef.current, recordId);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
         void deleteRemoteLegacy("cmj_records", recordId);
       },
 
-      // FIX #1: addNutritionRecord ahora es un upsert — evita duplicados por jugador+fecha.
-      addNutritionRecord: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            nutritionRecords: [
-              record,
-              ...prev.nutritionRecords.filter(
-                (item) =>
-                  !(
-                    item.id !== record.id &&
-                    item.playerId === record.playerId &&
-                    item.date === record.date
-                  ),
-              ),
-            ],
-          }),
-          "evaluations",
-        ),
-      updateNutritionRecord: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            nutritionRecords: prev.nutritionRecords.map((item) =>
-              item.id === record.id ? record : item,
-            ),
-          }),
-          "evaluations",
-        ),
+      addNutritionRecord: (record) => {
+        const result = commandUpsertNutritionRecord(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
+      },
+      updateNutritionRecord: (record) => {
+        const result = commandUpdateNutritionRecord(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
+      },
       deleteNutritionRecord: (recordId) => {
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            nutritionRecords: prev.nutritionRecords.filter(
-              (item) => item.id !== recordId,
-            ),
-          }),
-          "evaluations",
-        );
+        const result = commandDeleteNutritionRecord(dataRef.current, recordId);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
         void deleteRemoteLegacy("nutrition_records", recordId);
       },
 
-      // FIX #1: addNeuromuscularRecord ahora es un upsert — evita duplicados por jugador+fecha.
-      addNeuromuscularRecord: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            neuromuscularRecords: [
-              record,
-              ...prev.neuromuscularRecords.filter(
-                (item) =>
-                  !(
-                    item.id !== record.id &&
-                    item.playerId === record.playerId &&
-                    item.date === record.date
-                  ),
-              ),
-            ],
-          }),
-          "evaluations",
-        ),
-      updateNeuromuscularRecord: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            neuromuscularRecords: prev.neuromuscularRecords.map((item) =>
-              item.id === record.id ? record : item,
-            ),
-          }),
-          "evaluations",
-        ),
+      addNeuromuscularRecord: (record) => {
+        const result = commandUpsertNeuromuscularRecord(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
+      },
+      updateNeuromuscularRecord: (record) => {
+        const result = commandUpdateNeuromuscularRecord(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
+      },
       deleteNeuromuscularRecord: (recordId) => {
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            neuromuscularRecords: prev.neuromuscularRecords.filter(
-              (item) => item.id !== recordId,
-            ),
-          }),
-          "evaluations",
-        );
+        const result = commandDeleteNeuromuscularRecord(dataRef.current, recordId);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
         void deleteRemoteLegacy("neuromuscular_records", recordId);
       },
 
-      // FIX #1: addFMSRecord ahora es un upsert — evita duplicados por jugador+fecha.
-      addFMSRecord: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            fmsRecords: [
-              record,
-              ...prev.fmsRecords.filter(
-                (item) =>
-                  !(
-                    item.id !== record.id &&
-                    item.playerId === record.playerId &&
-                    item.date === record.date
-                  ),
-              ),
-            ],
-          }),
-          "evaluations",
-        ),
-      updateFMSRecord: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            fmsRecords: prev.fmsRecords.map((item) =>
-              item.id === record.id ? record : item,
-            ),
-          }),
-          "evaluations",
-        ),
+      addFMSRecord: (record) => {
+        const result = commandUpsertFMSRecord(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
+      },
+      updateFMSRecord: (record) => {
+        const result = commandUpdateFMSRecord(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
+      },
       deleteFMSRecord: (recordId) => {
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            fmsRecords: prev.fmsRecords.filter((item) => item.id !== recordId),
-          }),
-          "evaluations",
-        );
+        const result = commandDeleteFMSRecord(dataRef.current, recordId);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "evaluations");
         void deleteRemoteLegacy("fms_records", recordId);
       },
       addCompetitionRecord: (record) =>
@@ -1749,96 +1682,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         );
         void deleteRemoteLegacy("competition_players", recordId);
       },
-      upsertCompetitionMatchSummary: (record) =>
-        applyMutation(
-          (prev) => ({
-            ...prev,
-            competitionMatchSummaries: [
-              record,
-              ...prev.competitionMatchSummaries.filter(
-                (item) =>
-                  !(
-                    item.id === record.id ||
-                    (item.date === record.date &&
-                      item.category === record.category &&
-                      item.opponent.trim().toLowerCase() ===
-                        record.opponent.trim().toLowerCase())
-                  ),
-              ),
-            ],
-          }),
-          "competition",
-        ),
+      upsertCompetitionMatchSummary: (record) => {
+        const result = commandUpsertCompetitionMatchSummary(dataRef.current, record);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "competition");
+      },
 
-      // Guarda el partido y toda su planilla en una sola mutacion.
-      // Evita que Supabase devuelva primero solo el encabezado del partido
-      // y la UI pierda temporalmente los jugadores/GPS al refrescar.
-      saveCompetitionMatchBundle: (record, records) =>
-        applyMutation((prev) => {
-          const sameMatch = (item: CompetitionRecord) => {
-            if (item.matchId === record.id) return true;
-            return (
-              item.date === record.date &&
-              item.category === record.category &&
-              item.opponent.trim().toLowerCase() ===
-                record.opponent.trim().toLowerCase()
-            );
-          };
-          const normalizedRecords = records.map((item) => ({
-            ...item,
-            matchId: record.id,
-            date: record.date,
-            opponent: record.opponent,
-            competitionName: record.competitionName,
-            category: item.category ?? record.category,
-            movementModule: "competencia" as const,
-          }));
-          const competitionExternalLoads = normalizedRecords
-            .map((item) => buildCompetitionExternalLoad(record, item))
-            .filter(Boolean) as DailyExternalLoadRecord[];
-          const competitionLoadIds = new Set(
-            competitionExternalLoads.map((item) => item.id),
-          );
-          const sameCompetitionLoad = (item: DailyExternalLoadRecord) => {
-            if (competitionLoadIds.has(item.id)) return true;
-            if (
-              item.movementModule !== "competencia" &&
-              !item.id.startsWith("comp-load-")
-            )
-              return false;
-            return (
-              item.sessionId === record.id ||
-              (item.date === record.date &&
-                normalizedRecords.some((row) => row.playerId === item.playerId))
-            );
-          };
-          return {
-            ...prev,
-            competitionMatchSummaries: [
-              record,
-              ...prev.competitionMatchSummaries.filter(
-                (item) =>
-                  !(
-                    item.id === record.id ||
-                    (item.date === record.date &&
-                      item.category === record.category &&
-                      item.opponent.trim().toLowerCase() ===
-                        record.opponent.trim().toLowerCase())
-                  ),
-              ),
-            ],
-            competitionRecords: [
-              ...normalizedRecords,
-              ...prev.competitionRecords.filter((item) => !sameMatch(item)),
-            ],
-            externalLoads: [
-              ...competitionExternalLoads,
-              ...prev.externalLoads.filter(
-                (item) => !sameCompetitionLoad(item),
-              ),
-            ],
-          };
-        }, "competition"),
+      saveCompetitionMatchBundle: (record, records) => {
+        const result = commandSaveCompetitionMatchBundle(
+          dataRef.current,
+          record,
+          records,
+        );
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data, "competition");
+      },
       deleteCompetitionMatchSummary: (matchId) => {
         applyMutation(
           (prev) => ({
@@ -1866,61 +1732,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // FIX #7: upsertTrainingSessionSummary ahora respeta el sessionNumber al deduplicar.
       // Antes filtraba solo por date+category, borrando cualquier sesión de ese día/categoría
       // aunque fuera una sesión distinta (ej: doble jornada con sessionNumber diferente).
-      upsertTrainingSessionSummary: (record) =>
-        applyMutation((prev) => ({
-          ...prev,
-          trainingSessionSummaries: [
-            record,
-            ...prev.trainingSessionSummaries.filter(
-              (item) =>
-                !(
-                  item.id === record.id ||
-                  (item.date === record.date &&
-                    item.category === record.category &&
-                    item.sessionNumber === record.sessionNumber)
-                ),
-            ),
-          ],
-        })),
+      upsertTrainingSessionSummary: (record) => {
+        const result = commandUpsertTrainingSessionSummary(
+          dataRef.current,
+          record,
+        );
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
+      },
 
       // Guarda una sesion completa en una sola mutacion local/remota.
       // Evita que Supabase reciba primero solo el encabezado de la sesion
       // y despues se pierdan las cargas por carreras de sincronizacion.
-      saveTrainingSessionBundle: (record, externalLoads, internalLoads) =>
-        applyMutation((prev) => {
-          const matchesSession = (item: {
-            sessionId?: string;
-            date?: string;
-            category?: string;
-            actingCategory?: string;
-            sessionNumber?: number;
-            movementModule?: string;
-          }) => recordMatchesTrainingSession(item, record);
-
-          return {
-            ...prev,
-            trainingSessionSummaries: [
-              record,
-              ...prev.trainingSessionSummaries.filter(
-                (item) =>
-                  !(
-                    item.id === record.id ||
-                    (item.date === record.date &&
-                      item.category === record.category &&
-                      item.sessionNumber === record.sessionNumber)
-                  ),
-              ),
-            ],
-            externalLoads: [
-              ...externalLoads,
-              ...prev.externalLoads.filter((item) => !matchesSession(item)),
-            ],
-            internalLoads: [
-              ...internalLoads,
-              ...prev.internalLoads.filter((item) => !matchesSession(item)),
-            ],
-          };
-        }),
+      saveTrainingSessionBundle: (record, externalLoads, internalLoads) => {
+        const result = commandSaveTrainingSessionBundle(
+          dataRef.current,
+          record,
+          externalLoads,
+          internalLoads,
+        );
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
+      },
       deleteTrainingSessionSummary: (sessionId) => {
         const current = dataRef.current;
         const target = current.trainingSessionSummaries.find(
@@ -2094,27 +1935,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             record.category ??
             (filters.category === "all" ? "Sub20" : (filters.category as any)),
         };
-        applyMutation((prev) => {
-          const duplicated = findOverlappingMicrocycle(
-            prev.microcycles,
-            normalizedRecord,
-          );
-          if (duplicated) return prev;
-          return {
-            ...prev,
-            microcycles: prev.microcycles.some(
-              (item) => item.id === normalizedRecord.id,
-            )
-              ? prev.microcycles.map((item) =>
-                  item.id === normalizedRecord.id
-                    ? { ...item, ...normalizedRecord }
-                    : item,
-                )
-              : [...prev.microcycles, normalizedRecord].sort((a, b) =>
-                  (a.startDate || a.id).localeCompare(b.startDate || b.id),
-                ),
-          };
-        });
+        const result = updateMicrocycleInData(dataRef.current, normalizedRecord);
+        if (!result.ok) {
+          rejectDomainWrite(result.message);
+          return;
+        }
+        setWriteValidationMessage(null);
+        applyMutation(() => result.data);
 
         if (normalizedRecord.id === filters.microcycleId) {
           setFiltersState((prev) => {
@@ -2195,6 +2022,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       pushLocalToRemote,
       canEdit,
       permissionMessage,
+      writeValidationMessage,
+      clearWriteValidationMessage: () => setWriteValidationMessage(null),
+      syncMergeConflicts,
     }),
     [
       data,
@@ -2205,6 +2035,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       localBackups,
       canEdit,
       permissionMessage,
+      writeValidationMessage,
+      syncMergeConflicts,
     ],
   );
 

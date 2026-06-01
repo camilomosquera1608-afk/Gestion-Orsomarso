@@ -26,6 +26,7 @@ import {
   type ProfileSource,
 } from '@/lib/supabase';
 import { getDataTotals } from '@/lib/data-quality';
+import { SYNC_MERGE_POLICIES } from '@/lib/sync-merge-policies';
 
 const roleOptions: PlatformRole[] = ['admin', 'category_admin', 'director', 'preparador', 'medico', 'analista', 'valorador', 'solo_lectura'];
 const categoryOptions: CategoryScope[] = ['ALL', 'Sub15', 'Sub17', 'Sub20'];
@@ -69,7 +70,7 @@ export default function AdministracionPage() {
   const session = getStaffSession();
   const access = getSessionAccessSnapshot(session);
   const isAdmin = hasAdministrationAccess(session);
-  const { data, backendMode, syncStatus, localBackups, canEdit } = useApp();
+  const { data, backendMode, syncStatus, localBackups, canEdit, syncMergeConflicts, forceSync } = useApp();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [profileSource, setProfileSource] = useState<ProfileSource | null>(null);
   const [profileLoadReason, setProfileLoadReason] = useState('');
@@ -229,6 +230,43 @@ export default function AdministracionPage() {
             </div>
           </div>
         ) : null}
+      </div>
+
+      <div className="card admin-sync-card">
+        <SectionHeader
+          eyebrow="Sincronización"
+          title="Fusión local / remoto"
+          subtitle="Políticas activas al refrescar desde Supabase y registros pendientes en este dispositivo."
+          action={
+            backendMode === 'supabase' ? (
+              <button type="button" className="btn secondary btn-compact" onClick={() => void forceSync()}>
+                Refrescar remoto
+              </button>
+            ) : undefined
+          }
+        />
+        <div className="admin-merge-policy-list">
+          {SYNC_MERGE_POLICIES.map((row) => (
+            <div key={row.entity} className="admin-merge-policy-row">
+              <strong>{row.entity}</strong>
+              <span className="muted-line">{row.description}</span>
+            </div>
+          ))}
+        </div>
+        {syncMergeConflicts.length ? (
+          <div className="admin-sync-conflicts">
+            <strong>Posibles conflictos (solo local)</strong>
+            <ul>
+              {syncMergeConflicts.map((row) => (
+                <li key={row.entity}>
+                  {row.entity}: {row.localOnlyCount} — {row.detail}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="muted-line">Sin registros huérfanos locales tras la última lectura remota.</p>
+        )}
       </div>
 
       <div className="card">

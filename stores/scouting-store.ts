@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ExternalPlayer, ScoutingSearchFilters, PlayerComparison, League } from '@/lib/schemas';
-import { getWyscoutClientOrMock } from '@/lib/wyscout-client';
+import { callWyscoutApi } from '@/lib/wyscout-api';
 import { emitAlertTriggered } from '@/lib/event-bus';
 
 interface ScoutingState {
@@ -73,10 +73,11 @@ export const useScoutingStore = create<ScoutingState>()(
         set({ isSearching: true, searchError: null });
         
         try {
-          const client = getWyscoutClientOrMock();
           const filters = get().searchFilters;
-          
-          const response = await client.searchPlayers({
+          const response = await callWyscoutApi<{
+            players: ExternalPlayer[];
+            total: number;
+          }>('searchPlayers', {
             name: filters.name,
             position: filters.position?.[0],
             ageMin: filters.ageMin,
@@ -88,19 +89,15 @@ export const useScoutingStore = create<ScoutingState>()(
             pageSize: 50,
           });
 
-          const convertedPlayers = response.players.map((player: any) =>
-            client.convertToExternalPlayer(player)
-          );
-
           set({
-            searchResults: convertedPlayers,
+            searchResults: response.players,
             isSearching: false,
           });
 
           emitAlertTriggered(
             'search-complete',
             'info',
-            `Se encontraron ${response.total} jugadores`
+            `Se encontraron ${response.total ?? response.players.length} jugadores`
           );
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Error al buscar jugadores';
@@ -146,28 +143,24 @@ export const useScoutingStore = create<ScoutingState>()(
         set({ isImporting: true, importProgress: 0, importError: null });
 
         try {
-          const client = getWyscoutClientOrMock();
           const totalLeagues = config.leagueIds.length;
           let allPlayers: ExternalPlayer[] = [];
 
           for (let i = 0; i < totalLeagues; i++) {
             const leagueId = config.leagueIds[i];
-            
+
             try {
-              const players = await client.importLeaguePlayers(
-                leagueId,
-                config.season,
+              const batch = await callWyscoutApi<{ players: ExternalPlayer[] }>(
+                'importLeaguePlayers',
                 {
+                  leagueIds: [leagueId],
+                  season: config.season,
                   includeStats: config.includeStats,
-                }
+                },
               );
 
-              const convertedPlayers = players.map((player: any) =>
-                client.convertToExternalPlayer(player)
-              );
+              allPlayers = [...allPlayers, ...batch.players];
 
-              allPlayers = [...allPlayers, ...convertedPlayers];
-              
               set({
                 importProgress: ((i + 1) / totalLeagues) * 100,
               });
@@ -230,10 +223,16 @@ export const useScoutingStore = create<ScoutingState>()(
 
       loadLeagues: async () => {
         try {
-          const client = getWyscoutClientOrMock();
-          const leagues = await client.getLeagues();
-          
-          const convertedLeagues: League[] = leagues.map((league: any) => ({
+          const response = await callWyscoutApi<{
+            leagues: Array<{
+              leagueId: string;
+              name: string;
+              country: string;
+              tier: string;
+            }>;
+          }>('loadLeagues', {});
+
+          const convertedLeagues: League[] = response.leagues.map((league) => ({
             id: league.leagueId,
             name: league.name,
             country: league.country,

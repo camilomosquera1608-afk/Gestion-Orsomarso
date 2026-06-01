@@ -2,16 +2,17 @@ import type { AppData, CompetitionRecord, DailyExternalLoadRecord, DailyInternal
 import type { BodyMapRecord } from './body-map';
 import { BODY_REGION_RISK } from './body-map';
 import {
-  averageWellness,
   calculateCompetitionRecordLoad,
   calculateExternalLoad,
   calculateInternalLoad,
   externalLoadHasInternalPair,
   getPlayerDayLoad,
   isCompetitionExternalLoad,
-} from './utils';
+} from './load-metrics';
+import { averageWellness } from './wellness-metrics';
+import { dateMinusDays, dateWindow, daysBetween, inDateWindow, toDate } from './dates';
 
-const MS_DAY = 24 * 60 * 60 * 1000;
+export { dateMinusDays, daysBetween, toDate } from './dates';
 
 export type LoadRiskTone = 'green' | 'amber' | 'red';
 export type DataConfidenceLabel = 'Alta' | 'Media' | 'Baja';
@@ -178,31 +179,7 @@ const percentile = (values: number[], p: number) => {
   return sorted[low] * (1 - weight) + sorted[high] * weight;
 };
 
-export const toDate = (value: string) => {
-  const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-};
-
-export const dateMinusDays = (referenceDate: string, days: number) => {
-  const parsed = toDate(referenceDate);
-  if (!parsed) return referenceDate;
-  return new Date(parsed.getTime() - days * MS_DAY).toISOString().slice(0, 10);
-};
-
-export const daysBetween = (date: string, referenceDate: string) => {
-  const a = toDate(date);
-  const b = toDate(referenceDate);
-  if (!a || !b) return 9999;
-  return Math.round((b.getTime() - a.getTime()) / MS_DAY);
-};
-
-const inWindow = (date: string, referenceDate: string, minDays: number, maxDays: number) => {
-  const diff = daysBetween(date, referenceDate);
-  return diff >= minDays && diff <= maxDays;
-};
-
-export const dateWindow = (referenceDate: string, minDays: number, maxDays: number) =>
-  Array.from({ length: maxDays - minDays + 1 }, (_, index) => dateMinusDays(referenceDate, minDays + index));
+const inWindow = inDateWindow;
 
 const recordHsr = (record: Pick<DailyExternalLoadRecord | CompetitionRecord, 'highSpeedDistance' | 'hsr'>) =>
   num(record.highSpeedDistance ?? record.hsr);

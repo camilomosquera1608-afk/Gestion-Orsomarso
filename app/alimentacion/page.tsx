@@ -20,6 +20,7 @@ import {
   type HouseDailyMealRecord,
   type HouseHomeData,
 } from '@/lib/casa-hogar';
+import { getCanonicalPlayers } from '@/lib/relational-data';
 
 const categories: Array<ClubCategory | 'all'> = ['all', 'Sub20', 'Sub17', 'Sub15'];
 const fmtPct = (value: number) => `${Math.round(value)}%`;
@@ -66,7 +67,14 @@ export default function AlimentacionPage() {
     return () => { mounted = false; };
   }, []);
 
-  const visiblePlayers = useMemo(() => data.players.filter((player) => selectedCategory === 'all' || player.category === selectedCategory), [data.players, selectedCategory]);
+  const visiblePlayers = useMemo(
+    () =>
+      getCanonicalPlayers(
+        data,
+        data.players.filter((player) => selectedCategory === 'all' || player.category === selectedCategory),
+      ),
+    [data, selectedCategory],
+  );
   const todayMeals = useMemo(() => visiblePlayers.map((player) => ({ player, meal: getMealRecord(nutritionData, player.id, date), decision: mealDecision(getMealRecord(nutritionData, player.id, date)) })), [visiblePlayers, nutritionData, date]);
   const breakfast = todayMeals.filter((item) => item.meal.breakfast).length;
   const lunch = todayMeals.filter((item) => item.meal.lunch).length;

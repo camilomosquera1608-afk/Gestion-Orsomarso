@@ -12,6 +12,7 @@ import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import type { ClubCategory, Player, StrengthCompletion, StrengthExerciseDesign, StrengthGroup, StrengthPlayerAdjustment, StrengthPlayerResponse, StrengthMicrodoseIntent, StrengthMovementPattern, StrengthSession, StrengthSessionType, StrengthZone } from '@/lib/types';
 import { getPlannedPlayerIds, groupPlayerHint, rpeDiffLabel, plannedStrengthReps, plannedStrengthSeries, strengthDecision, strengthExerciseId, strengthId, strengthLoad, strengthResponseId, microdoseIntentHint, movementPatternHint, STRENGTH_EXERCISE_PRESETS, STRENGTH_GROUPS, STRENGTH_MICRODOSE_INTENTS, STRENGTH_MOVEMENT_PATTERNS, STRENGTH_TYPES, STRENGTH_ZONE_GROUPS } from '@/lib/strength';
+import { getCanonicalPlayers } from '@/lib/relational-data';
 
 const categories: Array<ClubCategory | 'all'> = ['all', 'Sub20', 'Sub17', 'Sub15'];
 const todayInput = () => new Date().toISOString().slice(0, 10);
@@ -51,7 +52,14 @@ export default function FuerzaPage() {
   const [exercises, setExercises] = useState<StrengthExerciseDesign[]>([]);
   const [responsesDraft, setResponsesDraft] = useState<Record<string, Partial<StrengthPlayerResponse>>>({});
 
-  const visiblePlayers = useMemo(() => data.players.filter((p) => category === 'all' || p.category === category).sort((a, b) => a.name.localeCompare(b.name)), [data.players, category]);
+  const visiblePlayers = useMemo(
+    () =>
+      getCanonicalPlayers(
+        data,
+        data.players.filter((p) => category === 'all' || p.category === category),
+      ).sort((a, b) => a.name.localeCompare(b.name)),
+    [data, category],
+  );
   const sessions = useMemo(() => (data.strengthSessions ?? []).filter((s) => s.date === date && (category === 'all' || s.category === category)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [data.strengthSessions, date, category]);
   const selectedSession = sessions.find((s) => s.id === selectedSessionId) ?? sessions[0];
   const plannedIds = selectedSession ? getPlannedPlayerIds(selectedSession, visiblePlayers) : [];

@@ -12,6 +12,7 @@ import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { buildEvaluationsReportData } from '@/lib/evaluations-report';
 import { buildAvailabilityIndex, buildEvaluationLogic, buildPlayerReadinessSemaphores, buildSelfComparisonInsights } from '@/lib/logic-insights';
+import { getCanonicalPlayers } from '@/lib/relational-data';
 import { Line, LineChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   FAT_PERCENTAGE_RANGES,
@@ -87,7 +88,10 @@ export default function ValoracionesPage() {
   const [showGroupReport, setShowGroupReport] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
 
-  const categoryPlayers = data.players.filter((player) => player.category === activeCategory);
+  const categoryPlayers = useMemo(
+    () => getCanonicalPlayers(data, data.players.filter((player) => player.category === activeCategory)),
+    [data, activeCategory],
+  );
   const selectedPlayerId = filters.playerId === 'all' || !categoryPlayers.some((player) => player.id === filters.playerId) ? categoryPlayers[0]?.id ?? '' : filters.playerId;
   const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId) ?? categoryPlayers[0];
   if (!selectedPlayer) return <div className="empty">No hay jugadores disponibles en esta categoría.</div>;

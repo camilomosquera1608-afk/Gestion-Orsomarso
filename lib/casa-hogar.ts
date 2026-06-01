@@ -1,5 +1,6 @@
 import { hasSupabaseConfig, supabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import type { ClubCategory, DailyWellnessRecord, Player } from '@/lib/types';
+import { computeWellnessScore } from '@/lib/wellness-metrics';
 
 export type HousePlayerStatus = 'Activo' | 'Traslado' | 'Salida temporal' | 'Egresado';
 export type HouseTrafficLight = 'Verde' | 'Amarillo' | 'Rojo' | 'Gris';
@@ -170,11 +171,7 @@ export const mealCompletion = (record?: HouseDailyMealRecord) => {
   return [record.breakfast, record.lunch, record.dinner].filter(Boolean).length;
 };
 
-export const wellnessAverage = (record?: DailyWellnessRecord) => {
-  if (!record) return 0;
-  const readiness = [record.sleep, record.fatigue, record.stress, record.musclePain, record.mood];
-  return Number(avg(readiness).toFixed(1));
-};
+export const wellnessAverage = (record?: DailyWellnessRecord) => computeWellnessScore(record);
 
 export const buildHouseDashboard = (data: HouseHomeData, roster: Player[], date: string, month: number, year: number) => {
   const housePlayers = data.players.filter((item) => item.belongsHouse && item.status !== 'Egresado');

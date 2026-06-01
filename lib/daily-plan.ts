@@ -1,9 +1,10 @@
 import { BodyMapRecord, getBodyMapDecision } from './body-map';
 import { AppData, DailyExternalLoadRecord, DailyInternalLoadRecord, Player, StrengthSession } from './types';
 import { getPlannedPlayerIds, strengthDecision, strengthLoad } from './strength';
-import { computePredictiveRisk, type PredictiveRiskResult } from './predictive-risk';
-import { computePlayerLoadRiskProfile } from './load-risk-engine';
-import { computeDynamicThresholds, computeWellnessAdherence, type DynamicThresholdMetric } from './sport-science';
+import type { PredictiveRiskResult } from './predictive-risk';
+import type { DynamicThresholdMetric } from './sport-science';
+import { buildPlayerDecisionContext } from './player-decision';
+import { averageWellness as wellnessScoreForRecord } from './wellness-metrics';
 
 const sameDay = (date?: string, target?: string) => String(date ?? '') === String(target ?? '');
 const num = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -51,10 +52,11 @@ export interface PlayerDailyPlanRow {
   history: string[];
 }
 
-export const averageWellness = (records: AppData['wellness'], playerId: string, date: string) => {
+export const averageWellnessForPlayerDate = (records: AppData['wellness'], playerId: string, date: string) => {
   const record = records.find((item) => item.playerId === playerId && item.date === date);
   if (!record) return undefined;
-  return (num(record.sleep) + num(record.fatigue) + num(record.stress) + num(record.musclePain) + num(record.mood)) / 5;
+  const score = wellnessScoreForRecord(record);
+  return score > 0 ? score : undefined;
 };
 
 const worseStatus = (current: ComponentStatus, next: ComponentStatus): ComponentStatus => {
@@ -160,16 +162,21 @@ export const buildDailyPlan = (data: AppData, date: string, bodyRecords: BodyMap
   const openBodyRecords = bodyRecords.filter((record) => record.status !== 'Cerrado' && record.date <= date);
 
   return players.map((player) => {
-    const wellness = averageWellness(data.wellness, player.id, date);
+    const decisionCtx = buildPlayerDecisionContext({
+      data,
+      player,
+      date,
+      bodyRecords: openBodyRecords,
+    });
+    const loadRiskProfile = decisionCtx.profile;
+    const predictiveRisk = decisionCtx.predictive;
+    const dynamicThresholds = decisionCtx.dynamicThresholds;
+    const wellness = decisionCtx.wellnessToday ?? averageWellnessForPlayerDate(data.wellness, player.id, date);
     const internal = data.internalLoads.find((record) => record.playerId === player.id && sameDay(record.date, date));
     const external = data.externalLoads.find((record) => record.playerId === player.id && sameDay(record.date, date));
     const playerStrength = strengthForPlayer(dayStrength, player, players);
     const bodyAlerts = openBodyRecords.filter((record) => record.playerId === player.id).slice(0, 3);
     const componentAvailability = buildComponentAvailability(player, bodyAlerts);
-    const loadRiskProfile = computePlayerLoadRiskProfile({ data, player, date, bodyRecords: openBodyRecords });
-    const predictiveRisk = computePredictiveRisk({ data, player, date, bodyRecords: openBodyRecords });
-    const dynamicThresholds = computeDynamicThresholds(data, player, date);
-    const adherence = computeWellnessAdherence(data, player, date);
     const latestMinutes = latestCompetitionMinutes(data, player.id, date);
 
     const fieldMinutes = loadRiskProfile.load.today.minutes;

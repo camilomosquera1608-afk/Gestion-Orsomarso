@@ -15,7 +15,7 @@ import { hasSupabaseConfig, supabase, tableSchemaSyncEnabled } from '@/lib/supab
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { data, filters, backendMode, syncStatus } = useApp();
+  const { data, filters, backendMode, syncStatus, writeValidationMessage } = useApp();
   const [allowed, setAllowed] = useState(false);
 
   const normalizedPathname = pathname.toLowerCase().replace(/\/$/, '');
@@ -106,7 +106,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
       <TopNav />
       <MobileNavigation />
       <main className="main mobile-safe-page">
-        <ContextTopBar {...topContext} syncStatus={syncStatus} />
+        <ContextTopBar {...topContext} syncStatus={syncStatus} validationMessage={writeValidationMessage} />
         {children}
         <ToastContainer />
       </main>

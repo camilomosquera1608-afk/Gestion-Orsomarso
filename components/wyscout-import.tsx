@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Download, Upload, CheckCircle, AlertCircle, Loader2, Database, Trophy, Calendar } from 'lucide-react';
+import { Download, CheckCircle, AlertCircle, Loader2, Trophy } from 'lucide-react';
 import { useScoutingStore } from '@/stores/scouting-store';
 import { AccessibleButton } from './accessible-button';
-import { cn } from '@/lib/utils';
 import { FadeIn } from './animated-wrapper';
 
 export function WyscoutImport() {
@@ -25,15 +24,12 @@ export function WyscoutImport() {
     setSelectedLeagues((prev) =>
       prev.includes(leagueId)
         ? prev.filter((id) => id !== leagueId)
-        : [...prev, leagueId]
+        : [...prev, leagueId],
     );
   };
 
   const handleImport = async () => {
-    if (selectedLeagues.length === 0) {
-      return;
-    }
-
+    if (selectedLeagues.length === 0) return;
     await importFromWyscout({
       leagueIds: selectedLeagues,
       season,
@@ -54,212 +50,111 @@ export function WyscoutImport() {
   const lowLeagues = leagues.filter((l) => l.tier === 'low');
 
   return (
-    <div className="space-y-6">
-      {/* Import Configuration */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-6">
+    <div className="grid" style={{ gap: 16 }}>
+      <div className="card">
+        <div className="toolbar">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Importación Masiva de Wyscout
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Importa jugadores de múltiples ligas para enriquecer tu base de scouting
+            <span className="section-eyebrow">Wyscout</span>
+            <h3 style={{ margin: 0 }}>Importación masiva</h3>
+            <p className="muted-line">
+              Importa jugadores de múltiples ligas. Sin `WYSCOUT_API_KEY` en el servidor se usa respuesta mock.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Jugadores en base: <span className="font-semibold text-gray-900 dark:text-gray-100">{externalPlayers.length}</span>
-            </div>
+          <div className="st-scouting-stat">
+            <strong>{externalPlayers.length}</strong>
+            <span>En base local</span>
           </div>
         </div>
 
-        {/* Season Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Temporada
+        <div className="btn-row" style={{ marginTop: 16, alignItems: 'flex-end' }}>
+          <label className="field" style={{ flex: 1, minWidth: 160 }}>
+            <span className="field-label">Temporada</span>
+            <select className="select" value={season} onChange={(e) => setSeason(e.target.value)}>
+              <option value="2023-2024">2023-2024</option>
+              <option value="2022-2023">2022-2023</option>
+              <option value="2021-2022">2021-2022</option>
+              <option value="2020-2021">2020-2021</option>
+            </select>
           </label>
-          <select
-            value={season}
-            onChange={(e) => setSeason(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="2023-2024">2023-2024</option>
-            <option value="2022-2023">2022-2023</option>
-            <option value="2021-2022">2021-2022</option>
-            <option value="2020-2021">2020-2021</option>
-          </select>
-        </div>
-
-        {/* Include Stats Toggle */}
-        <div className="mb-6">
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="field" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <input
               type="checkbox"
               checked={includeStats}
               onChange={(e) => setIncludeStats(e.target.checked)}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Incluir métricas de rendimiento (más lento)
-            </span>
+            <span className="muted-line">Incluir métricas (más lento)</span>
           </label>
         </div>
 
-        {/* League Selection */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-              Selecciona las ligas a importar
-            </h3>
-            <button
-              onClick={handleSelectAll}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-            >
+        <div style={{ marginTop: 20 }}>
+          <div className="toolbar" style={{ marginBottom: 12 }}>
+            <h4 style={{ margin: 0 }}>Ligas</h4>
+            <button type="button" className="btn secondary" onClick={handleSelectAll}>
               {selectedLeagues.length === leagues.length ? 'Deseleccionar todas' : 'Seleccionar todas'}
             </button>
           </div>
 
-          {/* Top Tier Leagues */}
-          {topLeagues.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Trophy size={16} className="text-yellow-500" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Ligas Top
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {topLeagues.map((league) => (
-                  <LeagueCheckbox
-                    key={league.id}
-                    league={league}
-                    isSelected={selectedLeagues.includes(league.id)}
-                    onToggle={() => handleLeagueToggle(league.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Mid Tier Leagues */}
-          {midLeagues.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Trophy size={16} className="text-gray-400" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Ligas Medias
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {midLeagues.map((league) => (
-                  <LeagueCheckbox
-                    key={league.id}
-                    league={league}
-                    isSelected={selectedLeagues.includes(league.id)}
-                    onToggle={() => handleLeagueToggle(league.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Low Tier Leagues */}
-          {lowLeagues.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Trophy size={16} className="text-gray-500" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Ligas Bajas
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {lowLeagues.map((league) => (
-                  <LeagueCheckbox
-                    key={league.id}
-                    league={league}
-                    isSelected={selectedLeagues.includes(league.id)}
-                    onToggle={() => handleLeagueToggle(league.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <LeagueTier title="Ligas top" leagues={topLeagues} selectedLeagues={selectedLeagues} onToggle={handleLeagueToggle} />
+          <LeagueTier title="Ligas medias" leagues={midLeagues} selectedLeagues={selectedLeagues} onToggle={handleLeagueToggle} />
+          <LeagueTier title="Ligas bajas" leagues={lowLeagues} selectedLeagues={selectedLeagues} onToggle={handleLeagueToggle} />
         </div>
 
-        {/* Import Button */}
-        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="btn-row" style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
           <AccessibleButton
             variant="primary"
             onClick={handleImport}
             isLoading={isImporting}
             disabled={selectedLeagues.length === 0}
-            className="w-full"
             ariaLabel="Importar jugadores seleccionados"
           >
-            <Download size={16} className="mr-2" />
+            <Download size={16} />
             Importar {selectedLeagues.length} {selectedLeagues.length === 1 ? 'liga' : 'ligas'}
           </AccessibleButton>
         </div>
       </div>
 
-      {/* Import Progress */}
       {isImporting && (
         <FadeIn>
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Loader2 size={24} className="text-blue-600 dark:text-blue-400 animate-spin" />
+          <div className="card operational-alert-card">
+            <div className="btn-row">
+              <Loader2 size={22} className="spin" />
               <div>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                  Importando jugadores...
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Esto puede tomar varios minutos dependiendo de la cantidad de ligas seleccionadas
-                </p>
+                <strong>Importando jugadores…</strong>
+                <p className="muted-line">Puede tardar varios minutos según las ligas elegidas.</p>
               </div>
             </div>
-            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-              <div
-                className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${importProgress}%` }}
-              />
+            <div className="session-progress-bar" style={{ marginTop: 12 }}>
+              <div style={{ width: `${importProgress}%`, height: '100%', background: 'var(--blue)', borderRadius: 4 }} />
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 text-center">
+            <p className="muted-line" style={{ textAlign: 'center', marginTop: 8 }}>
               {Math.round(importProgress)}% completado
             </p>
           </div>
         </FadeIn>
       )}
 
-      {/* Import Error */}
       {importError && (
         <FadeIn>
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <AlertCircle size={20} className="text-red-600 dark:text-red-400" />
+          <div className="card operational-alert-card" data-tone="red">
+            <div className="btn-row">
+              <AlertCircle size={20} />
               <div>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                  Error en la importación
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{importError}</p>
+                <strong>Error en la importación</strong>
+                <p className="muted-line">{importError}</p>
               </div>
             </div>
           </div>
         </FadeIn>
       )}
 
-      {/* Import Success */}
       {!isImporting && !importError && importProgress === 100 && (
         <FadeIn>
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle size={20} className="text-green-600 dark:text-green-400" />
+          <div className="card operational-alert-card" data-tone="green">
+            <div className="btn-row">
+              <CheckCircle size={20} />
               <div>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                  Importación completada
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Los jugadores han sido agregados a tu base de scouting
-                </p>
+                <strong>Importación completada</strong>
+                <p className="muted-line">Los jugadores se guardaron en la base local de scouting (persistencia Zustand).</p>
               </div>
             </div>
           </div>
@@ -269,31 +164,53 @@ export function WyscoutImport() {
   );
 }
 
-interface LeagueCheckboxProps {
-  league: any;
-  isSelected: boolean;
-  onToggle: () => void;
+function LeagueTier({
+  title,
+  leagues,
+  selectedLeagues,
+  onToggle,
+}: {
+  title: string;
+  leagues: Array<{ id: string; name: string; country: string }>;
+  selectedLeagues: string[];
+  onToggle: (id: string) => void;
+}) {
+  if (!leagues.length) return null;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div className="btn-row" style={{ marginBottom: 8 }}>
+        <Trophy size={16} />
+        <span className="section-eyebrow">{title}</span>
+      </div>
+      <div className="grid st-league-grid">
+        {leagues.map((league) => (
+          <LeagueCheckbox
+            key={league.id}
+            league={league}
+            isSelected={selectedLeagues.includes(league.id)}
+            onToggle={() => onToggle(league.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function LeagueCheckbox({ league, isSelected, onToggle }: LeagueCheckboxProps) {
+function LeagueCheckbox({
+  league,
+  isSelected,
+  onToggle,
+}: {
+  league: { id: string; name: string; country: string };
+  isSelected: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <label
-      className={cn(
-        'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-        isSelected
-          ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'
-          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-      )}
-    >
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={onToggle}
-        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-      />
-      <div className="flex-1">
-        <div className="font-medium text-gray-900 dark:text-gray-100">{league.name}</div>
-        <div className="text-sm text-gray-500 dark:text-gray-400">{league.country}</div>
+    <label className={`st-league-option${isSelected ? ' is-selected' : ''}`}>
+      <input type="checkbox" checked={isSelected} onChange={onToggle} />
+      <div>
+        <strong>{league.name}</strong>
+        <div className="muted-line">{league.country}</div>
       </div>
     </label>
   );

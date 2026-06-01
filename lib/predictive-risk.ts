@@ -42,12 +42,7 @@ export interface PredictiveRiskResult {
   };
 }
 
-const num = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-
-export const neuromuscularLoad = (record?: Pick<DailyExternalLoadRecord, 'acc' | 'dcc' | 'sprints' | 'rhie'>) => {
-  if (!record) return 0;
-  return num(record.acc) + num(record.dcc) + (num(record.sprints) * 4) + num(record.rhie);
-};
+export { neuromuscularLoad } from './load-metrics';
 
 export const computeArcRatio = (data: AppData, player: Player, date: string) =>
   computePlayerLoadRiskProfile({ data, player, date }).acwr.primary.rolling;

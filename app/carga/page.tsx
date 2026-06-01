@@ -21,7 +21,8 @@ import { EmptyState, SectionHeader, StatusBadge, type UiTone } from '@/component
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import { computePlayerLoadRiskProfile, type DailyLoadDecisionState, type RiskDomain } from '@/lib/load-risk-engine';
+import { buildPlayerDecisionContext } from '@/lib/player-decision';
+import type { DailyLoadDecisionState, RiskDomain } from '@/lib/load-risk-engine';
 import { formatDateShort } from '@/lib/operational-helpers';
 import { supportsGps } from '@/lib/report-utils';
 import { buildLoadCenter } from '@/lib/strategic-helpers';
@@ -108,7 +109,11 @@ export default function LoadCenterPage() {
   const riskRows = center.rows
     .map((row) => ({
       row,
-      profile: computePlayerLoadRiskProfile({ data, player: row.player, date: filters.date }),
+      profile: buildPlayerDecisionContext({
+        data,
+        player: row.player,
+        date: filters.date,
+      }).profile,
     }))
     .sort((a, b) => b.profile.riskScore - a.profile.riskScore || b.profile.load.today.effectiveLoad - a.profile.load.today.effectiveLoad);
 

@@ -4,7 +4,8 @@ import { findMicrocycleByDate, formatMatchScore, isGoalkeeper } from './performa
 import { addDays, buildDailyOperations, eachDateInRange, formatDateShort, getVisiblePlayers, isSameCategory, type OperationalAlert } from './operational-helpers';
 import { supportsGps } from './report-utils';
 import { getEffectiveExternalLoads, getRelatedPlayerIds, getRelatedPlayerIdSet, getWellnessRecordsForDate, uniqueWellnessByPlayerIdentityDate } from './relational-data';
-import { computePlayerLoadRiskProfile, computeMonotonyStrain as computeEngineMonotonyStrain } from './load-risk-engine';
+import { buildPlayerDecisionContext } from './player-decision';
+import { computeMonotonyStrain as computeEngineMonotonyStrain } from './load-risk-engine';
 
 export type UiHealthTone = 'green' | 'amber' | 'red' | 'blue' | 'neutral' | 'dark';
 
@@ -493,7 +494,7 @@ export const buildAcwrData = (data: AppData, activeCategory: string, referenceDa
   );
 
   return players.map((player) => {
-    const profile = computePlayerLoadRiskProfile({ data, player, date: today });
+    const { profile } = buildPlayerDecisionContext({ data, player, date: today });
     const metric = profile.acwr.primary;
     const zone: AcwrZone = metric.zone === 'danger'
       ? 'danger'

@@ -13,7 +13,7 @@ import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
 import { averageWellness, getPlayerDayLoad } from '@/lib/utils';
 import { buildDailyOperations, formatDateShort } from '@/lib/operational-helpers';
-import { getEffectiveExternalLoads, getRelatedPlayerIds, getWellnessRecordsForDate } from '@/lib/relational-data';
+import { getCanonicalPlayers, getEffectiveExternalLoads, getRelatedPlayerIds, getWellnessRecordsForDate } from '@/lib/relational-data';
 
 export default function HomePage() {
   const { data, filters, backendMode, syncStatus, forceSync } = useApp();
@@ -23,7 +23,8 @@ export default function HomePage() {
   const ops = buildDailyOperations(data, filters, activeCategory);
 
   const effectiveExternalToday = getEffectiveExternalLoads(data, { activeCategory, date: filters.date });
-  const chartData = ops.players.map((player) => {
+  const rosterPlayers = getCanonicalPlayers(data, ops.players);
+  const chartData = rosterPlayers.map((player) => {
     const relatedIds = getRelatedPlayerIds(data.players, player.id);
     const wellness = getWellnessRecordsForDate(data, filters.date, relatedIds)[0];
     const internalLoads = data.internalLoads.filter((x) => relatedIds.has(x.playerId) && x.date === filters.date);

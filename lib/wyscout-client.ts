@@ -310,7 +310,10 @@ let wyscoutClientInstance: WyscoutClient | null = null;
 
 export function getWyscoutClient(): WyscoutClient {
   if (!wyscoutClientInstance) {
-    const apiKey = process.env.NEXT_PUBLIC_WYSCOUT_API_KEY || '';
+    const apiKey =
+      process.env.WYSCOUT_API_KEY?.trim() ||
+      process.env.NEXT_PUBLIC_WYSCOUT_API_KEY?.trim() ||
+      '';
     if (!apiKey) {
       console.warn('Wyscout API key not configured. Using mock client.');
     }
