@@ -9,6 +9,10 @@ async function fetchFromSupabase<T>(table: string, options?: {
   order?: { column: string; ascending?: boolean };
   limit?: number;
 }): Promise<T[]> {
+  if (!supabase) {
+    throw new Error('Supabase is not configured');
+  }
+
   let query = supabase.from(table).select(options?.select || '*');
 
   if (options?.eq) {
@@ -182,6 +186,7 @@ export function useAddPlayer() {
   
   return useMutation({
     mutationFn: async (player: Partial<Player>) => {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { data, error } = await supabase.from('players').insert(player).select().single();
       if (error) throw error;
       return data;
@@ -197,6 +202,7 @@ export function useUpdatePlayer() {
   
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Player> & { id: string }) => {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { data, error } = await supabase.from('players').update(updates).eq('id', id).select().single();
       if (error) throw error;
       return data;
@@ -213,6 +219,7 @@ export function useDeletePlayer() {
   
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { error } = await supabase.from('players').delete().eq('id', id);
       if (error) throw error;
       return id;
@@ -228,6 +235,7 @@ export function useAddWellness() {
   
   return useMutation({
     mutationFn: async (record: Partial<DailyWellnessRecord>) => {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { data, error } = await supabase.from('daily_wellness_records').insert(record).select().single();
       if (error) throw error;
       return data;
@@ -245,6 +253,7 @@ export function useUpdateWellness() {
   
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<DailyWellnessRecord> & { id: string }) => {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { data, error } = await supabase.from('daily_wellness_records').update(updates).eq('id', id).select().single();
       if (error) throw error;
       return data;
@@ -262,6 +271,7 @@ export function useAddInternalLoad() {
   
   return useMutation({
     mutationFn: async (record: Partial<DailyInternalLoadRecord>) => {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { data, error } = await supabase.from('daily_internal_load_records').insert(record).select().single();
       if (error) throw error;
       return data;
@@ -278,6 +288,7 @@ export function useAddExternalLoad() {
   
   return useMutation({
     mutationFn: async (record: Partial<DailyExternalLoadRecord>) => {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { data, error } = await supabase.from('daily_external_load_records').insert(record).select().single();
       if (error) throw error;
       return data;
@@ -294,6 +305,7 @@ export function useAddCompetition() {
   
   return useMutation({
     mutationFn: async (record: Partial<CompetitionRecord>) => {
+      if (!supabase) throw new Error('Supabase is not configured');
       const { data, error } = await supabase.from('competition_records').insert(record).select().single();
       if (error) throw error;
       return data;
