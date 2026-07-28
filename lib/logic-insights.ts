@@ -46,14 +46,14 @@ const hasDate = <T extends { date?: string | null }>(record: T | null | undefine
 
 
 export const trainingTypeLabel: Record<TrainingSessionType, string> = {
-  'MD+1': 'Match Day +1',
-  'MD+2': 'Match Day +2',
-  'MD-5': 'Match Day -5',
-  'MD-4': 'Match Day -4',
-  'MD-3': 'Match Day -3',
-  'MD-2': 'Match Day -2',
-  'MD-1': 'Match Day -1',
-  'MD': 'Match Day',
+  'MD+1': 'MD+1',
+  'MD+2': 'MD+2',
+  'MD-5': 'MD-5',
+  'MD-4': 'MD-4',
+  'MD-3': 'MD-3',
+  'MD-2': 'MD-2',
+  'MD-1': 'MD-1',
+  'MD': 'MD',
   'REC_ACTIVA': 'REC. ACTIVA',
   'REC_PASIVA': 'REC. PASIVA',
   'CDE_F_OPT_JUGADORES': 'CDe/f (Optimización Jugadores)',
