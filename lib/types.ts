@@ -269,6 +269,53 @@ export interface FMSRecord {
   category?: ClubCategory;
 }
 
+// Métricas tácticas de competencia
+export interface CompetitionTacticalStats {
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  shotsOnTarget?: number;
+}
+
+// Métricas físicas de competencia (GPS)
+export interface CompetitionPhysicalStats {
+  totalDistance?: number;
+  highSpeedDistance?: number;
+  hsr?: number;
+  sprintDistance?: number;
+  maxVelocity?: number;
+  playerLoad?: number;
+  acc?: number;
+  dcc?: number;
+  sprints?: number;
+  rhie?: number;
+  ima?: number;  // legacy - mantener para compatibilidad
+}
+
+// Métricas específicas de porteros
+export interface CompetitionGoalkeeperStats {
+  goalsConceded?: number;
+  goalsPrevented?: number;
+  penaltiesSaved?: number;
+  crossesDefended?: number;
+  footworkActions?: number;
+}
+
+// Metadatos del partido
+export interface CompetitionMatchMetadata {
+  startingRole?: CompetitionPlayerRole;
+  postCompetitionStatus?: string;
+  medicalStatus?: CompetitionMedicalStatus;
+  injuryKind?: InjuryKind;
+  medicalObservation?: string;
+  movementType?: MovementType;
+  movementNote?: string;
+  movementModule?: MovementModule;
+  loggedBy?: string;
+}
+
+// Registro principal de competencia
 export interface CompetitionRecord {
   id: string;
   matchId?: string;
@@ -277,39 +324,18 @@ export interface CompetitionRecord {
   opponent: string;
   competitionName?: string;
   minutesPlayed: number;
-  goals: number;
-  assists: number;
-  yellowCards: number;
-  redCards: number;
-  acc?: number;
-  dcc?: number;
-  sprints?: number;
-  rhie?: number;
-  ima?: number;  // legacy
-  totalDistance?: number;
-  highSpeedDistance?: number;
-  hsr?: number;
-  sprintDistance?: number;
-  maxVelocity?: number;
-  playerLoad?: number;
-  goalsConceded?: number;
-  goalsPrevented?: number;
-  penaltiesSaved?: number;
-  crossesDefended?: number;
-  footworkActions?: number;
-  shotsOnTarget?: number;
+  // Métricas tácticas
+  tactical: CompetitionTacticalStats;
+  // Métricas físicas (opcional)
+  physical?: CompetitionPhysicalStats;
+  // Métricas de portero (opcional)
+  goalkeeper?: CompetitionGoalkeeperStats;
+  // Metadatos
+  metadata?: CompetitionMatchMetadata;
+  // Categoría
   category?: ClubCategory;
   baseCategory?: ClubCategory;
   actingCategory?: ClubCategory;
-  movementType?: MovementType;
-  movementNote?: string;
-  movementModule?: MovementModule;
-  loggedBy?: string;
-  startingRole?: CompetitionPlayerRole;
-  postCompetitionStatus?: string;
-  medicalStatus?: CompetitionMedicalStatus;
-  injuryKind?: InjuryKind;
-  medicalObservation?: string;
 }
 
 export interface TrainingSessionSummary {
