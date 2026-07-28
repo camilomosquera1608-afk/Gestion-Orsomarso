@@ -38,6 +38,7 @@ import { supportsGps } from "@/lib/report-utils";
 
 type ReportMode = "grupo" | "valoraciones" | "microciclo";
 type SelectionMode = "todo" | "varios" | "uno";
+type ReportSection = "wellness" | "carga" | "gps" | "valoraciones" | "competencia";
 
 const fmt = (value: number, decimals = 0) =>
   Number.isFinite(value) ? value.toFixed(decimals) : "0";
@@ -59,6 +60,7 @@ export default function GroupReportsPage() {
   const [mode, setMode] = useState<ReportMode>("grupo");
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("todo");
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [selectedSections, setSelectedSections] = useState<Set<ReportSection>>(new Set(["wellness", "carga", "gps", "valoraciones", "competencia"]));
 
   const microcycle =
     findMicrocycleByDate(
@@ -317,6 +319,39 @@ export default function GroupReportsPage() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="card no-print">
+        <div style={{ marginBottom: 12, fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          Secciones del reporte
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+          {([
+            { value: "wellness" as ReportSection, label: "Wellness" },
+            { value: "carga" as ReportSection, label: "Carga interna" },
+            { value: "gps" as ReportSection, label: "GPS / Carga externa" },
+            { value: "valoraciones" as ReportSection, label: "Valoraciones" },
+            { value: "competencia" as ReportSection, label: "Competencia" }
+          ]).map((section) => (
+            <button
+              key={section.value}
+              type="button"
+              className={`btn ${selectedSections.has(section.value) ? "" : "secondary"}`}
+              onClick={() => {
+                const newSet = new Set(selectedSections);
+                if (newSet.has(section.value)) {
+                  newSet.delete(section.value);
+                } else {
+                  newSet.add(section.value);
+                }
+                setSelectedSections(newSet);
+              }}
+              style={{ textAlign: "left", justifyContent: "flex-start" }}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-4">
