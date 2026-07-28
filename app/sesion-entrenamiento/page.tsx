@@ -69,24 +69,25 @@ import {
 } from "@/lib/logic-insights";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-// Columna 1: Tipos de sesión de microciclo
+// Columna 1: Tipos de sesión de microciclo (Match Day)
 const SESSION_TYPES_COLUMN_1: {
   value: TrainingSessionType;
   label: string;
   color: string;
 }[] = [
-  { value: "MD+1", label: "MD+1", color: "#059669" },
-  { value: "MD+2", label: "MD+2", color: "#0f766e" },
-  { value: "MD-5", label: "MD-5", color: "#2563eb" },
-  { value: "MD-4", label: "MD-4", color: "#d97706" },
-  { value: "MD-3", label: "MD-3", color: "#be123c" },
-  { value: "MD-2", label: "MD-2", color: "#7c3aed" },
-  { value: "MD-1", label: "MD-1", color: "#475569" },
+  { value: "MD+1", label: "Match Day +1", color: "#059669" },
+  { value: "MD+2", label: "Match Day +2", color: "#0f766e" },
+  { value: "MD-5", label: "Match Day -5", color: "#2563eb" },
+  { value: "MD-4", label: "Match Day -4", color: "#d97706" },
+  { value: "MD-3", label: "Match Day -3", color: "#be123c" },
+  { value: "MD-2", label: "Match Day -2", color: "#7c3aed" },
+  { value: "MD-1", label: "Match Day -1", color: "#475569" },
+  { value: "MD", label: "Match Day", color: "#111827" },
   { value: "REC_ACTIVA", label: "REC. ACTIVA", color: "#10b981" },
   { value: "REC_PASIVA", label: "REC. PASIVA", color: "#6b7280" },
 ];
 
-// Columna 2: Tipos de optimización
+// Columna 2: Tipos de sobrecarga específica
 const SESSION_TYPES_COLUMN_2: {
   value: TrainingSessionType;
   label: string;
@@ -1320,57 +1321,67 @@ export default function SesionEntrenamientoPage() {
                 Microciclo
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {SESSION_TYPES_COLUMN_1.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setSessType(t.value)}
-                    style={{
-                      padding: "10px 16px",
-                      borderRadius: 10,
-                      border: `2px solid ${sessType === t.value ? t.color : "#e2e8f0"}`,
-                      background: sessType === t.value ? t.color : "transparent",
-                      color: sessType === t.value ? "#fff" : "#64748b",
-                      fontWeight: 800,
-                      fontSize: 13,
-                      cursor: "pointer",
-                      transition: "all .15s",
-                      textAlign: "left",
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                {SESSION_TYPES_COLUMN_1.map((t) => {
+                  const isColumn2Selected = SESSION_TYPES_COLUMN_2.some(col2 => col2.value === sessType);
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setSessType(t.value)}
+                      disabled={isColumn2Selected}
+                      style={{
+                        padding: "10px 16px",
+                        borderRadius: 10,
+                        border: `2px solid ${sessType === t.value ? t.color : "#e2e8f0"}`,
+                        background: sessType === t.value ? t.color : "transparent",
+                        color: sessType === t.value ? "#fff" : isColumn2Selected ? "#cbd5e1" : "#64748b",
+                        fontWeight: 800,
+                        fontSize: 13,
+                        cursor: isColumn2Selected ? "not-allowed" : "pointer",
+                        transition: "all .15s",
+                        textAlign: "left",
+                        opacity: isColumn2Selected ? 0.5 : 1,
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Columna 2: Tipos de optimización */}
+            {/* Columna 2: Tipos de sobrecarga específica */}
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Optimización
+                Sobrecarga Específica
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {SESSION_TYPES_COLUMN_2.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setSessType(t.value)}
-                    style={{
-                      padding: "10px 16px",
-                      borderRadius: 10,
-                      border: `2px solid ${sessType === t.value ? t.color : "#e2e8f0"}`,
-                      background: sessType === t.value ? t.color : "transparent",
-                      color: sessType === t.value ? "#fff" : "#64748b",
-                      fontWeight: 800,
-                      fontSize: 13,
-                      cursor: "pointer",
-                      transition: "all .15s",
-                      textAlign: "left",
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                {SESSION_TYPES_COLUMN_2.map((t) => {
+                  const isColumn1Selected = SESSION_TYPES_COLUMN_1.some(col1 => col1.value === sessType);
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setSessType(t.value)}
+                      disabled={isColumn1Selected}
+                      style={{
+                        padding: "10px 16px",
+                        borderRadius: 10,
+                        border: `2px solid ${sessType === t.value ? t.color : "#e2e8f0"}`,
+                        background: sessType === t.value ? t.color : "transparent",
+                        color: sessType === t.value ? "#fff" : isColumn1Selected ? "#cbd5e1" : "#64748b",
+                        fontWeight: 800,
+                        fontSize: 13,
+                        cursor: isColumn1Selected ? "not-allowed" : "pointer",
+                        transition: "all .15s",
+                        textAlign: "left",
+                        opacity: isColumn1Selected ? 0.5 : 1,
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
