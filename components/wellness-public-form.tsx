@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { BodyMapSelector } from '@/components/body-map-selector';
 import { ToneBadge } from '@/components/status-badge';
 import { useApp } from '@/context/app-context';
@@ -98,6 +98,95 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
   const [bodyLimitation, setBodyLimitation] = useState(false);
   const [bodySprint, setBodySprint] = useState(false);
   const [bodyCod, setBodyCod] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+
+  // Guardado automático local (draft)
+  const saveDraft = useCallback(() => {
+    const draft = {
+      selectedPlayerId,
+      date,
+      values,
+      bodyRegion,
+      bodySide,
+      bodyType,
+      bodyIntensity,
+      bodyLimitation,
+      bodySprint,
+      bodyCod,
+    };
+    localStorage.setItem('wellness-draft', JSON.stringify(draft));
+    setDraftSaved(true);
+    setTimeout(() => setDraftSaved(false), 2000);
+  }, [selectedPlayerId, date, values, bodyRegion, bodySide, bodyType, bodyIntensity, bodyLimitation, bodySprint, bodyCod]);
+
+  // Cargar draft al inicio
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('wellness-draft');
+    if (savedDraft) {
+      try {
+        const draft = JSON.parse(savedDraft);
+        setSelectedPlayerId(draft.selectedPlayerId || '');
+        setDate(draft.date || new Date().toISOString().slice(0, 10));
+        setValues(draft.values || defaultState);
+        setBodyRegion(draft.bodyRegion || 'Isquiotibial');
+        setBodySide(draft.bodySide || 'Derecha');
+        setBodyType(draft.bodyType || 'Molestia');
+        setBodyIntensity(draft.bodyIntensity || 0);
+        setBodyLimitation(draft.bodyLimitation || false);
+        setBodySprint(draft.bodySprint || false);
+        setBodyCod(draft.bodyCod || false);
+      } catch (e) {
+        console.warn('Error loading wellness draft', e);
+      }
+    }
+  }, []);
+
+  // Guardar draft cuando cambian los valores
+  useEffect(() => {
+    const timer = setTimeout(() => saveDraft(), 1000);
+    return () => clearTimeout(timer);
+  }, [values, saveDraft]);
+
+  // Atajos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Resetear formulario
+        setValues(defaultState);
+        setBodyIntensity(0);
+        setBodyLimitation(false);
+        setBodySprint(false);
+        setBodyCod(false);
+        setMessage('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Autocompletado basado en historial del jugador
+  const getPlayerHistory = useCallback((playerId: string) => {
+    const playerRecords = data.wellness.filter(r => r.playerId === playerId);
+    if (playerRecords.length === 0) return null;
+    const latest = playerRecords[playerRecords.length - 1];
+    return {
+      sleep: latest.sleep,
+      fatigue: latest.fatigue,
+      stress: latest.stress,
+      musclePain: latest.musclePain,
+      mood: latest.mood,
+    };
+  }, [data.wellness]);
+
+  const loadPlayerHistory = useCallback(() => {
+    if (!selectedPlayerId) return;
+    const history = getPlayerHistory(selectedPlayerId);
+    if (history) {
+      setValues(history);
+      setMessage('Cargado tu último registro de wellness');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  }, [selectedPlayerId, getPlayerHistory]);
 
   const localPlayers = useMemo<WellnessPublicPlayer[]>(() => data.players
     .filter((player) => !forcedCategory || player.category === forcedCategory)
@@ -346,6 +435,7 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
             <ToneBadge text="Escala 1 a 5" tone="green" />
             {forcedCategory ? <ToneBadge text={categoryLabel(forcedCategory)} tone="blue" /> : null}
             <ToneBadge text={connectionLabel} tone={connectionTone as 'green' | 'yellow' | 'red'} />
+            {draftSaved ? <ToneBadge text="Guardado" tone="green" /> : null}
           </div>
         </div>
 
@@ -366,6 +456,23 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
               <label>Fecha</label>
               <input className="input" type="date" name="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
+          </div>
+
+          <div className="wellness-action-buttons" style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+            <button type="button" className="btn btn-secondary" onClick={loadPlayerHistory} disabled={!selectedPlayerId} style={{ flex: 1 }}>
+              Cargar último registro
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => {
+              setValues(defaultState);
+              setBodyIntensity(0);
+              setBodyLimitation(false);
+              setBodySprint(false);
+              setBodyCod(false);
+              setMessage('');
+              localStorage.removeItem('wellness-draft');
+            }} style={{ flex: 1 }}>
+              Limpiar formulario
+            </button>
           </div>
 
           <div className="wellness-preview-grid wellness-public-question-grid">
