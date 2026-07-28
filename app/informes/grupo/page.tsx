@@ -37,6 +37,7 @@ import {
 import { supportsGps } from "@/lib/report-utils";
 
 type ReportMode = "grupo" | "valoraciones" | "microciclo";
+type SelectionMode = "todo" | "varios" | "uno";
 
 const fmt = (value: number, decimals = 0) =>
   Number.isFinite(value) ? value.toFixed(decimals) : "0";
@@ -56,6 +57,8 @@ export default function GroupReportsPage() {
   ) as ClubCategory;
   const gpsEnabled = supportsGps(activeCategory);
   const [mode, setMode] = useState<ReportMode>("grupo");
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>("todo");
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
 
   const microcycle =
     findMicrocycleByDate(
@@ -75,7 +78,7 @@ export default function GroupReportsPage() {
       ? date >= microcycle!.startDate && date <= microcycle!.endDate
       : date === filters.date;
 
-  const players = useMemo(
+  const allPlayers = useMemo(
     () =>
       getVisiblePlayers(
         data,
@@ -84,6 +87,18 @@ export default function GroupReportsPage() {
       ),
     [data, filters, activeCategory],
   );
+
+  const players = useMemo(() => {
+    if (selectionMode === "todo") {
+      return allPlayers;
+    } else if (selectionMode === "varios") {
+      return allPlayers.filter((p) => selectedPlayerIds.has(p.id));
+    } else {
+      // uno
+      return allPlayers.filter((p) => selectedPlayerIds.has(p.id)).slice(0, 1);
+    }
+  }, [allPlayers, selectionMode, selectedPlayerIds]);
+
   const playerIdSet = getRelatedPlayerIdSet(data.players, players);
   const sessions = microcycle
     ? getTrainingSessionsForMicrocycle(data, microcycle, activeCategory)
@@ -241,6 +256,67 @@ export default function GroupReportsPage() {
             Exportar / imprimir PDF
           </button>
         </div>
+      </div>
+
+      <div className="card no-print">
+        <div style={{ marginBottom: 12, fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          Selección de jugadores
+        </div>
+        <div className="btn-row" style={{ gap: 8, marginBottom: 12 }}>
+          {([
+            { value: "todo" as SelectionMode, label: "Todo el equipo" },
+            { value: "varios" as SelectionMode, label: "Varios jugadores" },
+            { value: "uno" as SelectionMode, label: "Un jugador" }
+          ]).map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              className={`btn ${selectionMode === item.value ? "" : "secondary"}`}
+              onClick={() => {
+                setSelectionMode(item.value);
+                if (item.value === "todo") {
+                  setSelectedPlayerIds(new Set());
+                }
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {selectionMode !== "todo" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 12, color: "#64748b" }}>
+              {selectionMode === "uno" ? "Selecciona un jugador:" : "Selecciona jugadores:"}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+              {allPlayers.map((player) => (
+                <button
+                  key={player.id}
+                  type="button"
+                  className={`btn ${selectedPlayerIds.has(player.id) ? "" : "secondary"}`}
+                  onClick={() => {
+                    const newSet = new Set(selectedPlayerIds);
+                    if (selectionMode === "uno") {
+                      newSet.clear();
+                      newSet.add(player.id);
+                    } else {
+                      if (newSet.has(player.id)) {
+                        newSet.delete(player.id);
+                      } else {
+                        newSet.add(player.id);
+                      }
+                    }
+                    setSelectedPlayerIds(newSet);
+                  }}
+                  style={{ textAlign: "left", justifyContent: "flex-start" }}
+                >
+                  {player.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-4">
