@@ -69,7 +69,8 @@ import {
 } from "@/lib/logic-insights";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-const SESSION_TYPES: {
+// Columna 1: Tipos de sesión de microciclo
+const SESSION_TYPES_COLUMN_1: {
   value: TrainingSessionType;
   label: string;
   color: string;
@@ -81,8 +82,23 @@ const SESSION_TYPES: {
   { value: "MD-3", label: "MD-3", color: "#be123c" },
   { value: "MD-2", label: "MD-2", color: "#7c3aed" },
   { value: "MD-1", label: "MD-1", color: "#475569" },
-  { value: "MD", label: "MD", color: "#111827" },
+  { value: "REC_ACTIVA", label: "REC. ACTIVA", color: "#10b981" },
+  { value: "REC_PASIVA", label: "REC. PASIVA", color: "#6b7280" },
 ];
+
+// Columna 2: Tipos de optimización
+const SESSION_TYPES_COLUMN_2: {
+  value: TrainingSessionType;
+  label: string;
+  color: string;
+}[] = [
+  { value: "CDE_F_OPT_JUGADORES", label: "CDe/f (Optimización Jugadores)", color: "#3b82f6" },
+  { value: "CDE_F_OPT_EQUIPO", label: "Cde/f (Optimización Equipo)", color: "#8b5cf6" },
+  { value: "CDE_F_OPT_CONDICIONAL", label: "cde/F (Optimización Condicional)", color: "#ec4899" },
+  { value: "CDE_F_OPT_JUGADOR", label: "cdE/f (Optimización Jugador)", color: "#f59e0b" },
+];
+
+const SESSION_TYPES = [...SESSION_TYPES_COLUMN_1, ...SESSION_TYPES_COLUMN_2];
 const normalizeSessionType = (value?: string | null): TrainingSessionType =>
   SESSION_TYPES.some((item) => item.value === value)
     ? (value as TrainingSessionType)
@@ -1289,35 +1305,74 @@ export default function SesionEntrenamientoPage() {
             </div>
           </div>
 
-          {/* Type pills */}
+          {/* Type pills - 2 columnas */}
           <div
             style={{
-              display: "flex",
-              gap: 8,
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
               marginBottom: 16,
-              flexWrap: "wrap",
             }}
           >
-            {SESSION_TYPES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setSessType(t.value)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 999,
-                  border: `2px solid ${sessType === t.value ? t.color : "#e2e8f0"}`,
-                  background: sessType === t.value ? t.color : "transparent",
-                  color: sessType === t.value ? "#fff" : "#64748b",
-                  fontWeight: 800,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  transition: "all .15s",
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+            {/* Columna 1: Tipos de sesión de microciclo */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Microciclo
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {SESSION_TYPES_COLUMN_1.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setSessType(t.value)}
+                    style={{
+                      padding: "10px 16px",
+                      borderRadius: 10,
+                      border: `2px solid ${sessType === t.value ? t.color : "#e2e8f0"}`,
+                      background: sessType === t.value ? t.color : "transparent",
+                      color: sessType === t.value ? "#fff" : "#64748b",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      transition: "all .15s",
+                      textAlign: "left",
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Columna 2: Tipos de optimización */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Optimización
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {SESSION_TYPES_COLUMN_2.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setSessType(t.value)}
+                    style={{
+                      padding: "10px 16px",
+                      borderRadius: 10,
+                      border: `2px solid ${sessType === t.value ? t.color : "#e2e8f0"}`,
+                      background: sessType === t.value ? t.color : "transparent",
+                      color: sessType === t.value ? "#fff" : "#64748b",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      transition: "all .15s",
+                      textAlign: "left",
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-4">
