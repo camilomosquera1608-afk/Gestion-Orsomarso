@@ -79,10 +79,4 @@ export const initialData: AppData = {
   fmsRecords: [],
   competitionMatchSummaries: [],
   competitionRecords: [],
-  technicalProfiles: [],
-  technicalReports: [],
-  scoutFollowUps: [],
-  selectionCallRecords: [],
-  playerCaptureLocations: [],
-  technicalDecisions: [],
 };
