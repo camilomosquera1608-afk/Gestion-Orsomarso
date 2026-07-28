@@ -937,14 +937,14 @@ export default function SesionEntrenamientoPage() {
     if (parsedNum !== filters.sessionNumber)
       setFilters({ sessionNumber: parsedNum });
     const sessionId = summaryRecord?.id ?? editingId ?? crypto.randomUUID();
-    const combinedSessionType = secondaryType ? `${sessType} + ${secondaryType}` : sessType;
     const summary = {
       id: sessionId,
       date: filters.date,
       category: activeCat,
       microcycleId: activeMcId,
       sessionNumber: parsedNum,
-      sessionType: combinedSessionType,
+      sessionType: sessType,
+      secondarySessionType: secondaryType || undefined,
       objective,
       observation,
       status: summaryRecord?.status ?? ("Borrador" as const),
@@ -971,7 +971,7 @@ export default function SesionEntrenamientoPage() {
         participation: row.participation,
         microcycleId: activeMcId,
         sessionNumber: parsedNum,
-        sessionType: combinedSessionType,
+        sessionType: sessType,
         category: activeCat,
         baseCategory: row.player.category ?? sourceCat,
         actingCategory: activeCat,
@@ -1072,6 +1072,7 @@ export default function SesionEntrenamientoPage() {
       category: t.category ?? activeCat,
     });
     setSessType(normalizeSessionType(t.sessionType));
+    setSecondaryType(t.secondarySessionType || null);
     setObjective(t.objective ?? "");
     setObservation(t.observation ?? "");
     setEditingId(t.id);

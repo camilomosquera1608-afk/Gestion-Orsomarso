@@ -16,6 +16,7 @@ type Row = {
 type Props = {
   date: string; category: ClubCategory; microcycle?: Microcycle;
   sessionNumber?: string | number; sessionType: TrainingSessionType;
+  secondarySessionType?: TrainingSessionType;
   objective?: string; observation?: string; rows: Row[]; absentPlayers: Player[];
   wellnessRecords?: DailyWellnessRecord[];
   allWellnessRecords?: DailyWellnessRecord[];
@@ -37,8 +38,14 @@ const wellAvg = (r?: DailyWellnessRecord) => computeWellnessScore(r);
 const wellnessReadiness = (r?: DailyWellnessRecord) => wellAvg(r);
 const rMin = (a: number[]) => Math.min(...a.filter(v => v > 0), 0);
 const rMax = (a: number[]) => Math.max(...a, 1);
-const sessionLabel = (v: TrainingSessionType) =>
-  ({ 'MD+1': 'MD+1', 'MD+2': 'MD+2', 'MD-5': 'MD-5', 'MD-4': 'MD-4', 'MD-3': 'MD-3', 'MD-2': 'MD-2', 'MD-1': 'MD-1', MD: 'MD', 'REC_ACTIVA': 'REC. ACTIVA', 'REC_PASIVA': 'REC. PASIVA', 'CDE_F_OPT_JUGADORES': 'CDe/f (Optimización Jugadores)', 'CDE_F_OPT_EQUIPO': 'Cde/f (Optimización Equipo)', 'CDE_F_OPT_CONDICIONAL': 'cde/F (Optimización Condicional)', 'CDE_F_OPT_JUGADOR': 'cdE/f (Optimización Jugador)' }[v] ?? v);
+const sessionLabel = (v: TrainingSessionType, secondary?: TrainingSessionType) => {
+  const primaryLabel = ({ 'MD+1': 'MD+1', 'MD+2': 'MD+2', 'MD-5': 'MD-5', 'MD-4': 'MD-4', 'MD-3': 'MD-3', 'MD-2': 'MD-2', 'MD-1': 'MD-1', MD: 'MD', 'REC_ACTIVA': 'REC. ACTIVA', 'REC_PASIVA': 'REC. PASIVA', 'CDE_F_OPT_JUGADORES': 'CDe/f (Optimización Jugadores)', 'CDE_F_OPT_EQUIPO': 'Cde/f (Optimización Equipo)', 'CDE_F_OPT_CONDICIONAL': 'cde/F (Optimización Condicional)', 'CDE_F_OPT_JUGADOR': 'cdE/f (Optimización Jugador)' }[v] ?? v);
+  if (secondary) {
+    const secondaryLabel = ({ 'MD+1': 'MD+1', 'MD+2': 'MD+2', 'MD-5': 'MD-5', 'MD-4': 'MD-4', 'MD-3': 'MD-3', 'MD-2': 'MD-2', 'MD-1': 'MD-1', MD: 'MD', 'REC_ACTIVA': 'REC. ACTIVA', 'REC_PASIVA': 'REC. PASIVA', 'CDE_F_OPT_JUGADORES': 'CDe/f (Optimización Jugadores)', 'CDE_F_OPT_EQUIPO': 'Cde/f (Optimización Equipo)', 'CDE_F_OPT_CONDICIONAL': 'cde/F (Optimización Condicional)', 'CDE_F_OPT_JUGADOR': 'cdE/f (Optimización Jugador)' }[secondary] ?? secondary);
+    return `${primaryLabel} + ${secondaryLabel}`;
+  }
+  return primaryLabel;
+};
 
 const dateObj = (value: string) => {
   const d = new Date(`${value}T00:00:00`);
@@ -223,7 +230,7 @@ function BarCol({ title, color, items, maxVal, f }: {
 
 // ─── Main component ────────────────────────────────────────────────────────────
 export function SessionReportTemplate({
-  date, category, microcycle, sessionNumber, sessionType,
+  date, category, microcycle, sessionNumber, sessionType, secondarySessionType,
   objective, observation, rows, absentPlayers,
   wellnessRecords = [],
   allWellnessRecords = wellnessRecords,
@@ -390,7 +397,7 @@ export function SessionReportTemplate({
           {/* Report title */}
           <div className="srp-title-block">
             <div className="srp-report-label">
-              {gps ? 'CATAPULT GPS · U20' : 'CARGA INTERNA'} &nbsp;·&nbsp; {sessionLabel(sessionType).toUpperCase()}
+              {gps ? 'CATAPULT GPS · U20' : 'CARGA INTERNA'} &nbsp;·&nbsp; {sessionLabel(sessionType, secondarySessionType).toUpperCase()}
             </div>
             <div className="srp-title">INFORME DE SESIÓN</div>
             <div className="srp-subtitle">{mcText}</div>
@@ -442,7 +449,7 @@ export function SessionReportTemplate({
       {/* ══ PÁGINA 2: RESUMEN + TABLA ════════════════════════════════════════ */}
       <section style={{ display: 'grid', gap: 10, marginBottom: 6 }}>
         <Sec eyebrow="Resumen ejecutivo" title="Promedios generales de la sesión"
-          sub={`${formatPdfDate(date)} · ${sessionLabel(sessionType)} · ${mcText}`} />
+          sub={`${formatPdfDate(date)} · ${sessionLabel(sessionType, secondarySessionType)} · ${mcText}`} />
 
         {/* Gauges — fila compacta */}
         <div className="sr-gauges-row">
