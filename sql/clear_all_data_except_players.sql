@@ -1,5 +1,8 @@
--- Orsomarso Performance App - Limpiar todos los datos excepto jugadores
--- Este script elimina TODOS los datos de la base de datos EXCEPTO la tabla players
+-- Orsomarso Performance App - Limpiar datos y resetear jugadores
+-- Este script:
+-- 1. Mantiene las valoraciones (nutrition, cmj, neuromuscular, fms)
+-- 2. Elimina todos los demás datos (sesiones, competición, monitoreo, etc.)
+-- 3. Resetea los datos de rendimiento de los jugadores a 0/null
 -- Ejecutar en Supabase SQL Editor
 -- IMPORTANTE: Hacer backup antes de ejecutar
 
@@ -26,16 +29,33 @@ delete from public.daily_external_loads;
 -- Microciclos
 delete from public.microcycles;
 
--- Evaluaciones y registros médicos
-delete from public.nutrition_records;
-delete from public.cmj_records;
-delete from public.neuromuscular_records;
-delete from public.fms_records;
+-- Registros médicos
 delete from public.medical_notes;
 
 -- Reportes y auditoría
 delete from public.report_exports;
 delete from public.audit_events;
+
+-- Resetea datos de rendimiento de los jugadores a 0/null
+-- Mantiene datos básicos: nombre, fecha nacimiento, posición, categoría, etc.
+update public.players set
+  load_tolerance = null,
+  max_velocity_reference = null,
+  baseline_wellness = null,
+  baseline_rpe = null,
+  target_weekly_load = null,
+  target_weekly_hsr = null,
+  target_weekly_sprint_distance = null,
+  target_minutes_7d = null,
+  max_training_percent = null,
+  max_competition_minutes = null,
+  return_to_play_phase = null,
+  restrictions = '[]'::jsonb,
+  injury_area = null,
+  injury_type = null,
+  injury_severity = null,
+  return_date = null,
+  status = 'Disponible';
 
 -- Reactivar triggers
 set session_replication_role = default;
@@ -43,6 +63,8 @@ set session_replication_role = default;
 commit;
 
 -- Verificación: mostrar conteo de registros después de la limpieza
+-- Las valoraciones (nutrition, cmj, neuromuscular, fms) deben mantener datos
+-- El resto debe estar vacío excepto players
 select 'players' as table_name, count(*) as remaining_records from public.players
 union all
 select 'microcycles', count(*) from public.microcycles
@@ -61,13 +83,13 @@ select 'competition_matches', count(*) from public.competition_matches
 union all
 select 'competition_players', count(*) from public.competition_players
 union all
-select 'nutrition_records', count(*) from public.nutrition_records
+select 'nutrition_records (KEPT)', count(*) from public.nutrition_records
 union all
-select 'cmj_records', count(*) from public.cmj_records
+select 'cmj_records (KEPT)', count(*) from public.cmj_records
 union all
-select 'neuromuscular_records', count(*) from public.neuromuscular_records
+select 'neuromuscular_records (KEPT)', count(*) from public.neuromuscular_records
 union all
-select 'fms_records', count(*) from public.fms_records
+select 'fms_records (KEPT)', count(*) from public.fms_records
 union all
 select 'medical_notes', count(*) from public.medical_notes
 union all
