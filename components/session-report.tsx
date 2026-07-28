@@ -497,43 +497,126 @@ export function SessionReportTemplate({
               <tr>
                 <th className="sr-th-name">Jugador</th>
                 <th>Pos.</th><th>MIN</th><th>RPE</th><th>Carga</th>
-                {gps ? <>
-                  <th>ACC</th><th>DCC</th><th>Sprints</th><th>RHIE</th>
-                  <th>Dist. (m)</th><th>Vel. máx</th><th>Player Load</th>
-                </> : <>
-                  <th>Wellness</th><th>Participación</th>
-                </>}
+                {gps ? <><th>DIST (m)</th><th>M/MIN</th><th>VEL MAX</th><th>ACC</th><th>DCC</th></> : null}
+                <th>WELL</th><th>ESTADO</th>
               </tr>
             </thead>
             <tbody>
               {reg.map(r => {
-                const load = r.min * r.rpe;
-                const mmin = r.min > 0 && r.totalDistance ? r.totalDistance / r.min : 0;
-                const well = wellAvg(wellMap.get(r.player.id));
+                const w = wellMap.get(r.player.id);
+                const well = wellAvg(w);
+                const readiness = wellnessReadiness(w);
                 return (
                   <tr key={r.player.id}>
-                    <td className="sr-td-name">{r.player.name}</td>
-                    <td className="sr-td-pos">{r.player.position}</td>
-                    <HC v={r.min}  lo={rMin(reg.map(x => x.min))} hi={rMax(reg.map(x => x.min))} />
-                    <HC v={r.rpe}  lo={0} hi={10} allowZero={false} />
-                    <HC v={load}   lo={rMin(loadArr)} hi={rMax(loadArr)} allowZero={false} />
+                    <td className="sr-td-name">{getPdfSafeText(r.player.name)}</td>
+                    <td>{r.player.position ? r.player.position.slice(0, 3) : '—'}</td>
+                    <td className={r.min >= 45 ? C.green : r.min >= 30 ? C.amber : C.red}>{Math.round(r.min)}</td>
+                    <td className={r.rpe <= 5 ? C.green : r.rpe <= 7 ? C.amber : C.red}>{r.rpe.toFixed(1)}</td>
+                    <td className={r.min * r.rpe >= 400 ? C.green : r.min * r.rpe >= 250 ? C.amber : C.red}>{Math.round(r.min * r.rpe)}</td>
                     {gps ? <>
-                      <HC v={r.acc}  lo={rMin(accArr)} hi={rMax(accArr)} allowZero />
-                      <HC v={r.dcc}  lo={rMin(dccArr)} hi={rMax(dccArr)} allowZero />
-                      <HC v={r.sprints} lo={rMin(reg.map(x=>x.sprints))} hi={rMax(reg.map(x=>x.sprints))} allowZero />
-                      <HC v={r.rhie} lo={rMin(reg.map(x=>x.rhie))} hi={rMax(reg.map(x=>x.rhie))} allowZero />
-                      <HC v={safeN(r.totalDistance)} lo={rMin(distArr)} hi={rMax(distArr)} f={v => formatPdfNumber(v)} />
-                      <HC v={safeN(r.maxVelocity)}   lo={rMin(velArr)}  hi={rMax(velArr)}  f={v => v.toFixed(1)} />
-                      <HC v={safeN(r.playerLoad)}    lo={rMin(plArr)}   hi={rMax(plArr)}   f={v => formatPdfNumber(v)} />
-                    </> : <>
-                      <td style={{ textAlign: 'center', fontWeight: 900, fontSize: 10, background: well >= 3.7 ? '#d1fae5' : well >= 3.2 ? '#fef9c3' : well > 0 ? '#fee2e2' : C.soft, color: well >= 3.7 ? '#065f46' : well >= 3.2 ? '#713f12' : '#7f1d1d' }}>{well ? well.toFixed(1) : '—'}</td>
-                      <td style={{ textAlign: 'center', fontSize: 9, color: C.muted }}>{r.participation}</td>
-                    </>}
+                      <td className={safeN(r.totalDistance) >= 5000 ? C.green : safeN(r.totalDistance) >= 3000 ? C.amber : C.red}>{formatPdfNumber(r.totalDistance)}</td>
+                      <td className={r.min > 0 && r.totalDistance ? (r.totalDistance / r.min) >= 80 ? C.green : (r.totalDistance / r.min) >= 60 ? C.amber : C.red : C.red}>{formatPdfNumber(r.min > 0 && r.totalDistance ? r.totalDistance / r.min : 0, 1)}</td>
+                      <td className={safeN(r.maxVelocity) >= 28 ? C.green : safeN(r.maxVelocity) >= 24 ? C.amber : C.red}>{formatPdfNumber(r.maxVelocity, 1)}</td>
+                      <td className={r.acc >= 15 ? C.green : r.acc >= 10 ? C.amber : C.red}>{Math.round(r.acc)}</td>
+                      <td className={r.dcc >= 12 ? C.green : r.dcc >= 8 ? C.amber : C.red}>{Math.round(r.dcc)}</td>
+                    </> : null}
+                    <td className={well >= 4 ? C.green : well >= 3.2 ? C.amber : C.red}>{well ? well.toFixed(1) : '—'}</td>
+                    <td className={r.player.status === 'Disponible' ? C.green : r.player.status === 'Lesionado' ? C.red : C.amber}>{r.player.status}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </section>
+      )}
+
+      {/* Sección de tendencias y análisis */}
+      {reg.length > 0 && (
+        <section className="sr-section">
+          <Sec eyebrow="Análisis" title="Tendencias y comparativas"
+            sub="Comparación con valores de referencia y rangos de rendimiento" />
+          
+          <div className="sr-analysis-grid">
+            {/* Análisis de carga */}
+            <div className="sr-analysis-card">
+              <div className="sr-analysis-title">Distribución de carga</div>
+              <div className="sr-analysis-content">
+                <div className="sr-analysis-row">
+                  <span>Carga alta (≥400 UA)</span>
+                  <strong>{reg.filter(r => r.min * r.rpe >= 400).length}</strong>
+                </div>
+                <div className="sr-analysis-row">
+                  <span>Carga media (250-399 UA)</span>
+                  <strong>{reg.filter(r => r.min * r.rpe >= 250 && r.min * r.rpe < 400).length}</strong>
+                </div>
+                <div className="sr-analysis-row">
+                  <span>Carga baja (&lt;250 UA)</span>
+                  <strong>{reg.filter(r => r.min * r.rpe < 250).length}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Análisis de wellness */}
+            <div className="sr-analysis-card">
+              <div className="sr-analysis-title">Estado de wellness</div>
+              <div className="sr-analysis-content">
+                <div className="sr-analysis-row">
+                  <span>Óptimo (≥4.0)</span>
+                  <strong>{reg.filter(r => { const w = wellAvg(wellMap.get(r.player.id)); return w >= 4; }).length}</strong>
+                </div>
+                <div className="sr-analysis-row">
+                  <span>Aceptable (3.2-3.9)</span>
+                  <strong>{reg.filter(r => { const w = wellAvg(wellMap.get(r.player.id)); return w >= 3.2 && w < 4; }).length}</strong>
+                </div>
+                <div className="sr-analysis-row">
+                  <span>Preocupante (&lt;3.2)</span>
+                  <strong>{reg.filter(r => { const w = wellAvg(wellMap.get(r.player.id)); return w > 0 && w < 3.2; }).length}</strong>
+                </div>
+              </div>
+            </div>
+
+            {gps && (
+              <>
+                {/* Análisis de distancia */}
+                <div className="sr-analysis-card">
+                  <div className="sr-analysis-title">Distancia recorrida</div>
+                  <div className="sr-analysis-content">
+                    <div className="sr-analysis-row">
+                      <span>Alta (≥6000m)</span>
+                      <strong>{reg.filter(r => safeN(r.totalDistance) >= 6000).length}</strong>
+                    </div>
+                    <div className="sr-analysis-row">
+                      <span>Media (4000-5999m)</span>
+                      <strong>{reg.filter(r => safeN(r.totalDistance) >= 4000 && safeN(r.totalDistance) < 6000).length}</strong>
+                    </div>
+                    <div className="sr-analysis-row">
+                      <span>Baja (&lt;4000m)</span>
+                      <strong>{reg.filter(r => safeN(r.totalDistance) > 0 && safeN(r.totalDistance) < 4000).length}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Análisis de intensidad */}
+                <div className="sr-analysis-card">
+                  <div className="sr-analysis-title">Intensidad (m/min)</div>
+                  <div className="sr-analysis-content">
+                    <div className="sr-analysis-row">
+                      <span>Alta (≥85 m/min)</span>
+                      <strong>{reg.filter(r => r.min > 0 && r.totalDistance && (r.totalDistance / r.min) >= 85).length}</strong>
+                    </div>
+                    <div className="sr-analysis-row">
+                      <span>Media (65-84 m/min)</span>
+                      <strong>{reg.filter(r => r.min > 0 && r.totalDistance && (r.totalDistance / r.min) >= 65 && (r.totalDistance / r.min) < 85).length}</strong>
+                    </div>
+                    <div className="sr-analysis-row">
+                      <span>Baja (&lt;65 m/min)</span>
+                      <strong>{reg.filter(r => r.min > 0 && r.totalDistance && (r.totalDistance / r.min) > 0 && (r.totalDistance / r.min) < 65).length}</strong>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </section>
       )}
 

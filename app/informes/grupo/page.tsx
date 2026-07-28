@@ -222,6 +222,54 @@ export default function GroupReportsPage() {
   }));
 
   const printReport = () => window.print();
+  
+  const exportToExcel = () => {
+    const exportData = players.map(player => {
+      const playerWellnessRecords = data.wellness.filter(w => w.playerId === player.id && inRange(w.date));
+      const latestWellness = playerWellnessRecords.length > 0 ? playerWellnessRecords[playerWellnessRecords.length - 1] : null;
+      const playerExternalRecords = data.externalLoads.filter(e => e.playerId === player.id && inRange(e.date));
+      const playerInternalRecords = data.internalLoads.filter(i => i.playerId === player.id && inRange(i.date));
+      
+      const totalExternal = playerExternalRecords.reduce((sum, e) => sum + (e.totalDistance || 0), 0);
+      const totalInternal = playerInternalRecords.reduce((sum, i) => sum + (i.rpe || 0) * (i.duration || 0), 0);
+      const avgRpe = playerInternalRecords.length > 0 ? playerInternalRecords.reduce((sum, i) => sum + (i.rpe || 0), 0) / playerInternalRecords.length : 0;
+      const totalMin = playerInternalRecords.reduce((sum, i) => sum + (i.duration || 0), 0);
+      const maxVel = playerExternalRecords.length > 0 ? Math.max(...playerExternalRecords.map(e => e.maxVelocity || 0)) : 0;
+      const totalPL = playerExternalRecords.reduce((sum, e) => sum + (e.playerLoad || 0), 0);
+      
+      const wellScore = latestWellness ? averageWellness(latestWellness) : 0;
+      
+      return {
+        'Jugador': player.name,
+        'Posición': player.position || '—',
+        'Estado': player.status,
+        'Wellness': wellScore ? wellScore.toFixed(1) : '—',
+        'Fatiga': latestWellness ? latestWellness.fatigue : '—',
+        'Estrés': latestWellness ? latestWellness.stress : '—',
+        'Dolor muscular': latestWellness ? latestWellness.musclePain : '—',
+        'Minutos totales': totalMin || '—',
+        'RPE promedio': avgRpe ? avgRpe.toFixed(1) : '—',
+        'Carga interna total': totalInternal || '—',
+        'Distancia total (m)': totalExternal || '—',
+        'Velocidad máxima (km/h)': maxVel || '—',
+        'Player Load total': totalPL || '—',
+      };
+    });
+    
+    const headers = Object.keys(exportData[0] || {}).join(',');
+    const rows = exportData.map(row => Object.values(row).join(',')).join('\n');
+    const csvContent = `${headers}\n${rows}`;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `reporte-grupo-${activeCategory}-${filters.date}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="grid group-report-page">
@@ -254,9 +302,14 @@ export default function GroupReportsPage() {
               ),
             )}
           </div>
-          <button type="button" className="btn secondary" onClick={printReport}>
-            Exportar / imprimir PDF
-          </button>
+          <div className="btn-row" style={{ gap: 8 }}>
+            <button type="button" className="btn secondary" onClick={printReport}>
+              Exportar PDF
+            </button>
+            <button type="button" className="btn secondary" onClick={exportToExcel}>
+              Exportar Excel/CSV
+            </button>
+          </div>
         </div>
       </div>
 
