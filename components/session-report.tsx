@@ -38,7 +38,7 @@ const wellnessReadiness = (r?: DailyWellnessRecord) => wellAvg(r);
 const rMin = (a: number[]) => Math.min(...a.filter(v => v > 0), 0);
 const rMax = (a: number[]) => Math.max(...a, 1);
 const sessionLabel = (v: TrainingSessionType) =>
-  ({ 'MD+1': 'MD+1', 'MD+2': 'MD+2', 'MD-5': 'MD-5', 'MD-4': 'MD-4', 'MD-3': 'MD-3', 'MD-2': 'MD-2', 'MD-1': 'MD-1', MD: 'MD' }[v] ?? v);
+  ({ 'MD+1': 'MD+1', 'MD+2': 'MD+2', 'MD-5': 'MD-5', 'MD-4': 'MD-4', 'MD-3': 'MD-3', 'MD-2': 'MD-2', 'MD-1': 'MD-1', MD: 'MD', 'REC_ACTIVA': 'REC. ACTIVA', 'REC_PASIVA': 'REC. PASIVA', 'CDE_F_OPT_JUGADORES': 'CDe/f (Optimización Jugadores)', 'CDE_F_OPT_EQUIPO': 'Cde/f (Optimización Equipo)', 'CDE_F_OPT_CONDICIONAL': 'cde/F (Optimización Condicional)', 'CDE_F_OPT_JUGADOR': 'cdE/f (Optimización Jugador)' }[v] ?? v);
 
 const dateObj = (value: string) => {
   const d = new Date(`${value}T00:00:00`);
