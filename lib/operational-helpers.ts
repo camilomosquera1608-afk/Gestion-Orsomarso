@@ -44,6 +44,14 @@ export interface OperationalAlert {
   href?: string;
 }
 
+export interface DataQualityItem {
+  label: string;
+  done: number;
+  total: number;
+  note?: string;
+  status: "na" | "ok" | "missing" | "partial";
+}
+
 export interface DailyOperations {
   players: Player[];
   activeMicrocycle?: Microcycle;
