@@ -54,6 +54,12 @@ export const trainingTypeLabel: Record<TrainingSessionType, string> = {
   'MD-2': 'MD-2',
   'MD-1': 'MD-1',
   'MD': 'MD',
+  'REC_ACTIVA': 'REC. ACTIVA',
+  'REC_PASIVA': 'REC. PASIVA',
+  'CDE_F_OPT_JUGADORES': 'CDe/f (Optimización Jugadores)',
+  'CDE_F_OPT_EQUIPO': 'Cde/f (Optimización Equipo)',
+  'CDE_F_OPT_CONDICIONAL': 'cde/F (Optimización Condicional)',
+  'CDE_F_OPT_JUGADOR': 'cdE/f (Optimización Jugador)',
 };
 
 export const buildSessionTypeLoadControl = (sessionType: TrainingSessionType, metrics: SessionLoadMetrics): LogicInsight => {
