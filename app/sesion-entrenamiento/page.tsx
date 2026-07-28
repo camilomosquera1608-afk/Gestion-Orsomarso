@@ -279,6 +279,7 @@ export default function SesionEntrenamientoPage() {
   const [showCsv, setShowCsv] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sessType, setSessType] = useState<TrainingSessionType>("MD-3");
+  const [secondaryType, setSecondaryType] = useState<TrainingSessionType | null>(null);
   const [objective, setObjective] = useState("");
   const [observation, setObservation] = useState("");
   const [search, setSearch] = useState("");
@@ -936,13 +937,14 @@ export default function SesionEntrenamientoPage() {
     if (parsedNum !== filters.sessionNumber)
       setFilters({ sessionNumber: parsedNum });
     const sessionId = summaryRecord?.id ?? editingId ?? crypto.randomUUID();
+    const combinedSessionType = secondaryType ? `${sessType} + ${secondaryType}` : sessType;
     const summary = {
       id: sessionId,
       date: filters.date,
       category: activeCat,
       microcycleId: activeMcId,
       sessionNumber: parsedNum,
-      sessionType: sessType,
+      sessionType: combinedSessionType,
       objective,
       observation,
       status: summaryRecord?.status ?? ("Borrador" as const),
@@ -969,7 +971,7 @@ export default function SesionEntrenamientoPage() {
         participation: row.participation,
         microcycleId: activeMcId,
         sessionNumber: parsedNum,
-        sessionType: sessType,
+        sessionType: combinedSessionType,
         category: activeCat,
         baseCategory: row.player.category ?? sourceCat,
         actingCategory: activeCat,
@@ -1027,6 +1029,7 @@ export default function SesionEntrenamientoPage() {
     activeCat,
     activeMcId,
     sessType,
+    secondaryType,
     objective,
     observation,
     data.trainingSessionSummaries,
@@ -1355,13 +1358,13 @@ export default function SesionEntrenamientoPage() {
                   <button
                     key={t.value}
                     type="button"
-                    onClick={() => setSessType(t.value)}
+                    onClick={() => setSecondaryType(t.value)}
                     style={{
                       padding: "10px 16px",
                       borderRadius: 10,
-                      border: `2px solid ${sessType === t.value ? t.color : "#e2e8f0"}`,
-                      background: sessType === t.value ? t.color : "transparent",
-                      color: sessType === t.value ? "#fff" : "#64748b",
+                      border: `2px solid ${secondaryType === t.value ? t.color : "#e2e8f0"}`,
+                      background: secondaryType === t.value ? t.color : "transparent",
+                      color: secondaryType === t.value ? "#fff" : "#64748b",
                       fontWeight: 800,
                       fontSize: 13,
                       cursor: "pointer",
