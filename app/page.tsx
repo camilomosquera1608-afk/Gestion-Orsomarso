@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, AlertTriangle, CalendarCheck2, ClipboardList, HeartPulse, ShieldCheck, Target, Users } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarCheck2, ClipboardList, Gauge, HeartPulse, ShieldCheck, Target, Users } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
 import { KpiCard } from '@/components/kpi-card';
 import { PlayerStatusBadge, WellnessBadge } from '@/components/status-badge';
-import { DataQualityPanel, EmptyState, OperationalAlertPanel, PlayerStatusCard, SectionHeader, TaskChecklist } from '@/components/pro-ui';
+import { DataQualityPanel, EmptyState, MicrocycleSetupBanner, OperationalAlertPanel, PlayerStatusCard, SectionHeader, TaskChecklist } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
@@ -15,12 +15,21 @@ import { averageWellness, getPlayerDayLoad } from '@/lib/utils';
 import { buildDailyOperations, formatDateShort } from '@/lib/operational-helpers';
 import { getCanonicalPlayers, getEffectiveExternalLoads, getRelatedPlayerIds, getWellnessRecordsForDate } from '@/lib/relational-data';
 
+const workflowSteps = [
+  { label: '1. Wellness', href: '/wellness' },
+  { label: '2. Disponibilidad', href: '/disponibilidad' },
+  { label: '3. Plan diario', href: '/plan-diario' },
+  { label: '4. Sesión', href: '/sesion-entrenamiento' },
+  { label: '5. Cierre', href: '/carga' },
+];
+
 export default function HomePage() {
   const { data, filters, backendMode, syncStatus, forceSync } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = master ? filters.category : session.category;
   const ops = buildDailyOperations(data, filters, activeCategory);
+  const microcycleIncomplete = ops.activeMicrocycle && (!ops.activeMicrocycle.startDate || !ops.activeMicrocycle.endDate);
 
   const effectiveExternalToday = getEffectiveExternalLoads(data, { activeCategory, date: filters.date });
   const rosterPlayers = getCanonicalPlayers(data, ops.players);
@@ -36,9 +45,9 @@ export default function HomePage() {
     };
   });
 
-  const latestActivity = ops.recentActivity.length ? ops.recentActivity : [
-    'Sin actividad reciente.',
-  ];
+  const latestActivity = ops.recentActivity.length ? ops.recentActivity : ['Sin actividad reciente.'];
+  const syncLabel = syncStatus === 'syncing' ? 'Sincronizando…' : syncStatus === 'error' ? 'Error de sync' : 'Listo';
+  const storageLabel = backendMode === 'supabase' ? `Datos en Supabase · ${syncLabel}` : 'Modo local (sin remoto)';
 
   return (
     <div className="grid operational-dashboard">
@@ -47,19 +56,18 @@ export default function HomePage() {
         subtitle={`${master ? 'Vista general' : categoryLabel(activeCategory)} · ${formatDateShort(filters.date)}`}
       />
       <GlobalFiltersBar />
+      {microcycleIncomplete ? <MicrocycleSetupBanner microcycleName={ops.activeMicrocycle?.name} /> : null}
 
       <div className="command-overview-card card">
         <div>
           <span className="section-eyebrow">Flujo</span>
           <h3 style={{ margin: 0 }}>Rutina diaria</h3>
-          <p className="muted-line">Wellness, disponibilidad, sesión, pendientes y cierre.</p>
+          <p className="muted-line">Wellness, disponibilidad, plan, sesión y cierre en el centro de carga.</p>
         </div>
         <div className="workflow-steps">
-          <span>1. Wellness</span>
-          <span>2. Disponibilidad</span>
-          <span>3. Sesión</span>
-          <span>4. Pendientes</span>
-          <span>5. Cierre</span>
+          {workflowSteps.map((step) => (
+            <Link key={step.href} href={step.href} className="workflow-step-link">{step.label}</Link>
+          ))}
         </div>
       </div>
 
@@ -67,12 +75,14 @@ export default function HomePage() {
         <div>
           <span className="section-eyebrow">Sistema</span>
           <h3 style={{ margin: 0 }}>Estado</h3>
-          <div className="muted-line">Almacenamiento local activo.</div>
+          <div className="muted-line">{storageLabel}</div>
         </div>
         <div className="btn-row">
           <span className="status-badge ui-tone-green"><ShieldCheck size={14} />{backendMode === 'supabase' ? 'Supabase' : 'Local'}</span>
           <span className={`status-badge ${syncStatus === 'error' ? 'ui-tone-red' : syncStatus === 'syncing' ? 'ui-tone-amber' : 'ui-tone-blue'}`}>{syncStatus}</span>
-          <button type="button" className="btn secondary" onClick={() => forceSync()}>Actualizar datos</button>
+          {backendMode === 'supabase' ? (
+            <button type="button" className="btn secondary" onClick={() => void forceSync()}>Actualizar datos</button>
+          ) : null}
         </div>
       </div>
 
@@ -130,12 +140,14 @@ export default function HomePage() {
           </div>
         </div>
         <div className="card">
-          <SectionHeader eyebrow="Acciones" title="Accesos rápidos" />
+          <SectionHeader eyebrow="Centro de carga" title="Accesos rápidos" subtitle="Hub unificado de carga, riesgo y calidad del dato." />
           <div className="quick-action-grid">
-            <Link className="quick-action-card" href="/disponibilidad"><div className="qa-icon"><HeartPulse size={18} /></div><strong>Centro médico</strong><span>Disponibilidad</span></Link>
-            <Link className="quick-action-card" href="/carga"><div className="qa-icon"><Activity size={18} /></div><strong>Centro de carga</strong><span>Carga GPS</span></Link>
-            <Link className="quick-action-card" href="/wellness"><div className="qa-icon"><CalendarCheck2 size={18} /></div><strong>Wellness</strong><span>Bienestar diario</span></Link>
-            <Link className="quick-action-card" href="/competencia"><div className="qa-icon"><ClipboardList size={18} /></div><strong>Match Center</strong><span>Competencia</span></Link>
+            <Link className="quick-action-card" href="/carga"><div className="qa-icon"><Gauge size={18} /></div><strong>Centro de carga</strong><span>Resumen y decisión</span></Link>
+            <Link className="quick-action-card" href="/plan-diario"><div className="qa-icon"><Target size={18} /></div><strong>Plan diario</strong><span>Pre-sesión</span></Link>
+            <Link className="quick-action-card" href="/disponibilidad"><div className="qa-icon"><HeartPulse size={18} /></div><strong>Disponibilidad</strong><span>Médico</span></Link>
+            <Link className="quick-action-card" href="/wellness"><div className="qa-icon"><CalendarCheck2 size={18} /></div><strong>Wellness</strong><span>Bienestar</span></Link>
+            <Link className="quick-action-card" href="/sesion-entrenamiento"><div className="qa-icon"><Activity size={18} /></div><strong>Sesión</strong><span>Registro GPS/RPE</span></Link>
+            <Link className="quick-action-card" href="/competencia"><div className="qa-icon"><ClipboardList size={18} /></div><strong>Competencia</strong><span>Partidos</span></Link>
           </div>
         </div>
       </div>

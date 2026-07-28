@@ -15,14 +15,12 @@ import {
   ChevronRight,
   Dumbbell,
   FileText,
-  Flag,
   Gauge,
   HeartPulse,
   Home,
   LogOut,
   Medal,
   Menu,
-  Search,
   Settings,
   ShieldCheck as AdminShield,
   ShieldCheck,
@@ -35,7 +33,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { categoryLabel } from "@/lib/labels";
-import { hasAdministrationAccess, hasTechnicalSecretariatAccess } from "@/lib/access-control";
+import { hasAdministrationAccess } from "@/lib/access-control";
 import { getStaffSession, logoutStaff } from "@/lib/auth";
 import { signOutSupabase, tableSchemaSyncEnabled } from "@/lib/supabase";
 import { ORSOMARSO_BRAND } from "@/lib/design-system";
@@ -56,7 +54,6 @@ const staffGroups = [
       { href: "/microciclo", label: "Microciclo", icon: Activity },
       { href: "/sesion-entrenamiento", label: "Sesión", icon: TimerReset },
       { href: "/competencia", label: "Competencia", icon: Trophy },
-      { href: "/fuerza", label: "Fuerza", icon: Dumbbell },
     ],
   },
   {
@@ -87,19 +84,6 @@ const staffGroups = [
     ],
   },
   {
-    title: "Secretaría Técnica",
-    requiresTechnicalAccess: true,
-    items: [
-      { href: "/secretaria-tecnica", label: "Panel", icon: Flag },
-      { href: "/secretaria-tecnica/jugadores", label: "Jugadores", icon: Users },
-      { href: "/secretaria-tecnica/reportes", label: "Reportes técnicos", icon: FileText },
-      { href: "/secretaria-tecnica/scouting", label: "Scouting", icon: Search },
-      { href: "/secretaria-tecnica/selecciones", label: "Llamados a Selección", icon: Trophy },
-      { href: "/secretaria-tecnica/mapa-captacion", label: "Mapa de Captación", icon: Database },
-      { href: "/secretaria-tecnica/decisiones", label: "Decisiones", icon: ShieldCheck },
-    ],
-  },
-  {
     title: "Sistema",
     items: [{ href: "/configuracion", label: "Configuración", icon: Settings }],
   },
@@ -109,10 +93,8 @@ const canManageAdministration = (session: ReturnType<typeof getStaffSession>) =>
   hasAdministrationAccess(session);
 
 const getNavigationGroups = (session: ReturnType<typeof getStaffSession>) => {
-  const canSeeTechnical = hasTechnicalSecretariatAccess(session);
-  const visibleGroups = staffGroups.filter((group) => !("requiresTechnicalAccess" in group) || !group.requiresTechnicalAccess || canSeeTechnical);
   return canManageAdministration(session)
-    ? visibleGroups.map((group) =>
+    ? staffGroups.map((group) =>
         group.title === "Sistema"
           ? {
               ...group,
@@ -127,7 +109,7 @@ const getNavigationGroups = (session: ReturnType<typeof getStaffSession>) => {
             }
           : group,
       )
-    : visibleGroups;
+    : staffGroups;
 };
 
 // ─── Sidebar de escritorio — rediseñado ─────────────────────────────────────

@@ -11,14 +11,11 @@ import {
   CalendarDays,
   ChevronDown,
   Database,
-  Dumbbell,
   FileText,
-  Flag,
   Gauge,
   HeartPulse,
   Home,
   LogOut,
-  Search,
   Settings,
   ShieldCheck,
   TimerReset,
@@ -29,7 +26,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { categoryLabel } from '@/lib/labels';
-import { hasAdministrationAccess, hasTechnicalSecretariatAccess } from '@/lib/access-control';
+import { hasAdministrationAccess } from '@/lib/access-control';
 import { getStaffSession, logoutStaff } from '@/lib/auth';
 import { signOutSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 import { useApp } from '@/context/app-context';
@@ -39,7 +36,6 @@ type NavGroup = { label: string; icon: LucideIcon; items: NavItem[] };
 
 const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
   const isAdmin = hasAdministrationAccess(session);
-  const canSeeTechnical = hasTechnicalSecretariatAccess(session);
   return [
     {
       label: 'Inicio',
@@ -57,7 +53,6 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/microciclo', label: 'Microciclo', icon: Activity },
         { href: '/sesion-entrenamiento', label: 'Sesión', icon: TimerReset },
         { href: '/competencia', label: 'Competencia', icon: Trophy },
-        { href: '/fuerza', label: 'Fuerza', icon: Dumbbell },
       ],
     },
     {
@@ -90,23 +85,6 @@ const getGroups = (session: ReturnType<typeof getStaffSession>): NavGroup[] => {
         { href: '/informes/semanal', label: 'Informe semanal', icon: CalendarDays },
       ],
     },
-    ...(canSeeTechnical
-      ? [
-          {
-            label: 'Secretaría Técnica',
-            icon: Flag,
-            items: [
-              { href: '/secretaria-tecnica', label: 'Panel', icon: Flag },
-              { href: '/secretaria-tecnica/jugadores', label: 'Jugadores', icon: Users },
-              { href: '/secretaria-tecnica/reportes', label: 'Reportes técnicos', icon: FileText },
-              { href: '/secretaria-tecnica/scouting', label: 'Scouting', icon: Search },
-              { href: '/secretaria-tecnica/selecciones', label: 'Llamados a Selección', icon: Trophy },
-              { href: '/secretaria-tecnica/mapa-captacion', label: 'Mapa de Captación', icon: Database },
-              { href: '/secretaria-tecnica/decisiones', label: 'Decisiones', icon: ShieldCheck },
-            ],
-          },
-        ]
-      : []),
     ...(isAdmin
       ? [
           {

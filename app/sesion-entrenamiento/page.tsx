@@ -18,6 +18,7 @@ import { KpiCard } from "@/components/kpi-card";
 import {
   DataQualityPanel,
   EmptyState,
+  MicrocycleSetupBanner,
   OperationalAlertPanel,
   useConfirm,
 } from "@/components/pro-ui";
@@ -1168,6 +1169,9 @@ export default function SesionEntrenamientoPage() {
           title="Ficha técnica de entrenamiento"
           subtitle={`${categoryLabel(activeCat)}${gps ? " · GPS Catapult" : " · Carga interna"}`}
         />
+        {ops.activeMicrocycle && (!ops.activeMicrocycle.startDate || !ops.activeMicrocycle.endDate) ? (
+          <MicrocycleSetupBanner microcycleName={ops.activeMicrocycle.name} />
+        ) : null}
 
         {/* Alerts row */}
         <div className="grid grid-2">

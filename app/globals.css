@@ -365,6 +365,15 @@ tbody tr:hover { background: #fbfdff; }
 .operational-alert strong, .task-item strong { display: block; color: var(--text); }
 .operational-alert p, .task-item p { margin: 4px 0; color: var(--muted); font-size: 13px; font-weight: 700; line-height: 1.35; }
 .operational-alert span, .task-item span:not(.task-index) { color: var(--blue-dark); font-size: 12px; font-weight: 950; }
+.operational-alert-link, .task-item-link { text-decoration: none; color: inherit; transition: transform .12s ease, box-shadow .12s ease; }
+.operational-alert-link:hover, .task-item-link:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+.microcycle-setup-banner { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.microcycle-setup-banner .btn { margin-left: auto; }
+.workflow-steps { display: flex; flex-wrap: wrap; gap: 8px; }
+.workflow-step-link { text-decoration: none; color: inherit; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-size: 13px; font-weight: 800; }
+.workflow-step-link:hover { border-color: var(--blue); color: var(--blue-dark); }
+.pro-table tbody tr.player-row-link { cursor: pointer; }
+.pro-table tbody tr.player-row-link:hover { background: rgba(21, 87, 214, 0.04); }
 .task-item { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; border-radius: 18px; border: 1px solid var(--line); padding: 13px; background: #fff; }
 .task-index { width: 38px; height: 38px; border-radius: 14px; display: grid; place-items: center; background: #fff; border: 1px solid rgba(15,23,42,.08); font-weight: 950; color: var(--navy-2); }
 .data-quality-score { display: grid; gap: 10px; margin-bottom: 16px; }

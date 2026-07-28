@@ -8,9 +8,11 @@ import { EmptyState, SectionHeader, StatusBadge } from '@/components/pro-ui';
 import { useApp } from '@/context/app-context';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
 import { categoryLabel } from '@/lib/labels';
-import { buildAbruptLoadAlerts, buildAvailabilityIndex, buildDataInconsistencyAlerts, buildIntelligentRanking, buildPlayerReadinessSemaphores, buildPositionComparisonInsights, buildSelfComparisonInsights } from '@/lib/logic-insights';
+import { buildAbruptLoadAlerts, buildDataInconsistencyAlerts, buildIntelligentRanking, buildPositionComparisonInsights, buildSelfComparisonInsights } from '@/lib/logic-insights';
+import { buildPlayerDecisionContext } from '@/lib/player-decision';
 import type { ClubCategory } from '@/lib/types';
 import { getCanonicalPlayers } from '@/lib/relational-data';
+import { riskToneLabel } from '@/lib/predictive-risk';
 
 export default function RankingPage() {
   const { data, filters, isLoading } = useApp();
@@ -21,22 +23,28 @@ export default function RankingPage() {
     () =>
       getCanonicalPlayers(
         data,
-        data.players.filter(
-          (player) => activeCategory === 'all' || player.category === activeCategory,
-        ),
+        data.players.filter((player) => activeCategory === 'all' || player.category === activeCategory),
       ),
     [data, activeCategory],
   );
   const rankingCategory = (activeCategory === 'all' ? 'all' : activeCategory) as ClubCategory | 'all';
   const intelligentRanking = buildIntelligentRanking({ data, players, referenceDate: filters.date, category: rankingCategory, limit: 10 });
-  const abruptLoadRanking = buildAbruptLoadAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
-  const readinessRanking = buildPlayerReadinessSemaphores({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 8 });
-  const availabilityIndex = buildAvailabilityIndex({ players: data.players, wellness: data.wellness, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory });
-  const selfComparison = buildSelfComparisonInsights({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
-  const positionComparison = buildPositionComparisonInsights({ players: data.players, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
-  const dataInconsistencies = buildDataInconsistencyAlerts({ players: data.players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: filters.date, category: rankingCategory, limit: 5 });
+  const riskRanking = useMemo(
+    () =>
+      players
+        .map((player) => ({
+          player,
+          ctx: buildPlayerDecisionContext({ data, player, date: filters.date }),
+        }))
+        .sort((a, b) => b.ctx.profile.riskScore - a.ctx.profile.riskScore)
+        .slice(0, 10),
+    [data, players, filters.date],
+  );
+  const abruptLoadRanking = buildAbruptLoadAlerts({ players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
+  const selfComparison = buildSelfComparisonInsights({ players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
+  const positionComparison = buildPositionComparisonInsights({ players, externalLoads: data.externalLoads, referenceDate: filters.date, category: rankingCategory, limit: 5 });
+  const dataInconsistencies = buildDataInconsistencyAlerts({ players, internalLoads: data.internalLoads, externalLoads: data.externalLoads, competitionRecords: data.competitionRecords, referenceDate: filters.date, category: rankingCategory, limit: 5 });
 
-  // Goles — solo jugadores con al menos 1 gol
   const bestGoals = [...players]
     .map((player) => ({
       id: player.id,
@@ -47,7 +55,6 @@ export default function RankingPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
 
-  // Asistencias — solo jugadores con al menos 1 asistencia
   const bestAssists = [...players]
     .map((player) => ({
       id: player.id,
@@ -58,24 +65,18 @@ export default function RankingPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
 
-  // Nutrición — solo jugadores con al menos una valoración nutricional
   const bestNutrition = [...players]
     .map((player) => {
-      const row = data.nutritionRecords
-        .filter((r) => r.playerId === player.id)
-        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      const row = data.nutritionRecords.filter((r) => r.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
       return { id: player.id, name: player.name, value: row ? row.skinfoldSum : null };
     })
     .filter((row): row is { id: string; name: string; value: number } => row.value !== null)
     .sort((a, b) => a.value - b.value)
     .slice(0, 5);
 
-  // FMS — solo jugadores con al menos un registro FMS
   const bestFms = [...players]
     .map((player) => {
-      const row = data.fmsRecords
-        .filter((r) => r.playerId === player.id)
-        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      const row = data.fmsRecords.filter((r) => r.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
       if (!row) return null;
       const total = row.shoulderMobility + row.squat + row.legRaise + row.hurdleStep + row.lunge + row.trunkStability + row.rotaryStability;
       return { id: player.id, name: player.name, value: total };
@@ -84,12 +85,9 @@ export default function RankingPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
 
-  // Neuromuscular (CMJ) — solo jugadores con al menos un registro
   const bestNeuro = [...players]
     .map((player) => {
-      const row = data.neuromuscularRecords
-        .filter((r) => r.playerId === player.id)
-        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      const row = data.neuromuscularRecords.filter((r) => r.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))[0];
       if (!row) return null;
       return { id: player.id, name: player.name, value: row.cmj };
     })
@@ -109,9 +107,7 @@ export default function RankingPage() {
     return (
       <div className="grid">
         <AppHero heroClass="hero-jugadores" title="Ranking de rendimiento" subtitle="Cargando datos…" />
-        <div className="card" style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>
-          Sincronizando con Supabase…
-        </div>
+        <div className="card" style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>Sincronizando con Supabase…</div>
       </div>
     );
   }
@@ -124,7 +120,7 @@ export default function RankingPage() {
         <div>
           <span className="section-eyebrow">Análisis comparativo</span>
           <h3 style={{ margin: 0 }}>Top rendimiento por módulo</h3>
-          <div className="muted-line">Solo aparecen jugadores con datos reales registrados en cada categoría.</div>
+          <div className="muted-line">Riesgo unificado + rankings por datos registrados.</div>
         </div>
         <div className="btn-row">
           <StatusBadge tone="blue" text={master ? 'Usuario Maestro' : `Categoría ${categoryLabel(activeCategory)}`} />
@@ -133,7 +129,21 @@ export default function RankingPage() {
       </div>
       <div className="grid grid-2">
         <div className="card">
-          <SectionHeader eyebrow="Ranking inteligente" title="Índice integral de rendimiento" subtitle="Combina competencia, carga reciente, wellness, CMJ, FMS e intensidad GPS." />
+          <SectionHeader eyebrow="Motor unificado" title="Mayor riesgo de carga" subtitle="buildPlayerDecisionContext · misma lógica que plan diario y carga." />
+          <div className="grid" style={{ gap: 10 }}>
+            {riskRanking.length ? riskRanking.map(({ player, ctx }, index) => (
+              <Link key={player.id} className="mini-stat-card player-status-link" href={`/jugadores/${player.id}`}>
+                <div className="toolbar" style={{ padding: 0 }}>
+                  <strong>{index + 1}. {player.name}</strong>
+                  <span className={`status-badge ui-tone-${ctx.profile.riskTone}`}>{ctx.profile.riskScore} · {riskToneLabel(ctx.predictive.tone)}</span>
+                </div>
+                <div className="muted-line">{ctx.scientific.state} · ACWR {ctx.profile.acwr.primary.rolling.toFixed(2)}</div>
+              </Link>
+            )) : <EmptyState title="Sin jugadores" text="Ajusta categoría o fecha." />}
+          </div>
+        </div>
+        <div className="card">
+          <SectionHeader eyebrow="Ranking inteligente" title="Índice integral de rendimiento" subtitle="Competencia, carga, wellness, CMJ, FMS e intensidad GPS." />
           <div className="grid" style={{ gap: 10 }}>
             {intelligentRanking.length ? intelligentRanking.map((row, index) => (
               <Link key={row.id} className="mini-stat-card player-status-link" href={`/jugadores/${row.id}`}>
@@ -143,49 +153,23 @@ export default function RankingPage() {
                 </div>
                 <div className="muted-line">{row.detail}</div>
               </Link>
-            )) : <EmptyState title="Sin datos suficientes" text="Carga competencia, valoraciones, wellness y sesiones para activar el índice." />}
-          </div>
-        </div>
-        <div className="card">
-          <SectionHeader eyebrow="Alerta de carga" title="Aumentos bruscos recientes" subtitle="Compara últimos 7 días contra los 7 días previos." />
-          <div className="grid" style={{ gap: 10 }}>
-            {abruptLoadRanking.length ? abruptLoadRanking.map((alert) => (
-              <div key={alert.id} className={`alert-item tone-${alert.tone === 'red' ? 'red' : 'yellow'}`}>
-                <strong>{alert.title}</strong> {alert.value ? `· ${alert.value}` : ''}<br />{alert.description}
-              </div>
-            )) : <EmptyState title="Sin aumentos bruscos" text="No hay cambios de carga relevantes para la fecha activa." />}
+            )) : <EmptyState title="Sin datos suficientes" text="Carga competencia, valoraciones, wellness y sesiones." />}
           </div>
         </div>
       </div>
-
-      <div className="grid grid-2">
-        <div className="card">
-          <SectionHeader eyebrow="Disponibilidad" title="Semáforo integral del jugador" subtitle={`${availabilityIndex.title}: ${availabilityIndex.value}.`} />
-          <div className="grid" style={{ gap: 10 }}>
-            {readinessRanking.length ? readinessRanking.map((row, index) => (
-              <Link key={row.playerId} className="mini-stat-card player-status-link" href={`/jugadores/${row.playerId}`}>
-                <div className="toolbar" style={{ padding: 0 }}>
-                  <strong>{index + 1}. {row.name}</strong>
-                  <span className={`status-badge ui-tone-${row.tone === 'red' ? 'red' : row.tone === 'yellow' ? 'yellow' : 'green'}`}>{row.label} · {Math.round(row.score)}%</span>
-                </div>
-                <div className="muted-line">{row.detail}</div>
-              </Link>
-            )) : <EmptyState title="Sin datos suficientes" text="Carga wellness y sesiones para activar el semáforo integral." />}
-          </div>
-        </div>
-        <div className="card">
-          <SectionHeader eyebrow="Control profesional" title="Comparaciones e incoherencias" subtitle="Detecta desviaciones individuales, por posición y errores de datos." />
-          <div className="grid" style={{ gap: 10 }}>
-            {[...dataInconsistencies, ...selfComparison, ...positionComparison].slice(0, 6).map((insight) => (
-              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
-                <strong>{insight.title}</strong>{insight.value ? ` · ${insight.value}` : ''}<br />{insight.description}
-              </div>
-            ))}
-            {![...dataInconsistencies, ...selfComparison, ...positionComparison].length ? <EmptyState title="Sin desviaciones importantes" text="No hay alertas por comparación individual, posición o coherencia de datos para la fecha activa." /> : null}
-          </div>
+      <div className="card">
+        <SectionHeader eyebrow="Complemento" title="Aumentos bruscos e incoherencias" subtitle="Análisis adicional; el semáforo principal usa el motor unificado." />
+        <div className="grid" style={{ gap: 10 }}>
+          {[...abruptLoadRanking, ...dataInconsistencies, ...selfComparison, ...positionComparison].slice(0, 6).map((insight) => (
+            <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
+              <strong>{insight.title}</strong>{insight.value ? ` · ${insight.value}` : ''}<br />{insight.description}
+            </div>
+          ))}
+          {![...abruptLoadRanking, ...dataInconsistencies, ...selfComparison, ...positionComparison].length ? (
+            <EmptyState title="Sin desviaciones" text="No hay alertas complementarias para la fecha activa." />
+          ) : null}
         </div>
       </div>
-
       <div className="grid grid-2">
         {sections.map(({ title, rows, suffix, emptyText }) => (
           <div key={title} className="card">
@@ -198,9 +182,7 @@ export default function RankingPage() {
                     <span className="status-badge ui-tone-blue">{row.value} {suffix}</span>
                   </div>
                 </Link>
-              )) : (
-                <EmptyState title="Sin datos aún" text={emptyText} />
-              )}
+              )) : <EmptyState title="Sin datos aún" text={emptyText} />}
             </div>
           </div>
         ))}

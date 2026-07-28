@@ -191,6 +191,14 @@ export const AlertPanel = ({
   </div>
 );
 
+const OperationalAlertBody = ({ alert }: { alert: OperationalAlert }) => (
+  <>
+    <strong>{alert.title}</strong>
+    <p>{alert.description}</p>
+    {alert.action ? <span className="operational-alert-action">{alert.action}</span> : null}
+  </>
+);
+
 export const OperationalAlertPanel = ({
   title = 'Centro de alertas',
   alerts,
@@ -204,16 +212,21 @@ export const OperationalAlertPanel = ({
     <SectionHeader eyebrow="Alertas" title={title} />
     {alerts.length ? (
       <div className="operational-alert-list">
-        {alerts.map((alert) => (
-          <div key={alert.id} className={`operational-alert ${toneClass(alertTone(alert.level))}`}>
-            <div className="operational-alert-icon"><AlertTriangle size={17} /></div>
-            <div>
-              <strong>{alert.title}</strong>
-              <p>{alert.description}</p>
-              {alert.action ? <span>{alert.action}</span> : null}
-            </div>
-          </div>
-        ))}
+        {alerts.map((alert) => {
+          const inner = (
+            <>
+              <div className="operational-alert-icon"><AlertTriangle size={17} /></div>
+              <div><OperationalAlertBody alert={alert} /></div>
+            </>
+          );
+          return alert.href ? (
+            <Link key={alert.id} href={alert.href} className={`operational-alert operational-alert-link ${toneClass(alertTone(alert.level))}`}>
+              {inner}
+            </Link>
+          ) : (
+            <div key={alert.id} className={`operational-alert ${toneClass(alertTone(alert.level))}`}>{inner}</div>
+          );
+        })}
       </div>
     ) : (
       <EmptyState icon="check" title={emptyText} text="" />
@@ -260,20 +273,42 @@ export const TaskChecklist = ({ tasks }: { tasks: OperationalAlert[] }) => (
     <SectionHeader eyebrow="Pendientes" title="Tareas" />
     {tasks.length ? (
       <div className="task-list">
-        {tasks.map((task, index) => (
-          <div key={task.id} className={`task-item ${toneClass(alertTone(task.level))}`}>
-            <span className="task-index">{String(index + 1).padStart(2, '0')}</span>
-            <div>
-              <strong>{task.title}</strong>
-              <p>{task.description}</p>
-              {task.action ? <span>{task.action}</span> : null}
-            </div>
-          </div>
-        ))}
+        {tasks.map((task, index) => {
+          const inner = (
+            <>
+              <span className="task-index">{String(index + 1).padStart(2, '0')}</span>
+              <div><OperationalAlertBody alert={task} /></div>
+            </>
+          );
+          return task.href ? (
+            <Link key={task.id} href={task.href} className={`task-item task-item-link ${toneClass(alertTone(task.level))}`}>{inner}</Link>
+          ) : (
+            <div key={task.id} className={`task-item ${toneClass(alertTone(task.level))}`}>{inner}</div>
+          );
+        })}
       </div>
     ) : (
       <EmptyState icon="check" title="Sin pendientes" text="" />
     )}
+  </div>
+);
+
+export const MicrocycleSetupBanner = ({
+  microcycleName,
+  className = '',
+}: {
+  microcycleName?: string;
+  className?: string;
+}) => (
+  <div className={`soft-alert warning microcycle-setup-banner ${className}`.trim()}>
+    <AlertTriangle size={18} />
+    <div>
+      <strong>{microcycleName ? `${microcycleName} sin fechas` : 'Microciclo sin rango de fechas'}</strong>
+      <p className="muted-line" style={{ margin: '4px 0 0' }}>
+        Asigna inicio y fin en Microciclo para conectar sesión, plan diario y alertas del día.
+      </p>
+    </div>
+    <Link className="btn secondary btn-compact" href="/microciclo">Completar fechas</Link>
   </div>
 );
 

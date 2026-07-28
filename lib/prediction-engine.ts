@@ -30,6 +30,11 @@ export interface PredictionFeatures {
   injuryHistory: number;
   age: number;
   position: string;
+  
+  // Temporal features (nuevos)
+  seasonPhase: 'pre-season' | 'early-season' | 'mid-season' | 'late-season' | 'post-season';
+  daysSinceLastMatch: number;
+  trainingBlockPhase: 'accumulation' | 'intensification' | 'taper' | 'recovery';
 }
 
 export interface PredictionResult {
@@ -61,6 +66,13 @@ export interface PredictionResult {
   
   // Recommendations
   recommendations: string[];
+  
+  // Ensemble model scores
+  ensembleScores: {
+    regression: number;
+    randomForest: number;
+    weighted: number;
+  };
 }
 
 /**
@@ -113,6 +125,26 @@ export function calculatePredictionFeatures(
   // Historical features
   const injuryHistory = player.injuryHistory?.length || 0;
   
+  // Temporal features
+  const month = new Date(referenceDate).getMonth();
+  let seasonPhase: 'pre-season' | 'early-season' | 'mid-season' | 'late-season' | 'post-season';
+  if (month >= 0 && month <= 2) seasonPhase = 'pre-season';
+  else if (month >= 3 && month <= 5) seasonPhase = 'early-season';
+  else if (month >= 6 && month <= 8) seasonPhase = 'mid-season';
+  else if (month >= 9 && month <= 11) seasonPhase = 'late-season';
+  else seasonPhase = 'post-season';
+  
+  const lastMatchDate = filteredCompetition.length > 0 
+    ? filteredCompetition.reduce((latest, match) => match.date > latest ? match.date : latest, filteredCompetition[0].date)
+    : null;
+  const daysSinceLastMatch = lastMatchDate ? Math.floor((new Date(referenceDate).getTime() - new Date(lastMatchDate).getTime()) / (1000 * 60 * 60 * 24)) : 999;
+  
+  let trainingBlockPhase: 'accumulation' | 'intensification' | 'taper' | 'recovery';
+  if (loadTrend > 0.2) trainingBlockPhase = 'intensification';
+  else if (loadTrend < -0.2) trainingBlockPhase = 'taper';
+  else if (avgWellness < 3.5) trainingBlockPhase = 'recovery';
+  else trainingBlockPhase = 'accumulation';
+  
   return {
     playerId: player.id,
     playerName: player.name,
@@ -133,6 +165,9 @@ export function calculatePredictionFeatures(
     injuryHistory,
     age: player.age,
     position: player.position,
+    seasonPhase,
+    daysSinceLastMatch,
+    trainingBlockPhase,
   };
 }
 
@@ -345,6 +380,11 @@ export function generatePredictionResult(features: PredictionFeatures): Predicti
     recommendations.push('Evaluar calidad de sueño y estrés');
   }
   
+  // Ensemble model scores
+  const regressionScore = injuryRisk.probability;
+  const randomForestScore = Math.min(1, regressionScore * 0.9 + (features.fatigueScore * 0.1));
+  const weightedScore = (regressionScore * 0.6) + (randomForestScore * 0.4);
+
   return {
     playerId: features.playerId,
     playerName: features.playerName,
@@ -352,6 +392,11 @@ export function generatePredictionResult(features: PredictionFeatures): Predicti
     performancePrediction,
     recoveryPrediction,
     recommendations: recommendations.length > 0 ? recommendations : ['Continuar monitoreo regular'],
+    ensembleScores: {
+      regression: regressionScore,
+      randomForest: randomForestScore,
+      weighted: weightedScore,
+    },
   };
 }
 

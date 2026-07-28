@@ -41,14 +41,7 @@ export interface OperationalAlert {
   title: string;
   description: string;
   action?: string;
-}
-
-export interface DataQualityItem {
-  label: string;
-  done: number;
-  total: number;
-  status?: "ok" | "missing" | "partial" | "na";
-  note?: string;
+  href?: string;
 }
 
 export interface DailyOperations {
@@ -357,6 +350,7 @@ export const buildDailyOperations = (
             ? `${player.injuryArea ?? "Zona sin definir"} · ${player.injuryType ?? "Sin detalle"}`
             : "Jugador marcado como lesionado. Requiere seguimiento médico.",
         action: "Revisar perfil del jugador",
+        href: `/jugadores/${player.id}`,
       })),
     ...players
       .filter((player) => player.status === "Molestia")
@@ -367,6 +361,7 @@ export const buildDailyOperations = (
         description:
           "Revisar disponibilidad antes de cargar sesión o competencia.",
         action: "Control preventivo",
+        href: `/disponibilidad`,
       })),
     ...lowWellnessPlayers.map((player) => ({
       id: `wellness-low-${player.id}`,
@@ -374,6 +369,7 @@ export const buildDailyOperations = (
       title: `${player.name} con wellness bajo`,
       description: `Wellness ${averageWellness(wellnessRecords.find((record) => getRelatedPlayerIds(data.players, player.id).has(record.playerId))).toFixed(1)} en la fecha activa.`,
       action: "Revisar carga y estado físico",
+      href: `/carga`,
     })),
     ...highLoadPlayers.map((player) => ({
       id: `load-high-${player.id}`,
@@ -382,6 +378,7 @@ export const buildDailyOperations = (
       description:
         "La carga del día está en zona alta por MIN, RPE o carga interna.",
       action: "Validar recuperación",
+      href: `/plan-diario`,
     })),
     ...matchesToday
       .filter(
@@ -394,6 +391,7 @@ export const buildDailyOperations = (
         title: `Partido vs ${match.opponent} sin planilla`,
         description: `${formatMatchScore(match)} · ${match.venue ?? "Local"}. Faltan jugadores del partido.`,
         action: "Revisar partido",
+        href: `/competencia`,
       })),
     ...(activeMicrocycle &&
     (!activeMicrocycle.startDate || !activeMicrocycle.endDate)
@@ -405,6 +403,7 @@ export const buildDailyOperations = (
             description:
               "Asigna fecha de inicio y fin para conectar Microciclo, Diario y Sesión.",
             action: "Ir a Microciclo",
+            href: "/microciclo",
           },
         ]
       : []),
@@ -418,6 +417,7 @@ export const buildDailyOperations = (
           title: `${missingWellness.length} jugadores sin wellness`,
           description: "Registro de wellness pendiente.",
           action: "Cargar wellness",
+          href: "/wellness",
         }
       : undefined,
     missingInternal.length
@@ -428,6 +428,7 @@ export const buildDailyOperations = (
           description:
             "Faltan RPE y duración para consolidar la carga interna.",
           action: "Registrar carga",
+          href: "/sesion-entrenamiento",
         }
       : undefined,
     !sessionSummaries.length
@@ -438,6 +439,7 @@ export const buildDailyOperations = (
           description:
             "Guarda la ficha de sesión para cerrar el día operativo.",
           action: "Crear sesión",
+          href: "/sesion-entrenamiento",
         }
       : undefined,
     activeMicrocycle &&
@@ -448,6 +450,7 @@ export const buildDailyOperations = (
           title: "Microciclo activo incompleto",
           description: "El microciclo seleccionado no tiene rango de fechas.",
           action: "Asignar fechas",
+          href: "/microciclo",
         }
       : undefined,
     matchesToday.some(
@@ -460,6 +463,7 @@ export const buildDailyOperations = (
           title: "Partido cargado sin jugadores",
           description: "Planilla de partido pendiente.",
           action: "Actualizar partido",
+          href: "/competencia",
         }
       : undefined,
   ].filter(Boolean) as OperationalAlert[];

@@ -533,6 +533,140 @@ export const buildPositionComparisonInsights = (params: {
     }));
 };
 
+// Insights contextuales - consideran día de semana, momento de microciclo
+export const buildContextualInsights = (params: {
+  players: Player[];
+  internalLoads: DailyInternalLoadRecord[];
+  externalLoads: DailyExternalLoadRecord[];
+  wellnessRecords: DailyWellnessRecord[];
+  referenceDate: string;
+  category?: ClubCategory | 'all';
+}): LogicInsight[] => {
+  const { players, internalLoads, externalLoads, wellnessRecords, referenceDate, category = 'all' } = params;
+  const insights: LogicInsight[] = [];
+  
+  const dayOfWeek = new Date(referenceDate).getDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const isMonday = dayOfWeek === 1;
+  
+  // Insight: Wellness bajo después del fin de semana
+  if (isMonday) {
+    const weekendWellness = wellnessRecords.filter((w) => {
+      const wDate = new Date(w.date);
+      const wDay = wDate.getDay();
+      return wDay === 0 || wDay === 6;
+    });
+    
+    const avgWeekendWellness = weekendWellness.length > 0 
+      ? weekendWellness.reduce((sum, w) => sum + (w.sleep + w.fatigue + w.stress + w.musclePain + w.mood) / 5, 0) / weekendWellness.length
+      : 0;
+    
+    if (avgWeekendWellness < 3.5) {
+      insights.push({
+        id: 'contextual-weekend-wellness',
+        title: 'Wellness fin de semana',
+        tone: 'yellow',
+        value: `${round(avgWeekendWellness, 1)}/5`,
+        description: 'Wellness promedio del fin de semana bajo. Considerar revisar hábitos de recuperación de los jugadores.',
+      });
+    }
+  }
+  
+  // Insight: Carga elevada en día de descanso típico
+  if (isWeekend) {
+    const weekendLoad = internalLoads.filter((i) => {
+      const iDate = new Date(i.date);
+      const iDay = iDate.getDay();
+      return iDay === 0 || iDay === 6;
+    }).reduce((sum, i) => sum + (i.rpe * i.duration), 0);
+    
+    if (weekendLoad > 500) {
+      insights.push({
+        id: 'contextual-weekend-load',
+        title: 'Carga fin de semana',
+        tone: 'yellow',
+        value: `${round(weekendLoad)} UA`,
+        description: 'Carga significativa registrada en fin de semana. Verificar si corresponde a competición o ajustar programación.',
+      });
+    }
+  }
+  
+  return insights;
+};
+
+// Alertas proactivas - antes de que ocurra el problema
+export const buildProactiveAlerts = (params: {
+  players: Player[];
+  internalLoads: DailyInternalLoadRecord[];
+  externalLoads: DailyExternalLoadRecord[];
+  wellnessRecords: DailyWellnessRecord[];
+  referenceDate: string;
+  category?: ClubCategory | 'all';
+}): LogicInsight[] => {
+  const { players, internalLoads, externalLoads, wellnessRecords, referenceDate, category = 'all' } = params;
+  const alerts: LogicInsight[] = [];
+  
+  // Alerta: Tendencia de wellness descendente
+  players.filter((player) => category === 'all' || !category || player.category === category).forEach((player) => {
+    const playerWellness = wellnessRecords
+      .filter((w) => w.playerId === player.id)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 7);
+    
+    if (playerWellness.length >= 5) {
+      const recent = playerWellness.slice(0, 3).reduce((sum, w) => sum + (w.sleep + w.fatigue + w.stress + w.musclePain + w.mood) / 5, 0) / 3;
+      const prior = playerWellness.slice(3, 6).reduce((sum, w) => sum + (w.sleep + w.fatigue + w.stress + w.musclePain + w.mood) / 5, 0) / 3;
+      
+      if (recent < prior - 0.5 && recent < 3.5) {
+        alerts.push({
+          id: `proactive-wellness-${player.id}`,
+          title: `${player.name}: tendencia wellness`,
+          tone: 'yellow',
+          value: `${round(recent, 1)}/5`,
+          description: `Wellness en descenso (${round(prior - recent, 1)} puntos). Monitorear de cerca en próximos días.`,
+        });
+      }
+    }
+  });
+  
+  // Alerta: ACWR elevado antes de competición
+  const upcomingMatches = players.filter((player) => category === 'all' || !category || player.category === category)
+    .map((player) => {
+      const playerInternal = internalLoads.filter((i) => i.playerId === player.id);
+      const recent7d = playerInternal
+        .filter((i) => {
+          const daysDiff = (new Date(referenceDate).getTime() - new Date(i.date).getTime()) / (1000 * 60 * 60 * 24);
+          return daysDiff >= 0 && daysDiff <= 7;
+        })
+        .reduce((sum, i) => sum + (i.rpe * i.duration), 0);
+      
+      const prior21d = playerInternal
+        .filter((i) => {
+          const daysDiff = (new Date(referenceDate).getTime() - new Date(i.date).getTime()) / (1000 * 60 * 60 * 24);
+          return daysDiff > 7 && daysDiff <= 28;
+        })
+        .reduce((sum, i) => sum + (i.rpe * i.duration), 0);
+      
+      const chronic = prior21d / 3;
+      const acwr = chronic > 0 ? recent7d / chronic : 0;
+      
+      return { player, acwr };
+    })
+    .filter((row) => row.acwr > 1.3);
+  
+  if (upcomingMatches.length > 0) {
+    alerts.push({
+      id: 'proactive-acwr-competition',
+      title: 'ACWR elevado antes de competición',
+      tone: 'red',
+      value: `${upcomingMatches.length} jugadores`,
+      description: `${upcomingMatches.map((p) => p.player.name).join(', ')} con ACWR > 1.3. Considerar ajustar carga antes de próximo partido.`,
+    });
+  }
+  
+  return alerts.slice(0, 10);
+};
+
 export const buildDataInconsistencyAlerts = (params: {
   players: Player[];
   internalLoads: DailyInternalLoadRecord[];

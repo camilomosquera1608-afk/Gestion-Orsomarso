@@ -106,6 +106,15 @@ export interface VelocityExposureMetric {
   subexposedToSpeed: boolean;
 }
 
+export interface CumulativeFatigueMetric {
+  fatigue7d: number;
+  fatigue14d: number;
+  fatigue21d: number;
+  fatigueTrend: 'increasing' | 'decreasing' | 'stable';
+  recoveryStatus: 'adequate' | 'insufficient' | 'critical';
+  recommendations: string[];
+}
+
 export interface DataConfidenceMetric {
   score: number;
   label: DataConfidenceLabel;
@@ -296,7 +305,27 @@ const ewma = (values: number[], span: number) => {
   return current;
 };
 
-const acwrZone = (ratio: number, chronic: number, acute: number): VariableAcwrMetric['zone'] => {
+// ACWR dinámico según posición del jugador
+const getPositionSpecificAcwrSettings = (position: string) => {
+  const pos = position.toLowerCase();
+  if (pos.includes('portero') || pos.includes('arquero')) {
+    return { acuteWindow: 7, chronicWindow: 28, targetRange: [0.8, 1.3] };
+  }
+  if (pos.includes('defensa') || pos.includes('lateral')) {
+    return { acuteWindow: 7, chronicWindow: 28, targetRange: [0.9, 1.4] };
+  }
+  if (pos.includes('mediocampista')) {
+    return { acuteWindow: 7, chronicWindow: 28, targetRange: [0.85, 1.35] };
+  }
+  if (pos.includes('extremo') || pos.includes('delantero')) {
+    return { acuteWindow: 5, chronicWindow: 21, targetRange: [0.8, 1.5] };
+  }
+  return { acuteWindow: 7, chronicWindow: 28, targetRange: [0.9, 1.3] }; // Default
+};
+
+const acwrZone = (ratio: number, chronic: number, acute: number, position?: string): VariableAcwrMetric['zone'] => {
+  const settings = position ? getPositionSpecificAcwrSettings(position) : { targetRange: [0.9, 1.3] };
+  const [minTarget, maxTarget] = settings.targetRange;
   if (chronic <= 0 || acute <= 0) return 'no_data';
   if (ratio > 1.5) return 'danger';
   if (ratio > 1.3) return 'caution';
@@ -307,10 +336,62 @@ const acwrZone = (ratio: number, chronic: number, acute: number): VariableAcwrMe
 const acwrZoneLabel = (zone: VariableAcwrMetric['zone']) => ({
   target: 'Zona objetivo',
   low: 'Subcarga',
-  caution: 'Precaucion',
-  danger: 'Riesgo alto',
-  no_data: 'Historial insuficiente',
+  caution: 'Precaución',
+  danger: 'Peligro',
+  no_data: 'Sin datos',
 }[zone]);
+
+// Cálculo de fatiga acumulativa de 14/21 días
+const calculateCumulativeFatigue = (dailyLoads: DayLoadBreakdown[], wellnessScores: number[]): CumulativeFatigueMetric => {
+  const loads7d = dailyLoads.slice(0, 7);
+  const loads14d = dailyLoads.slice(0, 14);
+  const loads21d = dailyLoads.slice(0, 21);
+
+  const fatigue7d = loads7d.reduce((sum, day) => sum + day.effectiveLoad, 0);
+  const fatigue14d = loads14d.reduce((sum, day) => sum + day.effectiveLoad, 0);
+  const fatigue21d = loads21d.reduce((sum, day) => sum + day.effectiveLoad, 0);
+
+  // Tendencia de fatiga
+  const recent7d = loads7d.map(d => d.effectiveLoad);
+  const prior7d = dailyLoads.slice(7, 14).map(d => d.effectiveLoad);
+  const avgRecent = mean(recent7d);
+  const avgPrior = mean(prior7d);
+  
+  let fatigueTrend: 'increasing' | 'decreasing' | 'stable';
+  if (avgRecent > avgPrior * 1.1) fatigueTrend = 'increasing';
+  else if (avgRecent < avgPrior * 0.9) fatigueTrend = 'decreasing';
+  else fatigueTrend = 'stable';
+
+  // Estado de recuperación basado en wellness
+  const recentWellness = wellnessScores.slice(0, 7);
+  const avgWellness = mean(recentWellness);
+  
+  let recoveryStatus: 'adequate' | 'insufficient' | 'critical';
+  if (avgWellness >= 4) recoveryStatus = 'adequate';
+  else if (avgWellness >= 3) recoveryStatus = 'insufficient';
+  else recoveryStatus = 'critical';
+
+  // Recomendaciones
+  const recommendations: string[] = [];
+  if (fatigueTrend === 'increasing' && recoveryStatus !== 'adequate') {
+    recommendations.push('Considerar reducción de carga en próximos días');
+  }
+  if (fatigue21d > fatigue14d * 1.5) {
+    recommendations.push('Fatiga acumulativa elevada - planificar recuperación');
+  }
+  if (recoveryStatus === 'critical') {
+    recommendations.push('Priorizar recuperación y descanso activo');
+  }
+
+  return {
+    fatigue7d: round(fatigue7d),
+    fatigue14d: round(fatigue14d),
+    fatigue21d: round(fatigue21d),
+    fatigueTrend,
+    recoveryStatus,
+    recommendations,
+  };
+};
 
 export const computeVariableAcwr = (days: DayLoadBreakdown[], variable: LoadVariable): VariableAcwrMetric => {
   const values = days.map((day) => variableValue(day, variable));

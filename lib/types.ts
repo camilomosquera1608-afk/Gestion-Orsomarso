@@ -361,123 +361,6 @@ export interface Microcycle {
 
 
 
-export type TechnicalProjection = 'baja' | 'media' | 'alta' | 'muy_alta';
-export type TechnicalModelFit = 'bajo' | 'medio' | 'alto';
-export type TechnicalReportContext = 'partido' | 'entrenamiento' | 'torneo' | 'video' | 'prueba' | 'otro';
-export type TechnicalRecommendation = 'seguir_observando' | 'priorizar' | 'convocable' | 'promover' | 'descartar' | 'revisar_mas_adelante';
-export type ScoutStatus = 'sin_seguimiento' | 'nuevo' | 'observado' | 'en_seguimiento' | 'interesante' | 'prioridad' | 'convocable' | 'promovible' | 'descartado';
-export type ScoutReason = 'proyeccion' | 'necesidad_posicion' | 'rendimiento_reciente' | 'recomendacion_scout' | 'seguimiento_seleccion' | 'promocion_categoria' | 'otro';
-export type ScoutDiscardReason = 'no_encaja_modelo' | 'bajo_nivel_competitivo' | 'baja_proyeccion' | 'problema_disciplinario' | 'posicion_cubierta' | 'falta_datos' | 'otro';
-export type SelectionLevel = 'nacional' | 'departamental' | 'regional' | 'municipal' | 'otra';
-export type SelectionCallType = 'microciclo' | 'competencia' | 'amistoso' | 'visoria' | 'entrenamiento' | 'otro';
-export type SelectionCallStatus = 'preconvocado' | 'convocado' | 'participo' | 'no_asistio' | 'descartado' | 'pendiente';
-export type CaptureSource = 'scouting' | 'recomendacion' | 'torneo' | 'escuela' | 'club_aliado' | 'prueba' | 'seleccion' | 'otro';
-export type TechnicalDecisionType = 'mantener_en_observacion' | 'marcar_prioridad' | 'marcar_convocable' | 'promover_categoria' | 'descartar' | 'solicitar_nuevo_reporte' | 'enviar_a_revision' | 'cerrar_seguimiento';
-
-export interface TechnicalProfile {
-  id: string;
-  playerId: string;
-  mainPosition: string;
-  secondaryPositions: string[];
-  dominantFoot: 'derecha' | 'izquierda' | 'ambas';
-  gameProfile: string;
-  tacticalRole: string;
-  strengths: string[];
-  weaknesses: string[];
-  projection: TechnicalProjection;
-  modelFit: TechnicalModelFit;
-  generalNotes: string;
-  updatedAt: string;
-  updatedBy: string;
-}
-
-export interface TechnicalReport {
-  id: string;
-  playerId: string;
-  authorId: string;
-  date: string;
-  context: TechnicalReportContext;
-  observedPosition: string;
-  minutesObserved?: number;
-  opponentOrContext?: string;
-  category?: string;
-  technicalScore: number;
-  tacticalScore: number;
-  physicalScore: number;
-  mentalScore: number;
-  projectionScore: number;
-  modelFitScore: number;
-  strengths: string[];
-  weaknesses: string[];
-  summary: string;
-  recommendation: TechnicalRecommendation;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface ScoutFollowUp {
-  id: string;
-  playerId: string;
-  status: ScoutStatus;
-  reason?: ScoutReason;
-  discardReason?: ScoutDiscardReason;
-  priorityLevel: 'baja' | 'media' | 'alta';
-  notes?: string;
-  responsibleUserId?: string;
-  updatedAt: string;
-  updatedBy: string;
-}
-
-export interface SelectionCallRecord {
-  id: string;
-  playerId: string;
-  selectionName: string;
-  selectionLevel: SelectionLevel;
-  category: string;
-  callType: SelectionCallType;
-  status: SelectionCallStatus;
-  startDate: string;
-  endDate?: string;
-  eventName?: string;
-  location?: string;
-  notes?: string;
-  createdAt: string;
-  createdBy: string;
-  updatedAt?: string;
-}
-
-export interface PlayerCaptureLocation {
-  id: string;
-  playerId: string;
-  country: string;
-  department?: string;
-  region?: string;
-  municipality?: string;
-  city?: string;
-  neighborhood?: string;
-  sourceClub?: string;
-  school?: string;
-  academy?: string;
-  latitude?: number;
-  longitude?: number;
-  captureDate?: string;
-  captureYear?: number;
-  capturedBy?: string;
-  captureSource: CaptureSource;
-  isPrimary?: boolean;
-  notes?: string;
-}
-
-export interface TechnicalDecision {
-  id: string;
-  playerId: string;
-  decision: TechnicalDecisionType;
-  reason: string;
-  notes?: string;
-  createdAt: string;
-  createdBy: string;
-}
-
 export interface AppData {
   players: Player[];
   wellness: DailyWellnessRecord[];
@@ -492,12 +375,6 @@ export interface AppData {
   trainingSessionSummaries: TrainingSessionSummary[];
   microcycles: Microcycle[];
   strengthSessions: StrengthSession[];
-  technicalProfiles: TechnicalProfile[];
-  technicalReports: TechnicalReport[];
-  scoutFollowUps: ScoutFollowUp[];
-  selectionCallRecords: SelectionCallRecord[];
-  playerCaptureLocations: PlayerCaptureLocation[];
-  technicalDecisions: TechnicalDecision[];
 }
 
 export interface GlobalFilters {

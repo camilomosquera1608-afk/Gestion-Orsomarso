@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Activity, AlertTriangle, CheckCircle2, ClipboardList } from 'lucide-react';
 import { AppHero } from '@/components/app-hero';
 import { GlobalFiltersBar } from '@/components/global-filters';
@@ -42,7 +43,7 @@ export default function AdherencePage() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.playerId}>
-                  <td><strong>{row.name}</strong></td>
+                  <td><Link href={`/jugadores/${row.playerId}`}><strong>{row.name}</strong></Link></td>
                   <td><StatusBadge text={`${row.adherencePct}%`} tone={row.tone} /></td>
                   <td>{row.registeredDays}/{row.totalDays}</td>
                   <td><StatusBadge text={row.confidenceLabel} tone={row.tone} /></td>
@@ -67,7 +68,7 @@ export default function AdherencePage() {
             <tbody>
               {last7.map((row) => (
                 <tr key={row.playerId}>
-                  <td><strong>{row.name}</strong></td>
+                  <td><Link href={`/jugadores/${row.playerId}`}><strong>{row.name}</strong></Link></td>
                   {row.dates.map((day) => <td key={day.date}><StatusBadge text={day.registered ? 'OK' : 'Sin dato'} tone={day.registered ? 'green' : 'red'} /></td>)}
                 </tr>
               ))}
