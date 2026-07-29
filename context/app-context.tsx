@@ -855,6 +855,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const next = stored ? hydrateData(stored) : initialData;
         setData(next);
         dataRef.current = next;
+        saveLocalAppData(next); // Ensure data is persisted on initial load
         setSyncStatus("ready");
       }
 

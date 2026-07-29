@@ -606,13 +606,9 @@ const compactForLocal = (data: AppData): Partial<AppData> => {
     microcycles: data.microcycles,
     trainingSessionSummaries: data.trainingSessionSummaries,
     strengthSessions: data.strengthSessions,
+    // FIX: Keep all competition data locally for persistence without Supabase
     competitionMatchSummaries: data.competitionMatchSummaries,
-    competitionRecords: data.competitionRecords.map(
-      (r) =>
-        stripCompetitionRecord(
-          r as unknown as Record<string, unknown>,
-        ) as unknown as typeof r,
-    ),
+    competitionRecords: data.competitionRecords,
     cmjRecords: data.cmjRecords,
     neuromuscularRecords: data.neuromuscularRecords,
     fmsRecords: data.fmsRecords,
