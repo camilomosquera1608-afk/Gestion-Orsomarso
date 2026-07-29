@@ -6,6 +6,7 @@ import { CompetitionReportTemplate } from '@/components/competition-report';
 import { PremiumCompetitionReport } from '@/components/pdf/premium-competition-report';
 import { EmptyState, MatchCard, SectionHeader, StatusBadge } from '@/components/pro-ui';
 import { KpiCard } from '@/components/kpi-card';
+import { GPSEditor } from '@/components/gps/gps-editor';
 import { useApp } from '@/context/app-context';
 import { downloadCsv } from '@/lib/export';
 import { getStaffSession, isMasterRole } from '@/lib/auth';
@@ -16,7 +17,7 @@ import { buildCompetitionReportData } from '@/lib/competition-report';
 import { findDuplicateMatch } from '@/lib/operational-validation';
 import { ClubCategory, MovementType, CompetitionMedicalStatus, CompetitionPlayerRole, CompetitionRecord, CompetitionVenue, type CompetitionLineupSlot, type DailyExternalLoadRecord } from '@/lib/types';
 import { type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react';
-import { Upload as UploadIcon, FileText, X as XIcon } from 'lucide-react';
+import { Upload as UploadIcon, FileText, X as XIcon, Edit2 } from 'lucide-react';
 import { parseEyeballCsv, type EyeballMatchStats } from '@/components/eyeball-importer';
 import { CsvImporter } from '@/components/csv-importer';
 import { supportsGps } from '@/lib/report-utils';
@@ -290,6 +291,7 @@ export default function CompetenciaPage() {
   const [eyeballError, setEyeballError] = useState('');
   const [activeLineupSlotId, setActiveLineupSlotId] = useState('');
   const [reportStyle, setReportStyle] = useState<'classic' | 'premium'>('classic');
+  const [showGpsEditor, setShowGpsEditor] = useState(false);
 
   const processEyeballFile = (file: File, period: 'full' | 'first' | 'second' = 'full') => {
     setEyeballError('');
@@ -1163,6 +1165,12 @@ export default function CompetenciaPage() {
             <div className="btn-row">
               <button type="button" className="btn secondary" onClick={() => updateMatchStatus(selectedMatch.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>{selectedMatch.status === 'Cerrada' ? 'Reabrir partido' : 'Cerrar partido'}</button>
               {supportsGps(activeCategory) ? <button type="button" className="btn secondary" onClick={() => setShowGpsCsv(true)}>Importar CSV GPS</button> : null}
+              {supportsGps(activeCategory) && selectedMatch.lineupSlots && selectedMatch.lineupSlots.length > 0 ? (
+                <button type="button" className="btn secondary" onClick={() => setShowGpsEditor(true)}>
+                  <Edit2 size={16} />
+                  Editar datos GPS
+                </button>
+              ) : null}
               <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver informe completo'}</button>
               <select className="select" value={reportStyle} onChange={(e) => setReportStyle(e.target.value as 'classic' | 'premium')}>
                 <option value="classic">Reporte Clásico</option>
@@ -1180,6 +1188,78 @@ export default function CompetenciaPage() {
               )}
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {/* ── GPS EDITOR — Modal para editar datos GPS ─────────── */}
+      {showGpsEditor && selectedMatch ? (
+        <div className="card">
+          <div className="gps-editor-modal">
+            <GPSEditor
+              matchId={selectedMatch.id}
+              category={activeCategory}
+              records={selectedMatch.lineupSlots
+                .filter(slot => slot.gpsData)
+                .map(slot => ({
+                  id: slot.id,
+                  playerId: slot.playerId,
+                  min: slot.gpsData?.min || 0,
+                  acc: slot.gpsData?.acc || 0,
+                  dcc: slot.gpsData?.dcc || 0,
+                  sprints: slot.gpsData?.sprints || 0,
+                  rhie: slot.gpsData?.rhie || 0,
+                  totalDistance: slot.gpsData?.totalDistance || 0,
+                  maxVelocity: slot.gpsData?.maxVelocity || 0,
+                  playerLoad: slot.gpsData?.playerLoad || 0,
+                  highSpeedDistance: slot.gpsData?.highSpeedDistance || 0,
+                  sprintDistance: slot.gpsData?.sprintDistance || 0,
+                  hsr: slot.gpsData?.hsr || 0,
+                  distancePerMin: slot.gpsData?.distancePerMin || 0,
+                  playerLoadPerMin: slot.gpsData?.playerLoadPerMin || 0,
+                  ima: slot.gpsData?.ima,
+                }))}
+              players={getCanonicalPlayers(activeCategory)}
+              onSave={async (updatedRecords) => {
+                // Actualizar los datos GPS en el partido
+                const updatedLineupSlots = selectedMatch.lineupSlots?.map(slot => {
+                  const updatedRecord = updatedRecords.find(r => r.playerId === slot.playerId);
+                  if (updatedRecord) {
+                    return {
+                      ...slot,
+                      gpsData: {
+                        min: updatedRecord.min,
+                        acc: updatedRecord.acc,
+                        dcc: updatedRecord.dcc,
+                        sprints: updatedRecord.sprints,
+                        rhie: updatedRecord.rhie,
+                        totalDistance: updatedRecord.totalDistance,
+                        maxVelocity: updatedRecord.maxVelocity,
+                        playerLoad: updatedRecord.playerLoad,
+                        highSpeedDistance: updatedRecord.highSpeedDistance,
+                        sprintDistance: updatedRecord.sprintDistance,
+                        hsr: updatedRecord.hsr,
+                        distancePerMin: updatedRecord.distancePerMin,
+                        playerLoadPerMin: updatedRecord.playerLoadPerMin,
+                        ima: updatedRecord.ima,
+                      },
+                    };
+                  }
+                  return slot;
+                }) || [];
+
+                await upsertCompetitionMatchSummary({
+                  ...selectedMatch,
+                  lineupSlots: updatedLineupSlots,
+                });
+                setShowGpsEditor(false);
+              }}
+              onCancel={() => setShowGpsEditor(false)}
+              onRestoreOriginal={() => {
+                // Restaurar datos originales del CSV
+                setShowGpsEditor(false);
+              }}
+            />
+          </div>
         </div>
       ) : null}
 
