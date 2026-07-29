@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
-import { CompetitionReportTemplate } from '@/components/competition-report';
+import { PremiumCompetitionReport } from '@/components/pdf/premium-competition-report';
 import { EmptyState, MatchCard, SectionHeader, StatusBadge } from '@/components/pro-ui';
 import { KpiCard } from '@/components/kpi-card';
 import { useApp } from '@/context/app-context';
@@ -1167,7 +1167,7 @@ export default function CompetenciaPage() {
           </div>
           {showGroupReport && competitionReport ? (
             <div style={{ marginTop: 16 }}>
-              <CompetitionReportTemplate report={competitionReport} category={activeCategory} eyeballStats={eyeballStats} eyeballFirstHalfStats={eyeballFirstHalfStats} eyeballSecondHalfStats={eyeballSecondHalfStats} />
+              <PremiumCompetitionReport report={competitionReport} />
             </div>
           ) : null}
         </div>
@@ -1295,7 +1295,7 @@ export default function CompetenciaPage() {
         />
       ) : null}
 
-      {competitionReport ? <CompetitionReportTemplate report={competitionReport} category={activeCategory} className="print-only" eyeballStats={eyeballStats} eyeballFirstHalfStats={eyeballFirstHalfStats} eyeballSecondHalfStats={eyeballSecondHalfStats} /> : null}
+      {competitionReport ? <PremiumCompetitionReport report={competitionReport} className="print-only" /> : null}
     </div>
   );
 }

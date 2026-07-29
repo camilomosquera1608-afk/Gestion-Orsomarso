@@ -48,6 +48,42 @@
   --ease-out-back:    cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* ─── Dark mode ─── */
+.dark {
+  --bg:           #0f172a;
+  --bg-soft:      #1e293b;
+  --bg-card:      #1e293b;
+  --line:         #334155;
+  --line-soft:    #475569;
+  --text:         #f1f5f9;
+  --text-2:       #e2e8f0;
+  --muted:        #94a3b8;
+  --muted-2:      #64748b;
+
+  --navy:         #1e3a5f;
+  --navy-2:       #1e40af;
+  --blue:         #3b82f6;
+  --blue-dark:    #2563eb;
+  --blue-soft:    #1e3a5f;
+  --blue-mid:     #1e40af;
+
+  --green:        #22c55e;
+  --green-soft:   #14532d;
+  --green-mid:    #166534;
+  --amber:        #f59e0b;
+  --amber-soft:   #78350f;
+  --amber-mid:    #92400e;
+  --red:          #ef4444;
+  --red-soft:     #7f1d1d;
+  --red-mid:      #991b1b;
+
+  --shadow-xs:    0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2);
+  --shadow-sm:    0 4px 12px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);
+  --shadow-md:    0 8px 24px rgba(0,0,0,.5), 0 3px 8px rgba(0,0,0,.4);
+  --shadow-soft:  0 12px 36px rgba(0,0,0,.4);
+  --shadow-card:  0 1px 3px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.4);
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -155,6 +191,8 @@ img { max-width: 100%; height: auto; }
 .nav-link.active { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(147,197,253,.22); box-shadow: inset 3px 0 0 #60a5fa; }
 .nav-link:hover { background: rgba(255,255,255,.07); color: #f8fafc; }
 .nav-logout { margin-top: 20px; width: 100%; background: transparent; cursor: pointer; color: #fecaca; border: 1px solid rgba(248,113,113,.16); }
+.sidebar-actions { display: flex; gap: 8px; margin-top: 12px; }
+.sidebar-actions .btn { flex: 1; padding: 8px 12px; font-size: 12px; }
 
 /* ─── Hero / Page header ─── */
 .hero {
@@ -209,6 +247,14 @@ img { max-width: 100%; height: auto; }
 .input:focus, .select:focus, .textarea:focus, textarea.input:focus {
   border-color: #93c5fd;
   box-shadow: 0 0 0 3px rgba(37,99,235,.10);
+}
+.input-error {
+  border-color: var(--red) !important;
+  box-shadow: 0 0 0 3px rgba(220,38,38,.10) !important;
+}
+.input-success {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 3px rgba(13,148,103,.10) !important;
 }
 .filter-action { align-content:end; }
 .active-context-chip, .summary-chip { display:inline-flex; width:fit-content; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:var(--blue-soft); color:var(--blue-dark); border:1px solid var(--blue-mid); font-weight:800; font-size:11.5px; }

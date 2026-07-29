@@ -30,6 +30,8 @@ import {
   TrendingUp,
   UserRoundPlus,
   Users,
+  Moon,
+  Sun,
   type LucideIcon,
 } from "lucide-react";
 import { categoryLabel } from "@/lib/labels";
@@ -38,6 +40,7 @@ import { getStaffSession, logoutStaff } from "@/lib/auth";
 import { signOutSupabase, tableSchemaSyncEnabled } from "@/lib/supabase";
 import { ORSOMARSO_BRAND } from "@/lib/design-system";
 import { useApp } from "@/context/app-context";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const staffGroups = [
   {
@@ -231,18 +234,21 @@ export const Sidebar = () => {
             {tableSchemaSyncEnabled ? "Supabase activo" : "Modo local"}
           </span>
         </div>
-        <button
-          type="button"
-          className="sidebar-logout"
-          onClick={async () => {
-            await signOutSupabase();
-            logoutStaff();
-            router.push("/login");
-          }}
-        >
-          <LogOut size={15} />
-          <span>Cerrar sesión</span>
-        </button>
+        <div className="sidebar-actions">
+          <ThemeToggle />
+          <button
+            type="button"
+            className="sidebar-logout"
+            onClick={async () => {
+              await signOutSupabase();
+              logoutStaff();
+              router.push("/login");
+            }}
+          >
+            <LogOut size={15} />
+            <span>Cerrar sesión</span>
+          </button>
+        </div>
       </div>
     </aside>
   );
