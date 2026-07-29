@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AppHero } from '@/components/app-hero';
+import { CompetitionReportTemplate } from '@/components/competition-report';
 import { PremiumCompetitionReport } from '@/components/pdf/premium-competition-report';
 import { EmptyState, MatchCard, SectionHeader, StatusBadge } from '@/components/pro-ui';
 import { KpiCard } from '@/components/kpi-card';
@@ -288,6 +289,7 @@ export default function CompetenciaPage() {
   const [eyeballSecondHalfFile, setEyeballSecondHalfFile] = useState('');
   const [eyeballError, setEyeballError] = useState('');
   const [activeLineupSlotId, setActiveLineupSlotId] = useState('');
+  const [reportStyle, setReportStyle] = useState<'classic' | 'premium'>('classic');
 
   const processEyeballFile = (file: File, period: 'full' | 'first' | 'second' = 'full') => {
     setEyeballError('');
@@ -1162,12 +1164,20 @@ export default function CompetenciaPage() {
               <button type="button" className="btn secondary" onClick={() => updateMatchStatus(selectedMatch.status === 'Cerrada' ? 'Reabierta' : 'Cerrada')}>{selectedMatch.status === 'Cerrada' ? 'Reabrir partido' : 'Cerrar partido'}</button>
               {supportsGps(activeCategory) ? <button type="button" className="btn secondary" onClick={() => setShowGpsCsv(true)}>Importar CSV GPS</button> : null}
               <button type="button" className="btn secondary" onClick={() => setShowGroupReport((value) => !value)}>{showGroupReport ? 'Ocultar vista previa' : 'Ver informe completo'}</button>
+              <select className="select" value={reportStyle} onChange={(e) => setReportStyle(e.target.value as 'classic' | 'premium')}>
+                <option value="classic">Reporte Clásico</option>
+                <option value="premium">Reporte Premium</option>
+              </select>
               <button type="button" className="btn" onClick={exportCleanPdf}>Generar PDF limpio</button>
             </div>
           </div>
           {showGroupReport && competitionReport ? (
             <div style={{ marginTop: 16 }}>
-              <PremiumCompetitionReport report={competitionReport} />
+              {reportStyle === 'classic' ? (
+                <CompetitionReportTemplate report={competitionReport} category={activeCategory} eyeballStats={eyeballStats} eyeballFirstHalfStats={eyeballFirstHalfStats} eyeballSecondHalfStats={eyeballSecondHalfStats} />
+              ) : (
+                <PremiumCompetitionReport report={competitionReport} />
+              )}
             </div>
           ) : null}
         </div>
@@ -1295,7 +1305,7 @@ export default function CompetenciaPage() {
         />
       ) : null}
 
-      {competitionReport ? <PremiumCompetitionReport report={competitionReport} className="print-only" /> : null}
+      {competitionReport ? <CompetitionReportTemplate report={competitionReport} category={activeCategory} className="print-only" eyeballStats={eyeballStats} eyeballFirstHalfStats={eyeballFirstHalfStats} eyeballSecondHalfStats={eyeballSecondHalfStats} /> : null}
     </div>
   );
 }
