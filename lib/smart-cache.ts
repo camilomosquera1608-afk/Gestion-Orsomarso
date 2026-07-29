@@ -31,7 +31,7 @@ class SmartCache {
     }
   }
 
-  private generateKey(prefix: string, params: Record<string, any>): string {
+  public generateKey(prefix: string, params: Record<string, any>): string {
     const paramString = Object.entries(params)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
@@ -50,7 +50,9 @@ class SmartCache {
     // Enforce max size by removing oldest entries
     if (this.cache.size >= this.config.maxSize) {
       const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
     }
 
     this.cache.set(key, entry);
@@ -179,13 +181,4 @@ export const cacheKeys = {
     smartCache.generateKey('competition', params || {}),
   training: (params?: { sessionId?: string; date?: string }) => 
     smartCache.generateKey('training', params || {}),
-};
-
-// Add generateKey method to the class
-SmartCache.prototype.generateKey = function(prefix: string, params: Record<string, any>): string {
-  const paramString = Object.entries(params)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
-    .join('&');
-  return `${prefix}:${paramString}`;
 };
