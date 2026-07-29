@@ -946,58 +946,19 @@ export default function CompetenciaPage() {
 
       {message ? <div className="card"><strong>{message}</strong></div> : null}
 
-      <div className="grid grid-2">
-        <div className="card compact-card">
-          <span className="section-eyebrow">Lógica de competencia</span>
-          <h3 style={{ margin: '4px 0 8px' }}>Indicadores operativos del partido</h3>
-          <div className="grid" style={{ gap: 8 }}>
-            {competitionLogic.insights.map((insight) => (
-              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
-                <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
+      <div className="card compact-card">
+        <span className="section-eyebrow">Alertas del partido</span>
+        <h3 style={{ margin: '4px 0 8px' }}>Incidencias importantes</h3>
+        <div className="grid" style={{ gap: 8 }}>
+          {medicalAlerts.length ? medicalAlerts.map((alert) => {
+            const player = data.players.find(p => p.id === alert.playerId);
+            return (
+              <div key={alert.id} className={`alert-item tone-red`}>
+                <strong>{player?.name || 'Jugador'}</strong> · {alert.medicalStatus || 'Sin estado'}<br />
+                {alert.postCompetitionStatus || 'Sin observación'}
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="card compact-card">
-          <span className="section-eyebrow">Ranking inteligente</span>
-          <h3 style={{ margin: '4px 0 8px' }}>Impacto físico-técnico del partido</h3>
-          <div className="grid" style={{ gap: 8 }}>
-            {competitionLogic.ranking.length ? competitionLogic.ranking.map((row, index) => (
-              <div key={row.playerId} className="mini-stat-card">
-                <div className="toolbar" style={{ padding: 0 }}>
-                  <strong>{index + 1}. {row.name}</strong>
-                  <span className="status-badge ui-tone-blue">{Math.round(row.score)} pts</span>
-                </div>
-                <div className="muted-line">{row.detail}</div>
-              </div>
-            )) : <div className="empty">Carga GPS o jugadores del partido para activar el ranking.</div>}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-2">
-        <div className="card compact-card">
-          <span className="section-eyebrow">Rol competitivo y retorno</span>
-          <h3 style={{ margin: '4px 0 8px' }}>Control profesional del jugador</h3>
-          <div className="grid" style={{ gap: 8 }}>
-            {[...returnToPlayAlerts, ...roleLoadAlerts].slice(0, 5).map((insight) => (
-              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
-                <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
-              </div>
-            ))}
-            {![...returnToPlayAlerts, ...roleLoadAlerts].length ? <div className="empty">Sin alertas de rol competitivo o retorno progresivo.</div> : null}
-          </div>
-        </div>
-        <div className="card compact-card">
-          <span className="section-eyebrow">Calidad del dato</span>
-          <h3 style={{ margin: '4px 0 8px' }}>Incoherencias de competencia/GPS</h3>
-          <div className="grid" style={{ gap: 8 }}>
-            {competitionInconsistencies.length ? competitionInconsistencies.map((insight) => (
-              <div key={insight.id} className={`alert-item tone-${insight.tone === 'red' ? 'red' : insight.tone === 'yellow' ? 'yellow' : 'blue'}`}>
-                <strong>{insight.title}</strong> {insight.value ? `· ${insight.value}` : ''}<br />{insight.description}
-              </div>
-            )) : <div className="empty">Sin incoherencias relevantes en el partido seleccionado.</div>}
-          </div>
+            );
+          }) : <div className="empty">Sin alertas médicas.</div>}
         </div>
       </div>
 
@@ -1005,17 +966,16 @@ export default function CompetenciaPage() {
         <div className="btn-row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <span className="section-eyebrow">Paso 1</span><h3 style={{ margin: 0 }}>Datos generales del partido</h3>
-            <div className="summary-chip" style={{ marginTop: 8 }}>Rival · Fecha · Local/Visitante · Resultado calculado</div>
+            <div className="summary-chip" style={{ marginTop: 8 }}>Rival · Fecha · Local/Visitante · Resultado</div>
           </div>
           <div className="btn-row">
             <button type="button" className="btn secondary" onClick={resetMatchDraft}>Nuevo partido</button>
-            <button type="button" className="btn secondary" onClick={() => downloadCsv('competencia-partidos.csv', matchSummaries.map((match) => ({ fecha: match.date, categoria: categoryLabel(match.category), rival: match.opponent, condicion: match.venue ?? '', marcador: formatMatchScore(match), resultado: match.resultType ?? '' })))}>Exportar partidos</button>
           </div>
         </div>
 
-        <div className="grid grid-4" style={{ marginTop: 16 }}>
+        <div className="grid grid-2" style={{ marginTop: 16 }}>
           <div className="field">
-            <label>Rival existente</label>
+            <label>Rival</label>
             <select className="select" value={matchDraft.opponent} onChange={(event) => setMatchDraft((prev) => ({ ...prev, opponent: event.target.value }))}>
               <option value="">Selecciona rival</option>
               {availableOpponents.map((name) => <option key={name} value={name}>{name}</option>)}
@@ -1033,15 +993,6 @@ export default function CompetenciaPage() {
             <input className="input" type="date" value={matchDraft.date} onChange={(event) => setMatchDraft((prev) => ({ ...prev, date: event.target.value }))} />
           </div>
           <div className="field">
-            <label>Nombre del torneo / liga</label>
-            <input
-              className="input"
-              value={matchDraft.competitionName}
-              onChange={(e) => setMatchDraft((prev) => ({ ...prev, competitionName: e.target.value }))}
-              placeholder="Ej. Liga BetPlay, Copa Colombia..."
-            />
-          </div>
-          <div className="field">
             <label>Condición</label>
             <select className="select" value={matchDraft.venue} onChange={(event) => setMatchDraft((prev) => ({ ...prev, venue: event.target.value as CompetitionVenue }))}>
               <option value="Local">Local</option>
@@ -1056,15 +1007,8 @@ export default function CompetenciaPage() {
             <label>Goles rival</label>
             <input className="input" min="0" type="number" value={matchDraft.goalsAgainst} onChange={(event) => setMatchDraft((prev) => ({ ...prev, goalsAgainst: event.target.value }))} />
           </div>
-          <div className="field">
-            <label>Resultado</label>
-            <input className="input" readOnly value={calculateMatchResult(toNumber(matchDraft.goalsFor), toNumber(matchDraft.goalsAgainst))} />
-          </div>
-          <div className="field">
-            <label>Observación general</label>
-            <input className="input" value={matchDraft.observation} onChange={(event) => setMatchDraft((prev) => ({ ...prev, observation: event.target.value }))} />
-          </div>
         </div>
+
         <div className="btn-row" style={{ marginTop: 16 }}>
           <button type="button" className="btn" disabled={isSavingMatch} onClick={saveMatch}>{isSavingMatch ? 'Guardando...' : matchDraft.id ? 'Actualizar partido' : 'Guardar partido'}</button>
         </div>
@@ -1091,20 +1035,16 @@ export default function CompetenciaPage() {
       {matchSummaries.length ? (
         <div className="card">
           <SectionHeader eyebrow="Partido" title="Partido seleccionado" />
-          <div className="grid grid-3">
+          <div className="grid grid-2">
             <div className="field">
               <label>Seleccionar partido</label>
               <select className="select" value={selectedMatch?.id ?? ''} onChange={(event) => setSelectedMatchId(event.target.value)}>
                 {matchSummaries.map((match) => <option key={match.id} value={match.id}>{match.date} · {match.venue ?? 'Local'} vs {match.opponent} · {formatMatchScore(match)}</option>)}
               </select>
             </div>
-            <div className="field">
-              <label>Resumen</label>
-              <input className="input" readOnly value={selectedMatch ? `${selectedMatch.resultType ?? ''} · ${formatMatchScore(selectedMatch)}` : 'Sin partido'} />
-            </div>
             <div className="btn-row" style={{ alignSelf: 'end' }}>
-              {selectedMatch ? <button type="button" className="btn secondary" onClick={() => startEditFullMatch(selectedMatch.id)}>Editar partido y jugadores</button> : null}
-              {selectedMatch ? <button type="button" className="btn danger" onClick={() => removeMatch(selectedMatch.id)}>Eliminar partido</button> : null}
+              {selectedMatch ? <button type="button" className="btn secondary" onClick={() => startEditFullMatch(selectedMatch.id)}>Editar partido</button> : null}
+              {selectedMatch ? <button type="button" className="btn danger" onClick={() => removeMatch(selectedMatch.id)}>Eliminar</button> : null}
             </div>
           </div>
         </div>
@@ -1117,56 +1057,36 @@ export default function CompetenciaPage() {
               <span className="section-eyebrow">Paso 2</span><h3 style={{ margin: 0 }}>Jugadores del partido</h3>
               <div className="summary-chip" style={{ marginTop: 8 }}>{selectedMatch.date} · {selectedMatch.venue ?? 'Local'} vs {selectedMatch.opponent} · {formatMatchScore(selectedMatch)}</div>
             </div>
-            <div className="btn-row"><button type="button" className="btn secondary" onClick={() => setEditingMatchPlayers((value) => !value)}>{editingMatchPlayers ? 'Cerrar edición rápida' : 'Editar jugadores cargados'}</button><button type="button" className="btn secondary" onClick={resetPlayerDraft}>Limpiar jugador</button></div>
+            <div className="btn-row">
+              <button type="button" className="btn secondary" onClick={resetPlayerDraft}>Limpiar jugador</button>
+            </div>
           </div>
 
-          <div className="grid grid-4">
-            <div className="field"><label>Categoría del jugador</label><select className="select" value={sourceCategory} onChange={(event) => setSourceCategory(event.target.value as ClubCategory)}>{categories.map((category) => <option key={category} value={category}>{categoryLabel(category)}</option>)}</select></div>
+          <div className="grid grid-2">
             <div className="field"><label>Jugador</label><select className="select" value={playerDraft.playerId} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, playerId: event.target.value }))}>{playersBySource.map((player) => <option key={player.id} value={player.id}>{player.name} · {player.position}</option>)}</select></div>
             <div className="field"><label>Minutos jugados</label><input className="input" min="0" type="number" value={playerDraft.minutesPlayed} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, minutesPlayed: event.target.value }))} /></div>
             <div className="field"><label>Titular / suplente</label><select className="select" value={playerDraft.startingRole} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, startingRole: event.target.value as CompetitionPlayerRole }))}>{starterOptions.map((option) => <option key={option}>{option}</option>)}</select></div>
           </div>
 
           {goalkeeper ? (
-            <div className="grid grid-4">
+            <div className="grid grid-2" style={{ marginTop: 12 }}>
               <div className="field"><label>Goles encajados</label><input className="input" min="0" type="number" value={playerDraft.goalsConceded} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, goalsConceded: event.target.value }))} /></div>
-              <div className="field"><label>Goles evitados</label><input className="input" min="0" type="number" value={playerDraft.goalsPrevented} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, goalsPrevented: event.target.value }))} /></div>
               <div className="field"><label>Penaltis atajados</label><input className="input" min="0" type="number" value={playerDraft.penaltiesSaved} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, penaltiesSaved: event.target.value }))} /></div>
-              <div className="field"><label>Centros defendidos</label><input className="input" min="0" type="number" value={playerDraft.crossesDefended} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, crossesDefended: event.target.value }))} /></div>
-              <div className="field"><label>Juego de pies</label><input className="input" min="0" type="number" value={playerDraft.footworkActions} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, footworkActions: event.target.value }))} /></div>
             </div>
           ) : (
-            <div className="grid grid-2">
+            <div className="grid grid-2" style={{ marginTop: 12 }}>
               <div className="field"><label>Goles</label><input className="input" min="0" type="number" value={playerDraft.goals} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, goals: event.target.value }))} /></div>
               <div className="field"><label>Asistencias</label><input className="input" min="0" type="number" value={playerDraft.assists} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, assists: event.target.value }))} /></div>
             </div>
           )}
 
-          {/* GPS — solo jugadores de campo */}
-          {!goalkeeper && (
-            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, marginTop: 4 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#1557d6', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 10 }}>📡 Parámetros GPS (Catapult)</div>
-              <div className="grid grid-4">
-                <div className="field"><label>Aceleraciones</label><input className="input" min="0" type="number" value={playerDraft.acc} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, acc: e.target.value }))} /></div>
-                <div className="field"><label>Desaceleraciones</label><input className="input" min="0" type="number" value={playerDraft.dcc} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, dcc: e.target.value }))} /></div>
-                <div className="field"><label>Sprint efforts</label><input className="input" min="0" type="number" value={playerDraft.sprints} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, sprints: e.target.value }))} /></div>
-                <div className="field"><label>RHIE</label><input className="input" min="0" type="number" value={playerDraft.rhie} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, rhie: e.target.value }))} /></div>
-                <div className="field"><label>Distancia (m)</label><input className="input" min="0" type="number" value={playerDraft.totalDistance} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, totalDistance: e.target.value }))} /></div>
-                <div className="field"><label>Vel. máxima (km/h)</label><input className="input" min="0" step="0.1" type="number" value={playerDraft.maxVelocity} placeholder="0.0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, maxVelocity: e.target.value }))} /></div>
-                <div className="field"><label>Player Load</label><input className="input" min="0" type="number" value={playerDraft.playerLoad} placeholder="0" onChange={(e) => setPlayerDraft((prev) => ({ ...prev, playerLoad: e.target.value }))} /></div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-4">
+          <div className="grid grid-2" style={{ marginTop: 12 }}>
             <div className="field"><label>Tarjetas amarillas</label><input className="input" min="0" type="number" value={playerDraft.yellowCards} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, yellowCards: event.target.value }))} /></div>
             <div className="field"><label>Tarjeta roja</label><input className="input" min="0" max="1" type="number" value={playerDraft.redCards} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, redCards: event.target.value }))} /></div>
-            <div className="field"><label>Estado médico</label><select className="select" value={playerDraft.medicalStatus} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, medicalStatus: event.target.value as CompetitionMedicalStatus, medicalObservation: event.target.value === 'Lesionado' ? prev.medicalObservation : '' }))}>{medicalOptions.map((option) => <option key={option}>{option}</option>)}</select></div>
-            <div className="field"><label>Plantilla</label><input className="input" readOnly value={goalkeeper ? 'Portero' : 'Jugador de campo'} /></div>
           </div>
 
           {playerDraft.medicalStatus === 'Lesionado' ? (
-            <div className="field">
+            <div className="field" style={{ marginTop: 12 }}>
               <label>Observación médica</label>
               <textarea className="input" value={playerDraft.medicalObservation} onChange={(event) => setPlayerDraft((prev) => ({ ...prev, medicalObservation: event.target.value }))} placeholder="Describe la lesión o la novedad médica" />
             </div>
