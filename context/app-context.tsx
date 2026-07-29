@@ -575,8 +575,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     scope: "all" | "players" | "evaluations" | "competition" = "all",
     options: { playerIds?: string[] } = {},
   ) => {
+    // FIX: Always save local first as primary backup
     saveLocalAppData(nextData);
     setLocalBackups(listLocalBackups());
+    
     if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
       // FIX #6: Calcular el tiempo de bloqueo ANTES del await, no después.
       // Si se seteaba después del await, el segundo set aplastaba al primero
@@ -650,6 +652,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const result = await saveRemoteAppState(nextData);
       setSyncStatus(result.ok ? "ready" : "error");
     } else {
+      console.log("[Orsomarso] Modo local: datos guardados en localStorage");
       setSyncStatus("ready");
     }
   };

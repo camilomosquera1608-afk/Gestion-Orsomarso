@@ -637,6 +637,14 @@ export const saveLocalAppData = (nextData: AppData) => {
   const compacted = compactForLocal(nextData);
   const nextRaw = JSON.stringify(compacted);
 
+  console.log("[Orsomarso] Guardando datos localmente:", {
+    players: compacted.players?.length || 0,
+    wellness: compacted.wellness?.length || 0,
+    competitionMatchSummaries: compacted.competitionMatchSummaries?.length || 0,
+    competitionRecords: compacted.competitionRecords?.length || 0,
+    size: Math.round(nextRaw.length / 1024) + 'KB'
+  });
+
   if (previousRaw && previousRaw !== nextRaw) {
     const previousPayload = safeJsonParse<Partial<AppData>>(previousRaw);
     const backups = readBackups();
@@ -661,8 +669,10 @@ export const saveLocalAppData = (nextData: AppData) => {
   const trySave = (raw: string): boolean => {
     try {
       localStorage.setItem(STORAGE_KEY, raw);
+      console.log("[Orsomarso] Datos guardados exitosamente en localStorage");
       return true;
-    } catch {
+    } catch (error) {
+      console.error("[Orsomarso] Error guardando en localStorage:", error);
       return false;
     }
   };
