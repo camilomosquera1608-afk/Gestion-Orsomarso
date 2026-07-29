@@ -612,6 +612,9 @@ const compactForLocal = (data: AppData): Partial<AppData> => {
           r as unknown as Record<string, unknown>,
         ) as unknown as typeof r,
     ),
+    cmjRecords: data.cmjRecords,
+    neuromuscularRecords: data.neuromuscularRecords,
+    fmsRecords: data.fmsRecords,
   };
 };
 

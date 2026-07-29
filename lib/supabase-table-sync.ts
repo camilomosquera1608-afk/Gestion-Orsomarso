@@ -1567,11 +1567,13 @@ export const saveSupabaseTablesAppData = async (
       externalLoads: data.externalLoads.length,
       internalLoads: data.internalLoads.length,
       competition: data.competitionRecords.length,
+      competitionMatches: data.competitionMatchSummaries.length,
     });
 
-    await upsertRows(supabase, "players", toPlayerRows(data.players));
+    const playerResult = await upsertRows(supabase, "players", toPlayerRows(data.players));
+    console.log("[Supabase] Players saved:", playerResult);
 
-    await upsertRows(
+    const microcycleResult = await upsertRows(
       supabase,
       "microcycles",
       data.microcycles
@@ -1588,6 +1590,7 @@ export const saveSupabaseTablesAppData = async (
           status: item.status ?? null,
         })),
     );
+    console.log("[Supabase] Microcycles saved:", microcycleResult);
 
     const playerMap = await fetchLegacyIdMap(supabase, "players");
     const playerCategoryById = Object.fromEntries(
