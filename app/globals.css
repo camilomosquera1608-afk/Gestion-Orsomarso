@@ -4865,7 +4865,6 @@ img[loading="lazy"] { background: var(--line-soft); }
     background: #fff !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    color-adjust: exact !important;
   }
 
   /* Ocultar UI de la app */
@@ -4960,19 +4959,20 @@ img[loading="lazy"] { background: var(--line-soft); }
 
   /* Secciones */
   .pdf-report-section {
-    gap: 3mm !important;
+    gap: 4mm !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+    margin-bottom: 4mm !important;
   }
-  .pdf-report-section-heading { gap: 2.5mm !important; }
+  .pdf-report-section-heading { gap: 3mm !important; margin-bottom: 2mm !important; }
   .pdf-report-icon {
-    width: 6mm !important;
-    height: 6mm !important;
+    width: 7mm !important;
+    height: 7mm !important;
     border-radius: 2mm !important;
   }
   .pdf-report-section-heading span { font-size: 6.5pt !important; }
-  .pdf-report-section-heading h3 { font-size: 11pt !important; }
-  .pdf-report-section-heading p { font-size: 7pt !important; }
+  .pdf-report-section-heading h3 { font-size: 11pt !important; margin: 0 !important; }
+  .pdf-report-section-heading p { font-size: 7pt !important; margin: 0 !important; }
 
   /* Textos */
   .pdf-report-summary {
@@ -4991,11 +4991,11 @@ img[loading="lazy"] { background: var(--line-soft); }
   /* KPIs */
   .pdf-report-kpi-grid {
     grid-template-columns: repeat(4, minmax(0,1fr)) !important;
-    gap: 2mm !important;
+    gap: 2.5mm !important;
   }
   .pdf-report-kpi {
     min-height: 0 !important;
-    padding: 3mm !important;
+    padding: 3.5mm !important;
     gap: 2mm !important;
     border-radius: 3mm !important;
     border-left-width: 2pt !important;
@@ -5012,15 +5012,16 @@ img[loading="lazy"] { background: var(--line-soft); }
   .pdf-report-table {
     font-size: 7pt !important;
     border-radius: 3mm !important;
+    margin: 2mm 0 !important;
   }
   .pdf-report-table th {
     font-size: 5.5pt !important;
-    padding: 2mm 2.5mm !important;
+    padding: 2.5mm 3mm !important;
     letter-spacing: .04em !important;
   }
-  .pdf-report-table td { padding: 2mm 2.5mm !important; font-size: 7pt !important; }
+  .pdf-report-table td { padding: 2.5mm 3mm !important; font-size: 7pt !important; }
   .pdf-report-table td:first-child,
-  .pdf-report-table th:first-child { padding-left: 3mm !important; }
+  .pdf-report-table th:first-child { padding-left: 3.5mm !important; }
 
   /* Dos columnas */
   .pdf-report-two-columns {
@@ -8726,9 +8727,9 @@ img[loading="lazy"] { background: var(--line-soft); }
 }
 
 /* V129 - Report-specific cleanup: player dossier, competition photos, margins and tables */
-@page playerDossierV128 { size: A4 portrait; margin: 0; }
-@page competitionReportV128 { size: A4 portrait; margin: 7mm; }
-@page sessionGpsReportV128 { size: A4 landscape; margin: 5mm; }
+@page playerDossierV128 { size: A4 portrait; margin: 12mm; }
+@page competitionReportV128 { size: A4 portrait; margin: 12mm; }
+@page sessionGpsReportV128 { size: A4 landscape; margin: 10mm; }
 
 .scout-detail-competition-only {
   display: grid;
