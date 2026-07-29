@@ -645,6 +645,14 @@ export const saveLocalAppData = (nextData: AppData) => {
     size: Math.round(nextRaw.length / 1024) + 'KB'
   });
 
+  // FIX: Auto-clear if localStorage is nearly full (>75%)
+  const usage = getLocalStorageUsageKb();
+  if (usage.pct > 75) {
+    console.warn(`[Orsomarso] localStorage casi lleno (${usage.pct}%), limpiando backups automáticos...`);
+    const removed = clearAutoBackups();
+    console.log(`[Orsomarso] ${removed} backups eliminados`);
+  }
+
   if (previousRaw && previousRaw !== nextRaw) {
     const previousPayload = safeJsonParse<Partial<AppData>>(previousRaw);
     const backups = readBackups();
@@ -680,40 +688,48 @@ export const saveLocalAppData = (nextData: AppData) => {
   // Attempt 1: compact data
   if (!trySave(nextRaw)) {
     // Attempt 2: clear backups and retry
+    console.warn("[Orsomarso] Espacio insuficiente, limpiando backups...");
     localStorage.removeItem(STORAGE_BACKUPS_KEY);
     if (!trySave(nextRaw)) {
-      // Attempt 3: save only players, sessions and microcycles (no loads)
-      // This is a last resort — data is recoverable from Supabase
-      const competitionSafety = readCompetitionSafetyCache();
-      const evaluationsSafety = readEvaluationsSafetyCache();
-      const minimal = JSON.stringify(
-        mergeEvaluationsPayload(
-          mergeCompetitionPayload(
-            {
-              players: compacted.players ?? [],
-              microcycles: compacted.microcycles ?? [],
-              trainingSessionSummaries: compacted.trainingSessionSummaries ?? [],
-              competitionMatchSummaries:
-                compacted.competitionMatchSummaries ?? [],
-              externalLoads: [],
-              internalLoads: [],
-              wellness: [],
-              nutritionRecords: compacted.nutritionRecords ?? [],
-              cmjRecords: compacted.cmjRecords ?? [],
-              neuromuscularRecords: compacted.neuromuscularRecords ?? [],
-              competitionRecords: compacted.competitionRecords ?? [],
-              fmsRecords: compacted.fmsRecords ?? [],
-            },
-            competitionSafety,
+      // Attempt 3: clear safety caches and retry
+      console.warn("[Orsomarso] Todavía sin espacio, limpiando caches de seguridad...");
+      localStorage.removeItem(STORAGE_COMPETITION_SAFETY_KEY);
+      localStorage.removeItem(STORAGE_EVALUATIONS_SAFETY_KEY);
+      if (!trySave(nextRaw)) {
+        // Attempt 4: save only players, sessions and microcycles (no loads)
+        // This is a last resort — data is recoverable from Supabase
+        console.error("[Orsomarso] localStorage críticamente lleno, guardando estructura mínima");
+        const competitionSafety = readCompetitionSafetyCache();
+        const evaluationsSafety = readEvaluationsSafetyCache();
+        const minimal = JSON.stringify(
+          mergeEvaluationsPayload(
+            mergeCompetitionPayload(
+              {
+                players: compacted.players ?? [],
+                microcycles: compacted.microcycles ?? [],
+                trainingSessionSummaries: compacted.trainingSessionSummaries ?? [],
+                competitionMatchSummaries:
+                  compacted.competitionMatchSummaries ?? [],
+                externalLoads: [],
+                internalLoads: [],
+                wellness: [],
+                nutritionRecords: compacted.nutritionRecords ?? [],
+                cmjRecords: compacted.cmjRecords ?? [],
+                neuromuscularRecords: compacted.neuromuscularRecords ?? [],
+                competitionRecords: compacted.competitionRecords ?? [],
+                fmsRecords: compacted.fmsRecords ?? [],
+              },
+              competitionSafety,
+            ),
+            evaluationsSafety,
           ),
-          evaluationsSafety,
-        ),
-      );
-      trySave(minimal);
-      // Don't throw — Supabase is the source of truth
-      console.warn(
-        "[Orsomarso] localStorage lleno — guardando solo estructura mínima. Los datos de carga están en Supabase.",
-      );
+        );
+        trySave(minimal);
+        // Don't throw — Supabase is the source of truth
+        console.warn(
+          "[Orsomarso] localStorage lleno — guardando solo estructura mínima. Los datos de carga están en Supabase.",
+        );
+      }
     }
   }
 };
@@ -773,4 +789,44 @@ export const clearAutoBackups = (): number => {
   const removed = backups.length - manual.length;
   writeBackups(manual);
   return removed;
+};
+
+// FIX: Emergency function to clear localStorage when full
+export const emergencyClearLocalStorage = (): { cleared: boolean; message: string } => {
+  if (!isBrowser()) return { cleared: false, message: "Not in browser" };
+  
+  try {
+    const usageBefore = getLocalStorageUsageKb();
+    console.log("[Orsomarso] Uso antes de limpieza:", usageBefore);
+    
+    // Clear all app-related keys
+    const keysToRemove = [
+      STORAGE_KEY,
+      STORAGE_BACKUPS_KEY,
+      STORAGE_COMPETITION_SAFETY_KEY,
+      STORAGE_EVALUATIONS_SAFETY_KEY,
+      'wellness-draft',
+      'orsomarso-wellness-records'
+    ];
+    
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        console.log(`[Orsomarso] Limpiado: ${key}`);
+      } catch (e) {
+        console.warn(`[Orsomarso] Error limpiando ${key}:`, e);
+      }
+    });
+    
+    const usageAfter = getLocalStorageUsageKb();
+    console.log("[Orsomarso] Uso después de limpieza:", usageAfter);
+    
+    return { 
+      cleared: true, 
+      message: `Limpieza completada. Liberado: ${usageBefore.usedKb - usageAfter.usedKb}KB` 
+    };
+  } catch (error) {
+    console.error("[Orsomarso] Error en limpieza de emergencia:", error);
+    return { cleared: false, message: String(error) };
+  }
 };
