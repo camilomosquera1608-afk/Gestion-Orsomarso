@@ -50,7 +50,7 @@ export default function HomePage() {
   const storageLabel = backendMode === 'supabase' ? `Datos en Supabase · ${syncLabel}` : 'Modo local (sin remoto)';
 
   return (
-    <div className="grid operational-dashboard">
+    <div className="grid operational-dashboard fade-in">
       <AppHero
         title="Inicio"
         subtitle={`${master ? 'Vista general' : categoryLabel(activeCategory)} · ${formatDateShort(filters.date)}`}

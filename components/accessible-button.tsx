@@ -31,7 +31,7 @@ export const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonPr
     },
     ref
   ) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:transform hover:-translate-y-0.5 active:translate-y-0';
     
     const variantStyles = {
       primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',

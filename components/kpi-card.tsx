@@ -19,7 +19,7 @@ export const KpiCard = ({
   icon?: ReactNode;
   tone?: KpiTone;
 }) => (
-  <div className={`card kpi premium-kpi kpi-${tone === 'yellow' ? 'amber' : tone}`}>
+  <div className={`card kpi premium-kpi kpi-${tone === 'yellow' ? 'amber' : tone} fade-in`}>
     <div className="kpi-topline">
       <span className="kpi-label">{label}</span>
       {icon ? <span className="kpi-icon">{icon}</span> : null}
