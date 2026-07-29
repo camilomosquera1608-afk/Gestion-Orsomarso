@@ -1198,8 +1198,7 @@ export default function CompetenciaPage() {
             <GPSEditor
               matchId={selectedMatch.id}
               category={activeCategory}
-              records={selectedMatch.lineupSlots
-                .filter(slot => slot.gpsData)
+              records={selectedMatch.lineupSlots?.filter(slot => slot.gpsData)
                 .map(slot => ({
                   id: slot.id,
                   playerId: slot.playerId || '',
@@ -1219,7 +1218,7 @@ export default function CompetenciaPage() {
                   distancePerMin: slot.gpsData?.distancePerMin || 0,
                   playerLoadPerMin: slot.gpsData?.playerLoadPerMin || 0,
                   ima: slot.gpsData?.ima,
-                }))}
+                })) || []}
               players={getCanonicalPlayers(activeCategory)}
               onSave={async (updatedRecords) => {
                 // Actualizar los datos GPS en el partido
