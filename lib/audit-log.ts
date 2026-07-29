@@ -89,7 +89,7 @@ class AuditLog {
     }
   }
 
-  private load(): void {
+  public load(): void {
     if (typeof window === 'undefined') return;
     
     try {
