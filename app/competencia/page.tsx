@@ -1202,7 +1202,9 @@ export default function CompetenciaPage() {
                 .filter(slot => slot.gpsData)
                 .map(slot => ({
                   id: slot.id,
-                  playerId: slot.playerId,
+                  playerId: slot.playerId || '',
+                  date: selectedMatch.date,
+                  category: activeCategory,
                   min: slot.gpsData?.min || 0,
                   acc: slot.gpsData?.acc || 0,
                   dcc: slot.gpsData?.dcc || 0,
