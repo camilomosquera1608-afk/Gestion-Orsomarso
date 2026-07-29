@@ -311,6 +311,7 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
       return;
     }
 
+    let remoteSaved = false;
     try {
       if (player.source === 'remote' && player.remoteId && supabase && tableSchemaSyncEnabled) {
         const { error: rpcError } = await supabase.rpc('submit_public_wellness', {
@@ -339,6 +340,9 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
 
           if (error) throw error;
         }
+        remoteSaved = true;
+      } else if (!supabase || !tableSchemaSyncEnabled) {
+        console.warn('[Wellness] Supabase no está configurado. Los datos se guardarán localmente.');
       }
 
       // Mantiene sincronizada la UI local del formulario y los módulos que estén
@@ -404,7 +408,12 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
       setBodySprint(false);
       setBodyCod(false);
       setSubmitState('success');
-      setMessage(`Wellness enviado correctamente por ${player.name} · ${recordDate}. Puedes cerrar esta pantalla.`);
+      
+      if (remoteSaved) {
+        setMessage(`Wellness enviado correctamente por ${player.name} · ${recordDate}. Puedes cerrar esta pantalla.`);
+      } else {
+        setMessage(`Wellness guardado localmente por ${player.name} · ${recordDate}. Para guardar en la nube, configura Supabase en .env.local`);
+      }
     } catch (error) {
       console.error('public wellness submit error', error);
       setSubmitState('error');

@@ -598,7 +598,8 @@ const compactForLocal = (data: AppData): Partial<AppData> => {
             r as unknown as Record<string, unknown>,
           ) as unknown as typeof r,
       ),
-    wellness: data.wellness.filter(isRecent),
+    // FIX: Keep all wellness records locally for better persistence without Supabase
+    wellness: data.wellness,
     nutritionRecords: data.nutritionRecords.filter(isRecent),
     // These must be kept complete — small arrays
     players: data.players,
