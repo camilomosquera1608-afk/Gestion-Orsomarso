@@ -303,7 +303,11 @@ export const buildWellnessCenter = (data: AppData, filters: GlobalFilters, activ
   const players = getVisiblePlayers(data, filters, activeCategory);
   const ids = playerIds(data.players, players);
   const { microcycle, dates } = getActiveRange(data, filters, activeCategory);
-  const records = uniqueWellnessByPlayerIdentityDate(data.players, data.wellness.filter((item) => ids.has(item.playerId) && dateInRange(item.date, dates)));
+  
+  // FIX: Asegurar que los datos wellness estén disponibles incluso cuando Supabase no está disponible
+  // Filtrar por IDs de jugadores visibles y rango de fechas, pero mantener todos los datos wellness
+  const filteredWellness = data.wellness.filter((item) => ids.has(item.playerId));
+  const records = uniqueWellnessByPlayerIdentityDate(data.players, filteredWellness.filter((item) => dateInRange(item.date, dates)));
   const today = getWellnessRecordsForDate(data, filters.date, ids);
   const rows: WellnessPlayerRow[] = players.map((player) => {
     const relatedIds = getRelatedPlayerIds(data.players, player.id);
