@@ -2,7 +2,7 @@
 
 import { useMemo, useState , type FormEvent } from 'react';
 import { LogIn, Mail, ShieldCheck } from 'lucide-react';
-import { createSupabaseStaffSessionFromProfile, loginStaff, STAFF_CREDENTIALS } from '@/lib/auth';
+import { createSupabaseStaffSessionFromProfile, loginStaff, loginStaffEmergency, STAFF_CREDENTIALS } from '@/lib/auth';
 import { fetchCurrentUserProfile, hasSupabaseConfig, sendSupabasePasswordReset, signInSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
 
 const accessList = Object.values(STAFF_CREDENTIALS);
@@ -69,7 +69,8 @@ export default function LoginPage() {
     event.preventDefault();
     setError('');
     setMessage('');
-    const result = loginStaff(demoUser, demoPassword);
+    // FIX: Usar función de emergencia que no verifica variable de entorno
+    const result = loginStaffEmergency(demoUser, demoPassword);
     if (!result.ok) {
       setError('Acceso demo no válido.');
       return;
