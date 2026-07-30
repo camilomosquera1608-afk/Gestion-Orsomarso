@@ -1198,60 +1198,56 @@ export default function CompetenciaPage() {
             <GPSEditor
               matchId={selectedMatch.id}
               category={activeCategory}
-              records={selectedMatch.lineupSlots?.filter(slot => slot.gpsData)
-                .map(slot => ({
-                  id: slot.id,
-                  playerId: slot.playerId || '',
-                  date: selectedMatch.date,
+              records={matchRecords
+                .filter(record => record.totalDistance !== undefined || record.playerLoad !== undefined)
+                .map(record => ({
+                  id: record.id,
+                  playerId: record.playerId,
+                  date: record.date,
                   category: activeCategory,
-                  min: slot.gpsData?.min || 0,
-                  acc: slot.gpsData?.acc || 0,
-                  dcc: slot.gpsData?.dcc || 0,
-                  sprints: slot.gpsData?.sprints || 0,
-                  rhie: slot.gpsData?.rhie || 0,
-                  totalDistance: slot.gpsData?.totalDistance || 0,
-                  maxVelocity: slot.gpsData?.maxVelocity || 0,
-                  playerLoad: slot.gpsData?.playerLoad || 0,
-                  highSpeedDistance: slot.gpsData?.highSpeedDistance || 0,
-                  sprintDistance: slot.gpsData?.sprintDistance || 0,
-                  hsr: slot.gpsData?.hsr || 0,
-                  distancePerMin: slot.gpsData?.distancePerMin || 0,
-                  playerLoadPerMin: slot.gpsData?.playerLoadPerMin || 0,
-                  ima: slot.gpsData?.ima,
+                  min: record.minutesPlayed,
+                  acc: record.acc || 0,
+                  dcc: record.dcc || 0,
+                  sprints: record.sprints || 0,
+                  rhie: record.rhie || 0,
+                  totalDistance: record.totalDistance || 0,
+                  maxVelocity: record.maxVelocity || 0,
+                  playerLoad: record.playerLoad || 0,
+                  highSpeedDistance: record.highSpeedDistance || 0,
+                  sprintDistance: record.sprintDistance || 0,
+                  hsr: record.hsr || 0,
+                  distancePerMin: record.totalDistance && record.minutesPlayed ? record.totalDistance / record.minutesPlayed : 0,
+                  playerLoadPerMin: record.playerLoad && record.minutesPlayed ? record.playerLoad / record.minutesPlayed : 0,
+                  ima: record.ima,
                 })) || []}
-              players={getCanonicalPlayers(activeCategory)}
+              players={data.players}
               onSave={async (updatedRecords) => {
-                // Actualizar los datos GPS en el partido
-                const updatedLineupSlots = selectedMatch.lineupSlots?.map(slot => {
-                  const updatedRecord = updatedRecords.find(r => r.playerId === slot.playerId);
+                // Actualizar los datos GPS en los records del partido
+                const updatedMatchRecords = matchRecords.map(record => {
+                  const updatedRecord = updatedRecords.find(r => r.playerId === record.playerId);
                   if (updatedRecord) {
                     return {
-                      ...slot,
-                      gpsData: {
-                        min: updatedRecord.min,
-                        acc: updatedRecord.acc,
-                        dcc: updatedRecord.dcc,
-                        sprints: updatedRecord.sprints,
-                        rhie: updatedRecord.rhie,
-                        totalDistance: updatedRecord.totalDistance,
-                        maxVelocity: updatedRecord.maxVelocity,
-                        playerLoad: updatedRecord.playerLoad,
-                        highSpeedDistance: updatedRecord.highSpeedDistance,
-                        sprintDistance: updatedRecord.sprintDistance,
-                        hsr: updatedRecord.hsr,
-                        distancePerMin: updatedRecord.distancePerMin,
-                        playerLoadPerMin: updatedRecord.playerLoadPerMin,
-                        ima: updatedRecord.ima,
-                      },
+                      ...record,
+                      minutesPlayed: updatedRecord.min,
+                      acc: updatedRecord.acc,
+                      dcc: updatedRecord.dcc,
+                      sprints: updatedRecord.sprints,
+                      rhie: updatedRecord.rhie,
+                      totalDistance: updatedRecord.totalDistance,
+                      maxVelocity: updatedRecord.maxVelocity,
+                      playerLoad: updatedRecord.playerLoad,
+                      highSpeedDistance: updatedRecord.highSpeedDistance,
+                      sprintDistance: updatedRecord.sprintDistance,
+                      hsr: updatedRecord.hsr,
+                      distancePerMin: updatedRecord.distancePerMin,
+                      playerLoadPerMin: updatedRecord.playerLoadPerMin,
+                      ima: updatedRecord.ima,
                     };
                   }
-                  return slot;
-                }) || [];
-
-                await upsertCompetitionMatchSummary({
-                  ...selectedMatch,
-                  lineupSlots: updatedLineupSlots,
+                  return record;
                 });
+
+                saveCompetitionMatchBundle(selectedMatch, updatedMatchRecords);
                 setShowGpsEditor(false);
               }}
               onCancel={() => setShowGpsEditor(false)}
