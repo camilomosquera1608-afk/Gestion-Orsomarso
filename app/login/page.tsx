@@ -33,6 +33,12 @@ export default function LoginPage() {
 
     const result = await signInSupabase(email, password);
     if (!result.ok) {
+      // FIX: Si hay error de conexión con Supabase, mostrar modo demo local automáticamente
+      if (result.reason?.includes('Failed to fetch') || result.reason?.includes('fetch') || (result.status && result.status >= 500)) {
+        setError(`Error de conexión con Supabase: ${result.reason}. Usa el modo demo local abajo.`);
+        setShowDemo(true);
+        return;
+      }
       setError(`No se pudo iniciar sesión: ${result.reason}`);
       return;
     }
