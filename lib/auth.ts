@@ -54,7 +54,15 @@ export const getStaffSession = (): StaffSession => {
   if (typeof window === 'undefined') return defaultSession;
   try {
     const raw = localStorage.getItem(STAFF_AUTH_KEY);
-    if (!raw) return defaultSession;
+    if (!raw) {
+      // FIX: Intentar leer de sessionStorage si localStorage no tiene datos
+      const sessionRaw = sessionStorage.getItem(STAFF_AUTH_KEY);
+      if (sessionRaw) {
+        const parsed = JSON.parse(sessionRaw) as StaffSession;
+        if (parsed?.isAuthenticated && parsed.role) return parsed;
+      }
+      return defaultSession;
+    }
     const parsed = JSON.parse(raw) as StaffSession;
     if (!parsed?.isAuthenticated || !parsed.role) return defaultSession;
     return parsed;
@@ -67,7 +75,24 @@ export const isStaffAuthenticated = () => getStaffSession().isAuthenticated;
 
 export const setStaffSession = (session: StaffSession) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(STAFF_AUTH_KEY, JSON.stringify(session));
+    try {
+      localStorage.setItem(STAFF_AUTH_KEY, JSON.stringify(session));
+    } catch (error) {
+      // FIX: Si localStorage está lleno, intentar usar sessionStorage como fallback
+      console.warn('localStorage lleno, usando sessionStorage para sesión:', error);
+      try {
+        sessionStorage.setItem(STAFF_AUTH_KEY, JSON.stringify(session));
+      } catch (sessionError) {
+        console.error('Tanto localStorage como sessionStorage están llenos:', sessionError);
+        // Último recurso: limpiar datos antiguos y reintentar
+        try {
+          localStorage.clear();
+          localStorage.setItem(STAFF_AUTH_KEY, JSON.stringify(session));
+        } catch (finalError) {
+          console.error('No se pudo guardar la sesión incluso después de limpiar:', finalError);
+        }
+      }
+    }
   }
 };
 
@@ -159,7 +184,9 @@ export const loginStaffEmergency = (user: string, password: string) => {
 
 export const logoutStaff = () => {
   if (typeof window !== 'undefined') {
+    // FIX: Limpiar tanto localStorage como sessionStorage
     localStorage.removeItem(STAFF_AUTH_KEY);
+    sessionStorage.removeItem(STAFF_AUTH_KEY);
   }
 };
 
