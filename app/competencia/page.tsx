@@ -267,7 +267,7 @@ function EyeballReport({ stats }: { stats: EyeballMatchStats }) {
 }
 
 export default function CompetenciaPage() {
-  const { data, filters, deleteCompetitionRecord, upsertCompetitionMatchSummary, saveCompetitionMatchBundle, deleteCompetitionMatchSummary } = useApp();
+  const { data, filters, deleteCompetitionRecord, upsertCompetitionMatchSummary, saveCompetitionMatchBundle, deleteCompetitionMatchSummary, addExternalLoad, deleteExternalLoad } = useApp();
   const session = getStaffSession();
   const master = isMasterRole(session);
   const activeCategory = (master ? (filters.category === 'all' ? 'Sub20' : filters.category) : session.category) as ClubCategory;
@@ -1246,6 +1246,65 @@ export default function CompetenciaPage() {
                   }
                   return record;
                 });
+
+                // Generar los DailyExternalLoadRecord correspondientes
+                const competitionExternalLoads = updatedMatchRecords
+                  .map(record => {
+                    const hasGps =
+                      (record.playerLoad ?? 0) > 0 ||
+                      (record.totalDistance ?? 0) > 0 ||
+                      (record.highSpeedDistance ?? record.hsr ?? 0) > 0 ||
+                      (record.sprintDistance ?? 0) > 0 ||
+                      (record.acc ?? 0) > 0 ||
+                      (record.dcc ?? 0) > 0 ||
+                      (record.sprints ?? 0) > 0 ||
+                      (record.rhie ?? 0) > 0;
+                    if (!hasGps && (record.minutesPlayed ?? 0) <= 0) return null;
+                    
+                    return {
+                      id: `comp-load-${selectedMatch.id}-${record.playerId}`,
+                      sessionId: selectedMatch.id,
+                      playerId: record.playerId,
+                      date: selectedMatch.date || record.date,
+                      min: record.minutesPlayed ?? 0,
+                      acc: record.acc ?? 0,
+                      dcc: record.dcc ?? 0,
+                      sprints: record.sprints ?? 0,
+                      rhie: record.rhie ?? 0,
+                      ima: record.ima ?? 0,
+                      rpe: 8,
+                      totalDistance: record.totalDistance,
+                      highSpeedDistance: record.highSpeedDistance ?? record.hsr,
+                      hsr: record.hsr ?? record.highSpeedDistance,
+                      sprintDistance: record.sprintDistance,
+                      maxVelocity: record.maxVelocity,
+                      playerLoad: record.playerLoad,
+                      participation: 'Completa',
+                      sessionType: 'MD',
+                      category: record.category ?? activeCategory,
+                      baseCategory: record.baseCategory,
+                      actingCategory: record.actingCategory ?? record.category ?? activeCategory,
+                      movementType: record.movementType ?? 'base',
+                      movementModule: 'competencia',
+                      loggedBy: record.loggedBy,
+                    };
+                  })
+                  .filter(Boolean) as DailyExternalLoadRecord[];
+
+                // Actualizar los external loads en el estado global usando las funciones del contexto
+                const competitionLoadIds = new Set(competitionExternalLoads.map(item => item.id));
+                
+                // Eliminar los external loads antiguos de este partido
+                for (const item of data.externalLoads) {
+                  if (competitionLoadIds.has(item.id) || (item.movementModule === 'competencia' && item.sessionId === selectedMatch.id)) {
+                    deleteExternalLoad(item.id);
+                  }
+                }
+                
+                // Agregar los nuevos external loads
+                for (const load of competitionExternalLoads) {
+                  addExternalLoad(load);
+                }
 
                 saveCompetitionMatchBundle(selectedMatch, updatedMatchRecords);
                 setShowGpsEditor(false);
