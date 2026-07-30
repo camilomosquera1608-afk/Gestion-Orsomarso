@@ -718,10 +718,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const init = async () => {
       if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase) {
+        // FIX: Priorizar datos locales cuando Supabase tiene problemas de rendimiento
         // Limpieza segura de datos mock antiguos.
-        // Antes se borraba todo localStorage si detectaba ids p1/e1/i1, y eso podía
-        // llevarse partidos guardados localmente si Supabase todavía no había confirmado.
-        // Ahora solo se eliminan esos registros de ejemplo y se preserva competencia.
         sanitizeLegacyMockLocalData();
 
         const localSnapshot = readLocalAppData();
@@ -731,26 +729,134 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           dataRef.current = localHydrated;
           setSyncStatus("ready");
           setIsHydrated(true);
+          
+          // FIX: Cargar datos remotos en segundo plano sin bloquear la UI
+          // Aumentar timeout de 8s a 15s para dar más tiempo a Supabase cuando tiene problemas
+          setTimeout(async () => {
+            try {
+              if (!supabase) return;
+              const remote = await Promise.race([
+                fetchSupabaseTablesAppData(supabase),
+                new Promise<{ ok: false; reason: string }>((resolve) =>
+                  setTimeout(
+                    () => resolve({ ok: false, reason: "timeout-init" }),
+                    15000,
+                  ),
+                ),
+              ]);
+              
+              if (remote.ok) {
+                const remoteData = hydrateData(remote.data);
+                const local = readLocalAppData();
+                const localData = local ? hydrateData(local) : null;
+
+                const mergeArrays = <T extends { id: string }>(
+                  remote: T[],
+                  local: T[] | undefined,
+                ): T[] => mergeByIdWithLocalFallback(remote, local);
+
+                const mergeSessionsWithDateKey = (
+                  remote: typeof remoteData.trainingSessionSummaries,
+                  local: typeof remoteData.trainingSessionSummaries | undefined,
+                ) =>
+                  mergeByKeys(
+                    remote as unknown as Record<string, unknown>[],
+                    local as unknown as Record<string, unknown>[] | undefined,
+                    [
+                      (item) => (item.id ? String(item.id) : null),
+                      (item) =>
+                        item.date && item.category
+                          ? buildMergeKey(
+                              item.date,
+                              item.category,
+                              item.sessionNumber ?? 1,
+                            )
+                          : null,
+                    ],
+                  ) as unknown as typeof remoteData.trainingSessionSummaries;
+
+                const merged: AppData = {
+                  ...remoteData,
+                  trainingSessionSummaries: mergeSessionsWithDateKey(
+                    remoteData.trainingSessionSummaries,
+                    localData?.trainingSessionSummaries,
+                  ),
+                  internalLoads: mergeArrays(
+                    remoteData.internalLoads,
+                    localData?.internalLoads,
+                  ),
+                  externalLoads: mergeArrays(
+                    remoteData.externalLoads,
+                    localData?.externalLoads,
+                  ),
+                  microcycles: mergeArrays(
+                    remoteData.microcycles,
+                    localData?.microcycles,
+                  ),
+                  competitionRecords: mergeCompetitionRecords(
+                    remoteData.competitionRecords,
+                    localData?.competitionRecords,
+                  ),
+                  competitionMatchSummaries: mergeCompetitionMatches(
+                    remoteData.competitionMatchSummaries,
+                    localData?.competitionMatchSummaries,
+                  ),
+                  wellness: mergeArrays(remoteData.wellness, localData?.wellness),
+                  nutritionRecords: mergeArrays(
+                    remoteData.nutritionRecords,
+                    localData?.nutritionRecords,
+                  ),
+                  cmjRecords: mergeArrays(
+                    remoteData.cmjRecords,
+                    localData?.cmjRecords,
+                  ),
+                  neuromuscularRecords: mergeArrays(
+                    remoteData.neuromuscularRecords,
+                    localData?.neuromuscularRecords,
+                  ),
+                  fmsRecords: mergeArrays(
+                    remoteData.fmsRecords,
+                    localData?.fmsRecords,
+                  ),
+                  strengthSessions: mergeArrays(
+                    remoteData.strengthSessions ?? [],
+                    localData?.strengthSessions,
+                  ),
+                  players: mergePlayersPreferLocal(
+                    remoteData.players,
+                    localData?.players,
+                  ),
+                };
+
+                const normalizedMerged = normalizeSharedDataLinks(merged);
+                setData(normalizedMerged);
+                dataRef.current = normalizedMerged;
+                saveLocalAppData(normalizedMerged);
+                setSyncStatus("ready");
+              }
+            } catch (error) {
+              console.warn('Error cargando datos remotos en segundo plano:', error);
+              // Continuar con datos locales si falla la carga remota
+            }
+          }, 1000);
+          return;
         } else {
           setSyncStatus("syncing");
         }
+        
         // Lectura remota en segundo plano: la app queda usable con cache local
-        // y Supabase actualiza cuando responda.
         const remote = await Promise.race([
           fetchSupabaseTablesAppData(supabase),
           new Promise<{ ok: false; reason: string }>((resolve) =>
             setTimeout(
               () => resolve({ ok: false, reason: "timeout-init" }),
-              8000,
+              15000,
             ),
           ),
         ]);
         if (remote.ok) {
           const remoteData = hydrateData(remote.data);
 
-          // MERGE FIX: Supabase may not have all records if upserts failed.
-          // Read local data and keep any records that exist locally but not remotely.
-          // This prevents page refresh from wiping locally-saved sessions.
           const local = readLocalAppData();
           const localData = local ? hydrateData(local) : null;
 
@@ -759,7 +865,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             local: T[] | undefined,
           ): T[] => mergeByIdWithLocalFallback(remote, local);
 
-          // Special merge for sessions: also match by date+category+sessionNumber.
           const mergeSessionsWithDateKey = (
             remote: typeof remoteData.trainingSessionSummaries,
             local: typeof remoteData.trainingSessionSummaries | undefined,
@@ -782,7 +887,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
           const merged: AppData = {
             ...remoteData,
-            // Merge ALL arrays — remote (committed) + local-only (not yet propagated)
             trainingSessionSummaries: mergeSessionsWithDateKey(
               remoteData.trainingSessionSummaries,
               localData?.trainingSessionSummaries,
@@ -828,8 +932,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               remoteData.strengthSessions ?? [],
               localData?.strengthSessions,
             ),
-            // Players: merge remote + local to avoid wiping ficha edits
-            // while new Supabase columns are being added.
             players: mergePlayersPreferLocal(
               remoteData.players,
               localData?.players,
@@ -867,7 +969,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const next = stored ? hydrateData(stored) : initialData;
         setData(next);
         dataRef.current = next;
-        saveLocalAppData(next); // Ensure data is persisted on initial load
+        saveLocalAppData(next);
         setSyncStatus("ready");
       }
 
@@ -983,10 +1085,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     channel.subscribe();
 
+    // FIX: Reducir frecuencia de polling cuando Supabase tiene problemas de rendimiento
+    // Aumentar de 45s a 120s para reducir la carga en Supabase
     const interval = setInterval(() => {
-      const shouldPoll = Date.now() - lastRemotePullRef.current > 45000;
+      const shouldPoll = Date.now() - lastRemotePullRef.current > 120000;
       if (shouldPoll) scheduleRemoteRefresh("poll");
-    }, 60000);
+    }, 120000);
 
     return () => {
       document.removeEventListener("visibilitychange", syncOnResume);

@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   const quickAccess = useMemo(() => accessList.filter((item) => item.display !== 'Dirección'), []);
   const remoteAuthReady = hasSupabaseConfig && tableSchemaSyncEnabled;
-  // FIX: Habilitar modo demo local cuando Supabase no está disponible o hay errores 503
+  // FIX: Habilitar modo demo local cuando Supabase no está disponible, tiene problemas de rendimiento o hay errores
   const localDemoAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_LOCAL_DEMO_AUTH === 'true' || !hasSupabaseConfig || !remoteAuthReady;
 
   const onSupabaseSubmit = async (event: FormEvent) => {
