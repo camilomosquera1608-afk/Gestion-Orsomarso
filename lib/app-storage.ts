@@ -796,37 +796,57 @@ export const emergencyClearLocalStorage = (): { cleared: boolean; message: strin
   if (!isBrowser()) return { cleared: false, message: "Not in browser" };
   
   try {
-    const usageBefore = getLocalStorageUsageKb();
-    console.log("[Orsomarso] Uso antes de limpieza:", usageBefore);
+    localStorage.clear();
+    return { cleared: true, message: "LocalStorage limpiado completamente" };
+  } catch (error) {
+    return { cleared: false, message: `Error: ${error}` };
+  }
+};
+
+// FIX: Emergency function to recover lost competition data from safety cache
+export const recoverCompetitionData = (): { recovered: boolean; message: string; data?: Partial<AppData> } => {
+  if (!isBrowser()) return { recovered: false, message: "Not in browser" };
+  
+  try {
+    const safetyCache = readCompetitionSafetyCache();
+    if (!safetyCache) {
+      return { recovered: false, message: "No hay datos de competición en caché de seguridad" };
+    }
     
-    // Clear all app-related keys
-    const keysToRemove = [
-      STORAGE_KEY,
-      STORAGE_BACKUPS_KEY,
-      STORAGE_COMPETITION_SAFETY_KEY,
-      STORAGE_EVALUATIONS_SAFETY_KEY,
-      'wellness-draft',
-      'orsomarso-wellness-records'
-    ];
+    const matchesCount = safetyCache.competitionMatchSummaries?.length || 0;
+    const recordsCount = safetyCache.competitionRecords?.length || 0;
     
-    keysToRemove.forEach(key => {
-      try {
-        localStorage.removeItem(key);
-        console.log(`[Orsomarso] Limpiado: ${key}`);
-      } catch (e) {
-        console.warn(`[Orsomarso] Error limpiando ${key}:`, e);
-      }
-    });
-    
-    const usageAfter = getLocalStorageUsageKb();
-    console.log("[Orsomarso] Uso después de limpieza:", usageAfter);
+    if (matchesCount === 0 && recordsCount === 0) {
+      return { recovered: false, message: "Caché de seguridad vacía" };
+    }
     
     return { 
-      cleared: true, 
-      message: `Limpieza completada. Liberado: ${usageBefore.usedKb - usageAfter.usedKb}KB` 
+      recovered: true, 
+      message: `Recuperados ${matchesCount} partidos y ${recordsCount} registros de competición`,
+      data: safetyCache 
     };
   } catch (error) {
-    console.error("[Orsomarso] Error en limpieza de emergencia:", error);
-    return { cleared: false, message: String(error) };
+    return { recovered: false, message: `Error: ${error}` };
+  }
+};
+
+// FIX: Function to check if there are any backups available
+export const hasAvailableBackups = (): { hasBackups: boolean; count: number; details: string } => {
+  if (!isBrowser()) return { hasBackups: false, count: 0, details: "Not in browser" };
+  
+  try {
+    const backups = readBackups();
+    const count = backups.length;
+    
+    if (count === 0) {
+      return { hasBackups: false, count: 0, details: "No hay respaldos disponibles" };
+    }
+    
+    const latest = backups[0];
+    const details = `${count} respaldos disponibles. Más reciente: ${latest.label} (${new Date(latest.createdAt).toLocaleString()})`;
+    
+    return { hasBackups: true, count, details };
+  } catch (error) {
+    return { hasBackups: false, count: 0, details: `Error: ${error}` };
   }
 };

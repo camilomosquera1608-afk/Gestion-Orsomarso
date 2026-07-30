@@ -39,6 +39,11 @@ import {
   sanitizeLegacyMockLocalData,
 } from "@/lib/app-storage";
 import type { LocalBackupMeta } from "@/lib/app-storage";
+import {
+  recoverCompetitionData,
+  hasAvailableBackups,
+  emergencyClearLocalStorage,
+} from "@/lib/app-storage";
 import { getAllowedCategory, getStaffSession, isMasterRole } from "@/lib/auth";
 import {
   canDeletePlayer,
@@ -178,6 +183,10 @@ interface AppContextValue {
   writeValidationMessage: string | null;
   clearWriteValidationMessage: () => void;
   syncMergeConflicts: SyncMergeConflictNote[];
+  // FIX: Emergency recovery functions
+  recoverCompetitionData: () => { recovered: boolean; message: string; data?: Partial<AppData> };
+  hasAvailableBackups: () => { hasBackups: boolean; count: number; details: string };
+  emergencyClearLocalStorage: () => { cleared: boolean; message: string };
 }
 
 const getDefaultFilters = (): GlobalFilters => ({
@@ -1946,6 +1955,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       writeValidationMessage,
       clearWriteValidationMessage: () => setWriteValidationMessage(null),
       syncMergeConflicts,
+      // FIX: Emergency recovery functions
+      recoverCompetitionData,
+      hasAvailableBackups,
+      emergencyClearLocalStorage,
     }),
     [
       data,
