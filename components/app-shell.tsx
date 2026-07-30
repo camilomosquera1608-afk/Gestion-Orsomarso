@@ -50,17 +50,38 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      // FIX: Solo verificar sesión de Supabase si el authProvider es 'supabase'
+      // Si es 'local_demo', permitir acceso sin verificar Supabase
       if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase && session.authProvider === 'supabase') {
-        let supabaseSession = (await supabase.auth.getSession()).data.session;
-        if (!supabaseSession) {
-          await new Promise((resolve) => setTimeout(resolve, 350));
-          supabaseSession = (await supabase.auth.getSession()).data.session;
-        }
-        if (!supabaseSession) {
+        try {
+          let supabaseSession = (await supabase.auth.getSession()).data.session;
+          if (!supabaseSession) {
+            await new Promise((resolve) => setTimeout(resolve, 350));
+            supabaseSession = (await supabase.auth.getSession()).data.session;
+          }
+          if (!supabaseSession) {
+            logoutStaff();
+            router.replace('/login');
+            return;
+          }
+        } catch (error) {
+          // FIX: Si hay error de conexión con Supabase, no bloquear acceso si hay sesión local
+          console.warn('Error verificando sesión Supabase:', error);
+          // Si hay sesión local válida, permitir acceso
+          if (session.isAuthenticated) {
+            if (!cancelled) setAllowed(true);
+            return;
+          }
           logoutStaff();
           router.replace('/login');
           return;
         }
+      }
+
+      // FIX: Permitir acceso si hay sesión local válida (modo demo)
+      if (session.authProvider !== 'supabase' && session.isAuthenticated) {
+        if (!cancelled) setAllowed(true);
+        return;
       }
 
       if (!cancelled) setAllowed(true);
