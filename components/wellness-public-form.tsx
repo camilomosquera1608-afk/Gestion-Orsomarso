@@ -311,6 +311,22 @@ export function WellnessPublicForm({ forcedCategory }: { forcedCategory?: ClubCa
       return;
     }
 
+    // Verificar duplicados en Supabase para jugadores remotos
+    if (player.source === 'remote' && player.remoteId && supabase && tableSchemaSyncEnabled) {
+      const { data: existingRemote, error: checkError } = await supabase
+        .from('daily_wellness')
+        .select('id')
+        .eq('player_id', player.remoteId)
+        .eq('date', recordDate)
+        .maybeSingle();
+      
+      if (existingRemote) {
+        setSubmitState('error');
+        setMessage('Ya registraste wellness para esta fecha en el sistema. Si fue un error, avisa al cuerpo técnico.');
+        return;
+      }
+    }
+
     let remoteSaved = false;
     try {
       if (player.source === 'remote' && player.remoteId && supabase && tableSchemaSyncEnabled) {
