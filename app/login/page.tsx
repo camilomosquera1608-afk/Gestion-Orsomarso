@@ -41,9 +41,8 @@ export default function LoginPage() {
 
     const result = await signInSupabase(email, password);
     if (!result.ok) {
-      // FIX: Si hay error de conexión con Supabase, mostrar modo demo local automáticamente
       const errorMessage = result.reason || 'Error desconocido de conexión';
-      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('fetch') || (result.status && result.status >= 500)) {
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('fetch') || errorMessage.includes('Timeout') || (result.status && result.status >= 500)) {
         setError(`Error de conexión con Supabase: ${errorMessage}. Usa el modo demo local abajo.`);
         setShowDemo(true);
         return;

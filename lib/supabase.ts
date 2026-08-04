@@ -44,14 +44,14 @@ export async function signInSupabase(email: string, password: string) {
   }
 
   try {
-    // FIX: Agregar timeout para evitar que la llamada se cuelgue
+    // FIX: Aumentar timeout de 15s a 30s para dar más tiempo a Supabase cuando tiene problemas de rendimiento
     const { data, error } = await Promise.race([
       supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password: normalizedPassword,
       }),
       new Promise<{ data: null; error: { message: string; status?: number } }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: { message: 'Timeout de conexión', status: 408 } }), 15000)
+        setTimeout(() => resolve({ data: null, error: { message: 'Timeout de conexión', status: 408 } }), 30000)
       ),
     ]);
 
