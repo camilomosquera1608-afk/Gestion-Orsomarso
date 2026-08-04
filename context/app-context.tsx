@@ -1005,19 +1005,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!hasSupabaseConfig || !legacyAppStateSyncEnabled || !isHydrated) return;
 
+    // FIX: Reducir frecuencia de polling de 2s a 30s para reducir carga en Supabase
     const interval = setInterval(async () => {
-      const remote = await fetchRemoteAppState();
-      const payload = remote?.payload as Partial<AppData> | undefined;
-      if (!payload) return;
+      try {
+        const remote = await fetchRemoteAppState();
+        const payload = remote?.payload as Partial<AppData> | undefined;
+        if (!payload) return;
 
-      const current = JSON.stringify(dataRef.current);
-      const nextData = hydrateData(payload);
-      const next = JSON.stringify(nextData);
-      if (current !== next) {
-        setData(nextData);
-        dataRef.current = nextData;
+        const current = JSON.stringify(dataRef.current);
+        const nextData = hydrateData(payload);
+        const next = JSON.stringify(nextData);
+        if (current !== next) {
+          setData(nextData);
+          dataRef.current = nextData;
+        }
+      } catch (error) {
+        console.warn('Error en sincronización legacy:', error);
+        // Continuar con datos locales si falla la sincronización
       }
-    }, 2000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [isHydrated]);
@@ -1034,20 +1040,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const syncOnResume = () => {
       if (
         document.visibilityState === "visible" &&
-        Date.now() - lastRemotePullRef.current > 45000
+        Date.now() - lastRemotePullRef.current > 120000
       ) {
-        // Use 'poll' so the skipRemoteRefresh timer is respected after saves.
+        // FIX: Aumentar de 45s a 120s para reducir carga en Supabase
         scheduleRemoteRefresh("poll");
       }
     };
 
     const syncOnFocus = () => {
-      if (Date.now() - lastRemotePullRef.current > 45000)
+      // FIX: Aumentar de 45s a 120s para reducir carga en Supabase
+      if (Date.now() - lastRemotePullRef.current > 120000)
         scheduleRemoteRefresh("poll");
     };
 
     const syncOnOnline = () => {
-      if (Date.now() - lastRemotePullRef.current > 45000)
+      // FIX: Aumentar de 45s a 120s para reducir carga en Supabase
+      if (Date.now() - lastRemotePullRef.current > 120000)
         scheduleRemoteRefresh("poll");
     };
 
