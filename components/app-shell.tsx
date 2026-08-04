@@ -28,63 +28,69 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     let cancelled = false;
 
     const validateAccess = async () => {
-      if (isPlayerWellness || isResetPassword) {
-        if (!cancelled) setAllowed(true);
-        return;
-      }
-
-      const authed = isStaffAuthenticated();
-      const session = getStaffSession();
-
-      if (isLogin) {
-        if (authed) {
-          router.replace(session.role === 'master' ? '/informes/jugador-periodo' : '/');
+      try {
+        if (isPlayerWellness || isResetPassword) {
+          if (!cancelled) setAllowed(true);
           return;
         }
-        if (!cancelled) setAllowed(true);
-        return;
-      }
 
-      if (!authed) {
-        router.replace('/login');
-        return;
-      }
+        const authed = isStaffAuthenticated();
+        const session = getStaffSession();
 
-      // FIX: Solo verificar sesión de Supabase si el authProvider es 'supabase'
-      // Si es 'local_demo', permitir acceso sin verificar Supabase
-      if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase && session.authProvider === 'supabase') {
-        try {
-          let supabaseSession = (await supabase.auth.getSession()).data.session;
-          if (!supabaseSession) {
-            await new Promise((resolve) => setTimeout(resolve, 350));
-            supabaseSession = (await supabase.auth.getSession()).data.session;
+        if (isLogin) {
+          if (authed) {
+            router.replace(session.role === 'master' ? '/informes/jugador-periodo' : '/');
+            return;
           }
-          if (!supabaseSession) {
+          if (!cancelled) setAllowed(true);
+          return;
+        }
+
+        if (!authed) {
+          router.replace('/login');
+          return;
+        }
+
+        // FIX: Solo verificar sesión de Supabase si el authProvider es 'supabase'
+        // Si es 'local_demo', permitir acceso sin verificar Supabase
+        if (hasSupabaseConfig && tableSchemaSyncEnabled && supabase && session.authProvider === 'supabase') {
+          try {
+            let supabaseSession = (await supabase.auth.getSession()).data.session;
+            if (!supabaseSession) {
+              await new Promise((resolve) => setTimeout(resolve, 350));
+              supabaseSession = (await supabase.auth.getSession()).data.session;
+            }
+            if (!supabaseSession) {
+              logoutStaff();
+              router.replace('/login');
+              return;
+            }
+          } catch (error) {
+            // FIX: Si hay error de conexión con Supabase, no bloquear acceso si hay sesión local
+            console.warn('Error verificando sesión Supabase:', error);
+            // Si hay sesión local válida, permitir acceso
+            if (session.isAuthenticated) {
+              if (!cancelled) setAllowed(true);
+              return;
+            }
             logoutStaff();
             router.replace('/login');
             return;
           }
-        } catch (error) {
-          // FIX: Si hay error de conexión con Supabase, no bloquear acceso si hay sesión local
-          console.warn('Error verificando sesión Supabase:', error);
-          // Si hay sesión local válida, permitir acceso
-          if (session.isAuthenticated) {
-            if (!cancelled) setAllowed(true);
-            return;
-          }
-          logoutStaff();
-          router.replace('/login');
+        }
+
+        // FIX: Permitir acceso si hay sesión local válida (modo demo)
+        if (session.authProvider !== 'supabase' && session.isAuthenticated) {
+          if (!cancelled) setAllowed(true);
           return;
         }
-      }
 
-      // FIX: Permitir acceso si hay sesión local válida (modo demo)
-      if (session.authProvider !== 'supabase' && session.isAuthenticated) {
         if (!cancelled) setAllowed(true);
-        return;
+      } catch (error) {
+        // FIX: Si hay error inesperado, permitir acceso como último recurso
+        console.error('Error inesperado en validateAccess:', error);
+        if (!cancelled) setAllowed(true);
       }
-
-      if (!cancelled) setAllowed(true);
     };
 
     setAllowed(false);
