@@ -60,3 +60,69 @@ Copia `.env.example` a `.env.local` (no commitear secretos).
 - Sin mock-data automático en producción
 - Roles y permisos activos
 - Administración: panel de fusión sync y conflictos locales
+
+## Solución de problemas
+
+### Error: "Timeout de conexión" al iniciar sesión
+**Causa:** Supabase tiene problemas de rendimiento o está sobrecargado.
+**Solución:**
+1. Usa el modo demo local (credenciales abajo del formulario de login)
+2. Credenciales demo:
+   - U15: `Sub15Local` / `local-sub15`
+   - U17: `Sub17Local` / `local-sub17`
+   - U20: `Sub20Local` / `local-sub20`
+   - Dirección: `MaestroLocal` / `local-maestro`
+
+### Error: "QuotaExceededError" en localStorage
+**Causa:** localStorage está lleno.
+**Solución:** El sistema ahora hace fallback automático a sessionStorage y limpia storage cuando está lleno.
+
+### La aplicación no se actualiza en GitHub/Vercel
+**Solución:**
+1. Verifica que los commits están en GitHub: `git log --oneline -5`
+2. Haz push manual: `git push origin main`
+3. Redeploy en Vercel desde el dashboard
+4. O espera a que Vercel detecte el nuevo commit
+
+### Supabase marca error de recursos agotados
+**Causa:** Demasiadas llamadas simultáneas a Supabase.
+**Solución implementada:**
+- Polling reducido de 2s a 30s
+- Timeouts de sincronización aumentados a 120s
+- Priorización de datos locales sobre remotos
+- Sistema de fallback automático a modo local
+
+### La aplicación se queda en "cargando"
+**Causa:** Error en validación de sesión o conexión con Supabase.
+**Solución:** El sistema ahora tiene manejo de errores robusto que permite continuar con sesión local si Supabase falla.
+
+## Configuración de Vercel
+
+El proyecto incluye `vercel.json` para optimizar el despliegue:
+- Región: iad1 (Virginia)
+- Headers de seguridad configurados
+- Compresión activada
+- Optimización de paquetes
+
+## Configuración de GitHub Actions
+
+CI/CD automatizado en `.github/workflows/ci.yml`:
+- Ejecuta lint, build, test y load-risk tests
+- Se activa en push a main/master y pull requests
+- Node.js 20 con caché de npm
+
+## Seguridad
+
+Headers de seguridad configurados en `next.config.ts`:
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- X-XSS-Protection: 1; mode=block
+- Cache-Control: no-store, no-cache, must-revalidate
+
+## Optimizaciones de rendimiento
+
+- Compresión gzip activada
+- Minificación con SWC
+- Optimización de imports de lucide-react y framer-motion
+- React Strict Mode activado
+- Polling optimizado para reducir carga en Supabase
