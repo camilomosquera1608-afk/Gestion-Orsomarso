@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState , type FormEvent } from 'react';
+import { useEffect, useMemo, useState , type FormEvent } from 'react';
 import { LogIn, Mail, ShieldCheck } from 'lucide-react';
 import { createSupabaseStaffSessionFromProfile, loginStaff, loginStaffEmergency, STAFF_CREDENTIALS } from '@/lib/auth';
 import { fetchCurrentUserProfile, hasSupabaseConfig, sendSupabasePasswordReset, signInSupabase, tableSchemaSyncEnabled } from '@/lib/supabase';
@@ -19,7 +19,15 @@ export default function LoginPage() {
   const quickAccess = useMemo(() => accessList.filter((item) => item.display !== 'Dirección'), []);
   const remoteAuthReady = hasSupabaseConfig && tableSchemaSyncEnabled;
   // FIX: Habilitar modo demo local cuando Supabase no está disponible, tiene problemas de rendimiento o hay errores
+  // También habilitar automáticamente cuando Supabase está desconectado
   const localDemoAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_LOCAL_DEMO_AUTH === 'true' || !hasSupabaseConfig || !remoteAuthReady;
+  
+  // FIX: Mostrar automáticamente el modo demo si Supabase no está disponible
+  useEffect(() => {
+    if (!remoteAuthReady && !showDemo) {
+      setShowDemo(true);
+    }
+  }, [remoteAuthReady, showDemo]);
 
   const onSupabaseSubmit = async (event: FormEvent) => {
     event.preventDefault();
