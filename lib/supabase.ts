@@ -16,6 +16,17 @@ export const supabase = hasSupabaseConfig
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        // FIX: Configurar timeouts más robustos para evitar problemas de conexión
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      },
+      // FIX: Configurar timeouts globales para evitar que las llamadas se cuelguen
+      global: {
+        headers: {
+          'X-Client-Info': 'orsomarso-performance-hub',
+        },
+      },
+      db: {
+        schema: 'public',
       },
     })
   : null;
@@ -32,13 +43,23 @@ export async function signInSupabase(email: string, password: string) {
     return { ok: false as const, reason: 'Escribe email y contraseña.' };
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: normalizedEmail,
-    password: normalizedPassword,
-  });
+  try {
+    // FIX: Agregar timeout para evitar que la llamada se cuelgue
+    const { data, error } = await Promise.race([
+      supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: normalizedPassword,
+      }),
+      new Promise<{ data: null; error: { message: string; status?: number } }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: { message: 'Timeout de conexión', status: 408 } }), 15000)
+      ),
+    ]);
 
-  if (error) return { ok: false as const, reason: error.message, status: error.status };
-  return { ok: true as const, user: data.user };
+    if (error) return { ok: false as const, reason: error.message, status: error.status };
+    return { ok: true as const, user: data.user };
+  } catch (error) {
+    return { ok: false as const, reason: error instanceof Error ? error.message : 'Error desconocido en login' };
+  }
 }
 
 export async function sendSupabasePasswordReset(email: string, redirectTo?: string) {

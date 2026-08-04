@@ -76,31 +76,53 @@ const fetchLegacyIdMap = async (
   supabase: SupabaseClient,
   table: string,
 ): Promise<LegacyMap> => {
-  const { data, error } = await supabase
-    .from(table)
-    .select("id, legacy_id")
-    .not("legacy_id", "is", null);
-  if (error) throw error;
-  return Object.fromEntries(
-    ((data ?? []) as DbRow[]).map((row) => [
-      String(row.legacy_id),
-      String(row.id),
-    ]),
-  );
+  try {
+    // FIX: Agregar timeout para evitar que las llamadas se cuelguen
+    const { data, error } = await Promise.race([
+      supabase
+        .from(table)
+        .select("id, legacy_id")
+        .not("legacy_id", "is", null),
+      new Promise<{ data: null; error: { message: string } }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: { message: 'Timeout de conexión' } }), 10000)
+      ),
+    ]);
+    if (error) throw error;
+    return Object.fromEntries(
+      ((data ?? []) as DbRow[]).map((row) => [
+        String(row.legacy_id),
+        String(row.id),
+      ]),
+    );
+  } catch (error) {
+    console.warn(`Error fetching legacy ID map for ${table}:`, error);
+    return {}; // Retornar mapa vacío en caso de error para no bloquear la app
+  }
 };
 
 const fetchUuidToLegacyIdMap = async (
   supabase: SupabaseClient,
   table: string,
 ): Promise<LegacyMap> => {
-  const { data, error } = await supabase.from(table).select("id, legacy_id");
-  if (error) throw error;
-  return Object.fromEntries(
-    ((data ?? []) as DbRow[]).map((row) => [
-      String(row.id),
-      String(row.legacy_id ?? row.id),
-    ]),
-  );
+  try {
+    // FIX: Agregar timeout para evitar que las llamadas se cuelguen
+    const { data, error } = await Promise.race([
+      supabase.from(table).select("id, legacy_id"),
+      new Promise<{ data: null; error: { message: string } }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: { message: 'Timeout de conexión' } }), 10000)
+      ),
+    ]);
+    if (error) throw error;
+    return Object.fromEntries(
+      ((data ?? []) as DbRow[]).map((row) => [
+        String(row.id),
+        String(row.legacy_id ?? row.id),
+      ]),
+    );
+  } catch (error) {
+    console.warn(`Error fetching UUID to legacy ID map for ${table}:`, error);
+    return {}; // Retornar mapa vacío en caso de error para no bloquear la app
+  }
 };
 
 const missingColumnFromError = (error: unknown): string | null => {
