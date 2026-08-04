@@ -696,23 +696,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteRemoteLegacy = async (table: string, legacyId: string) => {
     if (!hasSupabaseConfig || !tableSchemaSyncEnabled || !supabase) return;
-    const session = sessionRef.current;
-    if (session.isAuthenticated && !canWrite(session)) return;
-    // FIX #6: mismo patrón — calcular blockUntil antes del await
-    const blockUntil = Date.now() + 30000;
-    if (blockUntil > skipRemoteRefreshUntilRef.current) {
-      skipRemoteRefreshUntilRef.current = blockUntil;
+    try {
+      const session = sessionRef.current;
+      if (session.isAuthenticated && !canWrite(session)) return;
+      // FIX #6: mismo patrón — calcular blockUntil antes del await
+      const blockUntil = Date.now() + 30000;
+      if (blockUntil > skipRemoteRefreshUntilRef.current) {
+        skipRemoteRefreshUntilRef.current = blockUntil;
+      }
+      const result = await deleteSupabaseTableRowByLegacyId(
+        supabase,
+        table,
+        legacyId,
+      );
+      const postBlock = Date.now() + 20000;
+      if (postBlock > skipRemoteRefreshUntilRef.current) {
+        skipRemoteRefreshUntilRef.current = postBlock;
+      }
+      setSyncStatus(result.ok ? "ready" : "error");
+    } catch (error) {
+      console.warn(`Error eliminando registro remoto de ${table}:`, error);
+      setSyncStatus("error");
     }
-    const result = await deleteSupabaseTableRowByLegacyId(
-      supabase,
-      table,
-      legacyId,
-    );
-    const postBlock = Date.now() + 20000;
-    if (postBlock > skipRemoteRefreshUntilRef.current) {
-      skipRemoteRefreshUntilRef.current = postBlock;
-    }
-    setSyncStatus(result.ok ? "ready" : "error");
   };
 
   useEffect(() => {
