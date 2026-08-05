@@ -29,21 +29,47 @@ export default function LoginPage() {
     }
   }, [remoteAuthReady, showDemo]);
 
+  const handleQuickLogin = (user: string, pass: string) => {
+    setError('');
+    setMessage('');
+    const result = loginStaffEmergency(user, pass);
+    if (result.ok) {
+      window.location.assign(result.session.role === 'master' ? '/informes/jugador-periodo' : '/');
+    } else {
+      setError('Acceso demo no válido.');
+    }
+  };
+
   const onSupabaseSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
     setMessage('');
 
     if (!remoteAuthReady) {
-      setError('Supabase no está configurado. Revisa las variables de entorno.');
+      // Si Supabase no está configurado, intentar login local inteligente
+      const emergencyResult = loginStaffEmergency(email, password);
+      if (emergencyResult.ok) {
+        window.location.assign(emergencyResult.session.role === 'master' ? '/informes/jugador-periodo' : '/');
+        return;
+      }
+      setError('Supabase no está configurado. Usa los accesos directos de abajo.');
+      setShowDemo(true);
       return;
     }
 
     const result = await signInSupabase(email, password);
     if (!result.ok) {
       const errorMessage = result.reason || 'Error desconocido de conexión';
+      
+      // FIX: Si Supabase falla por problemas de red o conexión (Failed to fetch), intentar fallback local
+      const emergencyResult = loginStaffEmergency(email, password);
+      if (emergencyResult.ok) {
+        window.location.assign(emergencyResult.session.role === 'master' ? '/informes/jugador-periodo' : '/');
+        return;
+      }
+
       if (errorMessage.includes('Failed to fetch') || errorMessage.includes('fetch') || errorMessage.includes('Timeout') || (result.status && result.status >= 500)) {
-        setError(`Error de conexión con Supabase: ${errorMessage}. Usa el modo demo local abajo.`);
+        setError('Servidor Supabase no disponible (Failed to fetch). Usa los botones de acceso directo de abajo.');
         setShowDemo(true);
         return;
       }
@@ -77,7 +103,6 @@ export default function LoginPage() {
     event.preventDefault();
     setError('');
     setMessage('');
-    // FIX: Usar función de emergencia que no verifica variable de entorno
     const result = loginStaffEmergency(demoUser, demoPassword);
     if (!result.ok) {
       setError('Acceso demo no válido.');
@@ -87,9 +112,7 @@ export default function LoginPage() {
   };
 
   const fillAccess = (item: (typeof accessList)[number]) => {
-    setDemoUser(item.username);
-    setDemoPassword(item.password);
-    setError('');
+    handleQuickLogin(item.username, item.password);
   };
 
   return (
@@ -115,8 +138,8 @@ export default function LoginPage() {
 
         <form onSubmit={onSupabaseSubmit} className="grid">
           <div className="field">
-            <label>Correo</label>
-            <input className="input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="usuario@club.com" autoComplete="email" />
+            <label>Correo / Usuario</label>
+            <input className="input" type="text" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="usuario@club.com o Sub17Local" autoComplete="username" />
           </div>
           <div className="field">
             <label>Contraseña</label>
@@ -132,13 +155,31 @@ export default function LoginPage() {
         {error ? <div className="login-error">{error}</div> : null}
         {message ? <div className="empty login-message">{message}</div> : null}
 
+        <div className="login-access-panel" style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 10 }}>
+            ⚡ Acceso Directo de Emergencia (1-Clic):
+          </div>
+          <div className="login-access-grid">
+            {quickAccess.map((item) => (
+              <button key={item.username} type="button" className="quick-access-card" onClick={() => fillAccess(item)}>
+                <span>{item.display}</span>
+                <small>{item.username}</small>
+              </button>
+            ))}
+            <button type="button" className="quick-access-card" onClick={() => handleQuickLogin(STAFF_CREDENTIALS.master.username, STAFF_CREDENTIALS.master.password)}>
+              <span>Dirección</span>
+              <small>{STAFF_CREDENTIALS.master.username}</small>
+            </button>
+          </div>
+        </div>
+
         {localDemoAuthEnabled ? (
-          <div className="login-access-panel">
+          <div className="login-access-panel" style={{ marginTop: 14 }}>
             <button type="button" className="quick-access-toggle" onClick={() => setShowDemo((value) => !value)}>
-              <ShieldCheck size={16} /> {showDemo ? 'Ocultar modo demo' : 'Usar modo demo local'}
+              <ShieldCheck size={16} /> {showDemo ? 'Ocultar formulario manual demo' : 'Formulario manual demo'}
             </button>
             {showDemo ? (
-              <div className="grid" style={{ gap: 14 }}>
+              <div className="grid" style={{ gap: 14, marginTop: 10 }}>
                 <form onSubmit={onDemoSubmit} className="grid grid-2">
                   <div className="field">
                     <label>Usuario demo</label>
@@ -150,24 +191,12 @@ export default function LoginPage() {
                   </div>
                   <button className="btn secondary" type="submit">Entrar en demo</button>
                 </form>
-                <div className="login-access-grid">
-                  {quickAccess.map((item) => (
-                    <button key={item.username} type="button" className="quick-access-card" onClick={() => fillAccess(item)}>
-                      <span>{item.display}</span>
-                      <small>{item.username}</small>
-                    </button>
-                  ))}
-                  <button type="button" className="quick-access-card" onClick={() => fillAccess(STAFF_CREDENTIALS.master)}>
-                    <span>Dirección</span>
-                    <small>{STAFF_CREDENTIALS.master.username}</small>
-                  </button>
-                </div>
               </div>
             ) : null}
           </div>
         ) : null}
 
-          <div className="login-footnote">{remoteAuthReady ? 'Acceso remoto' : 'Sin acceso remoto'}</div>
+          <div className="login-footnote">{remoteAuthReady ? 'Acceso remoto activo (Con fallback local)' : 'Modo local activo'}</div>
         </div>
       </div>
     </main>
