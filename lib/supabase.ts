@@ -2,13 +2,24 @@ import { createClient } from '@supabase/supabase-js';
 import { normalizeAccessLevel, normalizeCategoryScope, normalizePlatformRole, type AccessLevel, type CategoryScope, type PlatformRole, type UserProfile } from '@/lib/access-control';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const remoteSyncMode = process.env.NEXT_PUBLIC_REMOTE_SYNC_MODE;
 
 export const remoteSyncEnabled = process.env.NEXT_PUBLIC_ENABLE_REMOTE_SYNC === 'true';
 export const tableSchemaSyncEnabled = remoteSyncEnabled && remoteSyncMode === 'table_schema';
 export const legacyAppStateSyncEnabled = remoteSyncEnabled && remoteSyncMode === 'legacy_app_state';
-export const hasSupabaseConfig = Boolean(remoteSyncEnabled && (tableSchemaSyncEnabled || legacyAppStateSyncEnabled) && supabaseUrl && supabaseAnonKey);
+
+const isValidSupabaseUrl = (url?: string) => Boolean(url && url.startsWith('https://') && url.includes('supabase.co'));
+const isValidSupabaseKey = (key?: string) => Boolean(key && key.length > 30 && !key.includes('sb_publishable_t0mK0bEr'));
+
+export const hasSupabaseConfig = Boolean(
+  remoteSyncEnabled &&
+    (tableSchemaSyncEnabled || legacyAppStateSyncEnabled) &&
+    isValidSupabaseUrl(supabaseUrl) &&
+    isValidSupabaseKey(supabaseAnonKey)
+);
 
 export const supabase = hasSupabaseConfig
   ? createClient(supabaseUrl as string, supabaseAnonKey as string, {
@@ -16,10 +27,8 @@ export const supabase = hasSupabaseConfig
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        // FIX: Configurar timeouts más robustos para evitar problemas de conexión
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       },
-      // FIX: Configurar timeouts globales para evitar que las llamadas se cuelguen
       global: {
         headers: {
           'X-Client-Info': 'orsomarso-performance-hub',
