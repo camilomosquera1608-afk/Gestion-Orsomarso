@@ -128,3 +128,34 @@ export const playerDayLoad = (
     includeCompetitionExternal: true,
     includeCompetitionRecords: true,
   });
+
+/**
+ * EWMA (Exponentially Weighted Moving Average)
+ * Otorga mayor peso ponderado a las cargas de entrenamiento más recientes.
+ * @param dailyLoads Array de cargas diarias ordenadas cronológicamente (pasado -> presente)
+ * @param N Días del período (ej. 7 para Aguda, 28 para Crónica)
+ */
+export const calculateEwma = (dailyLoads: number[], N: number): number => {
+  if (!dailyLoads.length) return 0;
+  const lambda = 2 / (N + 1);
+  let ewma = dailyLoads[0];
+  for (let i = 1; i < dailyLoads.length; i++) {
+    ewma = dailyLoads[i] * lambda + (1 - lambda) * ewma;
+  }
+  return Number(ewma.toFixed(2));
+};
+
+/**
+ * Cálculo del ACWR basado en EWMA (7d Aguda vs 28d Crónica).
+ * Evita las distorsiones del ACWR en ventanas de descanso acumulado.
+ */
+export const calculateEwmaAcwr = (dailyLoads28d: number[]) => {
+  if (!dailyLoads28d.length) return { acuteEwma: 0, chronicEwma: 0, ratioEwma: 0 };
+  
+  const acuteEwma = calculateEwma(dailyLoads28d.slice(-7), 7);
+  const chronicEwma = calculateEwma(dailyLoads28d, 28);
+  const ratioEwma = chronicEwma > 0 ? Number((acuteEwma / chronicEwma).toFixed(2)) : 0;
+
+  return { acuteEwma, chronicEwma, ratioEwma };
+};
+

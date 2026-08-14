@@ -28,6 +28,8 @@ import {
 import { getDataTotals } from '@/lib/data-quality';
 import { SYNC_MERGE_POLICIES } from '@/lib/sync-merge-policies';
 
+import { SupabaseDiagnostic } from '@/components/supabase-diagnostic';
+
 const roleOptions: PlatformRole[] = ['admin', 'category_admin', 'director', 'preparador', 'medico', 'analista', 'valorador', 'solo_lectura'];
 const categoryOptions: CategoryScope[] = ['ALL', 'Sub15', 'Sub17', 'Sub20'];
 const accessOptions: AccessLevel[] = ['full', 'write', 'read'];
@@ -173,6 +175,8 @@ export default function AdministracionPage() {
   return (
     <div className="grid admin-page">
       <AppHero title="Administración" subtitle="Usuarios, permisos y auditoría." />
+
+      <SupabaseDiagnostic />
 
       <div className="grid grid-4">
         <div className="card compact-card"><SectionHeader eyebrow="Usuarios" title={String(profiles.length)} subtitle="Perfiles" /></div>

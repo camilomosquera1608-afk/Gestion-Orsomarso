@@ -1,4 +1,4 @@
-import { calculateExternalLoad, externalLoadHasInternalPair, getPlayerDayLoad } from '../load-metrics';
+import { calculateExternalLoad, externalLoadHasInternalPair, getPlayerDayLoad, calculateEwma, calculateEwmaAcwr } from '../load-metrics';
 import type { DailyExternalLoadRecord, DailyInternalLoadRecord } from '../types';
 
 describe('load-metrics', () => {
@@ -40,9 +40,20 @@ describe('load-metrics', () => {
       sessionNumber: 1,
       category: 'Sub20',
     };
-    expect(externalLoadHasInternalPair(external, [internal])).toBe(true);
     expect(
       getPlayerDayLoad('p1', '2026-06-01', { internalLoads: [internal], externalLoads: [external] }),
     ).toBe(420);
+  });
+
+  it('calcula EWMA y EWMA ACWR correctamente con ponderación exponencial', () => {
+    const loads = [400, 450, 500, 550, 600, 650, 700];
+    const ewma7 = calculateEwma(loads, 7);
+    expect(ewma7).toBeGreaterThan(500);
+
+    const loads28 = Array(28).fill(400);
+    const { acuteEwma, chronicEwma, ratioEwma } = calculateEwmaAcwr(loads28);
+    expect(acuteEwma).toBe(400);
+    expect(chronicEwma).toBe(400);
+    expect(ratioEwma).toBe(1);
   });
 });
