@@ -190,6 +190,23 @@ const directUpdateOrInsertRow = async (
   return error ? { ok: false, error } : { ok: true };
 };
 
+const upsertRowsInChunks = async (
+  supabase: SupabaseClient,
+  table: string,
+  rows: DbRow[],
+  onConflict = "legacy_id",
+  chunkSize = 50,
+): Promise<{ error: any }> => {
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const { error } = await supabase
+      .from(table)
+      .upsert(chunk, { onConflict, ignoreDuplicates: false });
+    if (error) return { error };
+  }
+  return { error: null };
+};
+
 const upsertRows = async (
   supabase: SupabaseClient,
   table: string,
@@ -201,12 +218,10 @@ const upsertRows = async (
   const strippedColumns = new Set<string>();
   let workingRows = rows;
 
-  // Attempt 1: upsert in bulk. If Supabase schema cache is missing a newer
+  // Attempt 1: upsert in bulk chunks. If Supabase schema cache is missing a newer
   // optional column, strip only that column and retry so core records still save.
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const { error } = await supabase
-      .from(table)
-      .upsert(workingRows, { onConflict, ignoreDuplicates: false });
+    const { error } = await upsertRowsInChunks(supabase, table, workingRows, onConflict, 50);
     if (!error) {
       if (strippedColumns.size) {
         console.warn(

@@ -86,6 +86,7 @@ import {
   type SyncMergeConflictNote,
 } from "@/lib/sync-merge-summary";
 import { todayInputDate } from "@/lib/dates";
+import { offlineSyncQueue } from "@/lib/offline-sync-queue";
 import {
   normalizeSharedDataLinks,
   recordMatchesTrainingSession,
@@ -462,6 +463,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
 
     setSyncStatus(source === "manual" ? "syncing" : "ready");
+    
+    // Procesar elementos pendientes de la cola offline antes de refrescar
+    try {
+      await offlineSyncQueue.flushQueue();
+    } catch (queueErr) {
+      console.warn("[AppContext] Error procesando cola offline:", queueErr);
+    }
+
     const remote = await Promise.race([
       fetchSupabaseTablesAppData(supabase),
       new Promise<{ ok: false; reason: string }>((resolve) =>
