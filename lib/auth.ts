@@ -216,9 +216,23 @@ export const loginStaffEmergency = (user: string, password: string) => {
 
 export const logoutStaff = () => {
   if (typeof window !== 'undefined') {
-    // FIX: Limpiar tanto localStorage como sessionStorage
-    localStorage.removeItem(STAFF_AUTH_KEY);
-    sessionStorage.removeItem(STAFF_AUTH_KEY);
+    try {
+      localStorage.removeItem(STAFF_AUTH_KEY);
+      sessionStorage.removeItem(STAFF_AUTH_KEY);
+      
+      // Limpiar tokens de Supabase y de autenticación residuales
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('sb-') || key.includes('supabase') || key.includes('auth') || key.includes('token'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn('[logoutStaff] Error limpiando almacenamiento:', e);
+    }
   }
 };
 

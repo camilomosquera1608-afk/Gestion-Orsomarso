@@ -240,9 +240,11 @@ export const Sidebar = () => {
             type="button"
             className="sidebar-logout"
             onClick={async () => {
-              await signOutSupabase();
+              try {
+                await signOutSupabase();
+              } catch {}
               logoutStaff();
-              router.push("/login");
+              window.location.assign("/login");
             }}
           >
             <LogOut size={15} />
@@ -328,10 +330,12 @@ export const MobileNavigation = () => {
           type="button"
           className="mobile-menu-logout"
           onClick={async () => {
-            await signOutSupabase();
+            try {
+              await signOutSupabase();
+            } catch {}
             logoutStaff();
             setOpen(false);
-            router.push("/login");
+            window.location.assign("/login");
           }}
         >
           <LogOut size={17} />

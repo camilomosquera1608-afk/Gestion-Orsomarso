@@ -103,9 +103,18 @@ export async function updateSupabasePassword(password: string) {
 }
 
 export async function signOutSupabase() {
-  if (!supabase) return { ok: false as const };
-  const { error } = await supabase.auth.signOut();
-  return { ok: !error, error };
+  if (!supabase) return { ok: true as const };
+  try {
+    const res = await Promise.race([
+      supabase.auth.signOut(),
+      new Promise<{ error: null }>((resolve) =>
+        setTimeout(() => resolve({ error: null }), 1500)
+      ),
+    ]);
+    return { ok: !res?.error, error: res?.error };
+  } catch {
+    return { ok: true as const };
+  }
 }
 
 export async function getSupabaseUserEmail() {

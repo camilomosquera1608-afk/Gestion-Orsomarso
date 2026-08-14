@@ -205,9 +205,11 @@ export function TopNav() {
           type="button"
           className="tnav-logout"
           onClick={async () => {
-            await signOutSupabase();
+            try {
+              await signOutSupabase();
+            } catch {}
             logoutStaff();
-            router.push('/login');
+            window.location.assign('/login');
           }}
           title="Cerrar sesión"
         >
